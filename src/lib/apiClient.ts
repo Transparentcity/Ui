@@ -3643,6 +3643,8 @@ export interface AdminUserNewsletterOverview {
   newsletter_frequency: "weekly" | "monthly";
   home_location: { city_id?: number; district?: number | string | null } | null;
   subscriptions: NewsletterSubscription[];
+  /** All rows in ``user_places`` for this user (My Block + other saved pins). */
+  saved_places_count?: number;
 }
 
 export function getAdminUserNewsletterOverview(
@@ -4769,7 +4771,48 @@ export function listNewsletterSends(
   );
 }
 
+export interface NewsletterGenerationPreviewLlmPlan {
+  pipeline_frequency: string;
+  personalized_seymour_sessions: number;
+  shared_seymour_sessions: number;
+  total_seymour_sessions: number;
+  recipients_personalized: number;
+  recipients_shared_edition: number;
+  routing_summary: string;
+}
+
+/** Subscribers not counted in the pipeline for this frequency (see ``exclusion_summary_note``). */
+export interface NewsletterGenerationExclusionSummary {
+  distinct_emails_any_city?: number;
+  distinct_emails_with_launched_city_row?: number;
+  excluded_no_or_inactive_user_on_launched_city?: number;
+  excluded_inactive_user_only?: number;
+  distinct_emails_only_non_launched_cities?: number;
+  included_distinct_emails?: number;
+  excluded_from_pipeline_launched_cohort?: number;
+  exclusion_summary_note?: string;
+}
+
+/** Rough USD estimate for planned Seymour sessions (server default model). */
+export interface NewsletterGenerationCostEstimateUsd {
+  model_key: string;
+  personalized_seymour_sessions: number;
+  shared_seymour_sessions: number;
+  total_seymour_sessions: number;
+  personalized_estimated_usd: number;
+  shared_estimated_usd: number;
+  total_estimated_usd: number;
+  total_low_estimate_usd: number;
+  total_high_estimate_usd: number;
+  per_session_input_tokens: number;
+  per_session_output_tokens: number;
+  methodology: string;
+}
+
 export interface NewsletterGenerationPreview {
+  frequency?: string;
+  /** Distinct subscribers in the cohort (same count as total_weekly_recipients). */
+  total_pipeline_recipients?: number;
   total_weekly_recipients: number;
   /** Subscribers who will get one personalized Seymour run each. */
   personalized_recipients: number;
@@ -4780,6 +4823,13 @@ export interface NewsletterGenerationPreview {
   personalized_llm_calls_planned: number;
   shared_llm_calls_planned: number;
   total_llm_calls_planned: number;
+  llm_generation_plan?: NewsletterGenerationPreviewLlmPlan;
+  cost_estimate_usd?: NewsletterGenerationCostEstimateUsd | null;
+  exclusion_summary?: NewsletterGenerationExclusionSummary;
+  /** Persisted override on the active ``weekly_newsletter`` custom job, if any. */
+  saved_newsletter_seymour_model_key?: string | null;
+  /** Model key used for the cost estimate for this response. */
+  model_key_used_for_estimate?: string;
   /** Per-city shared grouping breakdown for the next run. */
   shared_groups_per_city: Array<{
     city_id: number;
@@ -4791,14 +4841,26 @@ export interface NewsletterGenerationPreview {
 }
 
 export function getNewsletterGenerationPreview(
-  token: string
+  token: string,
+  options?: { frequency?: "weekly" | "monthly"; model_key?: string }
 ): Promise<NewsletterGenerationPreview> {
+  const params = new URLSearchParams();
+  if (options?.frequency) params.append("frequency", options.frequency);
+  if (options?.model_key?.trim()) params.append("model_key", options.model_key.trim());
+  const q = params.toString();
   return request<NewsletterGenerationPreview>(
-    "/api/admin/newsletter-generation-preview",
+    `/api/admin/newsletter-generation-preview${q ? `?${q}` : ""}`,
     "GET",
     undefined,
     token
   );
+}
+
+export function putNewsletterWeeklySeymourModel(
+  modelKey: string,
+  token: string
+): Promise<{ status: string; custom_job_id: number; newsletter_seymour_model_key: string | null }> {
+  return request("/api/admin/newsletter-weekly-seymour-model", "PUT", { model_key: modelKey }, token);
 }
 
 export function adminGenerateSharedNewsletter(
@@ -4859,6 +4921,8 @@ export interface NewsletterPromptsResponse {
   default_shared_prompt: string;
   default_personalized_prompt: string;
   custom_job_id: number | null;
+  /** Canonical model key stored on the weekly job for Seymour newsletter generation. */
+  newsletter_seymour_model_key?: string | null;
 }
 
 export function getNewsletterPrompts(token: string): Promise<NewsletterPromptsResponse> {

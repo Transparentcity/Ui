@@ -2650,8 +2650,9 @@ export default function PublicMapPage() {
     return <div className={`public-map-page ${isEmbedded ? "embedded" : ""}`}>Map not found</div>;
   }
 
-  /** Matches loadChoropleth `isDeltaMap` so legend layout stays in sync for red/green choropleths. */
-  const useDeltaChoroplethLegendStyle =
+  /** Compact bottom strip for district choropleths (count ramp or delta); avoids large top-left panel. */
+  const useChoroplethCompactLegendStyle =
+    map.map_type === "choropleth" ||
     map.map_type === "delta" ||
     (map.map_config as Record<string, unknown> | undefined)?.delta_palette ===
       "red_green";
@@ -2665,7 +2666,7 @@ export default function PublicMapPage() {
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend map-legend-thumbnail${
-                useDeltaChoroplethLegendStyle ? " map-legend-delta-choropleth" : ""
+                useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
               }`}
               aria-label="Map legend"
             >
@@ -2889,7 +2890,7 @@ export default function PublicMapPage() {
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend${
-                useDeltaChoroplethLegendStyle ? " map-legend-delta-choropleth" : ""
+                useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
               }`}
               aria-label="Map legend"
             >
@@ -3211,7 +3212,7 @@ export default function PublicMapPage() {
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend${
-                useDeltaChoroplethLegendStyle ? " map-legend-delta-choropleth" : ""
+                useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
               }`}
               aria-label="Map legend"
             >

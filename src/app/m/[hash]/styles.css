@@ -795,17 +795,27 @@
 }
 
 .map-legend-thumbnail {
+  /* Must clear top/left from .map-legend — otherwise bottom+right stretch the box over the map */
+  top: auto;
+  left: auto;
   font-size: 0.65rem;
   padding: 4px 6px;
   bottom: 4px;
   right: 4px;
+  max-width: min(200px, 78vw);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+[data-theme="dark"] .map-legend-thumbnail,
+.dark .map-legend-thumbnail {
+  background: rgba(30, 30, 30, 0.42);
 }
 
 .map-legend-thumbnail .map-legend-title {
   display: none;
 }
 
-/* Delta choropleth: thin strip centered on bottom, transparent — avoids blocking polygons */
+/* Choropleth value legend (delta or count ramp): thin strip on bottom, transparent */
 .map-legend.map-legend-delta-choropleth {
   top: auto;
   right: auto;

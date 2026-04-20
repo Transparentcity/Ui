@@ -2,9 +2,12 @@ import type { MetadataRoute } from "next";
 
 import {
   listPublicCitiesForSitemap,
+  listPublicFeedStories,
   listPublicMapsForSitemap,
   listPublicMetricsForSitemap,
   listPublicCityDistrictsForSitemap,
+  type PublicCitySitemapItem,
+  type PublicFeedStory,
 } from "@/lib/publicApiClient";
 import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import { getSiteOrigin } from "@/lib/siteUrl";
@@ -20,6 +23,44 @@ type SitemapEntry = {
 
 function hasText(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Public city path segment: API `slug` when set, else slugified display name. */
+/**
+ * Metrics and districts public sitemaps return `city_slug` aligned with each
+ * city's `slug` from `/api/public/cities/sitemap`. Use this to gate URLs on
+ * launched cities only.
+ */
+function launchedCitySlugFromApiCitySlug(
+  cities: PublicCitySitemapItem[],
+  apiCitySlug: string | null | undefined
+): string | null {
+  if (!hasText(apiCitySlug)) return null;
+  const seg = apiCitySlug.trim();
+  const match = cities.find(
+    (c) =>
+      c.is_launched &&
+      (hasText(c.slug) ? c.slug.trim() : slugify(c.name)) === seg
+  );
+  return match ? seg : null;
+}
+
+function launchedCitySlug(
+  cities: PublicCitySitemapItem[],
+  opts: { cityId?: number | null; cityName?: string | null }
+): string | null {
+  let city: PublicCitySitemapItem | undefined;
+  if (opts.cityId != null && Number.isFinite(Number(opts.cityId))) {
+    city = cities.find((c) => c.id === opts.cityId);
+  }
+  if (!city && opts.cityName) {
+    const target = slugify(opts.cityName);
+    city = cities.find((c) => slugify(c.name) === target);
+  }
+  if (!city?.is_launched) return null;
+  const fromApi = city.slug?.trim();
+  const s = fromApi && fromApi.length > 0 ? fromApi : slugify(city.name);
+  return hasText(s) ? s : null;
 }
 
 function escapeXml(value: string): string {
@@ -55,18 +96,52 @@ function toSitemapXml(entries: SitemapEntry[]): string {
   );
 }
 
+/** Paginate public feed until exhausted (cap pages for safety). */
+async function fetchAllPublicStoriesForSitemap(): Promise<PublicFeedStory[]> {
+  const pageSize = 200;
+  const acc: PublicFeedStory[] = [];
+  const maxOffset = 50_000;
+
+  for (let offset = 0; offset <= maxOffset; offset += pageSize) {
+    let page: PublicFeedStory[] = [];
+    try {
+      const res = await listPublicFeedStories({
+        limit: pageSize,
+        offset,
+        order_by: "published_at",
+      });
+      page = res.stories ?? [];
+    } catch {
+      break;
+    }
+    acc.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return acc;
+}
+
+function dedupeByLoc(entries: SitemapEntry[]): SitemapEntry[] {
+  const seen = new Set<string>();
+  const out: SitemapEntry[] = [];
+  for (const e of entries) {
+    if (seen.has(e.loc)) continue;
+    seen.add(e.loc);
+    out.push(e);
+  }
+  return out;
+}
+
 export async function GET(): Promise<Response> {
   const origin = getSiteOrigin();
 
-  // Fetch all public data in parallel; fall back gracefully if backend is down.
-  const [cities, maps, metrics, districts] = await Promise.all([
+  const [cities, maps, metrics, districts, feedStories] = await Promise.all([
     listPublicCitiesForSitemap().catch(() => []),
     listPublicMapsForSitemap().catch(() => []),
     listPublicMetricsForSitemap().catch(() => []),
     listPublicCityDistrictsForSitemap().catch(() => []),
+    fetchAllPublicStoriesForSitemap().catch(() => []),
   ]);
 
-  // Fetch newsletter editions for sitemap
   let newsletterEditions: Awaited<ReturnType<typeof listNewsletterEditionsForSitemap>> = [];
   try {
     newsletterEditions = await listNewsletterEditionsForSitemap();
@@ -75,14 +150,11 @@ export async function GET(): Promise<Response> {
   }
 
   const cityEntries: SitemapEntry[] = cities.flatMap((city) => {
-    const citySlug = slugify(city.name);
-    // Only include launched cities so unlaunched ones don't get indexed
-    // with raw-slug metadata (e.g. "memphis" instead of "Memphis, Tennessee").
-    if (!citySlug || !city.is_launched) return [];
+    const citySlug = launchedCitySlug(cities, { cityId: city.id, cityName: city.name });
+    if (!citySlug) return [];
 
     return [
       {
-        // Clean slug URL — no ?id= query param.
         loc: `${origin}/c/${citySlug}`,
         changefreq: "weekly",
         priority: 0.7,
@@ -90,8 +162,36 @@ export async function GET(): Promise<Response> {
     ];
   });
 
+  const methodologyEntries: SitemapEntry[] = cities.flatMap((city) => {
+    const citySlug = launchedCitySlug(cities, { cityId: city.id, cityName: city.name });
+    if (!citySlug) return [];
+    return [
+      {
+        loc: `${origin}/c/${citySlug}/methodology`,
+        changefreq: "monthly",
+        priority: 0.55,
+      },
+    ];
+  });
+
+  const categorySeen = new Set<string>();
+  const categoryEntries: SitemapEntry[] = [];
+  for (const metric of metrics) {
+    if (!hasText(metric.category)) continue;
+    const citySlug = launchedCitySlugFromApiCitySlug(cities, metric.city_slug);
+    if (!citySlug) continue;
+    const key = `${citySlug}::${metric.category}`;
+    if (categorySeen.has(key)) continue;
+    categorySeen.add(key);
+    categoryEntries.push({
+      loc: `${origin}/c/${citySlug}/category/${encodeURIComponent(metric.category)}`,
+      changefreq: "weekly",
+      priority: 0.65,
+    });
+  }
+
   const metricEntries: SitemapEntry[] = metrics.flatMap((metric) => {
-    const citySlug = slugify(metric.city_name);
+    const citySlug = launchedCitySlugFromApiCitySlug(cities, metric.city_slug);
     if (!citySlug || !hasText(metric.metric_key)) return [];
 
     return [
@@ -104,7 +204,7 @@ export async function GET(): Promise<Response> {
   });
 
   const districtEntries: SitemapEntry[] = districts.flatMap((district) => {
-    const citySlug = slugify(district.city_name);
+    const citySlug = launchedCitySlugFromApiCitySlug(cities, district.city_slug);
     if (!citySlug) return [];
 
     return [
@@ -140,20 +240,34 @@ export async function GET(): Promise<Response> {
     ];
   });
 
-  // NOTE: Avoid per-city detail fetches here. During `next build`, this route
-  // can be invoked for static generation and backend calls can easily exceed
-  // the 60s route build timeout (N+1 calls). We keep the sitemap useful
-  // without category pages; search engines can still discover them via links.
+  const storyEntries: SitemapEntry[] = feedStories.flatMap((story) => {
+    if (!hasText(story.short_hash)) return [];
+    const citySlug = launchedCitySlug(cities, {
+      cityId: story.city_id,
+      cityName: story.city_name,
+    });
+    if (!citySlug) return [];
+    return [
+      {
+        loc: `${origin}/c/${citySlug}/stories/${story.short_hash}`,
+        changefreq: "weekly",
+        priority: 0.75,
+      },
+    ];
+  });
 
-  const entries: SitemapEntry[] = [
+  const entries = dedupeByLoc([
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },
     { loc: `${origin}/sitemap`, changefreq: "daily", priority: 0.8 },
-    ...metricEntries,
     ...cityEntries,
+    ...methodologyEntries,
+    ...categoryEntries,
+    ...metricEntries,
     ...districtEntries,
+    ...storyEntries,
     ...mapEntries,
     ...newsletterEntries,
-  ];
+  ]);
 
   const xml = toSitemapXml(entries);
 

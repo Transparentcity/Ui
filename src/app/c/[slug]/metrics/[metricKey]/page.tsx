@@ -9,6 +9,7 @@ import {
   type PublicMetricComparisons,
   type PublicTimeSeriesSummary,
 } from "@/lib/publicApiClient";
+import { DEFAULT_INDEXABLE_ROBOTS } from "@/lib/defaultRobots";
 import { slugify } from "@/lib/utils";
 import MetricDetailClient from "./MetricDetailClient";
 import MetricLoadErrorClient from "./MetricLoadErrorClient";
@@ -71,6 +72,7 @@ export async function generateMetadata({
     return {
       title: `${metric.metric_name} in ${year} | ${locationLabel} | ${cityName}`,
       description,
+      robots: DEFAULT_INDEXABLE_ROBOTS,
       alternates: {
         canonical: `/c/${slug}/metrics/${metricKey}`,
       },

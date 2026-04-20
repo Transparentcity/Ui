@@ -15,6 +15,8 @@ import {
   deleteNewsletterPendingBatch,
   runScheduleJob,
   getNewsletterGenerationPreview,
+  getAvailableModels,
+  putNewsletterWeeklySeymourModel,
   listJobs,
   listNewsletterEditionsAdmin,
   type CityListItem,
@@ -819,6 +821,12 @@ function newsletterScopeLabel(item: NewsletterPendingListItem): string {
   return dt || "\u2014";
 }
 
+function formatWorkloadMoneyUsd(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "\u2014";
+  if (n < 0.005) return "<$0.01";
+  return `$${n.toFixed(2)}`;
+}
+
 function WorkloadCard({
   label,
   value,
@@ -878,6 +886,13 @@ function NewsletterDashboardQueue() {
   const [workload, setWorkload] = useState<NewsletterGenerationPreview | null>(null);
   const [workloadLoading, setWorkloadLoading] = useState(true);
   const [workloadOpen, setWorkloadOpen] = useState(false);
+  const [workloadFrequency, setWorkloadFrequency] = useState<"weekly" | "monthly">("weekly");
+  /** Empty = preview uses server default (saved job override, else AGENT_MODEL). */
+  const [workloadEstimateModelKey, setWorkloadEstimateModelKey] = useState("");
+  const [workloadModelOptions, setWorkloadModelOptions] = useState<
+    Array<{ key: string; name: string }>
+  >([]);
+  const [saveNewsletterModelBusy, setSaveNewsletterModelBusy] = useState(false);
 
   // Recent weekly_newsletter jobs
   const [recentJobs, setRecentJobs] = useState<Job[]>([]);
@@ -905,27 +920,77 @@ function NewsletterDashboardQueue() {
     }
   }, [getAccessTokenSilently]);
 
-  const loadWorkload = useCallback(async () => {
+  const loadWorkload = useCallback(
+    async (previewModelKeyOverride?: string) => {
+      try {
+        setWorkloadLoading(true);
+        const token = await getAccessTokenSilently();
+        const mkSource =
+          previewModelKeyOverride !== undefined
+            ? previewModelKeyOverride
+            : workloadEstimateModelKey;
+        const mk = mkSource.trim();
+        const [preview, jobs, modelGroups] = await Promise.all([
+          getNewsletterGenerationPreview(token, {
+            frequency: workloadFrequency,
+            ...(mk ? { model_key: mk } : {}),
+          }),
+          listJobs(token, 20, undefined, undefined, "weekly_newsletter"),
+          getAvailableModels(token).catch(() => []),
+        ]);
+        setWorkload(preview);
+        setRecentJobs(jobs.jobs);
+        const flat = modelGroups
+          .flatMap((g) =>
+            g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
+          )
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (flat.length > 0) {
+          setWorkloadModelOptions(flat);
+        }
+      } catch {
+        // Non-critical; don't toast — show fallback UI
+      } finally {
+        setWorkloadLoading(false);
+      }
+    },
+    [getAccessTokenSilently, workloadFrequency, workloadEstimateModelKey]
+  );
+
+  const handleSaveWeeklyNewsletterModel = async () => {
+    setSaveNewsletterModelBusy(true);
     try {
-      setWorkloadLoading(true);
       const token = await getAccessTokenSilently();
-      const [preview, jobs] = await Promise.all([
-        getNewsletterGenerationPreview(token),
-        listJobs(token, 20, undefined, undefined, "weekly_newsletter"),
-      ]);
-      setWorkload(preview);
-      setRecentJobs(jobs.jobs);
-    } catch {
-      // Non-critical; don't toast — show fallback UI
+      const res = await putNewsletterWeeklySeymourModel(workloadEstimateModelKey, token);
+      const nextKey = res.newsletter_seymour_model_key ?? "";
+      setWorkloadEstimateModelKey(nextKey);
+      toast.success(
+        res.newsletter_seymour_model_key
+          ? `Weekly newsletter job will use ${res.newsletter_seymour_model_key}.`
+          : "Saved: weekly job will use AGENT_MODEL (override cleared)."
+      );
+      await loadWorkload(nextKey);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to save newsletter model");
     } finally {
-      setWorkloadLoading(false);
+      setSaveNewsletterModelBusy(false);
     }
-  }, [getAccessTokenSilently]);
+  };
+
+  const newsletterModelSaveMatchesServer = useMemo(() => {
+    if (!workload) return true;
+    const desired = workloadEstimateModelKey.trim() || null;
+    const saved = workload.saved_newsletter_seymour_model_key ?? null;
+    return desired === saved;
+  }, [workload, workloadEstimateModelKey]);
 
   useEffect(() => {
     loadAll();
+  }, [loadAll]);
+
+  useEffect(() => {
     loadWorkload();
-  }, [loadAll, loadWorkload]);
+  }, [loadWorkload]);
 
   const toggleSelect = (id: number, checked: boolean) => {
     setSelected((prev) => {
@@ -1103,16 +1168,96 @@ function NewsletterDashboardQueue() {
       <div className={styles.tableContainer} style={{ marginBottom: 8 }}>
         <div
           className={styles.tableHeader}
-          style={{ cursor: "pointer", userSelect: "none" }}
+          style={{
+            cursor: "pointer",
+            userSelect: "none",
+            flexWrap: "wrap",
+            gap: "8px 12px",
+            alignItems: "center",
+          }}
           onClick={() => setWorkloadOpen((o) => !o)}
         >
           <span className={styles.tableTitle}>
             {workloadOpen ? "▼" : "▶"} Next run workload
           </span>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Mode</span>
+              <select
+                className={styles.select}
+                style={{ minWidth: 148, fontSize: 12 }}
+                value={workloadFrequency}
+                disabled={workloadLoading}
+                onChange={(e) =>
+                  setWorkloadFrequency(e.target.value as "weekly" | "monthly")
+                }
+              >
+                <option value="weekly">Weekly subscribers</option>
+                <option value="monthly">Monthly subscribers</option>
+              </select>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Model</span>
+              <select
+                className={styles.select}
+                style={{ minWidth: 200, maxWidth: 280, fontSize: 12 }}
+                value={workloadEstimateModelKey}
+                disabled={workloadLoading}
+                onChange={(e) => setWorkloadEstimateModelKey(e.target.value)}
+                title="Cost estimate uses this model. Save applies it to the weekly newsletter scheduled job."
+              >
+                <option value="">Default (job saved or AGENT_MODEL)</option>
+                {workloadModelOptions.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              style={{ fontSize: 12, padding: "4px 10px" }}
+              disabled={
+                workloadLoading || saveNewsletterModelBusy || newsletterModelSaveMatchesServer
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleSaveWeeklyNewsletterModel();
+              }}
+            >
+              {saveNewsletterModelBusy ? "Saving…" : "Save model"}
+            </button>
+          </div>
           {workload && !workloadLoading && (
-            <span className={styles.tableCount} style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>
-              {workload.total_llm_calls_planned} LLM call{workload.total_llm_calls_planned !== 1 ? "s" : ""} planned
-              &nbsp;·&nbsp;{workload.total_weekly_recipients} recipients
+            <span
+              className={styles.tableCount}
+              style={{ marginLeft: "auto", fontWeight: 500, fontSize: 12, lineHeight: 1.4 }}
+            >
+              <strong style={{ fontWeight: 600 }}>{workload.personalized_llm_calls_planned}</strong>{" "}
+              personalized LLM
+              {workload.personalized_llm_calls_planned !== 1 ? "s" : ""}
+              {" + "}
+              <strong style={{ fontWeight: 600 }}>{workload.shared_llm_calls_planned}</strong>{" "}
+              shared LLM
+              {workload.shared_llm_calls_planned !== 1 ? "s" : ""}
+              {" = "}
+              <strong style={{ fontWeight: 600 }}>{workload.total_llm_calls_planned}</strong> total
+              {" · "}
+              {workload.total_pipeline_recipients ?? workload.total_weekly_recipients} recipient
+              {(workload.total_pipeline_recipients ?? workload.total_weekly_recipients) !== 1
+                ? "s"
+                : ""}
+              {workload.cost_estimate_usd ? (
+                <>
+                  {" · ~"}
+                  {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
+                  {" est."}
+                </>
+              ) : null}
             </span>
           )}
           {workloadLoading && (
@@ -1128,11 +1273,86 @@ function NewsletterDashboardQueue() {
               </div>
             ) : workload ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div className={styles.muted} style={{ fontSize: 12 }}>
-                  Only subscribers following launched cities are counted here. Saved places route
-                  to personalized Seymour; subscribers without saved places are grouped into one
-                  shared Seymour run per city / district.
+                <div className={styles.muted} style={{ fontSize: 12, lineHeight: 1.45 }}>
+                  Only subscribers following launched cities are counted.{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>Personalized</strong> = one Seymour
+                  session per subscriber with any saved place (each gets their own email).{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>Shared</strong> = one Seymour session per
+                  city/district group; every subscriber in that group without saved places receives the same
+                  generated draft (so LLM count is groups, not recipient count).
                 </div>
+                {workload.exclusion_summary?.exclusion_summary_note ? (
+                  <div
+                    className={styles.muted}
+                    style={{
+                      fontSize: 12,
+                      lineHeight: 1.45,
+                      padding: "8px 10px",
+                      borderRadius: 6,
+                      border: "1px solid var(--border-color, #e5e7eb)",
+                      background: "var(--bg-subtle, #fafafa)",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                      Subscribers not in this run:{" "}
+                    </span>
+                    {workload.exclusion_summary.exclusion_summary_note}
+                  </div>
+                ) : null}
+                {workload.llm_generation_plan?.routing_summary ? (
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--text-primary)",
+                      background: "var(--bg-subtle, #f9fafb)",
+                      border: "1px solid var(--border-color, #e5e7eb)",
+                      borderRadius: 6,
+                      padding: "10px 12px",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {workload.llm_generation_plan.routing_summary}
+                  </div>
+                ) : null}
+                {workload.cost_estimate_usd ? (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-secondary)",
+                      border: "1px solid var(--border-color, #e5e7eb)",
+                      borderRadius: 6,
+                      padding: "10px 12px",
+                      background: "var(--brand-primary-faint, rgba(173,53,250,0.04))",
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
+                      Cost estimate (rough)
+                    </div>
+                    Model <strong>{workload.cost_estimate_usd.model_key}</strong>
+                    {workload.model_key_used_for_estimate &&
+                    workload.model_key_used_for_estimate !== workload.cost_estimate_usd.model_key ? (
+                      <span> (resolved: {workload.model_key_used_for_estimate})</span>
+                    ) : null}
+                    {" · "}
+                    ~{formatWorkloadMoneyUsd(workload.cost_estimate_usd.personalized_estimated_usd)} for{" "}
+                    {workload.cost_estimate_usd.personalized_seymour_sessions} personalized session
+                    {workload.cost_estimate_usd.personalized_seymour_sessions !== 1 ? "s" : ""}
+                    {" · ~"}
+                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.shared_estimated_usd)} for{" "}
+                    {workload.cost_estimate_usd.shared_seymour_sessions} shared session
+                    {workload.cost_estimate_usd.shared_seymour_sessions !== 1 ? "s" : ""}
+                    {" · "}
+                    <strong style={{ color: "var(--text-primary)" }}>
+                      Total ~{formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
+                    </strong>
+                    {" (range "}
+                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_low_estimate_usd)}
+                    {"–"}
+                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_high_estimate_usd)}
+                    {"). "}
+                    Uses one-shot token profile per session; tool usage varies.
+                  </div>
+                ) : null}
                 {/* Cost summary */}
                 <div style={{
                   display: "grid",
@@ -1140,25 +1360,35 @@ function NewsletterDashboardQueue() {
                   gap: 8,
                 }}>
                   <WorkloadCard
-                    label="Total Seymour runs"
+                    label="Personalized LLM runs"
+                    value={workload.personalized_llm_calls_planned}
+                    sub="one session per subscriber with saved places"
+                  />
+                  <WorkloadCard
+                    label="Shared LLM runs"
+                    value={workload.shared_llm_calls_planned}
+                    sub="one session per city / district group"
+                  />
+                  <WorkloadCard
+                    label="Total LLM runs"
                     value={workload.total_llm_calls_planned}
-                    sub="shared groups + personalized subscribers"
+                    sub="personalized + shared (generation only)"
                     accent
                   />
                   <WorkloadCard
                     label="Shared groups"
                     value={workload.shared_city_district_groups_planned}
-                    sub="one shared Seymour run per city / district group"
+                    sub="same as shared LLM runs"
                   />
                   <WorkloadCard
                     label="Recipients (personalized)"
                     value={workload.personalized_recipients}
-                    sub="saved places -> one Seymour run each"
+                    sub="each matched to their own session"
                   />
                   <WorkloadCard
                     label="Recipients (shared)"
                     value={workload.shared_recipients}
-                    sub="no saved places -> receive shared draft"
+                    sub="many per draft — not extra LLM calls"
                   />
                 </div>
                 {/* Per-city breakdown */}

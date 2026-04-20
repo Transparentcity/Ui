@@ -328,12 +328,15 @@ export function listPublicFeedStories(options?: {
   city_id?: number;
   district?: number | null;
   limit?: number;
+  /** Pagination offset for the public feed list (paired with `limit`). */
+  offset?: number;
   order_by?: string;
 }): Promise<PublicFeedStoriesResponse> {
   const params = new URLSearchParams();
   if (options?.city_id != null) params.set("city_id", String(options.city_id));
   if (options?.district != null) params.set("district", String(options.district));
   if (options?.limit != null) params.set("limit", String(options.limit));
+  if (options?.offset != null) params.set("offset", String(options.offset));
   if (options?.order_by) params.set("order_by", options.order_by);
   const query = params.toString();
   return requestPublic<PublicFeedStoriesResponse>(
@@ -415,9 +418,9 @@ export type PublicMapSitemapItem = {
 };
 
 export function listPublicMapsForSitemap(): Promise<PublicMapSitemapItem[]> {
-  return requestPublic<{ maps: PublicMapSitemapItem[] }>("/api/maps/public").then(
-    (response) => response.maps || []
-  );
+  return requestPublic<{ maps: PublicMapSitemapItem[] }>(
+    "/api/maps/public?limit=100"
+  ).then((response) => response.maps || []);
 }
 
 // Public metrics for sitemap
@@ -425,8 +428,8 @@ export type PublicMetricSitemapItem = {
   metric_key: string;
   metric_name: string;
   category: string;
-  city_id: number;
-  city_name: string;
+  /** Name-derived URL segment; matches `slug` on `/api/public/cities/sitemap`. */
+  city_slug: string;
 };
 
 export function listPublicMetricsForSitemap(): Promise<PublicMetricSitemapItem[]> {
@@ -435,7 +438,8 @@ export function listPublicMetricsForSitemap(): Promise<PublicMetricSitemapItem[]
 
 // City-district pairs for sitemap (district supervisor pages)
 export type PublicCityDistrictSitemapItem = {
-  city_name: string;
+  /** Name-derived URL segment; matches `slug` on `/api/public/cities/sitemap`. */
+  city_slug: string;
   district: number;
 };
 

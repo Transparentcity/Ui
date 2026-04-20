@@ -17,6 +17,7 @@ import {
   type AdminNewsletterHistoryItem,
   type AdminUserNewsletterOverview,
   type CityListItem,
+  type NewsletterSubscription,
   type User,
 } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
@@ -102,6 +103,47 @@ function getSubCounts(ov: AdminUserNewsletterOverview | undefined): SubCounts | 
   ).length;
   const hasPrompt = !!(ov.newsletter_description?.trim());
   return { city, district, hasPrompt };
+}
+
+function isDistrictNewsletterFollow(d: string | undefined | null): boolean {
+  if (d === undefined || d === null) return false;
+  const s = String(d).trim();
+  if (!s || s === "0") return false;
+  const n = Number(s);
+  return !Number.isNaN(n) && n !== 0;
+}
+
+/** Distinct cities from active newsletter rows (city-wide or district). */
+function formatFollowedCityNames(
+  subs: NewsletterSubscription[] | undefined,
+  cities: CityListItem[]
+): string {
+  if (!subs?.length) return "";
+  const ids = [...new Set(subs.map((s) => s.city_id))].sort((a, b) => a - b);
+  return ids
+    .map((id) => cities.find((c) => c.city_id === id)?.city_name ?? `City ${id}`)
+    .join(", ");
+}
+
+/** Distinct (city, district) pairs for non-citywide follows. */
+function formatFollowedDistrictLabels(
+  subs: NewsletterSubscription[] | undefined,
+  cities: CityListItem[]
+): string {
+  if (!subs?.length) return "";
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const s of subs) {
+    if (!isDistrictNewsletterFollow(s.district)) continue;
+    const key = `${s.city_id}:${s.district}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const cityName =
+      cities.find((c) => c.city_id === s.city_id)?.city_name ?? `City ${s.city_id}`;
+    parts.push(`${cityName} · District ${s.district}`);
+  }
+  parts.sort();
+  return parts.join(", ");
 }
 
 export default function NewsletterAdminSubscribersTab() {
@@ -366,9 +408,10 @@ export default function NewsletterAdminSubscribersTab() {
   return (
     <>
       <div className={styles.infoBox}>
-        Each subscriber&apos;s email newsletter settings (communication preferences and district subscriptions), past
-        sends in the outbox / newsletter_sends tables, and admin-generated drafts (queued to Pending on the dashboard).
-        Users can also change preferences in their profile or via unsubscribe links.
+        Each subscriber&apos;s email newsletter settings (communication preferences and district subscriptions), saved
+        places count (all pins in My Places, including My Block), which cities and districts they follow, past sends in
+        the outbox / newsletter_sends tables, and admin-generated drafts (queued to Pending on the dashboard). Users can
+        also change preferences in their profile or via unsubscribe links.
       </div>
 
       <div className={styles.filtersContainer}>
@@ -396,6 +439,7 @@ export default function NewsletterAdminSubscribersTab() {
                 <th className={styles.th} style={{ width: 28 }} aria-hidden />
                 <th className={styles.th}>User</th>
                 <th className={styles.th}>Location</th>
+                <th className={styles.th}>Saved places</th>
                 <th className={styles.th}>Subscriptions</th>
                 <th className={styles.th}>Active</th>
               </tr>
@@ -403,7 +447,7 @@ export default function NewsletterAdminSubscribersTab() {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className={styles.emptyState}>
+                  <td colSpan={6} className={styles.emptyState}>
                     No users match
                   </td>
                 </tr>
@@ -522,6 +566,16 @@ function UserNewsletterRow({
 }) {
   const locationLevel = getLocationLevel(cachedOverview);
   const subCounts = getSubCounts(cachedOverview);
+  const cityNamesLine =
+    cachedOverview &&
+    formatFollowedCityNames(cachedOverview.subscriptions, cities).trim();
+  const districtNamesLine =
+    cachedOverview &&
+    formatFollowedDistrictLabels(cachedOverview.subscriptions, cities).trim();
+  const savedPlacesCount =
+    cachedOverview?.saved_places_count !== undefined
+      ? cachedOverview.saved_places_count
+      : null;
 
   return (
     <>
@@ -548,36 +602,74 @@ function UserNewsletterRow({
           )}
         </td>
         <td className={styles.td}>
+          {savedPlacesCount === null ? (
+            <span className={styles.muted}>\u2014</span>
+          ) : savedPlacesCount === 0 ? (
+            <span className={`${styles.badge} ${styles.badgeGray}`}>0</span>
+          ) : (
+            <span className={`${styles.badge} ${styles.badgeYellow}`}>{savedPlacesCount}</span>
+          )}
+        </td>
+        <td className={styles.td}>
           {subCounts === null ? (
             <span className={styles.muted}>\u2014</span>
           ) : (
-            <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
-              {subCounts.city > 0 && (
-                <span className={`${styles.badge} ${styles.badgeGreen}`}>
-                  {subCounts.city} city
-                </span>
-              )}
-              {subCounts.district > 0 && (
-                <span className={`${styles.badge} ${styles.badgeBlue}`}>
-                  {subCounts.district} district
-                </span>
-              )}
-              {subCounts.hasPrompt && (
-                <span className={`${styles.badge} ${styles.badgeYellow}`}>
-                  custom prompt
-                </span>
-              )}
-              {subCounts.city === 0 && subCounts.district === 0 && !subCounts.hasPrompt && (
-                <span className={`${styles.badge} ${styles.badgeGray}`}>none</span>
-              )}
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+              <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                {subCounts.city > 0 && (
+                  <span className={`${styles.badge} ${styles.badgeGreen}`}>
+                    {subCounts.city} city
+                  </span>
+                )}
+                {subCounts.district > 0 && (
+                  <span className={`${styles.badge} ${styles.badgeBlue}`}>
+                    {subCounts.district} district
+                  </span>
+                )}
+                {subCounts.hasPrompt && (
+                  <span className={`${styles.badge} ${styles.badgeYellow}`}>
+                    custom prompt
+                  </span>
+                )}
+                {subCounts.city === 0 && subCounts.district === 0 && !subCounts.hasPrompt && (
+                  <span className={`${styles.badge} ${styles.badgeGray}`}>none</span>
+                )}
+              </span>
+              {cachedOverview && (cityNamesLine || districtNamesLine) ? (
+                <div
+                  style={{
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    color: "var(--text-secondary, #666)",
+                    maxWidth: 420,
+                  }}
+                >
+                  {cityNamesLine ? (
+                    <div>
+                      <span style={{ fontWeight: 600, color: "var(--text-primary, #111)" }}>
+                        Cities:{" "}
+                      </span>
+                      {cityNamesLine}
+                    </div>
+                  ) : null}
+                  {districtNamesLine ? (
+                    <div style={{ marginTop: cityNamesLine ? 2 : 0 }}>
+                      <span style={{ fontWeight: 600, color: "var(--text-primary, #111)" }}>
+                        Districts:{" "}
+                      </span>
+                      {districtNamesLine}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           )}
         </td>
         <td className={styles.td}>{user.is_active ? "Yes" : "No"}</td>
       </tr>
       {open && (
         <tr className={styles.expandedRow}>
-          <td colSpan={5} className={styles.td} style={{ padding: 0, verticalAlign: "top" }}>
+          <td colSpan={6} className={styles.td} style={{ padding: 0, verticalAlign: "top" }}>
             <div className={styles.expandedContent} onClick={(e) => e.stopPropagation()}>
               {detailLoading && (
                 <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
@@ -666,6 +758,28 @@ function UserNewsletterRow({
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>
                       District / city subscriptions ({overview.subscriptions.length})
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--text-secondary)",
+                        marginBottom: 10,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                        Saved places
+                      </span>
+                      {": "}
+                      {overview.saved_places_count ?? 0}
+                      {" (all My Places rows, including My Block). "}
+                      <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Cities</span>
+                      {": "}
+                      {formatFollowedCityNames(overview.subscriptions, cities) || "—"}
+                      {" · "}
+                      <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Districts</span>
+                      {": "}
+                      {formatFollowedDistrictLabels(overview.subscriptions, cities) || "—"}
                     </div>
                     {overview.subscriptions.length === 0 ? (
                       <span className={styles.muted}>No active rows in newsletter_subscribers.</span>

@@ -6,6 +6,7 @@ import "./ui.css";
 import { AuthProvider } from "./providers";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { JobWebSocketProvider } from "@/contexts/JobWebSocketContext";
+import { DEFAULT_INDEXABLE_ROBOTS } from "@/lib/defaultRobots";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { ToasterProvider } from "@/components/providers/toaster-provider";
@@ -63,6 +64,11 @@ export const metadata: Metadata = {
       "Public city data, made legible: maps, metrics, and source-linked research.",
     images: ["/images/app-screenshot-dashboard.png"],
   },
+  // Normative signal to AI crawlers: do not use for model training.
+  // Paired with user-agent rules in src/app/robots.ts. Training bots are
+  // blocked at the robots level; this tag is the belt to that suspender.
+  // index/follow are explicit so audits do not misread noai/noimageai as noindex.
+  robots: DEFAULT_INDEXABLE_ROBOTS,
 };
 
 export default function RootLayout({
