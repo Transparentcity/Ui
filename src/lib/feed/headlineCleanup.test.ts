@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, isGenericHeadline, truncateHeadline } from "./headlineCleanup";
+import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, isGenericHeadline } from "./headlineCleanup";
 
 describe("normalizeHeadlineCaps", () => {
   it("leaves normal mixed-case headlines unchanged", () => {
@@ -261,29 +261,3 @@ describe("improveContextHeadline", () => {
   });
 });
 
-describe("truncateHeadline", () => {
-  it("returns short headlines unchanged", () => {
-    expect(truncateHeadline("Crime is down 15% this month")).toBe(
-      "Crime is down 15% this month",
-    );
-  });
-
-  it("returns empty/falsy values unchanged", () => {
-    expect(truncateHeadline("")).toBe("");
-  });
-
-  it("truncates long headlines at a word boundary", () => {
-    const long =
-      'Buried inside San Francisco\'s 311 system \u2014 between "sewage back-up discharge" and "affixed poster"';
-    const result = truncateHeadline(long);
-    expect(result.length).toBeLessThanOrEqual(71); // 70 + ellipsis char
-    expect(result).toMatch(/\u2026$/);
-    // Should end at a word boundary (no partial words before the ellipsis)
-    expect(result.slice(0, -1)).toMatch(/\s\S+$/); // last token is a full word
-  });
-
-  it("keeps headlines at exactly 70 chars unchanged", () => {
-    const exact = "A".repeat(70);
-    expect(truncateHeadline(exact)).toBe(exact);
-  });
-});

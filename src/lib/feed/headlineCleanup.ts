@@ -270,36 +270,6 @@ function extractFirstSentence(text?: string | null): string | null {
 }
 
 /**
- * Maximum character length for a feed card headline.
- * Headlines longer than this are truncated at a word boundary with an ellipsis.
- */
-const MAX_HEADLINE_LENGTH = 70;
-
-/**
- * Shorter limit for Off The Charts / milestone cards so their headlines
- * stay punchy and match other card types in visual weight.
- */
-const MAX_OTC_HEADLINE_LENGTH = 65;
-
-/**
- * Truncate a headline at a word boundary with an ellipsis.
- * Pass `maxLength` to override the default limit (e.g. for OTC cards).
- * Returns the original headline if it's already within the limit.
- */
-export function truncateHeadline(headline: string, maxLength = MAX_HEADLINE_LENGTH): string {
-  if (!headline || headline.length <= maxLength) return headline;
-  const truncated = headline.slice(0, maxLength).replace(/\s+\S*$/, "");
-  return (truncated || headline.slice(0, maxLength)) + "\u2026";
-}
-
-/**
- * Shorter truncation for Off The Charts and milestone headlines.
- */
-export function truncateOtcHeadline(headline: string): string {
-  return truncateHeadline(headline, MAX_OTC_HEADLINE_LENGTH);
-}
-
-/**
  * For multi-metric cards with generic "District N This Week — N Metrics Moving"
  * headlines, synthesize a better headline from the metrics data when available.
  */

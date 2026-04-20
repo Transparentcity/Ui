@@ -14,7 +14,7 @@ import type { FeedStory } from "@/lib/hooks/useFeed";
 import { getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { cleanDescription } from "./textCleanup";
 import { resolveCanonicalUrl } from "./canonicalUrl";
-import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, improveGenericHeadline, truncateHeadline, truncateOtcHeadline } from "./headlineCleanup";
+import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, improveGenericHeadline } from "./headlineCleanup";
 
 // ── Card types ──────────────────────────────────────────────────────────────
 
@@ -495,12 +495,6 @@ export function enrichStory(
   if (cardType === "context") {
     normalizedHeadline = improveContextHeadline(normalizedHeadline, story.city_name ?? undefined);
   }
-
-  // 5. Enforce max headline length (shorter limit for OTC / milestone cards)
-  normalizedHeadline =
-    cardType === "off_the_charts" || cardType === "milestone"
-      ? truncateOtcHeadline(normalizedHeadline)
-      : truncateHeadline(normalizedHeadline);
 
   // Also normalize business_name in metadata for display
   if (meta.business_name && typeof meta.business_name === "string") {
