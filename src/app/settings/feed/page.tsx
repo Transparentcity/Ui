@@ -21,9 +21,6 @@ export default function FeedSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [isOfficial, setIsOfficial] = useState(false);
-  const [dailyReportOptIn, setDailyReportOptIn] = useState(false);
-  const [savingReport, setSavingReport] = useState(false);
 
   // Load user preferences
   useEffect(() => {
@@ -47,12 +44,6 @@ export default function FeedSettingsPage() {
           if (profile.interest_model) {
             setInteractionCount(profile.interest_model.interaction_count || 0);
             setLastUpdated(profile.interest_model.last_updated || null);
-          }
-          if (profile.government_verified || profile.user_role_type === "official") {
-            setIsOfficial(true);
-          }
-          if (profile.daily_report_opt_in) {
-            setDailyReportOptIn(true);
           }
         }
       } catch (err) {
@@ -140,40 +131,6 @@ export default function FeedSettingsPage() {
     } finally {
       setResetting(false);
       setTimeout(() => setSaveMessage(null), 5000);
-    }
-  };
-
-  const handleToggleDailyReport = async () => {
-    setSavingReport(true);
-    const newVal = !dailyReportOptIn;
-    try {
-      const token = await getAccessTokenSilently();
-      const res = await fetch("/api/user/profile/categories", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          selected_category_ids: [...selectedCategories],
-          daily_report_opt_in: newVal,
-        }),
-      });
-      if (res.ok) {
-        setDailyReportOptIn(newVal);
-        setSaveMessage(
-          newVal
-            ? "Daily Constituent Report enabled."
-            : "Daily Constituent Report disabled."
-        );
-      } else {
-        setSaveMessage("Failed to update. Please try again.");
-      }
-    } catch {
-      setSaveMessage("Failed to update. Please try again.");
-    } finally {
-      setSavingReport(false);
-      setTimeout(() => setSaveMessage(null), 4000);
     }
   };
 
@@ -300,32 +257,6 @@ export default function FeedSettingsPage() {
                     {resetting ? "Resetting..." : "Reset Feed Preferences"}
                   </button>
                 </section>
-
-                {/* Daily Constituent Report (officials only) */}
-                {isOfficial && (
-                  <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Daily Constituent Report</h2>
-                    <p className={styles.sectionDescription}>
-                      Receive a daily email digest summarizing constituent activity —
-                      escalation alerts, top applauded stories, flagged items, and
-                      department recognition.
-                    </p>
-                    <label className={styles.toggleRow}>
-                      <input
-                        type="checkbox"
-                        checked={dailyReportOptIn}
-                        onChange={handleToggleDailyReport}
-                        disabled={savingReport}
-                        className={styles.toggleCheckbox}
-                      />
-                      <span className={styles.toggleLabel}>
-                        {dailyReportOptIn
-                          ? "Daily report enabled"
-                          : "Enable daily constituent report"}
-                      </span>
-                    </label>
-                  </section>
-                )}
 
                 {saveMessage && (
                   <div className={styles.toast}>{saveMessage}</div>
