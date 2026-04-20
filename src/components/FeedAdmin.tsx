@@ -114,23 +114,26 @@ export default function FeedAdmin() {
       ]);
 
       let allStories = [...firstBatch.stories];
-      const total = firstBatch.count;
+      // `count` is the page size; `total_count` is the actual total across all pages.
+      const total = firstBatch.total_count ?? firstBatch.count;
       setTotalCount(total);
       setCities(citiesRes);
 
-      // Fetch remaining pages if there are more stories
-      if (total > FETCH_BATCH) {
-        const remaining = Math.ceil((total - FETCH_BATCH) / FETCH_BATCH);
-        for (let i = 1; i <= remaining; i++) {
+      // Fetch remaining pages until we've pulled every story.
+      if (firstBatch.stories.length === FETCH_BATCH) {
+        let offset = FETCH_BATCH;
+        while (true) {
           const batch = await listFeedStories(token, {
             all_cities: true,
             limit: FETCH_BATCH,
-            offset: i * FETCH_BATCH,
+            offset,
             order_by: "story_date:desc",
           });
           allStories = [...allStories, ...batch.stories];
           if (batch.stories.length < FETCH_BATCH) break;
+          offset += FETCH_BATCH;
         }
+        setTotalCount(allStories.length);
       }
 
       setStories(allStories);
