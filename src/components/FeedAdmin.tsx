@@ -350,10 +350,15 @@ export default function FeedAdmin() {
       setEditorSaving(true);
       setEditorError(null);
       const token = await getAccessTokenSilently();
-      // Strip empty-string fields the backend treats as optional.
       const clean: any = { ...editorForm };
-      for (const k of ["summary", "image_url", "image_alt", "image_caption", "cta_label", "article_html"]) {
+      // Convert empty-string summary/cta_label to null so the DB clears them.
+      for (const k of ["summary", "cta_label"]) {
         if (clean[k] === "") clean[k] = null;
+      }
+      // Image fields aren't exposed in this form. Don't send them on PATCH —
+      // otherwise the empty defaults would wipe any existing values.
+      for (const k of ["image_url", "image_alt", "image_caption", "article_html"]) {
+        delete clean[k];
       }
       if (editorStory) {
         await updateFeedStory(editorStory.id, clean, token);
