@@ -30,6 +30,10 @@ export interface WasteFinding {
   is_new?: boolean;
   fiscal_year?: number | null;
   convergence_details?: ConvergenceDetails | null;
+  headline?: string | null;
+  signal_tier?: "primary" | "supporting" | null;
+  consolidated_into?: string | null;
+  supporting_findings?: string[] | null;
 }
 
 export interface ConvergenceDetails {
@@ -50,6 +54,7 @@ export interface WasteDataFreshness {
   is_partial_year: boolean;
   stale: boolean;
   stale_reason: string | null;
+  note?: string | null;
 }
 
 export interface WasteCategorySummary {
