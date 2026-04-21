@@ -973,6 +973,39 @@ export function getMyPermissions(token: string): Promise<UserPermissions> {
   return request<UserPermissions>("/api/admin/me/permissions", "GET", undefined, token);
 }
 
+export interface SeoPreviewImagePatchResponse {
+  metadata: Record<string, unknown>;
+  data: unknown[];
+  count: number;
+  sibling_chart_ids?: Record<string, number> | null;
+}
+
+export function patchTimeSeriesSeoPreviewImage(
+  chartId: number,
+  body: { seo_og_image_url: string | null },
+  token: string
+): Promise<SeoPreviewImagePatchResponse> {
+  return request<SeoPreviewImagePatchResponse>(
+    `/api/time-series/${chartId}/seo-preview-image`,
+    "PATCH",
+    body,
+    token
+  );
+}
+
+export function patchMapSeoPreviewImage(
+  mapId: number,
+  body: { seo_og_image_url: string | null },
+  token: string
+): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(
+    `/api/maps/${mapId}/seo-preview-image`,
+    "PATCH",
+    body,
+    token
+  );
+}
+
 // Metrics Admin API
 export interface AdminMetricSummary {
   total_metrics: number;
@@ -4684,8 +4717,14 @@ export interface NewsletterPendingListItem {
   send_error: string | null;
   /** Public permalink for shared newsletter drafts when an edition exists. */
   public_url?: string | null;
-  /** LLM token usage from edition curation; null for feed-story-only renders. */
-  llm_usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+  /** LLM token usage from Seymour / curation; null when not captured. */
+  llm_usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    cost_usd?: number | null;
+    model_key?: string | null;
+  } | null;
 }
 
 export function listNewsletterPending(
@@ -4752,7 +4791,13 @@ export interface NewsletterSendItem {
   /** ID of the matching newsletter_pending_sends row; use getNewsletterPendingDetail to fetch body. */
   pending_send_id?: number | null;
   /** LLM token usage pulled from the matching pending_send row, when available. */
-  llm_usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null;
+  llm_usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    cost_usd?: number | null;
+    model_key?: string | null;
+  } | null;
 }
 
 export function listNewsletterSends(
@@ -4864,7 +4909,13 @@ export function putNewsletterWeeklySeymourModel(
 }
 
 export function adminGenerateSharedNewsletter(
-  payload: { city_id: number; district?: number | null; frequency?: string },
+  payload: {
+    city_id: number;
+    district?: number | null;
+    frequency?: string;
+    /** Optional Seymour model key from /api/chat/models; omit for saved weekly default. */
+    model_key?: string | null;
+  },
   token: string
 ): Promise<{ job_id: string }> {
   return request("/api/admin/newsletter-shared-generate", "POST", payload, token);

@@ -251,13 +251,22 @@ function isPrivateScopedStory(story: FeedStory): boolean {
   return Array.isArray(rawPlaceIds) && rawPlaceIds.length > 0;
 }
 
+/** Add period=ytd to /t/… routes when no period is set (YTD + reporting-lag UI). */
+function ensureTimeSeriesPeriodYtd(url: string): string {
+  if (!url.startsWith("/t/")) return url;
+  if (/[?&]period=/.test(url)) return url;
+  return url.includes("?") ? `${url}&period=ytd` : `${url}?period=ytd`;
+}
+
 function deriveVisualizationImageUrl(story: FeedStory, base: string): string | null {
   const pv = story.primary_visualization;
   if (!pv) return null;
   const type = (story.visualization_type || pv.type || "").toLowerCase();
   const id = pv.id;
   const hash = pv.short_hash;
-  if (type === "chart" && id != null) return `${base}/api/time-series/public/${id}/image`;
+  if (type === "chart" && id != null) {
+    return `${base}/api/time-series/public/${id}/image?period=ytd`;
+  }
   if ((type === "anomaly" || type === "anomaly_chart") && id != null) {
     return `${base}/api/anomalies/public/result/${id}/image`;
   }
@@ -293,7 +302,7 @@ function resolveImageUrl(story: FeedStory): string | null {
   if (embedUrl) {
     // /t/{id}... -> time-series image
     const tMatch = embedUrl.match(/^\/t\/(\d+)/);
-    if (tMatch) return `${base}/api/time-series/public/${tMatch[1]}/image`;
+    if (tMatch) return `${base}/api/time-series/public/${tMatch[1]}/image?period=ytd`;
     // /a/{id}... -> anomaly image
     const aMatch = embedUrl.match(/^\/a\/(\d+)/);
     if (aMatch) return `${base}/api/anomalies/public/result/${aMatch[1]}/image`;
@@ -312,14 +321,14 @@ function resolveEmbedUrl(story: FeedStory): string | null {
   if (!pv) return null;
 
   // Use existing embed_url from the API if available
-  if (pv.embed_url) return pv.embed_url;
+  if (pv.embed_url) return ensureTimeSeriesPeriodYtd(pv.embed_url);
 
   const type = (story.visualization_type || pv.type || "").toLowerCase();
   const id = pv.id;
   const hash = pv.short_hash;
 
   if ((type === "anomaly" || type === "anomaly_chart") && id != null) return `/a/${id}?thumbnail=true`;
-  if (type === "chart" && id != null) return `/t/${id}?thumbnail=true`;
+  if (type === "chart" && id != null) return `/t/${id}?thumbnail=true&period=ytd`;
   if (type === "map" && hash) return `/m/${hash}?thumbnail=true`;
   if (type === "map" && id != null) return `/m/${id}?thumbnail=true`;
 

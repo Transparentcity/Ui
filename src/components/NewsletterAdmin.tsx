@@ -262,20 +262,44 @@ function resolvePrompt(template: string, cityName: string, districtLabel: string
 function LlmUsagePill({
   usage,
 }: {
-  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null | undefined;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    cost_usd?: number | null;
+    model_key?: string | null;
+  } | null | undefined;
 }) {
-  if (!usage) return null;
+  if (!usage) {
+    return (
+      <span className={styles.muted} style={{ fontSize: 11 }}>
+        —
+      </span>
+    );
+  }
   const total = usage.total_tokens ?? (usage.prompt_tokens + usage.completion_tokens);
-  // Very rough GPT-4o pricing for display only: ~$5/M input, ~$15/M output
-  const estCostUsd =
+  const actualUsd =
+    typeof usage.cost_usd === "number" && !Number.isNaN(usage.cost_usd)
+      ? usage.cost_usd
+      : null;
+  // Fallback: rough GPT-4o-style display when server did not attach cost_usd
+  const roughUsd =
     (usage.prompt_tokens * 5 + usage.completion_tokens * 15) / 1_000_000;
   const costLabel =
-    estCostUsd < 0.001
-      ? `<$0.001`
-      : `~$${estCostUsd.toFixed(3)}`;
+    actualUsd !== null
+      ? actualUsd < 0.0001
+        ? `<$0.0001`
+        : `$${actualUsd.toFixed(4)}`
+      : roughUsd < 0.001
+        ? `<$0.001`
+        : `~$${roughUsd.toFixed(3)}`;
+  const pricingHint =
+    actualUsd !== null
+      ? `Actual cost (platform pricing table${usage.model_key ? ` · ${usage.model_key}` : ""})`
+      : "Rough $ (GPT-4o-style heuristic; run again to get server cost when available)";
   return (
     <span
-      title={`prompt: ${usage.prompt_tokens.toLocaleString()} · completion: ${usage.completion_tokens.toLocaleString()} tokens`}
+      title={`${pricingHint} · prompt: ${usage.prompt_tokens.toLocaleString()} · completion: ${usage.completion_tokens.toLocaleString()} tokens`}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -355,6 +379,7 @@ export default function NewsletterAdmin() {
   const [genCityId, setGenCityId] = useState<number | null>(null);
   const [genDistrict, setGenDistrict] = useState("0");
   const [genFrequency, setGenFrequency] = useState<"weekly" | "monthly">("weekly");
+  const [genModelKey, setGenModelKey] = useState<string>("");
   const [generating, setGenerating] = useState(false);
 
   // -----------------------------------------------------------------------
@@ -549,6 +574,7 @@ export default function NewsletterAdmin() {
           city_id: genCityId,
           district: genDistrict === "0" ? null : Number(genDistrict),
           frequency: genFrequency,
+          model_key: genModelKey.trim() ? genModelKey.trim() : null,
         },
         token
       );
@@ -563,7 +589,7 @@ export default function NewsletterAdmin() {
     } finally {
       setGenerating(false);
     }
-  }, [genCityId, genDistrict, genFrequency, getAccessTokenSilently, loadData]);
+  }, [genCityId, genDistrict, genFrequency, genModelKey, getAccessTokenSilently, loadData]);
 
   const handleSavePrompt = () => {
     savePromptToStorage(promptFrequency, promptText);
@@ -690,6 +716,7 @@ export default function NewsletterAdmin() {
           onToggleExpand={(id) => setExpandedCityId(expandedCityId === id ? null : id)}
           onGenerate={(cityId) => {
             setGenCityId(cityId);
+            setGenModelKey(workloadEstimateModelKey);
           }}
         />
       )}
@@ -761,6 +788,27 @@ export default function NewsletterAdmin() {
                 This runs the saved shared prompt once for the selected launched city /
                 district, then queues drafts for the no-place recipients currently routed
                 to that shared group.
+              </div>
+            </div>
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>Model</label>
+              <select
+                className={styles.select}
+                value={genModelKey}
+                onChange={(e) => setGenModelKey(e.target.value)}
+                disabled={generating}
+                title="Seymour model used to generate this shared newsletter. Defaults to the saved weekly-newsletter model."
+              >
+                <option value="">Default (saved weekly model / AGENT_MODEL)</option>
+                {workloadModelOptions.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.muted} style={{ marginTop: 6, fontSize: 12 }}>
+                Only affects this one generation. To change the default used by the
+                scheduled weekly job, use the Model selector above.
               </div>
             </div>
             <div className={styles.exportActions}>

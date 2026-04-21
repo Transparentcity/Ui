@@ -1040,3 +1040,96 @@
   }
 }
 
+/* Admin: SEO / Open Graph */
+.map-admin-seo {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border: 1px dashed var(--border-primary);
+  background: var(--bg-secondary);
+  font-size: 0.9rem;
+}
+
+.map-admin-seo--footer {
+  max-width: 1200px;
+  margin: 2rem auto 2rem;
+  border-top: 1px solid var(--border-primary);
+  padding-top: 1.25rem;
+}
+
+.map-admin-seo-badge {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  vertical-align: middle;
+}
+
+.map-admin-seo-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-family: var(--font-heading, "Inter", sans-serif);
+}
+
+.map-admin-seo-help {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.map-admin-seo-current {
+  margin: 0 0 0.75rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.map-admin-seo-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.map-admin-seo-list li {
+  margin-bottom: 0.45rem;
+}
+
+.map-admin-seo-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.map-admin-seo-link {
+  margin-right: 0.35rem;
+}
+
+.map-admin-seo-btn {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--brand-primary);
+  color: #fff;
+  cursor: pointer;
+}
+
+.map-admin-seo-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.map-admin-seo-btn--ghost {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.map-admin-seo-msg {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+

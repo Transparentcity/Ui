@@ -81,7 +81,7 @@ function VizEmbed({
   if ((vizType === "anomaly" || vizType === "anomaly_chart") && vizId != null) {
     iframeSrc = `/a/${vizId}?embedded=true`;
   } else if (vizType === "chart" && vizId != null) {
-    iframeSrc = `/t/${vizId}?embedded=true`;
+    iframeSrc = `/t/${vizId}?embedded=true&period=ytd`;
   } else if (vizType === "map" && vizHash) {
     iframeSrc = `/m/${vizHash}?embedded=true`;
   } else if (vizType === "map" && vizId != null) {

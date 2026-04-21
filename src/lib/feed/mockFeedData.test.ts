@@ -292,7 +292,9 @@ describe("enrichStory", () => {
         primary_visualization: { id: 42, type: "chart", short_hash: null },
       })
     );
-    expect(enriched.image_url_resolved).toContain("/api/time-series/public/42/image");
+    expect(enriched.image_url_resolved).toContain(
+      "/api/time-series/public/42/image?period=ytd",
+    );
   });
 
   it("keeps the persisted public story image for public stories", () => {
@@ -330,7 +332,7 @@ describe("enrichStory", () => {
       }),
     );
     expect(enriched.image_url_resolved).toContain(
-      "/api/time-series/public/42/image",
+      "/api/time-series/public/42/image?period=ytd",
     );
   });
 
@@ -342,6 +344,29 @@ describe("enrichStory", () => {
       })
     );
     expect(enriched.embed_url_resolved).toBe("/a/99?thumbnail=true");
+  });
+
+  it("resolves embed_url for chart with YTD period", () => {
+    const enriched = enrichStory(
+      makeStory({
+        visualization_type: "chart",
+        primary_visualization: { id: 42, type: "chart", short_hash: null },
+      }),
+    );
+    expect(enriched.embed_url_resolved).toBe("/t/42?thumbnail=true&period=ytd");
+  });
+
+  it("adds period=ytd to API chart embed_url when missing", () => {
+    const enriched = enrichStory(
+      makeStory({
+        primary_visualization: {
+          id: 7,
+          type: "chart",
+          embed_url: "/t/7?embedded=true",
+        },
+      }),
+    );
+    expect(enriched.embed_url_resolved).toBe("/t/7?embedded=true&period=ytd");
   });
 
   it("resolves embed_url for map via short_hash", () => {

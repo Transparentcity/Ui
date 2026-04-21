@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
+import { getMyPermissions, patchMapSeoPreviewImage } from "@/lib/apiClient";
 import { getPublicCityDetail } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 // Icon mapping for different shape layer types
@@ -673,7 +675,7 @@ export default function PublicMapPage() {
   const isEmbedded = searchParams.get("embedded") === "true";
   const isThumbnail = searchParams.get("thumbnail") === "true";
   const { theme } = useTheme();
-  const { loginWithRedirect, isAuthenticated } = useAuth0();
+  const { loginWithRedirect, isAuthenticated, getAccessTokenSilently } = useAuth0();
   
   const [map, setMap] = useState<SavedMap | null>(null);
   const [loading, setLoading] = useState(true);
@@ -698,6 +700,9 @@ export default function PublicMapPage() {
   const [showPoints, setShowPoints] = useState(false);
   /** For multi-layer maps: visibility per layer index (all true by default). */
   const [multiLayerVisibility, setMultiLayerVisibility] = useState<Record<number, boolean>>({});
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [mapSeoMessage, setMapSeoMessage] = useState<string | null>(null);
+  const [mapSeoSaving, setMapSeoSaving] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const dotsDistrictIdRef = useRef<string | null>(null);
@@ -779,6 +784,66 @@ export default function PublicMapPage() {
       }
     });
   }, [map?.short_hash, map?.map_type, multiLayerVisibility]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated) {
+      setIsAdmin(false);
+    } else {
+      (async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          const p = await getMyPermissions(token);
+          if (!cancelled) setIsAdmin(!!p.is_admin);
+        } catch {
+          if (!cancelled) setIsAdmin(false);
+        }
+      })();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, getAccessTokenSilently]);
+
+  const mapPngRows = useMemo(() => {
+    if (!hash) return [];
+    return [
+      { label: "1200×630", path: `/api/maps/public/${hash}/image?width=1200&height=630` },
+      { label: "800×450", path: `/api/maps/public/${hash}/image?width=800&height=450` },
+    ];
+  }, [hash]);
+
+  const applyMapSeo = useCallback(
+    async (path: string | null) => {
+      if (!map?.id) return;
+      setMapSeoMessage(null);
+      setMapSeoSaving(true);
+      try {
+        const token = await getAccessTokenSilently();
+        const updated = (await patchMapSeoPreviewImage(
+          map.id,
+          { seo_og_image_url: path },
+          token
+        )) as SavedMap;
+        setMap(updated);
+        setMapSeoMessage(
+          path == null
+            ? "Cleared SEO preview image."
+            : "Saved. Link previews may take a few minutes to update."
+        );
+      } catch (err: unknown) {
+        setMapSeoMessage(err instanceof Error ? err.message : "Save failed");
+      } finally {
+        setMapSeoSaving(false);
+      }
+    },
+    [getAccessTokenSilently, map?.id]
+  );
+
+  const mapAssetUrl = useCallback((path: string) => {
+    const base = API_BASE_FOR_ASSETS.replace(/\/$/, "");
+    return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  }, []);
 
   // Resolve city name and state for the public map header (light city detail, no metrics list)
   useEffect(() => {
@@ -3668,6 +3733,73 @@ export default function PublicMapPage() {
             </div>
           )}
         </footer>
+
+        {isAdmin && !isEmbedded && !isThumbnail ? (
+          <section
+            className="map-admin-seo map-admin-seo--footer"
+            aria-label="Admin only: SEO and link preview image"
+          >
+            <h2 className="map-admin-seo-title">
+              <span className="map-admin-seo-badge">Admin only</span>
+              SEO / Open Graph image
+            </h2>
+            <p className="map-admin-seo-help">
+              Static map PNG URLs for this permalink. Pick one as the preview image when this map is shared.
+              Images are generated on demand (or from cache), not from a pre-built file list.
+            </p>
+            {typeof map.map_config?.seo_og_image_url === "string" &&
+            map.map_config.seo_og_image_url ? (
+              <p className="map-admin-seo-current">
+                Current:{" "}
+                <a
+                  href={mapAssetUrl(map.map_config.seo_og_image_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {map.map_config.seo_og_image_url}
+                </a>{" "}
+                <button
+                  type="button"
+                  className="map-admin-seo-btn map-admin-seo-btn--ghost"
+                  disabled={mapSeoSaving}
+                  onClick={() => applyMapSeo(null)}
+                >
+                  Clear
+                </button>
+              </p>
+            ) : (
+              <p className="map-admin-seo-current">No custom image set (site defaults apply).</p>
+            )}
+            <ul className="map-admin-seo-list">
+              {mapPngRows.map((row) => (
+                <li key={row.path}>
+                  <span className="map-admin-seo-label">{row.label}</span>{" "}
+                  <a
+                    className="map-admin-seo-link"
+                    href={mapAssetUrl(row.path)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open PNG
+                  </a>{" "}
+                  <button
+                    type="button"
+                    className="map-admin-seo-btn"
+                    disabled={mapSeoSaving}
+                    onClick={() => applyMapSeo(row.path)}
+                  >
+                    Use for SEO
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {mapSeoMessage ? (
+              <p className="map-admin-seo-msg" role="status">
+                {mapSeoMessage}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </article>
     </div>
   );

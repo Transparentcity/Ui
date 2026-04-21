@@ -5,7 +5,18 @@ import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from "rea
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
 import TimeSeriesChart, { type PeriodType } from "@/components/TimeSeriesChart";
 import Loader from "@/components/Loader";
-import { API_BASE } from "@/lib/apiBase";
+import CompletenessSparkline from "@/components/CompletenessSparkline";
+import { API_BASE, API_BASE_FOR_ASSETS } from "@/lib/apiBase";
+import { useAuth0 } from "@auth0/auth0-react";
+import {
+  getMyPermissions,
+  patchTimeSeriesSeoPreviewImage,
+} from "@/lib/apiClient";
+import {
+  getPublicMetricCompletenessDaily,
+  type DailyCompletenessResponse,
+} from "@/lib/publicApiClient";
+import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import "./styles.css";
 
 interface TimeSeriesDataPoint {
@@ -16,6 +27,8 @@ interface TimeSeriesDataPoint {
 
 interface TimeSeriesMetadata {
   chart_id: number;
+  object_id?: string | number;
+  object_type?: string;
   object_name?: string;
   field_name?: string;
   y_axis_label?: string;
@@ -26,6 +39,8 @@ interface TimeSeriesMetadata {
   caption?: string;
   item_noun?: string;
   city_name?: string;
+  /** Flattened from JSONB metadata (Open Graph / SEO). */
+  seo_og_image_url?: string;
 }
 
 interface TimeSeriesResponse {
@@ -33,6 +48,13 @@ interface TimeSeriesResponse {
   data: TimeSeriesDataPoint[];
   count: number;
   sibling_chart_ids?: Record<string, number> | null;
+}
+
+const ADMIN_PNG_PERIODS: PeriodType[] = ["day", "week", "month", "year", "ytd"];
+
+function assetUrlForPath(path: string): string {
+  const base = API_BASE_FOR_ASSETS.replace(/\/$/, "");
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 function parsePeriodQuery(value: string | null): PeriodType | null {
@@ -95,6 +117,7 @@ function TimeSeriesChartPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const chartId = params.id as string;
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const periodParam = searchParams.get("period");
   const isEmbedded = searchParams.get("embedded") === "true";
   const isThumbnail = searchParams.get("thumbnail") === "true";
@@ -116,6 +139,178 @@ function TimeSeriesChartPageContent() {
    * when `onPeriodChange` already fetched and then updated the URL.
    */
   const lastLoadedKeyRef = useRef<string | null>(null);
+
+  const [completenessDaily, setCompletenessDaily] =
+    useState<DailyCompletenessResponse | null>(null);
+  const [completenessLoading, setCompletenessLoading] = useState(false);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [canonicalSeoPath, setCanonicalSeoPath] = useState<string | null>(null);
+  const [adminSeoMessage, setAdminSeoMessage] = useState<string | null>(null);
+  const [adminSeoSaving, setAdminSeoSaving] = useState(false);
+
+  const effectiveDisplayPeriod = useMemo((): PeriodType | null => {
+    if (!timeSeries?.metadata) return null;
+    const metaPeriod = (
+      timeSeries.metadata.period_type?.toLowerCase() as PeriodType
+    ) || "month";
+    const urlPeriod = parsePeriodQuery(periodParam);
+    return (urlPeriod ?? metaPeriod) as PeriodType;
+  }, [timeSeries, periodParam]);
+
+  const metricIdForCompleteness = useMemo(() => {
+    const oid = timeSeries?.metadata?.object_id;
+    if (oid == null || oid === "") return null;
+    const n = typeof oid === "number" ? oid : parseInt(String(oid), 10);
+    return Number.isFinite(n) ? n : null;
+  }, [timeSeries?.metadata?.object_id]);
+
+  const objectTypeForCompleteness = timeSeries?.metadata?.object_type;
+
+  const districtForCompleteness = useMemo(() => {
+    const d = timeSeries?.metadata?.district;
+    return d != null && d > 0 ? d : null;
+  }, [timeSeries?.metadata?.district]);
+
+  const shouldFetchCompleteness = useMemo(() => {
+    if (metricIdForCompleteness == null) return false;
+    const ot = (objectTypeForCompleteness || "").toLowerCase();
+    if (ot && ot !== "dashboard_metric" && ot !== "metric") return false;
+    return true;
+  }, [metricIdForCompleteness, objectTypeForCompleteness]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated) {
+      setIsAdmin(false);
+    } else {
+      (async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          const p = await getMyPermissions(token);
+          if (!cancelled) setIsAdmin(!!p.is_admin);
+        } catch {
+          if (!cancelled) setIsAdmin(false);
+        }
+      })();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, getAccessTokenSilently]);
+
+  useEffect(() => {
+    if (!isAdmin || !chartId) {
+      setCanonicalSeoPath(null);
+      return;
+    }
+    let cancelled = false;
+    const url = `${API_BASE}/api/time-series/public/${chartId}`;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { metadata?: { seo_og_image_url?: string } } | null) => {
+        if (cancelled || !body?.metadata) return;
+        const v = body.metadata.seo_og_image_url;
+        setCanonicalSeoPath(typeof v === "string" && v.trim() ? v.trim() : null);
+      })
+      .catch(() => {
+        if (!cancelled) setCanonicalSeoPath(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, chartId]);
+
+  useEffect(() => {
+    if (!shouldFetchCompleteness || metricIdForCompleteness == null) {
+      setCompletenessDaily(null);
+      setCompletenessLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCompletenessLoading(true);
+    getPublicMetricCompletenessDaily(
+      metricIdForCompleteness,
+      "day",
+      365,
+      districtForCompleteness
+    )
+      .then((res) => {
+        if (!cancelled) setCompletenessDaily(res);
+      })
+      .catch(() => {
+        if (!cancelled) setCompletenessDaily(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCompletenessLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    shouldFetchCompleteness,
+    metricIdForCompleteness,
+    districtForCompleteness,
+    chartId,
+    periodParam,
+  ]);
+
+  const staleness_days = useMemo(() => {
+    if (effectiveDisplayPeriod !== "ytd") return undefined;
+    return computeReportingCompletenessStalenessDays(completenessDaily);
+  }, [effectiveDisplayPeriod, completenessDaily]);
+
+  const permalinkNumeric = useMemo(() => parseInt(chartId, 10), [chartId]);
+
+  const adminSeoPngRows = useMemo(() => {
+    if (!isAdmin || !chartId || !timeSeries?.metadata) return [];
+    const siblings = timeSeries.sibling_chart_ids || {};
+    const seen = new Set<string>();
+    const rows: { label: string; path: string }[] = [];
+    const sizes: [number, number][] = [
+      [1200, 630],
+      [800, 400],
+    ];
+    for (const [w, h] of sizes) {
+      for (const p of ADMIN_PNG_PERIODS) {
+        const cid = resolveChartIdForPeriod(p, chartId, siblings);
+        const path = `/api/time-series/public/${cid}/image?period=${p}&width=${w}&height=${h}`;
+        if (seen.has(path)) continue;
+        seen.add(path);
+        rows.push({ label: `${p} ${w}×${h} (series ${cid})`, path });
+      }
+    }
+    return rows;
+  }, [isAdmin, chartId, timeSeries]);
+
+  const applyCanonicalSeo = useCallback(
+    async (path: string | null) => {
+      if (!Number.isFinite(permalinkNumeric)) return;
+      setAdminSeoMessage(null);
+      setAdminSeoSaving(true);
+      try {
+        const token = await getAccessTokenSilently();
+        const res = await patchTimeSeriesSeoPreviewImage(
+          permalinkNumeric,
+          { seo_og_image_url: path },
+          token
+        );
+        const v = (res.metadata as TimeSeriesMetadata | undefined)?.seo_og_image_url;
+        setCanonicalSeoPath(typeof v === "string" && v.trim() ? v.trim() : null);
+        setAdminSeoMessage(
+          path == null
+            ? "Cleared SEO preview image."
+            : "Saved. Link previews may take a few minutes to update."
+        );
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Save failed";
+        setAdminSeoMessage(msg);
+      } finally {
+        setAdminSeoSaving(false);
+      }
+    },
+    [getAccessTokenSilently, permalinkNumeric]
+  );
 
   const fetchTimeSeries = useCallback(
     async (permalinkId: string, periodFromUrl: string | null) => {
@@ -357,7 +552,16 @@ function TimeSeriesChartPageContent() {
           hidePeriodSelector={true}
           showExternalTitle={false}
           forcedTheme={forcedTheme}
+          staleness_days={staleness_days}
         />
+        {displayPeriod === "ytd" &&
+        staleness_days != null &&
+        staleness_days > 0 ? (
+          <p className="time-series-ytd-staleness-compact">
+            Shaded range: the latest {staleness_days} day
+            {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete).
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -402,9 +606,18 @@ function TimeSeriesChartPageContent() {
               hidePeriodSelector={false}
               showExternalTitle={false}
               forcedTheme={forcedTheme}
+              staleness_days={staleness_days}
               onPeriodChange={onPeriodChange}
             />
           </ChartRefreshOverlay>
+          {displayPeriod === "ytd" &&
+          staleness_days != null &&
+          staleness_days > 0 ? (
+            <p className="time-series-ytd-staleness-embed">
+              Shaded range: the latest {staleness_days} day
+              {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete).
+            </p>
+          ) : null}
         </div>
       </div>
     );
@@ -477,6 +690,17 @@ function TimeSeriesChartPageContent() {
           </div>
         </div>
 
+        {displayPeriod === "ytd" &&
+        staleness_days != null &&
+        staleness_days > 0 ? (
+          <div className="time-series-staleness-badge">
+            <span className="time-series-staleness-icon">⏱</span>
+            ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — data for the most recent{" "}
+            {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as{" "}
+            <span className="time-series-staleness-incomplete-label">incomplete</span> on the chart below.
+          </div>
+        ) : null}
+
         <div className="chart-container">
           {periodChangeError && (
             <p className="time-series-period-error" role="alert" style={{ margin: "0 0 12px", fontSize: 14 }}>
@@ -494,6 +718,7 @@ function TimeSeriesChartPageContent() {
               hidePeriodSelector={false}
               showExternalTitle={true}
               forcedTheme={forcedTheme}
+              staleness_days={staleness_days}
               onPeriodChange={onPeriodChange}
             />
           </ChartRefreshOverlay>
@@ -528,6 +753,89 @@ function TimeSeriesChartPageContent() {
             </div>
           </div>
         )}
+
+        {(completenessLoading ||
+          (completenessDaily != null && completenessDaily.data.length > 0)) && (
+          <div id="reporting-completeness" className="time-series-completeness-section">
+            {completenessLoading ? (
+              <div className="time-series-completeness-loading">
+                <h3 className="time-series-provenance-label">Reporting completeness</h3>
+                <Loader size="sm" color="dark" />
+              </div>
+            ) : completenessDaily != null && completenessDaily.data.length > 0 ? (
+              <>
+                <h3 className="time-series-provenance-label">Reporting completeness</h3>
+                <p className="time-series-completeness-intro">
+                  Daily stability of underlying counts (same signal as the yellow &quot;incomplete&quot; range on the
+                  year-to-date chart).
+                </p>
+                <CompletenessSparkline data={completenessDaily.data} height={60} fullWidth />
+              </>
+            ) : null}
+          </div>
+        )}
+
+        {isAdmin && !isEmbedded && !isThumbnail ? (
+          <section
+            className="time-series-admin-seo time-series-admin-seo--footer"
+            aria-label="Admin only: SEO and link preview image"
+          >
+            <h2 className="time-series-admin-seo-title">
+              <span className="time-series-admin-seo-badge">Admin only</span>
+              SEO / Open Graph image
+            </h2>
+            <p className="time-series-admin-seo-help">
+              Public PNG URLs for this chart permalink. Choose one as the preview image when this page is
+              shared ({`/t/${chartId}`}). Links render on demand (or from cache), not from a pre-built file list.
+            </p>
+            {canonicalSeoPath ? (
+              <p className="time-series-admin-seo-current">
+                Current:{" "}
+                <a href={assetUrlForPath(canonicalSeoPath)} target="_blank" rel="noreferrer">
+                  {canonicalSeoPath}
+                </a>{" "}
+                <button
+                  type="button"
+                  className="time-series-admin-seo-btn time-series-admin-seo-btn--ghost"
+                  disabled={adminSeoSaving}
+                  onClick={() => applyCanonicalSeo(null)}
+                >
+                  Clear
+                </button>
+              </p>
+            ) : (
+              <p className="time-series-admin-seo-current">No custom image set (site defaults apply).</p>
+            )}
+            <ul className="time-series-admin-seo-list">
+              {adminSeoPngRows.map((row) => (
+                <li key={row.path}>
+                  <span className="time-series-admin-seo-label">{row.label}</span>{" "}
+                  <a
+                    className="time-series-admin-seo-link"
+                    href={assetUrlForPath(row.path)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open PNG
+                  </a>{" "}
+                  <button
+                    type="button"
+                    className="time-series-admin-seo-btn"
+                    disabled={adminSeoSaving}
+                    onClick={() => applyCanonicalSeo(row.path)}
+                  >
+                    Use for SEO
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {adminSeoMessage ? (
+              <p className="time-series-admin-seo-msg" role="status">
+                {adminSeoMessage}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </article>
     </div>
   );
