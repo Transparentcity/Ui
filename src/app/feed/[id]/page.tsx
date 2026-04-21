@@ -54,6 +54,18 @@ export default function FeedDetailPage() {
 
   const outboundPath = story ? resolveOutboundCanonicalPath(story) : "";
 
+  const handleBack = () => {
+    const sameOriginReferrer =
+      typeof document !== "undefined" &&
+      document.referrer &&
+      document.referrer.startsWith(window.location.origin);
+    if (sameOriginReferrer && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/");
+    }
+  };
+
   const handleShare = () => {
     if (!story) return;
     trackEngagement.mutate({ storyId, action: "share" });
@@ -74,7 +86,7 @@ export default function FeedDetailPage() {
         <button
           type="button"
           className={styles.detailBack}
-          onClick={() => router.back()}
+          onClick={handleBack}
         >
           {"\u2190"} Back
         </button>
@@ -86,20 +98,33 @@ export default function FeedDetailPage() {
   }
 
   if (error || !story || !rawStory) {
+    const errorStatus = (error as { status?: number } | null)?.status;
+    const isNotFound = !error || errorStatus === 404;
     return (
       <div className={styles.detailContainer}>
         <button
           type="button"
           className={styles.detailBack}
-          onClick={() => router.back()}
+          onClick={handleBack}
         >
           {"\u2190"} Back
         </button>
-        <p className={styles.errorState}>
-          {error
-            ? "Error loading story. Please try again later."
-            : `No story with ID ${storyId} exists.`}
-        </p>
+        <div className={styles.emptyState}>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+            {isNotFound ? "Story not found" : "We couldn\u2019t load this story"}
+          </h1>
+          <p>
+            {isNotFound
+              ? "This story may have been unpublished, or the link is out of date."
+              : "Something went wrong on our end. Please try again in a moment."}
+          </p>
+          <Link
+            href="/"
+            className="mt-4 inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium !text-white hover:bg-purple-700"
+          >
+            Browse the latest feed
+          </Link>
+        </div>
       </div>
     );
   }
@@ -109,7 +134,7 @@ export default function FeedDetailPage() {
       <button
         type="button"
         className={styles.detailBack}
-        onClick={() => router.back()}
+        onClick={handleBack}
       >
         {"\u2190"} Back
       </button>
