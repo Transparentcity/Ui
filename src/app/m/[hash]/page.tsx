@@ -824,7 +824,7 @@ export default function PublicMapPage() {
           map.id,
           { seo_og_image_url: path },
           token
-        )) as SavedMap;
+        )) as unknown as SavedMap;
         setMap(updated);
         setMapSeoMessage(
           path == null

@@ -295,7 +295,8 @@ function TimeSeriesChartPageContent() {
           { seo_og_image_url: path },
           token
         );
-        const v = (res.metadata as TimeSeriesMetadata | undefined)?.seo_og_image_url;
+        const v = (res.metadata as unknown as TimeSeriesMetadata | undefined)
+          ?.seo_og_image_url;
         setCanonicalSeoPath(typeof v === "string" && v.trim() ? v.trim() : null);
         setAdminSeoMessage(
           path == null

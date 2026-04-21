@@ -1,7 +1,15 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { toast } from "sonner";
 import {
   adminGenerateSharedNewsletter,
@@ -381,6 +389,11 @@ export default function NewsletterAdmin() {
   const [genFrequency, setGenFrequency] = useState<"weekly" | "monthly">("weekly");
   const [genModelKey, setGenModelKey] = useState<string>("");
   const [generating, setGenerating] = useState(false);
+  /** Weekly workload / save UI — shared with generate modal for defaults and options. */
+  const [workloadEstimateModelKey, setWorkloadEstimateModelKey] = useState("");
+  const [workloadModelOptions, setWorkloadModelOptions] = useState<
+    Array<{ key: string; name: string }>
+  >([]);
 
   // -----------------------------------------------------------------------
   // Load initial data
@@ -713,6 +726,10 @@ export default function NewsletterAdmin() {
           cityStatuses={cityStatuses}
           editionsByCityId={editionsByCityId}
           expandedCityId={expandedCityId}
+          workloadEstimateModelKey={workloadEstimateModelKey}
+          setWorkloadEstimateModelKey={setWorkloadEstimateModelKey}
+          workloadModelOptions={workloadModelOptions}
+          setWorkloadModelOptions={setWorkloadModelOptions}
           onToggleExpand={(id) => setExpandedCityId(expandedCityId === id ? null : id)}
           onGenerate={(cityId) => {
             setGenCityId(cityId);
@@ -906,7 +923,17 @@ function WorkloadCard({
   );
 }
 
-function NewsletterDashboardQueue() {
+function NewsletterDashboardQueue({
+  workloadEstimateModelKey,
+  setWorkloadEstimateModelKey,
+  workloadModelOptions,
+  setWorkloadModelOptions,
+}: {
+  workloadEstimateModelKey: string;
+  setWorkloadEstimateModelKey: Dispatch<SetStateAction<string>>;
+  workloadModelOptions: Array<{ key: string; name: string }>;
+  setWorkloadModelOptions: Dispatch<SetStateAction<Array<{ key: string; name: string }>>>;
+}) {
   const { getAccessTokenSilently } = useAuth0();
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
   const [archive, setArchive] = useState<NewsletterPendingListItem[]>([]);
@@ -935,11 +962,6 @@ function NewsletterDashboardQueue() {
   const [workloadLoading, setWorkloadLoading] = useState(true);
   const [workloadOpen, setWorkloadOpen] = useState(false);
   const [workloadFrequency, setWorkloadFrequency] = useState<"weekly" | "monthly">("weekly");
-  /** Empty = preview uses server default (saved job override, else AGENT_MODEL). */
-  const [workloadEstimateModelKey, setWorkloadEstimateModelKey] = useState("");
-  const [workloadModelOptions, setWorkloadModelOptions] = useState<
-    Array<{ key: string; name: string }>
-  >([]);
   const [saveNewsletterModelBusy, setSaveNewsletterModelBusy] = useState(false);
 
   // Recent weekly_newsletter jobs
@@ -1905,6 +1927,10 @@ function DashboardTab({
   cityStatuses,
   editionsByCityId,
   expandedCityId,
+  workloadEstimateModelKey,
+  setWorkloadEstimateModelKey,
+  workloadModelOptions,
+  setWorkloadModelOptions,
   onToggleExpand,
   onGenerate,
 }: {
@@ -1912,12 +1938,21 @@ function DashboardTab({
   cityStatuses: CityNewsletterStatus[];
   editionsByCityId: Record<number, NewsletterEditionAdminItem[]>;
   expandedCityId: number | null;
+  workloadEstimateModelKey: string;
+  setWorkloadEstimateModelKey: Dispatch<SetStateAction<string>>;
+  workloadModelOptions: Array<{ key: string; name: string }>;
+  setWorkloadModelOptions: Dispatch<SetStateAction<Array<{ key: string; name: string }>>>;
   onToggleExpand: (id: number) => void;
   onGenerate: (cityId: number) => void;
 }) {
   return (
     <>
-      <NewsletterDashboardQueue />
+      <NewsletterDashboardQueue
+        workloadEstimateModelKey={workloadEstimateModelKey}
+        setWorkloadEstimateModelKey={setWorkloadEstimateModelKey}
+        workloadModelOptions={workloadModelOptions}
+        setWorkloadModelOptions={setWorkloadModelOptions}
+      />
       {/* Stats */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
