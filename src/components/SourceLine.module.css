@@ -2,6 +2,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  max-width: 100%;
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   font-weight: 500;
@@ -9,6 +10,17 @@
   color: #6b6b70;
   text-transform: uppercase;
   text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Narrow phones: drop the agency so long combos like
+   "Chicago Park District / data.cityofchicago.org" always fit
+   on a single line. Portal alone stays readable. */
+@media (max-width: 420px) {
+  .sourceLine .agency,
+  .sourceLine .sep {
+    display: none;
+  }
 }
 
 .sourceLine:hover {

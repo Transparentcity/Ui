@@ -12,6 +12,7 @@
 .previewCard {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   text-decoration: none;
   color: inherit;
   background: var(--bg-primary, #fff);

@@ -516,6 +516,7 @@
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   position: relative;
+  min-width: 0;
   /* NOTE: no overflow:hidden here — it would clip the desktop dropdown menu.
      overflow:hidden is applied only on .cardHiding for the dismiss animation. */
 }
