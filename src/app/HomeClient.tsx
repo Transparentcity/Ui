@@ -130,19 +130,6 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
           </div>
         </section>
 
-        {/* ── Feed preview (proof) ──────────────────────────────────────── */}
-        <section className={styles.section}>
-          <div className={styles.container}>
-            <div className={styles.feedPreviewHeader}>
-              <h2 className={styles.sectionTitle}>Recent stories</h2>
-              <p className={styles.sectionLead}>
-                Sign up to follow your city and get a weekly newsletter for what's happening in your city and on your block.
-              </p>
-            </div>
-            <HomeFeedPreview initialStories={stories} metricCards={metricCards} />
-          </div>
-        </section>
-
         {/* ── How it works ──────────────────────────────────────────────── */}
         <section className={styles.section}>
           <div className={styles.container}>
@@ -173,6 +160,19 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
                 </p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ── Feed preview (proof) ──────────────────────────────────────── */}
+        <section className={styles.section}>
+          <div className={styles.container}>
+            <div className={styles.feedPreviewHeader}>
+              <h2 className={styles.sectionTitle}>Recent stories</h2>
+              <p className={styles.sectionLead}>
+                Sign up to follow your city and get a weekly newsletter for what's happening in your city and on your block.
+              </p>
+            </div>
+            <HomeFeedPreview initialStories={stories} metricCards={metricCards} />
           </div>
         </section>
 
