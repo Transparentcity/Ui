@@ -13,6 +13,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SFPD",
     "seattle":       "SPD",
     "little-rock":   "LRPD",
+    "los-angeles":   "LAPD",
   },
   "city-hall": {
     "austin":        "City of Austin",
@@ -25,6 +26,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SF Controller",
     "seattle":       "Seattle CBO",
     "little-rock":   "City of Little Rock",
+    "los-angeles":   "LA CAO",
   },
   "transit": {
     "austin":        "CapMetro",
@@ -37,6 +39,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SFMTA",
     "seattle":       "King County Metro",
     "little-rock":   "Rock Region METRO",
+    "los-angeles":   "LA Metro",
   },
   "building-dept": {
     "austin":        "Austin DSD",
@@ -49,6 +52,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SF DBI",
     "seattle":       "Seattle SDCI",
     "little-rock":   "Little Rock Planning",
+    "los-angeles":   "LADBS",
   },
   "fire": {
     "austin":        "AFD",
@@ -61,6 +65,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SFFD",
     "seattle":       "Seattle Fire",
     "little-rock":   "LRFD",
+    "los-angeles":   "LAFD",
   },
   "parks": {
     "austin":        "Austin PARD",
@@ -73,6 +78,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SF Rec & Park",
     "seattle":       "Seattle Parks",
     "little-rock":   "Little Rock Parks",
+    "los-angeles":   "LA Rec & Parks",
   },
   "311": {
     "austin":        "Austin 311",
@@ -85,6 +91,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SF 311",
     "seattle":       "Find It Fix It",
     "little-rock":   "Little Rock 311",
+    "los-angeles":   "MyLA311",
   },
   "elections": {
     "austin":        "Travis County Clerk",
@@ -97,6 +104,7 @@ const AGENCY_MAP: Record<string, Record<string, string>> = {
     "san-francisco": "SF Elections",
     "seattle":       "King County Elections",
     "little-rock":   "Pulaski County Clerk",
+    "los-angeles":   "LA County Registrar",
   },
 };
 

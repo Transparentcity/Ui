@@ -130,34 +130,50 @@ function StoryFeedCard({
     ? `/c/${slug}/stories/${story.short_hash}`
     : story.detail_url || null;
 
-  const inner = (
-    <>
-      <CardHeader
-        typeIcon={catMeta.icon}
-        typeLabel="Story"
-        actor={catMeta.label}
-        subline={dateLabel ?? ""}
-        neighborhoodLabel={neighborhoodLabel}
-        categoryColor={catMeta.color}
-      />
-      <h2 className={feedStyles.cardHeadline}>{headline}</h2>
-      {story.description && (
-        <p className={feedStyles.cardDescription}>{story.description}</p>
+  return (
+    <div
+      className={feedStyles.card}
+      style={{ position: "relative", color: "inherit" }}
+    >
+      {href && (
+        <a
+          href={href}
+          aria-label={headline}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 0,
+            textDecoration: "none",
+          }}
+        />
       )}
-      <div style={{ marginTop: "auto", paddingTop: 12 }}>
+      <div style={{ position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <CardHeader
+          typeIcon={catMeta.icon}
+          typeLabel="Story"
+          actor={catMeta.label}
+          subline={dateLabel ?? ""}
+          neighborhoodLabel={neighborhoodLabel}
+          categoryColor={catMeta.color}
+        />
+        <h2 className={feedStyles.cardHeadline}>{headline}</h2>
+        {story.description && (
+          <p className={feedStyles.cardDescription}>{story.description}</p>
+        )}
+      </div>
+      <div
+        style={{
+          position: "relative",
+          zIndex: 2,
+          marginTop: "auto",
+          paddingTop: 12,
+          pointerEvents: "auto",
+        }}
+      >
         <SourceLine category={actor} citySlug={slug} />
       </div>
-    </>
+    </div>
   );
-
-  if (href) {
-    return (
-      <a href={href} className={feedStyles.card} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-        {inner}
-      </a>
-    );
-  }
-  return <div className={feedStyles.card}>{inner}</div>;
 }
 
 export default function FeaturedStories({

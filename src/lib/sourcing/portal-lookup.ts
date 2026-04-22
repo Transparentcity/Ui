@@ -12,6 +12,7 @@ const PORTAL_MAP: Record<string, string> = {
   "san-francisco":  "data.sfgov.org",
   "seattle":        "data.seattle.gov",
   "little-rock":    "data.littlerock.gov",
+  "los-angeles":    "data.lacity.org",
 };
 
 export function derivePortal(citySlug: string): string | null {
