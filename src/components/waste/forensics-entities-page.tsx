@@ -10,10 +10,10 @@ import { SeverityBadge } from "./severity-badge"
 import { TCScoreBadge } from "./tc-score-badge"
 import { useWasteCity } from "./WasteCityContext"
 import { isConfirmedFraudEntity } from "./waste-utils"
+import { ConfirmedBadge } from "./confirmed-badge"
 import {
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -148,13 +148,7 @@ export function ForensicsEntitiesPage() {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="truncate">{entity.entity_name}</span>
                         {isConfirmedFraudEntity(entity.entity_name) && (
-                          <span
-                            title="Previously confirmed case — not a newly surfaced finding"
-                            className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded"
-                          >
-                            <ShieldCheck className="w-2.5 h-2.5" />
-                            Confirmed
-                          </span>
+                          <ConfirmedBadge variant="stamp" />
                         )}
                       </div>
                     </td>

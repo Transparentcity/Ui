@@ -5,8 +5,9 @@ import { cn } from "@/lib/utils"
 import { ChevronRight, Map as MapIcon } from "lucide-react"
 import type { WasteFinding, WasteDispositionType } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
+import { ConfirmedBadge } from "./confirmed-badge"
 import type { SubGroup } from "./waste-findings-list"
-import { formatDollar } from "./waste-utils"
+import { formatDollar, isConfirmedFinding, isConfirmedFraudEntity } from "./waste-utils"
 
 const ROADMAP_DETECTOR_NAMES = [
   "Address Clustering",
@@ -99,6 +100,9 @@ export function WasteSubcategoryGroup({
           )}
         />
         <span className="font-semibold text-sm text-gray-900">{stripRoadmapLabel(subcategory)}</span>
+        {(isConfirmedFraudEntity(subcategory) || findings.some(isConfirmedFinding)) && (
+          <ConfirmedBadge variant="stamp" />
+        )}
         {findings.some((f) => f.is_new) && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide">
             New

@@ -4,8 +4,9 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check, History, Layers } from "lucide-react"
 import { type WasteFinding, type WasteDispositionType } from "@/lib/apiClient"
-import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql } from "./waste-utils"
+import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql, isConfirmedFinding } from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
+import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -799,8 +800,11 @@ export function WasteFindingCard({
           {sev.label}
         </span>
 
+        {/* Confirmed badge — previously verified case, not a newly surfaced finding */}
+        {isConfirmedFinding(finding) && <ConfirmedBadge variant="stamp" />}
+
         {/* NEW badge for Phase 6 detectors */}
-        {finding.is_new && (
+        {finding.is_new && !isConfirmedFinding(finding) && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide shrink-0">
             New
           </span>

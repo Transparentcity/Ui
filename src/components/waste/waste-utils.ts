@@ -136,12 +136,25 @@ const CONFIRMED_FRAUD_ENTITY_PATTERNS: string[] = [
   "robert lacy",
   "jones",
   "henriquez",
+  "dream keeper",
+  "davis self-dealing",
+  "davis self dealing",
 ]
 
 export function isConfirmedFraudEntity(name: string | null | undefined): boolean {
   if (!name) return false
   const hay = name.toLowerCase()
   return CONFIRMED_FRAUD_ENTITY_PATTERNS.some((p) => hay.includes(p))
+}
+
+// Finding-level check: backend marks confirmed-case items via category
+// "confirmed" and/or IDs starting with "CONF-". Use this anywhere a finding
+// object is available instead of string-matching names.
+export function isConfirmedFinding(finding: WasteFinding): boolean {
+  const cat = finding.category?.toLowerCase() ?? ""
+  if (cat === "confirmed" || cat.includes("confirmed")) return true
+  if (finding.id?.startsWith("CONF-")) return true
+  return false
 }
 
 // ── Dollar formatting ───────────────────────────────────────────────────────
