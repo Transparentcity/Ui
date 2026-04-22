@@ -114,6 +114,9 @@ export type FeedStoryDetailViewProps = {
   detailNarrative: DetailNarrative | null;
   relatedStories: EnrichedFeedStory[];
   onShare: () => void;
+  /** Move a shared saved-place story back to private scope (owner). */
+  onMakePrivate?: () => void;
+  makePrivatePending?: boolean;
   /** When true, replace the primary article shortcode with the story's saved static asset. */
   preferStaticPrimaryVisualizationInArticle?: boolean;
   /** When set, related stories open in-app (e.g. feed modal) instead of navigating. */
@@ -129,6 +132,8 @@ export function FeedStoryDetailView({
   detailNarrative,
   relatedStories,
   onShare,
+  onMakePrivate,
+  makePrivatePending = false,
   preferStaticPrimaryVisualizationInArticle = false,
   onSelectRelatedStoryId,
 }: FeedStoryDetailViewProps) {
@@ -294,6 +299,16 @@ export function FeedStoryDetailView({
         <button type="button" className={styles.detailActionBtn} onClick={onShare}>
           <Share2 size={16} /> Share
         </button>
+        {onMakePrivate ? (
+          <button
+            type="button"
+            className={styles.detailActionBtn}
+            onClick={onMakePrivate}
+            disabled={makePrivatePending}
+          >
+            {makePrivatePending ? "Making private…" : "Make private"}
+          </button>
+        ) : null}
       </div>
 
       {relatedStories.length > 0 && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin } from "lucide-react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import styles from "../feed.module.css";
 
@@ -30,7 +31,23 @@ export default function CompactCard({ story, children }: CompactCardProps) {
             <span className={styles.cardTimestamp}>{story.subline}</span>
           )}
         </div>
-        <div className={styles.cardHeaderRight}>{story.neighborhood_label}</div>
+        <div
+          className={[
+            styles.cardHeaderRight,
+            story.place_scoped_for_ui ? styles.cardHeaderRightPlaceScoped : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {story.place_scoped_for_ui && (
+            <span className={styles.cardHeaderPlacePin} aria-label="Saved place">
+              <MapPin size={12} strokeWidth={2.5} aria-hidden="true" />
+            </span>
+          )}
+          <span className={styles.cardHeaderNeighborhoodText}>
+            {story.neighborhood_label}
+          </span>
+        </div>
       </div>
       <div className={styles.compactContentRow}>
         <h2 className={styles.cardHeadline}>{story.headline}</h2>

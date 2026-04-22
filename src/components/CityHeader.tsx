@@ -14,6 +14,8 @@ interface CityHeaderProps {
   showDateRange?: boolean; // Control whether to show date range in header
   /** Follow (district/official): when set, show Follow button in header */
   cityId?: number;
+  /** Label before district number in follow scope (e.g. Ward, District). */
+  districtUnitLabel?: string;
   selectedDistrict?: number | null;
   isFollowed?: boolean;
   followPending?: boolean;
@@ -34,6 +36,7 @@ export default function CityHeader({
   visible = true,
   showDateRange = true, // Default to showing date range
   cityId,
+  districtUnitLabel = "District",
   selectedDistrict,
   isFollowed = false,
   followPending = false,
@@ -50,7 +53,7 @@ export default function CityHeader({
 
   const district = selectedDistrict ?? 0;
   const districtLabel =
-    district === 0 ? "citywide" : `District ${district}`;
+    district === 0 ? "citywide" : `${districtUnitLabel} ${district}`;
 
   return (
     <div className={className}>

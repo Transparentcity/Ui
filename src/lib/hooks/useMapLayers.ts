@@ -39,7 +39,7 @@ export const mapLayerKeys = {
  * when toggling layers on/off or when changing location and then coming back.
  *
  * Cache key includes location (districts + placeCircle), so changing district or
- * "My Block" correctly triggers a new fetch for that location. Returning to a
+ * "My place" correctly triggers a new fetch for that location. Returning to a
  * previously visited location uses the cache.
  */
 const MAP_LAYER_CACHE_CONFIG = {
@@ -63,7 +63,7 @@ export interface MapLayerParams {
   startDate?: string | null;
   endDate?: string | null;
   districts?: number[] | null;
-  /** When set (e.g. My Block), map data is limited to points within this radius of the center */
+  /** When set (e.g. My place), map data is limited to points within this radius of the center */
   placeCircle?: { lat: number; lng: number; radius_m: number } | null;
 }
 

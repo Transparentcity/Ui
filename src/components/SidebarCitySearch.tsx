@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth0 } from "@auth0/auth0-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  getPublicLeadersForCity,
   searchPublicCities,
   type PublicCitySearchResult,
+  type PublicLeader,
 } from "@/lib/publicApiClient";
+import {
+  pickDistrictSupervisorFromPublicLeaders,
+  pickMayorFromPublicLeaders,
+} from "@/lib/publicLeadersPick";
+import { formatLeaderName } from "@/lib/utils";
 import {
   isLikelyZipcode,
   isLikelyAddress,
@@ -18,32 +26,142 @@ import {
   resolveCityFromGeocode,
   fetchAddressSuggestions,
   suggestionToGeocodeResult,
+  getDirectMatchDisplayCity,
+  isPreciseAddressSuggestion,
   type AddressSuggestion,
-  type GeocodeResult,
 } from "@/lib/locationSearchUtils";
-import { saveCity, createPlace, type UserPlace } from "@/lib/apiClient";
+import {
+  saveCity,
+  createPlace,
+  followRepresentative,
+  runPlaceMetricsAndAnomaliesAsJob,
+  type UserPlace,
+} from "@/lib/apiClient";
 import LocationMapSave from "@/components/LocationMapSave";
+import locationMapSaveStyles from "@/components/LocationMapSave.module.css";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
+import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
+import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
+import { cityKeys } from "@/lib/hooks/useCities";
+import Loader from "@/components/Loader";
+import welcomeStyles from "./WelcomeModal.module.css";
 
 import styles from "./SidebarCitySearch.module.css";
+
+const ONBOARDING_PLACE_LABEL_DEFAULT = "My place";
+
+function PlaceSaveLeadershipIntro({
+  district,
+  cityLabel,
+  leaders,
+  isLoading,
+  isError,
+}: {
+  district: number;
+  cityLabel: string;
+  leaders: PublicLeader[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  const mayorL = pickMayorFromPublicLeaders(leaders);
+  const repL =
+    district > 0 ? pickDistrictSupervisorFromPublicLeaders(leaders, district) : null;
+
+  return (
+    <section
+      className={styles.placeSaveLeadership}
+      role="region"
+      aria-label="Elected officials for this city"
+    >
+      <h3 className={styles.placeSaveLeadershipHeading}>Who represents you</h3>
+      {isLoading ? (
+        <p className={styles.placeSaveLeadershipMuted}>Loading officials…</p>
+      ) : isError ? (
+        <p className={styles.placeSaveLeadershipMuted}>
+          We could not load elected officials for this city right now.
+        </p>
+      ) : (
+        <>
+          <p className={styles.placeSaveLeadershipLead}>
+            In {cityLabel}
+            {district === 0
+              ? ", your dashboard follows the whole city."
+              : `, District ${district} is the area we matched to your location.`}{" "}
+            Here is who we have on file:
+          </p>
+          {mayorL ? (
+            <div className={styles.placeSaveLeadershipRow}>
+              <span className={styles.placeSaveLeadershipBadge}>Mayor</span>
+              <div className={styles.placeSaveLeadershipText}>
+                <strong>{formatLeaderName(mayorL.name)}</strong>
+                {mayorL.title ? (
+                  <span className={styles.placeSaveLeadershipTitle}> — {mayorL.title}</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          {repL && district > 0 ? (
+            <div className={styles.placeSaveLeadershipRow}>
+              <span className={styles.placeSaveLeadershipBadge}>District {district}</span>
+              <div className={styles.placeSaveLeadershipText}>
+                <strong>{formatLeaderName(repL.name)}</strong>
+                {repL.title ? (
+                  <span className={styles.placeSaveLeadershipTitle}> — {repL.title}</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          {!mayorL && !repL ? (
+            <p className={styles.placeSaveLeadershipMuted}>
+              Elected official names are not published for this city yet.
+            </p>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+const locationGpsIcon = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="3" />
+    <line x1="12" y1="2" x2="12" y2="4" />
+    <line x1="12" y1="20" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="4" y2="12" />
+    <line x1="20" y1="12" x2="22" y2="12" />
+  </svg>
+);
+
+export type SidebarCitySelectOptions = {
+  /** When set (including null for citywide), opens the city dashboard scoped to this district after skip. */
+  district?: number | null;
+  /**
+   * Search flow auto-followed this city/district (save + follow already applied).
+   * Parent may show a one-time onboarding hint; not persisted across sessions.
+   */
+  searchOnboardingAutoFollow?: boolean;
+  /** For explicit follow toasts when searchOnboardingAutoFollow is set. */
+  cityDisplayName?: string;
+};
 
 export default function SidebarCitySearch({
   onCitySelect,
   onGPSLocation,
-  onFindDistrict,
   onPlaceSaved,
-  placeholder = "Search cities…",
+  placeholder = "Type to search for cities, or enter a ZIP code",
 }: {
-  onCitySelect: (cityId: number) => void;
+  onCitySelect: (cityId: number, opts?: SidebarCitySelectOptions) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
-  /** Called when user clicks "Find your district" from the null state; parent may open district modal if a city is selected. */
-  onFindDistrict?: () => void;
   /** Called after user saves a personalized place from the map step (parent refetches + opens block view). */
   onPlaceSaved?: (place: UserPlace) => void;
   placeholder?: string;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const queryClient = useQueryClient();
+  const { startJob } = usePlaceOnboarding();
   const [open, setOpen] = useState(false);
+  const [modalStep, setModalStep] = useState<"search" | "placeSave">("search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicCitySearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,12 +171,15 @@ export default function SidebarCitySearch({
   const [mounted, setMounted] = useState(false);
   const [storedGPSLocation, setStoredGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsActive, setGpsActive] = useState(false);
-  /** When set, user resolved city + coordinates (GPS or address); show map save step before opening city. */
-  const [pendingCityAndCoords, setPendingCityAndCoords] = useState<{
+  /** After resolving a city + coordinates, optional save step before navigating. */
+  const [pendingSave, setPendingSave] = useState<{
     city: PublicCitySearchResult;
     coords: { lat: number; lng: number };
+    district: number | null;
   } | null>(null);
   const [savePlaceLoading, setSavePlaceLoading] = useState(false);
+  /** Map center chosen while saving a place (pan map; falls back to pendingSave.coords). */
+  const [placePinOverride, setPlacePinOverride] = useState<{ lat: number; lng: number } | null>(null);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastRequestIdRef = useRef(0);
@@ -75,7 +196,54 @@ export default function SidebarCitySearch({
     [trimmed],
   );
 
-  // For portal rendering
+  const directMatchCity = useMemo(
+    () =>
+      !queryIsGeo && trimmed.length >= 2
+        ? getDirectMatchDisplayCity(results, trimmed)
+        : null,
+    [queryIsGeo, trimmed, results],
+  );
+
+  const suppressAddressAutocomplete = Boolean(directMatchCity) && !queryIsGeo;
+
+  const placeSaveLeadersQuery = useQuery({
+    queryKey: ["sidebarPlaceSaveLeaders", pendingSave?.city.id],
+    queryFn: () => {
+      const id = pendingSave?.city.id;
+      if (id == null) return Promise.resolve([] as PublicLeader[]);
+      return getPublicLeadersForCity(id);
+    },
+    enabled:
+      modalStep === "placeSave" &&
+      pendingSave != null &&
+      pendingSave.district !== null,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!suppressAddressAutocomplete) return;
+    setAddressSuggestions([]);
+    setAddressSuggestionsLoading(false);
+  }, [suppressAddressAutocomplete]);
+
+  const listLengthForKeys = useMemo(() => {
+    const addrLen = queryIsGeo ? addressSuggestions.length : 0;
+    if (directMatchCity && !queryIsGeo && addrLen === 0) return 1;
+    if (addrLen > 0) return addrLen;
+    return results.length;
+  }, [directMatchCity, queryIsGeo, addressSuggestions.length, results.length]);
+
+  /** City-name search must not show Mapbox rows (e.g. districts); drop stale suggest runs. */
+  useEffect(() => {
+    if (queryIsGeo) return;
+    if (addressSuggestTimeoutRef.current) {
+      window.clearTimeout(addressSuggestTimeoutRef.current);
+      addressSuggestTimeoutRef.current = null;
+    }
+    setAddressSuggestions([]);
+    setAddressSuggestionsLoading(false);
+  }, [queryIsGeo]);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -94,7 +262,6 @@ export default function SidebarCitySearch({
     };
   }, []);
 
-  // Close on escape key
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -108,12 +275,14 @@ export default function SidebarCitySearch({
 
   const closeModal = () => {
     setOpen(false);
+    setModalStep("search");
     setQuery("");
     setResults([]);
     setAddressSuggestions([]);
     setError(null);
     setSelectedIndex(-1);
-    setPendingCityAndCoords(null);
+    setPendingSave(null);
+    setPlacePinOverride(null);
     if (geoLoading) {
       setGeoLoading(false);
     }
@@ -138,7 +307,7 @@ export default function SidebarCitySearch({
   const scheduleAddressSuggest = (q: string) => {
     if (addressSuggestTimeoutRef.current) window.clearTimeout(addressSuggestTimeoutRef.current);
     const s = q.trim();
-    if (s.length < 2) {
+    if (s.length < 2 || !isGeographicQuery(s)) {
       setAddressSuggestions([]);
       setAddressSuggestionsLoading(false);
       return;
@@ -152,6 +321,76 @@ export default function SidebarCitySearch({
     }, 300);
   };
 
+  const openPlaceSaveStep = (
+    city: PublicCitySearchResult,
+    coords: { lat: number; lng: number },
+    district: number | null
+  ) => {
+    setPlacePinOverride(null);
+    setPendingSave({ city, coords, district });
+    setModalStep("placeSave");
+    setError(null);
+  };
+
+  const finishOpenCityDashboard = (cityId: number, district: number | null) => {
+    onCitySelect(cityId, { district });
+    closeModal();
+  };
+
+  const finishSearchAutoFollow = (
+    cityId: number,
+    district: number | null,
+    cityDisplayName?: string | null
+  ) => {
+    onCitySelect(cityId, {
+      district,
+      searchOnboardingAutoFollow: true,
+      cityDisplayName: cityDisplayName ?? undefined,
+    });
+    closeModal();
+  };
+
+  const navigateCitySearchWithAutoFollow = async (
+    city: PublicCitySearchResult,
+    district: number | null,
+    coordinates: { lat: number; lng: number } | null
+  ) => {
+    if (coordinates) {
+      setStoredGPSLocation(coordinates);
+      onGPSLocation?.(coordinates);
+    }
+    if (!isAuthenticated) {
+      finishOpenCityDashboard(city.id, district);
+      return;
+    }
+    try {
+      const token = await getAccessTokenSilently();
+      try {
+        await saveCity(city.id, token);
+      } catch {
+        // May already be saved
+      }
+      try {
+        if (district != null && district !== 0) {
+          await followRepresentative(city.id, String(district), token);
+        } else {
+          await followRepresentative(city.id, "0", token);
+        }
+      } catch {
+        // Duplicate follow or missing rep — still open city
+      }
+      queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
+      queryClient.invalidateQueries({ queryKey: cityKeys.representativeFollows(city.id) });
+      queryClient.invalidateQueries({
+        queryKey: cityKeys.representativeFollowerCounts(city.id),
+      });
+      finishSearchAutoFollow(city.id, district, city.display_name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not complete selection");
+    }
+  };
+
   const handleAddressSuggestionSelect = async (suggestion: AddressSuggestion) => {
     if (!suggestion.cityName) {
       setError("Could not determine city from this address.");
@@ -163,11 +402,32 @@ export default function SidebarCitySearch({
     try {
       const geo = suggestionToGeocodeResult(suggestion);
       const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
-      if (coordinates) {
-        setStoredGPSLocation(coordinates);
-        if (onGPSLocation) onGPSLocation(coordinates);
+      if (!isAuthenticated) {
+        if (coordinates) {
+          setStoredGPSLocation(coordinates);
+          onGPSLocation?.(coordinates);
+        }
+        finishOpenCityDashboard(city.id, null);
+        return;
       }
-      selectCity(city, true);
+      if (!coordinates) {
+        finishOpenCityDashboard(city.id, null);
+        return;
+      }
+      if (!isPreciseAddressSuggestion(suggestion)) {
+        await navigateCitySearchWithAutoFollow(city, null, coordinates);
+        return;
+      }
+      const token = await getAccessTokenSilently();
+      let district: number | null = null;
+      try {
+        district = await findDistrictFromCoordinates(coordinates.lat, coordinates.lng, city.id, token);
+      } catch {
+        district = null;
+      }
+      setStoredGPSLocation(coordinates);
+      onGPSLocation?.(coordinates);
+      openPlaceSaveStep(city, coordinates, district);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not find city for this address.");
     } finally {
@@ -185,7 +445,6 @@ export default function SidebarCitySearch({
       return;
     }
 
-    // Don't run city search for zipcodes/addresses - they need geocoding
     if (isGeographicQuery(s)) {
       setResults([]);
       setLoading(false);
@@ -212,30 +471,68 @@ export default function SidebarCitySearch({
     }
   };
 
-  const selectCity = (city: PublicCitySearchResult, fromGPS: boolean = false) => {
-    closeModal();
-    onCitySelect(city.id);
-  };
-
-  const showMapSaveStep = (city: PublicCitySearchResult, coords: { lat: number; lng: number }) => {
-    setPendingCityAndCoords({ city, coords });
+  /** Pick a city from the list: resolve district from city center, save + follow, open city view (no place modal). */
+  const selectCityFromList = async (city: PublicCitySearchResult) => {
+    if (!isAuthenticated) {
+      finishOpenCityDashboard(city.id, null);
+      return;
+    }
+    setLoading(true);
     setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const geo = await geocodeQuery(city.display_name);
+      const { city: resolvedFromGeo, coordinates } = await resolveCityFromGeocode(geo, (q, lim) =>
+        searchPublicCities(q, lim)
+      );
+      const targetCity = resolvedFromGeo.id === city.id ? city : resolvedFromGeo;
+      await navigateCitySearchWithAutoFollow(targetCity, null, coordinates);
+    } catch {
+      finishOpenCityDashboard(city.id, null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSavePlaceAndOpen = async (opts: { label: string; radius_m: number }) => {
-    if (!pendingCityAndCoords || !isAuthenticated) return;
+    if (!pendingSave || !isAuthenticated) return;
     setSavePlaceLoading(true);
     setError(null);
     try {
       const token = await getAccessTokenSilently();
-      await saveCity(pendingCityAndCoords.city.id, token);
+      const { city, coords, district } = pendingSave;
+      const pin = placePinOverride ?? coords;
+      let districtToFollow = district;
+      try {
+        districtToFollow = await findDistrictFromCoordinates(pin.lat, pin.lng, city.id, token);
+      } catch {
+        districtToFollow = district;
+      }
+      await saveCity(city.id, token);
+      try {
+        if (districtToFollow !== null && districtToFollow !== undefined && districtToFollow !== 0) {
+          await followRepresentative(city.id, String(districtToFollow), token);
+        } else {
+          await followRepresentative(city.id, "0", token);
+        }
+      } catch {
+        // ignore if follow fails
+      }
       const place = await createPlace(token, {
-        city_id: pendingCityAndCoords.city.id,
-        label: opts.label.trim() || "My Block",
-        lat: pendingCityAndCoords.coords.lat,
-        lng: pendingCityAndCoords.coords.lng,
+        city_id: city.id,
+        label: opts.label.trim() || ONBOARDING_PLACE_LABEL_DEFAULT,
+        lat: pin.lat,
+        lng: pin.lng,
         radius_m: opts.radius_m,
       });
+      if (place?.id) {
+        try {
+          const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(place.id, token);
+          startJob(place.id, job_id);
+        } catch {
+          // non-blocking
+        }
+      }
       onPlaceSaved?.(place);
       closeModal();
     } catch (e) {
@@ -245,10 +542,10 @@ export default function SidebarCitySearch({
     }
   };
 
-  const handleJustOpenCity = () => {
-    if (!pendingCityAndCoords) return;
-    onCitySelect(pendingCityAndCoords.city.id);
-    closeModal();
+  const handleSkipSaveOpenDashboard = () => {
+    if (!pendingSave) return;
+    const { city, district } = pendingSave;
+    finishOpenCityDashboard(city.id, district);
   };
 
   const handleGeocodeQuery = async () => {
@@ -259,11 +556,40 @@ export default function SidebarCitySearch({
     try {
       const geo = await geocodeQuery(s);
       const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
-      if (coordinates) {
-        setStoredGPSLocation(coordinates);
-        if (onGPSLocation) onGPSLocation(coordinates);
+      const zipOnly = isLikelyZipcode(s);
+      const streetAddress = isLikelyAddress(s) && !zipOnly;
+
+      if (!coordinates) {
+        finishOpenCityDashboard(city.id, null);
+        return;
       }
-      selectCity(city, true);
+      setStoredGPSLocation(coordinates);
+      onGPSLocation?.(coordinates);
+
+      if (!isAuthenticated) {
+        finishOpenCityDashboard(city.id, null);
+        return;
+      }
+
+      const token = await getAccessTokenSilently();
+      let district: number | null = null;
+      try {
+        district = await findDistrictFromCoordinates(coordinates.lat, coordinates.lng, city.id, token);
+      } catch {
+        district = null;
+      }
+
+      if (zipOnly) {
+        await navigateCitySearchWithAutoFollow(city, district, coordinates);
+        return;
+      }
+
+      if (streetAddress) {
+        openPlaceSaveStep(city, coordinates, district);
+        return;
+      }
+
+      await navigateCitySearchWithAutoFollow(city, district, coordinates);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -271,83 +597,69 @@ export default function SidebarCitySearch({
     }
   };
 
-  const handleUseCurrentLocation = async (e?: React.MouseEvent, openModal: boolean = false) => {
+  const handleUseCurrentLocation = async (e?: React.MouseEvent, openModalFlag: boolean = false) => {
     if (e) {
       e.stopPropagation();
     }
-    
-    // Set active state for visual feedback
+
     setGpsActive(true);
-    
-    // If we already have a stored GPS location, toggle it off (clear it)
-    if (storedGPSLocation) {
-      setStoredGPSLocation(null);
-      // Clear GPS location in parent (pass null to remove marker and zoom out)
-      if (onGPSLocation) {
-        onGPSLocation(null);
-      }
-      // Reset all states immediately
-      setGeoLoading(false);
-      setGpsActive(false);
-      setError(null);
-      return;
-    }
-    
+
     setGeoLoading(true);
     setError(null);
-    
-    // Clear any existing timeout
+
     if (geoLoadingTimeoutRef.current) {
       window.clearTimeout(geoLoadingTimeoutRef.current);
     }
-    
-    // Safety timeout: reset loading state after 15 seconds if it gets stuck
+
     geoLoadingTimeoutRef.current = window.setTimeout(() => {
       console.warn("GPS loading timeout - resetting state");
       setGeoLoading(false);
       setGpsActive(false);
       setError("Location request timed out. Please try again.");
     }, 15000);
-    
-    // Only open modal if explicitly requested (from within modal)
-    if (openModal) {
+
+    if (openModalFlag) {
       setOpen(true);
     }
-    
+
     try {
-      // Get current location using shared utility
       const location = await getCurrentLocation();
-      
-      // Clear timeout since we got a response
+
       if (geoLoadingTimeoutRef.current) {
         window.clearTimeout(geoLoadingTimeoutRef.current);
         geoLoadingTimeoutRef.current = null;
       }
-      
-      // Store the GPS location for future re-centering
+
       setStoredGPSLocation(location);
-      
-      // Notify parent about GPS location for map zooming
-      if (onGPSLocation) {
-        onGPSLocation(location);
-      }
-      
+      onGPSLocation?.(location);
+
       const geo = await reverseGeocode(location.lat, location.lng);
-      const { city } = await resolveCityFromGeocode(geo, searchPublicCities);
-      selectCity(city, true);
+      const { city, coordinates } = await resolveCityFromGeocode(geo, searchPublicCities);
+      const coords = coordinates ?? location;
+
+      if (isAuthenticated) {
+        const token = await getAccessTokenSilently();
+        let district: number | null = null;
+        try {
+          district = await findDistrictFromCoordinates(coords.lat, coords.lng, city.id, token);
+        } catch {
+          district = null;
+        }
+        if (open || openModalFlag) {
+          openPlaceSaveStep(city, coords, district);
+        } else {
+          onCitySelect(city.id, { district });
+        }
+      } else {
+        finishOpenCityDashboard(city.id, null);
+      }
+
       setGeoLoading(false);
       setGpsActive(false);
-      
-      // Clear timeout
-      if (geoLoadingTimeoutRef.current) {
-        window.clearTimeout(geoLoadingTimeoutRef.current);
-        geoLoadingTimeoutRef.current = null;
-      }
-    } catch (e) {
-      console.error("GPS location error:", e);
-      const errorMessage = e instanceof Error ? e.message : "Failed to use current location.";
-      
-      // Handle specific geolocation errors
+    } catch (err) {
+      console.error("GPS location error:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to use current location.";
+
       if (errorMessage.includes("denied")) {
         setError("Location access denied. Please enter your city manually.");
       } else if (errorMessage.includes("timeout")) {
@@ -355,18 +667,16 @@ export default function SidebarCitySearch({
       } else {
         setError(errorMessage);
       }
-      
+
       setGeoLoading(false);
       setGpsActive(false);
-      
-      // Clear timeout
+
       if (geoLoadingTimeoutRef.current) {
         window.clearTimeout(geoLoadingTimeoutRef.current);
         geoLoadingTimeoutRef.current = null;
       }
-      
-      // Only show error in modal if modal is open
-      if (openModal && !open) {
+
+      if (openModalFlag && !open) {
         setOpen(true);
       }
     }
@@ -378,10 +688,20 @@ export default function SidebarCitySearch({
       return;
     }
 
-    const listLength = addressSuggestions.length > 0 ? addressSuggestions.length : results.length;
+    const listLength = listLengthForKeys;
 
     if (e.key === "Enter") {
-      if (addressSuggestions.length > 0 && selectedIndex >= 0 && addressSuggestions[selectedIndex]) {
+      if (directMatchCity && !queryIsGeo && addressSuggestions.length === 0) {
+        e.preventDefault();
+        void selectCityFromList(directMatchCity);
+        return;
+      }
+      if (
+        queryIsGeo &&
+        addressSuggestions.length > 0 &&
+        selectedIndex >= 0 &&
+        addressSuggestions[selectedIndex]
+      ) {
         e.preventDefault();
         void handleAddressSuggestionSelect(addressSuggestions[selectedIndex]);
         return;
@@ -393,7 +713,7 @@ export default function SidebarCitySearch({
       }
       if (selectedIndex >= 0 && results[selectedIndex]) {
         e.preventDefault();
-        selectCity(results[selectedIndex]);
+        void selectCityFromList(results[selectedIndex]);
       }
     }
 
@@ -406,18 +726,28 @@ export default function SidebarCitySearch({
     }
   };
 
+  const handlePlacePinChange = useCallback((nextLat: number, nextLng: number) => {
+    setPlacePinOverride({ lat: nextLat, lng: nextLng });
+  }, []);
+
   const modalContent = (
     <div className={styles.modalOverlay} onClick={closeModal}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2 className={styles.modalTitle}>
-            {pendingCityAndCoords ? "Save a personalized location" : "Search Cities"}
+            {modalStep === "placeSave" ? "Save your place" : "Search cities"}
           </h2>
           <button
             type="button"
             className={styles.modalClose}
-            onClick={closeModal}
-            aria-label="Close search"
+            onClick={() => {
+              if (modalStep === "placeSave") {
+                handleSkipSaveOpenDashboard();
+              } else {
+                closeModal();
+              }
+            }}
+            aria-label={modalStep === "placeSave" ? "Skip saving and open dashboard" : "Close search"}
           >
             <svg
               width="20"
@@ -435,218 +765,240 @@ export default function SidebarCitySearch({
           </button>
         </div>
 
-        {pendingCityAndCoords ? (
+        {modalStep === "placeSave" && pendingSave ? (
           <div className={styles.modalMapSaveStep}>
-            <p className={styles.modalMapSaveCity}>
-              {pendingCityAndCoords.city.emoji && (
-                <span className={styles.modalMapSaveEmoji}>{pendingCityAndCoords.city.emoji}</span>
-              )}
-              {pendingCityAndCoords.city.display_name}
+            <p className={styles.placeSaveLead}>
+              Saving a detailed location pins your metrics to this exact area so you get richer, ongoing insight into
+              what is happening there and how it is changing.
             </p>
-            {error && <div className={styles.resultError} style={{ marginBottom: 12 }}><span>{error}</span></div>}
+            <p className={styles.modalMapSaveCity}>
+              {pendingSave.city.emoji && (
+                <span className={styles.modalMapSaveEmoji}>{pendingSave.city.emoji}</span>
+              )}
+              {pendingSave.city.display_name}
+            </p>
+            {pendingSave.district !== null ? (
+              <PlaceSaveLeadershipIntro
+                district={pendingSave.district}
+                cityLabel={pendingSave.city.display_name}
+                leaders={placeSaveLeadersQuery.data ?? []}
+                isLoading={placeSaveLeadersQuery.isLoading}
+                isError={placeSaveLeadersQuery.isError}
+              />
+            ) : null}
+            {error && (
+              <div className={styles.resultError} style={{ marginBottom: 12 }}>
+                <span>{error}</span>
+              </div>
+            )}
             <LocationMapSave
-              cityId={pendingCityAndCoords.city.id}
-              lat={pendingCityAndCoords.coords.lat}
-              lng={pendingCityAndCoords.coords.lng}
+              key={pendingSave.city.id}
+              className={locationMapSaveStyles.stretchEmbed}
+              cityId={pendingSave.city.id}
+              lat={placePinOverride?.lat ?? pendingSave.coords.lat}
+              lng={placePinOverride?.lng ?? pendingSave.coords.lng}
+              defaultLabel={ONBOARDING_PLACE_LABEL_DEFAULT}
               defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
               onSave={handleSavePlaceAndOpen}
               saving={savePlaceLoading}
-              saveButtonLabel="Save & open city"
-              onCancel={handleJustOpenCity}
+              saveButtonLabel="Save"
+              onCancel={handleSkipSaveOpenDashboard}
+              cancelButtonLabel="Skip"
+              draggablePin
+              onPinChange={handlePlacePinChange}
             />
           </div>
         ) : (
-        <>
-        <div className={styles.modalSearch}>
-          <div className={styles.inputWrap}>
-            <svg
-              className={styles.leadingIcon}
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              ref={inputRef}
-              className={styles.input}
-              value={query}
-              placeholder="Enter address, city, or ZIP code"
-              onChange={(e) => {
-                const v = e.target.value;
-                setQuery(v);
-                scheduleCitySearch(v);
-                scheduleAddressSuggest(v);
-              }}
-              onKeyDown={handleInputKeyDown}
-            />
-          </div>
-          <button
-            type="button"
-            className={styles.modalGpsBtn}
-            title={storedGPSLocation ? "Re-center map on your location" : "Use current location"}
-            aria-label={storedGPSLocation ? "Re-center map on your location" : "Use current location"}
-            onClick={() => void handleUseCurrentLocation(undefined, true)}
-            disabled={geoLoading && !storedGPSLocation}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v3" />
-              <path d="M12 19v3" />
-              <path d="M2 12h3" />
-              <path d="M19 12h3" />
-            </svg>
-            <span>Use my location</span>
-          </button>
-        </div>
-
-        <div className={styles.modalResults} role="listbox">
-          {geoLoading ? (
-            <div className={styles.resultItem}>
-              <span className={styles.resultLoading}>Locating…</span>
-            </div>
-          ) : null}
-
-          {!geoLoading && error ? (
-            <div className={styles.resultItem}>
-              <div className={styles.resultError}>
-                <span>Search unavailable</span>
-                <span className={styles.resultMeta}>{error}</span>
-              </div>
-            </div>
-          ) : null}
-
-          {!geoLoading && addressSuggestionsLoading && trimmed.length >= 2 ? (
-            <div className={styles.resultItem}>
-              <span className={styles.resultLoading}>Searching addresses…</span>
-            </div>
-          ) : null}
-
-          {!geoLoading &&
-            !error &&
-            !addressSuggestionsLoading &&
-            addressSuggestions.length > 0 &&
-            addressSuggestions.map((suggestion, idx) => (
+          <>
+            <div className={styles.modalSearch}>
+              {error && <div className={styles.searchStepError}>{error}</div>}
               <button
-                key={`${suggestion.place_name}-${idx}`}
                 type="button"
-                className={`${styles.resultBtn} ${idx === selectedIndex ? styles.resultBtnSelected : ""}`}
-                role="option"
-                aria-selected={idx === selectedIndex}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setSelectedIndex(idx)}
-                onClick={() => void handleAddressSuggestionSelect(suggestion)}
+                className={styles.modalGpsHeroBtn}
+                title="Use my current location"
+                aria-label="Use my current location"
+                onClick={() => void handleUseCurrentLocation(undefined, true)}
+                disabled={geoLoading}
               >
-                <span>{suggestion.place_name}</span>
-                <span className={styles.resultMeta}>Address →</span>
+                {geoLoading ? (
+                  <Loader size="sm" color="white" />
+                ) : (
+                  <>
+                    {locationGpsIcon}
+                    Use my current location
+                  </>
+                )}
               </button>
-            ))}
 
-          {!geoLoading &&
-            !error &&
-            addressSuggestions.length === 0 &&
-            queryIsGeo &&
-            trimmed.length > 0 ? (
-            <button
-              type="button"
-              className={styles.resultBtn}
-              role="option"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => void handleGeocodeQuery()}
-            >
-              <span>Search address/ZIP</span>
-              <span className={styles.resultMeta}>{trimmed}</span>
-            </button>
-          ) : null}
+              <div className={welcomeStyles.locationDivider} aria-hidden="true">
+                <span className={welcomeStyles.locationDividerLine} />
+                <span className={welcomeStyles.locationDividerText}>or search</span>
+                <span className={welcomeStyles.locationDividerLine} />
+              </div>
 
-          {!geoLoading && !error && !queryIsGeo && loading ? (
-            <div className={styles.resultItem}>
-              <span className={styles.resultLoading}>Searching…</span>
+              <div className={styles.inputWrap}>
+                <svg
+                  className={styles.leadingIcon}
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  ref={inputRef}
+                  className={styles.input}
+                  value={query}
+                  placeholder={placeholder}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setQuery(v);
+                    scheduleCitySearch(v);
+                    scheduleAddressSuggest(v);
+                  }}
+                  onKeyDown={handleInputKeyDown}
+                  aria-label="Search cities and addresses"
+                />
+              </div>
             </div>
-          ) : null}
 
-          {!geoLoading &&
-            !error &&
-            addressSuggestions.length === 0 &&
-            !queryIsGeo &&
-            !loading &&
-            trimmed.length >= 2 &&
-            results.map((city, idx) => (
-              <button
-                key={`${city.id}-${city.display_name}`}
-                type="button"
-                className={`${styles.resultBtn} ${idx === selectedIndex ? styles.resultBtnSelected : ""}`}
-                role="option"
-                aria-selected={idx === selectedIndex}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setSelectedIndex(idx)}
-                onClick={() => selectCity(city)}
-              >
-                <div className={styles.resultCityRow}>
-                  {city.emoji ? (
-                    <span className={styles.resultEmoji}>{city.emoji}</span>
-                  ) : null}
-                  <span className={styles.resultCityName}>{city.display_name}</span>
+            <div className={styles.modalResults} role="listbox">
+              {geoLoading ? (
+                <div className={styles.resultItem}>
+                  <span className={styles.resultLoading}>Locating…</span>
                 </div>
-                <span className={styles.resultMeta}>Browse →</span>
-              </button>
-            ))}
+              ) : null}
 
-          {!geoLoading &&
-            !error &&
-            addressSuggestions.length === 0 &&
-            !queryIsGeo &&
-            !loading &&
-            trimmed.length >= 2 &&
-            results.length === 0 && (
-              <div className={styles.resultItem}>
-                <div className={styles.resultEmpty}>
-                  <span>No cities found</span>
-                  <span className={styles.resultMeta}>
-                    Try a different spelling — or enter a ZIP/address
-                  </span>
+              {!geoLoading &&
+              queryIsGeo &&
+              !suppressAddressAutocomplete &&
+              addressSuggestionsLoading &&
+              trimmed.length >= 2 ? (
+                <div className={styles.resultItem}>
+                  <span className={styles.resultLoading}>Searching addresses…</span>
                 </div>
-              </div>
-            )}
+              ) : null}
 
-          {!geoLoading && !error && !loading && trimmed.length < 2 && (
-            <>
-              <div className={styles.resultItem}>
-                <span className={styles.resultHint}>Type to search for cities, or enter a ZIP code</span>
-              </div>
-              {onFindDistrict && (
+              {!geoLoading &&
+                queryIsGeo &&
+                !suppressAddressAutocomplete &&
+                !addressSuggestionsLoading &&
+                addressSuggestions.length > 0 &&
+                addressSuggestions.map((suggestion, idx) => (
+                  <button
+                    key={`${suggestion.place_name}-${idx}`}
+                    type="button"
+                    className={`${styles.resultBtn} ${idx === selectedIndex ? styles.resultBtnSelected : ""}`}
+                    role="option"
+                    aria-selected={idx === selectedIndex}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onClick={() => void handleAddressSuggestionSelect(suggestion)}
+                  >
+                    <span>{suggestion.place_name}</span>
+                    <span className={styles.resultMeta}>Address →</span>
+                  </button>
+                ))}
+
+              {!geoLoading &&
+                addressSuggestions.length === 0 &&
+                queryIsGeo &&
+                trimmed.length > 0 ? (
                 <button
                   type="button"
                   className={styles.resultBtn}
-                  onClick={() => {
-                    closeModal();
-                    onFindDistrict();
-                  }}
+                  role="option"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void handleGeocodeQuery()}
                 >
-                  <span>Find your district</span>
-                  <span className={styles.resultMeta}>Address, ZIP, or GPS →</span>
+                  <span>Search address/ZIP</span>
+                  <span className={styles.resultMeta}>{trimmed}</span>
                 </button>
-              )}
-            </>
-          )}
-        </div>
-        </>
+              ) : null}
+
+              {!geoLoading && !queryIsGeo && loading ? (
+                <div className={styles.resultItem}>
+                  <span className={styles.resultLoading}>Searching…</span>
+                </div>
+              ) : null}
+
+              {!geoLoading &&
+                !queryIsGeo &&
+                !loading &&
+                trimmed.length >= 2 &&
+                directMatchCity &&
+                addressSuggestions.length === 0 ? (
+                  <button
+                    type="button"
+                    className={`${styles.resultBtn} ${selectedIndex === 0 ? styles.resultBtnSelected : ""}`}
+                    role="option"
+                    aria-selected={selectedIndex === 0}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setSelectedIndex(0)}
+                    onClick={() => void selectCityFromList(directMatchCity)}
+                  >
+                    <div className={styles.resultCityRow}>
+                      {directMatchCity.emoji ? (
+                        <span className={styles.resultEmoji}>{directMatchCity.emoji}</span>
+                      ) : null}
+                      <span className={styles.resultCityName}>{directMatchCity.display_name}</span>
+                    </div>
+                    <span className={styles.resultMeta}>Continue →</span>
+                  </button>
+                ) : null}
+
+              {!geoLoading &&
+                !directMatchCity &&
+                addressSuggestions.length === 0 &&
+                !queryIsGeo &&
+                !loading &&
+                trimmed.length >= 2 &&
+                results.map((city, idx) => (
+                  <button
+                    key={`${city.id}-${city.display_name}`}
+                    type="button"
+                    className={`${styles.resultBtn} ${idx === selectedIndex ? styles.resultBtnSelected : ""}`}
+                    role="option"
+                    aria-selected={idx === selectedIndex}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onClick={() => void selectCityFromList(city)}
+                  >
+                    <div className={styles.resultCityRow}>
+                      {city.emoji ? (
+                        <span className={styles.resultEmoji}>{city.emoji}</span>
+                      ) : null}
+                      <span className={styles.resultCityName}>{city.display_name}</span>
+                    </div>
+                    <span className={styles.resultMeta}>Continue →</span>
+                  </button>
+                ))}
+
+              {!geoLoading &&
+                addressSuggestions.length === 0 &&
+                !queryIsGeo &&
+                !loading &&
+                trimmed.length >= 2 &&
+                results.length === 0 && (
+                  <div className={styles.resultItem}>
+                    <div className={styles.resultEmpty}>
+                      <span>No cities found</span>
+                      <span className={styles.resultMeta}>
+                        Try a different spelling — or enter a ZIP/address
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -654,7 +1006,6 @@ export default function SidebarCitySearch({
 
   return (
     <>
-      {/* Sidebar button - styled like New Chat / New Research Report */}
       <div className={styles.navItemContainer}>
         <button
           type="button"
@@ -681,13 +1032,13 @@ export default function SidebarCitySearch({
         <button
           type="button"
           className={`${styles.gpsBtn} ${gpsActive ? styles.gpsBtnActive : ""} ${storedGPSLocation ? styles.gpsBtnOn : ""}`}
-          title={storedGPSLocation ? "Turn off GPS location" : "Use current location"}
-          aria-label={storedGPSLocation ? "Turn off GPS location" : "Use current location"}
+          title="Use my current location"
+          aria-label="Use my current location"
           onClick={(e) => {
             e.stopPropagation();
             void handleUseCurrentLocation(e, false);
           }}
-          disabled={geoLoading && !storedGPSLocation}
+          disabled={geoLoading}
         >
           <svg
             width="16"
@@ -708,7 +1059,6 @@ export default function SidebarCitySearch({
         </button>
       </div>
 
-      {/* Modal portal */}
       {mounted && open && createPortal(modalContent, document.body)}
     </>
   );

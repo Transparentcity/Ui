@@ -51,13 +51,6 @@ a {
   height: auto;
 }
 
-/* Focus ring for accessibility — !important ensures component-level
-   outline:none on :focus cannot suppress the keyboard focus indicator. */
-:focus-visible {
-  outline: 2px solid #9333ea !important;
-  outline-offset: 2px !important;
-}
-
 /* ============================================================================
    Visualization Embeds (for research reports)
    ============================================================================ */

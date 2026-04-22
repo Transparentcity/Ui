@@ -637,6 +637,27 @@
   max-width: 50%;
 }
 
+.cardHeaderRightPlaceScoped {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.cardHeaderPlacePin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.cardHeaderNeighborhoodText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Card content ──────────────────────────────────────────────────────────── */
 
 .cardHeadline {
@@ -1488,7 +1509,7 @@
   height: 24px;
 }
 
-/* ── My Block empty state ──────────────────────────────────────────────────── */
+/* ── My place / saved-place empty state ───────────────────────────────────── */
 
 .myBlockEmptyTitle {
   font-size: 16px;

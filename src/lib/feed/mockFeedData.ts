@@ -13,7 +13,7 @@
 import type { FeedStory } from "@/lib/hooks/useFeed";
 import { getApiBaseUrlForAssets } from "@/lib/apiBase";
 import { cleanDescription } from "./textCleanup";
-import { resolveCanonicalUrl } from "./canonicalUrl";
+import { requiresPublishForPublicShare, resolveCanonicalUrl } from "./canonicalUrl";
 import { normalizeHeadlineCaps, normalizeBusinessName, improveMultiMetricHeadline, stripLeadingEmoji, improveContextHeadline, improveGenericHeadline } from "./headlineCleanup";
 
 // ── Card types ──────────────────────────────────────────────────────────────
@@ -69,6 +69,11 @@ export interface EnrichedFeedStory extends FeedStory {
   embed_url_resolved: string | null;
   cleaned_description: string;
   canonical_url: string;
+  /**
+   * True when the story is saved-place–scoped (user_place_id / legacy ids).
+   * Drives the location pin + place label treatment in the card header.
+   */
+  place_scoped_for_ui: boolean;
 }
 
 // ── Category metadata maps ──────────────────────────────────────────────────
@@ -118,7 +123,7 @@ const TYPE_LABELS: Record<CardType, string> = {
   justice: "Justice",
   safety: "Safety",
   "311_images": "311 Photos",
-  my_block: "My Block",
+  my_block: "My place",
   context: "Context",
   multi_metric: "This Week",
   off_the_charts: "Off the Charts",
@@ -546,6 +551,7 @@ export function enrichStory(
       || story.summary?.trim()
       || "",
     canonical_url: "", // placeholder, resolved below
+    place_scoped_for_ui: requiresPublishForPublicShare(story),
   };
   enriched.canonical_url = resolveCanonicalUrl(enriched);
   return enriched;

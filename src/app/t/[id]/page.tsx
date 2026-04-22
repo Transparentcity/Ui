@@ -559,8 +559,8 @@ function TimeSeriesChartPageContent() {
         staleness_days != null &&
         staleness_days > 0 ? (
           <p className="time-series-ytd-staleness-compact">
-            Shaded range: the latest {staleness_days} day
-            {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete).
+            Dotted segment: the latest {staleness_days} day
+            {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete data).
           </p>
         ) : null}
       </div>
@@ -615,8 +615,8 @@ function TimeSeriesChartPageContent() {
           staleness_days != null &&
           staleness_days > 0 ? (
             <p className="time-series-ytd-staleness-embed">
-              Shaded range: the latest {staleness_days} day
-              {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete).
+              Dotted segment: the latest {staleness_days} day
+              {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete data).
             </p>
           ) : null}
         </div>
@@ -696,9 +696,10 @@ function TimeSeriesChartPageContent() {
         staleness_days > 0 ? (
           <div className="time-series-staleness-badge">
             <span className="time-series-staleness-icon">⏱</span>
-            ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — data for the most recent{" "}
-            {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as{" "}
-            <span className="time-series-staleness-incomplete-label">incomplete</span> on the chart below.
+            ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — the most recent{" "}
+            {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as a{" "}
+            <span className="time-series-staleness-incomplete-label">dotted line</span> on the current-year series
+            (legend: Incomplete data).
           </div>
         ) : null}
 
@@ -767,8 +768,8 @@ function TimeSeriesChartPageContent() {
               <>
                 <h3 className="time-series-provenance-label">Reporting completeness</h3>
                 <p className="time-series-completeness-intro">
-                  Daily stability of underlying counts (same signal as the yellow &quot;incomplete&quot; range on the
-                  year-to-date chart).
+                  Daily stability of underlying counts (same signal as the dotted &quot;Incomplete data&quot; segment on
+                  the year-to-date chart).
                 </p>
                 <CompletenessSparkline data={completenessDaily.data} height={60} fullWidth />
               </>

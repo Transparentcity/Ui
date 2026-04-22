@@ -77,7 +77,7 @@ export default function EditHomeLocationModal({
     homeDisplayLabel?: string | null;
   } | null>(null);
 
-  const [placeLabel, setPlaceLabel] = useState("My Block");
+  const [placeLabel, setPlaceLabel] = useState("My place");
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -116,7 +116,7 @@ export default function EditHomeLocationModal({
     setError(null);
     setPending(null);
     setSelectedIndex(-1);
-    setPlaceLabel("My Block");
+    setPlaceLabel("My place");
     setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
     setExistingPlaces([]);
     setPlacesLoading(false);
@@ -314,7 +314,7 @@ export default function EditHomeLocationModal({
       }
       const createdPlace = await createPlace(token, {
         city_id: cityId,
-        label: opts.label.trim() || "My Block",
+        label: opts.label.trim() || "My place",
         lat,
         lng,
         radius_m: opts.radius_m,
@@ -616,7 +616,7 @@ export default function EditHomeLocationModal({
                   valueRadiusM={placeRadius}
                   onLabelChange={setPlaceLabel}
                   onRadiusChange={setPlaceRadius}
-                  defaultLabel="My Block"
+                  defaultLabel="My place"
                   defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
                   onSave={handleSaveHomeLocation}
                   saving={saveLoading}

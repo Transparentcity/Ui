@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin } from "lucide-react";
 import { ICON_COMPONENTS } from "./categoryIcons";
 import styles from "./feed.module.css";
 
@@ -13,6 +14,8 @@ interface CardHeaderProps {
   categoryColor?: string;
   /** Story type (e.g. "fix_it_already") — used to render a type badge below the header row. */
   storyType?: string;
+  /** Saved-place–scoped story: show map pin next to the place / area label (top right). */
+  placeScoped?: boolean;
 }
 
 export default function CardHeader({
@@ -22,6 +25,7 @@ export default function CardHeader({
   neighborhoodLabel,
   categoryColor,
   storyType,
+  placeScoped,
 }: CardHeaderProps) {
   const IconComponent = ICON_COMPONENTS[typeIcon];
   const isFixItAlready = (storyType ?? "").toLowerCase() === "fix_it_already";
@@ -40,7 +44,23 @@ export default function CardHeader({
           <span className={styles.cardActor}>{actor}</span>
           {subline && <span className={styles.cardTimestamp}>{subline}</span>}
         </div>
-        <div className={styles.cardHeaderRight}>{neighborhoodLabel}</div>
+        <div
+          className={[
+            styles.cardHeaderRight,
+            placeScoped ? styles.cardHeaderRightPlaceScoped : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {placeScoped && (
+            <span className={styles.cardHeaderPlacePin} aria-label="Saved place">
+              <MapPin size={12} strokeWidth={2.5} aria-hidden="true" />
+            </span>
+          )}
+          <span className={styles.cardHeaderNeighborhoodText}>
+            {neighborhoodLabel}
+          </span>
+        </div>
       </div>
       {isFixItAlready && (
         <div className={styles.fixItAlreadyBadge}>

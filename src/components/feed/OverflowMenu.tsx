@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback } from "react";
-import { Share2, EyeOff, Trash2 } from "lucide-react";
+import { Share2, EyeOff, Trash2, Lock } from "lucide-react";
 import { createPortal } from "react-dom";
 import styles from "./feed.module.css";
 
@@ -9,8 +9,16 @@ interface OverflowMenuProps {
   open: boolean;
   onClose: () => void;
   onShare: () => void;
-  onHide: () => void;
+  onHide?: () => void;
   onDelete?: () => void;
+  /** Owner: move a shared saved-place story back to private place scope. */
+  onMakePrivate?: () => void;
+  makePrivatePending?: boolean;
+  /**
+   * When true, omit Share from this menu (card action bar already has Share).
+   * Use for signed-in owner overflow with only Make private.
+   */
+  omitShare?: boolean;
   /** Use mobile bottom-sheet style */
   mobile: boolean;
 }
@@ -21,6 +29,9 @@ export default function OverflowMenu({
   onShare,
   onHide,
   onDelete,
+  onMakePrivate,
+  makePrivatePending = false,
+  omitShare = false,
   mobile,
 }: OverflowMenuProps) {
   // Close on Escape
@@ -45,10 +56,19 @@ export default function OverflowMenu({
   const handleHide = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onHide();
+      onHide?.();
       onClose();
     },
     [onHide, onClose],
+  );
+
+  const handleMakePrivate = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onMakePrivate?.();
+      onClose();
+    },
+    [onMakePrivate, onClose],
   );
 
   const handleDelete = useCallback(
@@ -71,15 +91,31 @@ export default function OverflowMenu({
         <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
           <div className={styles.sheetHandle} />
 
-          <button type="button" className={styles.sheetItem} onClick={handleShare}>
-            <span className={styles.sheetItemIcon}><Share2 size={18} /></span>
-            Share
-          </button>
+          {!omitShare && (
+            <button type="button" className={styles.sheetItem} onClick={handleShare}>
+              <span className={styles.sheetItemIcon}><Share2 size={18} /></span>
+              Share
+            </button>
+          )}
 
-          <button type="button" className={styles.sheetItem} onClick={handleHide}>
-            <span className={styles.sheetItemIcon}><EyeOff size={18} /></span>
-            Hide
-          </button>
+          {onHide && (
+            <button type="button" className={styles.sheetItem} onClick={handleHide}>
+              <span className={styles.sheetItemIcon}><EyeOff size={18} /></span>
+              Hide
+            </button>
+          )}
+
+          {onMakePrivate && (
+            <button
+              type="button"
+              className={styles.sheetItem}
+              onClick={handleMakePrivate}
+              disabled={makePrivatePending}
+            >
+              <span className={styles.sheetItemIcon}><Lock size={18} /></span>
+              {makePrivatePending ? "Making private…" : "Make private"}
+            </button>
+          )}
 
           {onDelete && (
             <button
@@ -100,15 +136,31 @@ export default function OverflowMenu({
   // ── Desktop: dropdown ──
   return (
     <div className={styles.overflowDropdown} onClick={(e) => e.stopPropagation()}>
-      <button type="button" className={styles.overflowItem} onClick={handleShare}>
-        <span className={styles.overflowItemIcon}><Share2 size={16} /></span>
-        Share
-      </button>
+      {!omitShare && (
+        <button type="button" className={styles.overflowItem} onClick={handleShare}>
+          <span className={styles.overflowItemIcon}><Share2 size={16} /></span>
+          Share
+        </button>
+      )}
 
-      <button type="button" className={styles.overflowItem} onClick={handleHide}>
-        <span className={styles.overflowItemIcon}><EyeOff size={16} /></span>
-        Hide
-      </button>
+      {onHide && (
+        <button type="button" className={styles.overflowItem} onClick={handleHide}>
+          <span className={styles.overflowItemIcon}><EyeOff size={16} /></span>
+          Hide
+        </button>
+      )}
+
+      {onMakePrivate && (
+        <button
+          type="button"
+          className={styles.overflowItem}
+          onClick={handleMakePrivate}
+          disabled={makePrivatePending}
+        >
+          <span className={styles.overflowItemIcon}><Lock size={16} /></span>
+          {makePrivatePending ? "Making private…" : "Make private"}
+        </button>
+      )}
 
       {onDelete && (
         <button

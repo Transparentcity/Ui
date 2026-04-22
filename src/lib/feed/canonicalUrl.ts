@@ -20,7 +20,13 @@
 import { slugify } from "@/lib/utils";
 import type { EnrichedFeedStory } from "./mockFeedData";
 
-function isPrivateFeedStory(story: EnrichedFeedStory): boolean {
+/** Story fields used for privacy / URL routing (enriched or API `FeedStory`). */
+type StoryPrivacyFields = Pick<
+  EnrichedFeedStory,
+  "user_place_id" | "metadata"
+>;
+
+export function isPrivateFeedStory(story: StoryPrivacyFields): boolean {
   if (story.user_place_id != null) return true;
 
   const meta = story.metadata;
@@ -33,6 +39,32 @@ function isPrivateFeedStory(story: EnrichedFeedStory): boolean {
     Array.isArray(rawPlaceIds) &&
     rawPlaceIds.some((value) => Number.isFinite(Number(value)))
   );
+}
+
+/**
+ * Saved-place–scoped stories that use the “publish then share” flow.
+ * Place-tagged rows are included even when `metadata.category` is
+ * `personal_newsletter` (onboarding / personalized near-home); those are not
+ * shareable until place scope is cleared on the server.
+ */
+export function requiresPublishForPublicShare(story: StoryPrivacyFields): boolean {
+  if (story.user_place_id != null) return true;
+
+  const meta = story.metadata;
+  if (!meta || typeof meta !== "object") return false;
+  const rawPlaceIds = meta.user_place_ids;
+  return (
+    Array.isArray(rawPlaceIds) &&
+    rawPlaceIds.some((value) => Number.isFinite(Number(value)))
+  );
+}
+
+/** Story was shared from a saved place and can be scoped private again via API. */
+export function canRestorePlacePrivateScope(story: StoryPrivacyFields): boolean {
+  if (story.user_place_id != null) return false;
+  const meta = story.metadata;
+  if (!meta || typeof meta !== "object") return false;
+  return Number.isFinite(Number(meta.shared_from_user_place_id));
 }
 
 export function resolveCanonicalUrl(story: EnrichedFeedStory): string {

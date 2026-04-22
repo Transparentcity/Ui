@@ -31,6 +31,7 @@ import {
 } from "@/lib/metricTemplateConfig";
 import type { AnomalyResult } from "@/lib/hooks/useAnomalies";
 import { CHOROPLETH_DARK_LOW_RGB } from "@/lib/mapUtils";
+import { isJunkWgs84LngLat } from "@/lib/mapCoordinateSanity";
 
 // Brand purple color for anomaly mode
 const ANOMALY_MODE_COLOR = "#AD35FA";
@@ -93,6 +94,17 @@ function normalizeCoordinatePair(
   }
 
   return null;
+}
+
+/** WGS84 pair for map circles and bounds; rejects placeholder sentinels after mercator normalization. */
+function normalizeMapPointForDisplay(
+  rawLng: unknown,
+  rawLat: unknown,
+): [number, number] | null {
+  const pair = normalizeCoordinatePair(rawLng, rawLat);
+  if (!pair) return null;
+  if (isJunkWgs84LngLat(pair[0], pair[1])) return null;
+  return pair;
 }
 
 function isValidBoundsBox(bounds: MapBoundsBox | null | undefined): bounds is MapBoundsBox {
@@ -171,20 +183,20 @@ function mapPointHasCoordinates(item: unknown): boolean {
   if (!item || typeof item !== "object") return false;
   const row = item as Record<string, unknown>;
   if (row.lon !== undefined && row.lat !== undefined) {
-    if (normalizeCoordinatePair(row.lon, row.lat)) {
+    if (normalizeMapPointForDisplay(row.lon, row.lat)) {
       return true;
     }
   }
   const loc = row.location as { coordinates?: unknown } | undefined;
   if (loc?.coordinates && Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
     const coords = loc.coordinates as unknown[];
-    if (normalizeCoordinatePair(coords[0], coords[1])) {
+    if (normalizeMapPointForDisplay(coords[0], coords[1])) {
       return true;
     }
   }
   if (row.coordinates && Array.isArray(row.coordinates) && row.coordinates.length >= 2) {
     const coords = row.coordinates as unknown[];
-    if (normalizeCoordinatePair(coords[0], coords[1])) {
+    if (normalizeMapPointForDisplay(coords[0], coords[1])) {
       return true;
     }
   }
@@ -248,7 +260,7 @@ interface CityMetricsMapProps {
   setEnabledShapeLayerInstanceIds?: React.Dispatch<React.SetStateAction<Set<number>>>;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates - when set, prevents dynamic zooming
   selectedDistrict?: number | null; // Selected district number for filtering data
-  /** When set (My Block), map data requests are limited to points within this radius of the center */
+  /** When set (My place), map data requests are limited to points within this radius of the center */
   placeCircle?: { lat: number; lng: number; radius_m: number } | null;
   /** Label for the place marker on the map. */
   placeLabel?: string | null;
@@ -342,7 +354,7 @@ export default function CityMetricsMap({
     return activeMetrics.filter((metric) => orderedMetricIds.has(metric.id));
   }, [availableMetrics, orderedMetricIds]);
 
-  // Metrics with working map/location (map_query) — used in My block mode to limit nav to layers that can show points
+  // Metrics with working map/location (map_query) — used in saved-place mode to limit nav to layers that can show points
   const metricsWithMapCapability = useMemo(() => {
     return activeVisibleMetrics.filter((m) => {
       const hasMapQuery = m.map_query != null && String(m.map_query).trim().length > 0;
@@ -350,7 +362,7 @@ export default function CityMetricsMap({
     });
   }, [activeVisibleMetrics]);
 
-  // When My block is selected (placeCircle), the layer selector only shows chosen metrics
+  // When a saved place is selected (placeCircle), the layer selector only shows chosen metrics
   // that can actually render at place level. Other scopes use the same chosen metric set.
   const metricsForLayerSelector = useMemo(() => {
     if (placeCircle && metricsWithMapCapability.length > 0) {
@@ -581,7 +593,7 @@ export default function CityMetricsMap({
       });
     }
 
-    // When My block is selected use only metrics with working location columns; otherwise all active (same as panel)
+    // When a saved place is selected, use only metrics with working location columns; otherwise all active (same as panel)
     const filteredMetrics = metricsForLayerSelector;
 
     // Sort metrics using dashboard ordering, then fall back to template order
@@ -644,7 +656,7 @@ export default function CityMetricsMap({
   }, [metricColorMapping.positionMap]);
 
   // Default layer selection:
-  // - My Block (placeCircle): all map-capable metrics on.
+  // - My place (placeCircle): all map-capable metrics on.
   // - Citywide/District: only the first metric in the user's sorted list that has a map query (map capability).
   useEffect(() => {
     if (orderingQuery.isLoading) {
@@ -842,7 +854,7 @@ export default function CityMetricsMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDistrict]);
 
-  // When switching My block <-> Citywide, remove metric layers so new data (different placeCircle) loads cleanly
+  // When switching saved-place scope and citywide, remove metric layers so new data (different placeCircle) loads cleanly
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -850,7 +862,7 @@ export default function CityMetricsMap({
     selectedMetricIds.forEach((id) => idsToRemove.add(id));
     maps.forEach((m) => idsToRemove.add(String(m.metric_id)));
     idsToRemove.forEach((id) => removeMetricLayerFromMap(map, id));
-    // React Query cache key includes placeCircle, so citywide vs My block data will refetch automatically
+    // React Query cache key includes placeCircle, so citywide vs saved-place data will refetch automatically
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeCircleKey]);
 
@@ -1078,16 +1090,16 @@ export default function CityMetricsMap({
           let coordinates: [number, number] | null = null;
           
           if (item.lon !== undefined && item.lat !== undefined) {
-            coordinates = normalizeCoordinatePair(item.lon, item.lat);
+            coordinates = normalizeMapPointForDisplay(item.lon, item.lat);
           } else if (item.location?.coordinates) {
             const coords = item.location.coordinates;
             if (Array.isArray(coords) && coords.length >= 2) {
-              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
+              coordinates = normalizeMapPointForDisplay(coords[0], coords[1]);
             }
           } else if (item.coordinates && Array.isArray(item.coordinates)) {
             const coords = item.coordinates;
             if (coords.length >= 2) {
-              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
+              coordinates = normalizeMapPointForDisplay(coords[0], coords[1]);
             }
           }
 
@@ -1363,16 +1375,16 @@ export default function CityMetricsMap({
           let coordinates: [number, number] | null = null;
           
           if (item.lon !== undefined && item.lat !== undefined) {
-            coordinates = normalizeCoordinatePair(item.lon, item.lat);
+            coordinates = normalizeMapPointForDisplay(item.lon, item.lat);
           } else if (item.location?.coordinates) {
             const coords = item.location.coordinates;
             if (Array.isArray(coords) && coords.length >= 2) {
-              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
+              coordinates = normalizeMapPointForDisplay(coords[0], coords[1]);
             }
           } else if (item.coordinates && Array.isArray(item.coordinates)) {
             const coords = item.coordinates;
             if (coords.length >= 2) {
-              coordinates = normalizeCoordinatePair(coords[0], coords[1]);
+              coordinates = normalizeMapPointForDisplay(coords[0], coords[1]);
             }
           }
 

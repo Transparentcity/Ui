@@ -17,8 +17,11 @@ import {
   updateUserPreferences,
   getUserPreferences,
   getCity,
+  getCityLeaders,
   createPlace,
   runPlaceMetricsAndAnomaliesAsJob,
+  followRepresentative,
+  unfollowRepresentative,
   type CityDetail,
   type CityLeader,
 } from "@/lib/apiClient";
@@ -41,7 +44,7 @@ import Loader from "./Loader";
 interface WelcomeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Called when user finishes onboarding with a city (and optional place). Pass placeId to open block-level view. */
+  /** Called when user finishes onboarding with a city (and optional place). Pass placeId to open place-level view. */
   onCitySelected: (cityId: number, district?: number | null, placeId?: number | null) => void;
   onComplete: (context: {
     cityId: number;
@@ -57,6 +60,29 @@ interface WelcomeModalProps {
 }
 
 type Step = "welcome" | "preferences";
+type WelcomeLoadingAction = "search" | "gps" | null;
+
+/** Default saved place label on onboarding step 2 (createPlace only when location is precise). */
+const ONBOARDING_PLACE_LABEL_DEFAULT = "My place";
+
+/** Mayor from a loaded leaders list — citywide (district null/0), preferring title containing "mayor". */
+function pickMayorFromLeaders(leaders: CityLeader[]): CityLeader | null {
+  const citywide = leaders.filter((l) => l.district === null || l.district === 0);
+  return citywide.find((l) => l.title.toLowerCase().includes("mayor")) ?? citywide[0] ?? null;
+}
+
+/** District representative from a loaded leaders list for a specific district number. */
+function pickRepFromLeaders(leaders: CityLeader[], district: number | null): CityLeader | null {
+  if (!district || district <= 0) return null;
+  return leaders.find((l) => l.district === district) ?? null;
+}
+
+/** Two-letter initials from "First Last" or "Last, First" formats. */
+function leaderInitials(name: string): string {
+  const parts = name.trim().split(/[\s,]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return parts[0]?.[0]?.toUpperCase() ?? "?";
+}
 
 interface LocationResult {
   cityName: string;
@@ -83,13 +109,17 @@ export default function WelcomeModal({
   const focusTrapRef = useFocusTrap(isOpen);
   const [step, setStep] = useState<Step>("welcome");
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<WelcomeLoadingAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState("");
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [hasPreciseLocation, setHasPreciseLocation] = useState(false);
-  const [placeLabel, setPlaceLabel] = useState("My Block");
-  const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
+  const [placeLabel, setPlaceLabel] = useState(ONBOARDING_PLACE_LABEL_DEFAULT);
+
+  // Leader follow toggles (default: follow both, applied at submit)
+  const [mayorFollowed, setMayorFollowed] = useState(true);
+  const [repFollowed, setRepFollowed] = useState(true);
 
   // Preferences state — two opt-ins: alerts + custom weekly newsletter
   const alertsOptIn = false; // anomaly alerts not available at launch
@@ -121,14 +151,17 @@ export default function WelcomeModal({
 
     if (isOpen) {
       setStep("welcome");
+      setLoading(false);
+      setLoadingAction(null);
       setLocationInput("");
       setLocationResult(null);
       setError(null);
 
       setHomeCoordinates(null);
       setHasPreciseLocation(false);
-      setPlaceLabel("My Block");
-      setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
+      setPlaceLabel(ONBOARDING_PLACE_LABEL_DEFAULT);
+      setMayorFollowed(true);
+      setRepFollowed(true);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
       // Reset preferences
@@ -270,8 +303,8 @@ export default function WelcomeModal({
       return;
     }
 
-    // Only street addresses / POIs are "precise" for block-level home.
-    // Postcode suggestions use centroid for district inference only (no My Block).
+    // Only street addresses / POIs are "precise" for street-level home.
+    // Postcode suggestions use centroid for district inference only (no saved place).
     const types = suggestion.place_types ?? [];
     const isPrecisePick = types.includes("address") || types.includes("poi");
     const isPostcodePick = types.includes("postcode");
@@ -348,7 +381,7 @@ export default function WelcomeModal({
     isPrecise: boolean = false,
     /**
      * When geocode/suggest is postcode-level (ZIP centroid), infer council district
-     * for nav/follows without treating the home as a street-level block.
+     * for nav/follows without treating the home as a street-level saved place.
      */
     allowDistrictFromPostcodeCentroid: boolean = false,
   ) => {
@@ -414,7 +447,13 @@ export default function WelcomeModal({
     const cityDetailPromise = getCity(matchedCity.id, token)
       .catch((err) => { console.error("Error fetching city details:", err); return null; });
 
-    const [districtResult, cityDetail] = await Promise.all([districtPromise, cityDetailPromise]);
+    const leadersPromise = getCityLeaders(matchedCity.id, token);
+
+    const [districtResult, cityDetail, leaders] = await Promise.all([
+      districtPromise,
+      cityDetailPromise,
+      leadersPromise,
+    ]);
 
     if (districtResult != null) finalDistrict = districtResult;
 
@@ -427,6 +466,8 @@ export default function WelcomeModal({
     }
 
     const isActive = cityDetail.is_active ?? false;
+    const mayor = pickMayorFromLeaders(leaders);
+    const councilMember = pickRepFromLeaders(leaders, finalDistrict);
 
     const result: LocationResult = {
       cityName: matchedCity.name,
@@ -434,9 +475,9 @@ export default function WelcomeModal({
       country: matchedCity.country || null,
       matchedCity,
       cityDetail,
-      leaders: [],
-      mayor: null,
-      councilMember: null,
+      leaders,
+      mayor,
+      councilMember,
       district: finalDistrict,
       isActive,
     };
@@ -465,6 +506,7 @@ export default function WelcomeModal({
     if (!locationInput.trim()) return;
 
     setLoading(true);
+    setLoadingAction("search");
     setError(null);
 
     try {
@@ -543,6 +585,7 @@ export default function WelcomeModal({
       setError("Failed to look up location. Please try again.");
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -553,6 +596,7 @@ export default function WelcomeModal({
     }
 
     setLoading(true);
+    setLoadingAction("gps");
     setError(null);
 
     try {
@@ -609,6 +653,7 @@ export default function WelcomeModal({
       }
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -647,9 +692,10 @@ export default function WelcomeModal({
         <Loader size="lg" color="purple" className="loaderStatic" />
       </div>
 
-      <h1 className={styles.title}>Discover your block</h1>
+      <h1 className={styles.title}>Discover your place</h1>
       <p className={styles.subtitle}>
-        Transparent.city gives you a personalized view of your city.
+        Transparent.city monitors your city&apos;s data to give you the most timely and personalized view of your
+        city and your place.
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -663,7 +709,7 @@ export default function WelcomeModal({
           aria-busy={loading}
           aria-label="Use my current location"
         >
-          {loading ? (
+          {loadingAction === "gps" ? (
             <Loader size="sm" color="white" />
           ) : (
             <>
@@ -730,7 +776,7 @@ export default function WelcomeModal({
           onClick={handleAddressSubmit}
           disabled={loading || !locationInput.trim()}
         >
-          {loading ? (
+          {loadingAction === "search" ? (
             <span className={styles.buttonLoader}>
               <Loader size="sm" color="white" />
             </span>
@@ -739,15 +785,11 @@ export default function WelcomeModal({
           )}
         </button>
 
-        <p className={styles.pageOneTrust}>
-          We use your place only to personalize what you see around your block and what we send by email.
-          You can change it anytime in Settings.
-        </p>
       </div>
     </div>
   );
 
-  // Render combined preferences step (optional email + toggles)
+  // Render step 2: welcome + leader cards + place + newsletter
   const renderPreferencesStep = () => {
     if (!locationResult) return null;
     const cityDisplayName = locationResult.state
@@ -763,13 +805,69 @@ export default function WelcomeModal({
     const matchedLabel = matched?.display_name || matched?.name || cityDisplayName;
     const matchedSlug = matched?.name ? slugify(matched.name) : "";
 
+    const mayor = locationResult.mayor;
+    const rep = locationResult.councilMember;
+
+    const checkIcon = (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
-        <h2 className={styles.stepTitle}>Almost there</h2>
-        <p className={styles.stepDescription}>
-          Choose whether you want a weekly email for {cityDisplayName}. You can change this anytime in
-          Settings.
+        <h2 className={styles.stepTitle}>Welcome to Transparent.city</h2>
+        <p className={styles.stepWelcomeSubtitle}>
+          You&apos;re now connected to {cityDisplayName}. Here&apos;s who represents you.
         </p>
+
+        {/* Leader follow cards */}
+        {(mayor || rep) && (
+          <div className={styles.leaderSection}>
+            {mayor && (
+              <div className={styles.leaderCard}>
+                <div className={styles.leaderAvatar} aria-hidden="true">
+                  {leaderInitials(mayor.name)}
+                </div>
+                <div className={styles.leaderInfo}>
+                  <span className={styles.leaderName}>{mayor.name}</span>
+                  <span className={styles.leaderTitle}>{mayor.title}</span>
+                </div>
+                <button
+                  type="button"
+                  className={mayorFollowed ? styles.leaderFollowBtnActive : styles.leaderFollowBtnIdle}
+                  onClick={() => setMayorFollowed((v) => !v)}
+                  aria-pressed={mayorFollowed}
+                  aria-label={`${mayorFollowed ? "Unfollow" : "Follow"} ${mayor.name}`}
+                >
+                  {mayorFollowed && checkIcon}
+                  {mayorFollowed ? "Following" : "Follow"}
+                </button>
+              </div>
+            )}
+            {rep && (
+              <div className={styles.leaderCard}>
+                <div className={styles.leaderAvatar} aria-hidden="true">
+                  {leaderInitials(rep.name)}
+                </div>
+                <div className={styles.leaderInfo}>
+                  <span className={styles.leaderName}>{rep.name}</span>
+                  <span className={styles.leaderTitle}>{rep.title}</span>
+                </div>
+                <button
+                  type="button"
+                  className={repFollowed ? styles.leaderFollowBtnActive : styles.leaderFollowBtnIdle}
+                  onClick={() => setRepFollowed((v) => !v)}
+                  aria-pressed={repFollowed}
+                  aria-label={`${repFollowed ? "Unfollow" : "Follow"} ${rep.name}`}
+                >
+                  {repFollowed && checkIcon}
+                  {repFollowed ? "Following" : "Follow"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {requestedUnsupportedHome && matched && priorUnsupportedLabel && (
           <div className={styles.unsupportedHomeNotice}>
@@ -799,7 +897,7 @@ export default function WelcomeModal({
                   });
                 }}
               >
-                Add to My Cities only (keep “{requestedUnsupportedHome.city_name}” as the home I asked for)
+                Add to My Cities only (keep &ldquo;{requestedUnsupportedHome.city_name}&rdquo; as the home I asked for)
               </button>
             </div>
             {matchedSlug ? (
@@ -815,6 +913,24 @@ export default function WelcomeModal({
           </div>
         )}
 
+        {/* Place name */}
+        {hasPreciseLocation && homeCoordinates && matched ? (
+          <div className={styles.placeNameField}>
+            <label className={styles.placeNameLabel} htmlFor="welcome-onboarding-place-name">
+              Name your place
+            </label>
+            <input
+              id="welcome-onboarding-place-name"
+              type="text"
+              className={styles.placeNameInput}
+              value={placeLabel}
+              onChange={(e) => setPlaceLabel(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        ) : null}
+
+        {/* Newsletter opt-in */}
         <div className={styles.emailOptIns}>
           <label className={styles.emailOptInOption}>
             <input
@@ -828,19 +944,15 @@ export default function WelcomeModal({
               }}
             />
             <div>
-              <span className={styles.emailOptInTitle}>
-                Weekly digest <span className={styles.recommendedBadge}>Recommended</span>
-              </span>
+              <span className={styles.emailOptInTitle}>Personalized weekly update</span>
               <span className={styles.emailOptInDesc}>
-                One weekly email with highlights for your block and city. Unsubscribe anytime.
+                One weekly email with highlights for your place and city. Unsubscribe anytime.
               </span>
             </div>
           </label>
           {showDigestNudge && (
             <div className={styles.digestNudge}>
-              <span>
-                No problem—you can turn the weekly email on later in Settings.
-              </span>
+              <span>No problem—you can turn the weekly email on later in Settings.</span>
               <button
                 type="button"
                 className={styles.digestNudgeDismiss}
@@ -865,17 +977,9 @@ export default function WelcomeModal({
           {showAdvancedNewsletterSettings && (
             <div className={styles.advancedNewsletterPanel}>
               <p className={styles.personalizationIntro}>
-                Skip this if you like—the weekly email still works well on its own. If you want it to match your
-                day-to-day life, jot down what you actually care about in plain language. For example:
+                Want a more personalized weekly update? Share a few things you care about and we&apos;ll use
+                them to tailor what we send.
               </p>
-              <ul className={styles.personalizationHints}>
-                <li>
-                  “I commute to downtown and want a heads-up on road closures or construction that might affect my
-                  route.”
-                </li>
-                <li>“I’m interested in new shops and restaurants opening near my block.”</li>
-                <li>Schools, parks, transit, safety—whatever matters most on your block or your usual routes.</li>
-              </ul>
               <label className={styles.textInputLabel} htmlFor="welcome-newsletter-personalization">
                 In your own words (optional)
               </label>
@@ -885,7 +989,7 @@ export default function WelcomeModal({
                 rows={4}
                 value={newsletterDescription}
                 onChange={(e) => setNewsletterDescription(e.target.value)}
-                placeholder="e.g. I commute downtown—flag road closures. I also like hearing about new shops and restaurants near my block."
+                placeholder="For example: I care most about new restaurants, street safety, transit delays, and anything changing near my place."
               />
             </div>
           )}
@@ -904,7 +1008,7 @@ export default function WelcomeModal({
                 <Loader size="sm" color="white" />
               </span>
             ) : (
-              "Let\u2019s go"
+              "Let’s go"
             )}
           </button>
           <button
@@ -920,7 +1024,6 @@ export default function WelcomeModal({
       </div>
     );
   };
-
   // Save from email-personalization: city + comm prefs.
   // Saves the city and navigates immediately; remaining preferences are saved in the background.
   const handleSaveFromEmailPersonalization = async () => {
@@ -941,17 +1044,17 @@ export default function WelcomeModal({
       const saveFollowOnly =
         !!requestedUnsupportedHome && onboardingHomeSaveMode === "follow_only";
 
-      // Create the user's block before navigation so My Places can list city → district → block
+      // Create the user's saved place before navigation so My Places can list city → district → place
       // while the feed is selected (place id is passed to the dashboard shell).
       let createdPlaceId: number | null = null;
       if (hasPreciseLocation && homeCoordinates) {
         try {
           const place = await createPlace(token, {
             city_id: cityId,
-            label: placeLabel?.trim() || "My Block",
+            label: placeLabel?.trim() || ONBOARDING_PLACE_LABEL_DEFAULT,
             lat: homeCoordinates.lat,
             lng: homeCoordinates.lng,
-            radius_m: placeRadius ?? DEFAULT_PLACE_RADIUS_M,
+            radius_m: DEFAULT_PLACE_RADIUS_M,
           });
           createdPlaceId = place?.id ?? null;
           if (createdPlaceId) {
@@ -963,12 +1066,31 @@ export default function WelcomeModal({
             }
           }
         } catch {
-          // User can add a block later from the map flow
+          // User can add a saved place later from the map flow
         }
       }
 
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
+
+      // Fire leader follows/unfollows in the background based on onboarding toggle state.
+      void (async () => {
+        const mayor = locationResult?.mayor ?? null;
+        const rep = locationResult?.councilMember ?? null;
+        try {
+          if (mayor) {
+            if (mayorFollowed) await followRepresentative(cityId, "0", token);
+            else await unfollowRepresentative(cityId, "0", token);
+          }
+          if (rep && rep.district != null && rep.district > 0) {
+            const districtKey = String(rep.district);
+            if (repFollowed) await followRepresentative(cityId, districtKey, token);
+            else await unfollowRepresentative(cityId, districtKey, token);
+          }
+        } catch {
+          // Non-blocking; user can manage follows in settings
+        }
+      })();
 
       // Start city-level loading banner before navigating to the feed.
       // If the user has a precise address, startJob() will override this

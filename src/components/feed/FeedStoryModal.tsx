@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth0 } from "@auth0/auth0-react";
 import {
   Dialog,
   DialogContent,
@@ -11,16 +12,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  useFeedStoryDetail,
-  useCityFeedStories,
-  useTrackFeedEngagement,
   feedKeys,
+  useCityFeedStories,
+  useFeedStoryDetail,
+  useTrackFeedEngagement,
   type FeedStory,
 } from "@/lib/hooks/useFeed";
 import { enrichStory, enrichStories } from "@/lib/feed/mockFeedData";
-import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
+import {
+  canRestorePlacePrivateScope,
+  isPrivateFeedStory,
+  requiresPublishForPublicShare,
+  resolveOutboundCanonicalPath,
+} from "@/lib/feed/canonicalUrl";
+import { runSharePublicUrl } from "@/lib/feed/sharePublicUrl";
+import { restorePlaceScopeOnFeedStory } from "@/lib/apiClient";
 import { fetchDetailNarrative, type DetailNarrative } from "@/lib/feed/fetchReportNarratives";
 import { FeedStoryDetailView } from "./FeedStoryDetailView";
+import FeedStoryShareDialog from "./FeedStoryShareDialog";
 import styles from "./feed.module.css";
 
 type FeedStoryModalProps = {
@@ -38,8 +47,10 @@ export default function FeedStoryModal({
   onSelectRelatedStory,
 }: FeedStoryModalProps) {
   const queryClient = useQueryClient();
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const trackEngagement = useTrackFeedEngagement();
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
+  const [placeShareOpen, setPlaceShareOpen] = useState(false);
 
   const activeId = open && storyId != null ? storyId : null;
   const { data: storyResponse, isLoading, isFetching, error } =
@@ -47,6 +58,28 @@ export default function FeedStoryModal({
 
   const rawStory = storyResponse?.story ?? null;
   const story = rawStory ? enrichStory(rawStory) : null;
+
+  const showMakePrivate =
+    Boolean(story) && isAuthenticated && canRestorePlacePrivateScope(story!);
+
+  const makePrivateMutation = useMutation({
+    mutationFn: async () => {
+      if (!story) throw new Error("No story");
+      const token = await getAccessTokenSilently();
+      return restorePlaceScopeOnFeedStory(story.id, token);
+    },
+    onSuccess: (res) => {
+      const id = res.story.id;
+      queryClient.setQueryData(feedKeys.detail(id), { story: res.story });
+      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.places() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.detail(id) });
+      toast.success("Story is private to your saved place again.");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not update this story.");
+    },
+  });
 
   useEffect(() => {
     if (!open) {
@@ -104,19 +137,21 @@ export default function FeedStoryModal({
 
   const handleShare = () => {
     if (!story) return;
-    trackEngagement.mutate({ storyId: story.id, action: "share" });
-    const url = `${window.location.origin}${outboundPath}`;
-    if (typeof navigator.share === "function") {
-      navigator.share({ title: story.headline, url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(url).then(
-        () => toast.success("Link copied to clipboard"),
-        () => toast.error("Could not copy link"),
-      );
+    if (requiresPublishForPublicShare(story)) {
+      setPlaceShareOpen(true);
+      return;
     }
+    if (isPrivateFeedStory(story)) {
+      toast.info(
+        "This story is only visible in your account and does not have a shareable public link.",
+      );
+      return;
+    }
+    runSharePublicUrl(story, trackEngagement);
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex max-h-[min(90vh,880px)] w-[calc(100%-1.5rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
@@ -180,6 +215,12 @@ export default function FeedStoryModal({
                 detailNarrative={detailNarrative}
                 relatedStories={relatedStories}
                 onShare={handleShare}
+                onMakePrivate={
+                  showMakePrivate
+                    ? () => makePrivateMutation.mutate()
+                    : undefined
+                }
+                makePrivatePending={makePrivateMutation.isPending}
                 onSelectRelatedStoryId={
                   onSelectRelatedStory ? handleSelectRelatedStoryId : undefined
                 }
@@ -189,5 +230,13 @@ export default function FeedStoryModal({
         </div>
       </DialogContent>
     </Dialog>
+    {story && requiresPublishForPublicShare(story) && (
+      <FeedStoryShareDialog
+        story={story}
+        open={placeShareOpen}
+        onOpenChange={setPlaceShareOpen}
+      />
+    )}
+    </>
   );
 }

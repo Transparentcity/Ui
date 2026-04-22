@@ -142,16 +142,6 @@
   line-height: 1.4;
 }
 
-/* Page 1 — short privacy / control reassurance */
-.pageOneTrust {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--text-tertiary, #6b7280);
-  margin: 4px 0 0 0;
-  text-align: center;
-  max-width: 36em;
-}
-
 .stepTitle {
   font-size: 22px;
   font-weight: 600;
@@ -1081,15 +1071,156 @@
 .emailPersonalizationStep {
   width: 100%;
   max-width: 100%;
-  min-height: 420px;
-  padding-bottom: 32px;
+  min-height: 260px;
+  padding-bottom: 28px;
   align-items: stretch;
   text-align: left;
 }
 
-.emailPersonalizationStep .stepTitle,
-.emailPersonalizationStep .stepDescription {
+.emailPersonalizationStep .stepTitle {
   text-align: center;
+  margin-bottom: 4px;
+}
+
+.stepWelcomeSubtitle {
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+  text-align: center;
+  margin: 0 0 18px;
+  line-height: 1.45;
+}
+
+/* ── Leader cards ──────────────────────────────── */
+.leaderSection {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.leaderCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.leaderAvatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
+  color: var(--brand-primary, #ad35fa);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+.leaderInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.leaderName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderTitle {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderFollowBtnActive {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  border: 1.5px solid var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.08);
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.leaderFollowBtnActive:hover {
+  background: rgba(173, 53, 250, 0.04);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.leaderFollowBtnIdle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  border: 1.5px solid var(--border-primary, #d1d5db);
+  background: var(--bg-primary, #fff);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.leaderFollowBtnIdle:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.placeNameField {
+  width: 100%;
+  margin: 0 0 18px;
+}
+
+.placeNameLabel {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.placeNameInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+}
+
+.placeNameInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.12);
 }
 
 .presetChips {
@@ -1177,22 +1308,10 @@
 }
 
 .personalizationIntro {
-  margin: 0 0 10px 0;
+  margin: 0 0 14px 0;
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary, #6b7280);
-}
-
-.personalizationHints {
-  margin: 0 0 14px 0;
-  padding-left: 18px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--text-secondary, #6b7280);
-}
-
-.personalizationHints li {
-  margin-bottom: 6px;
 }
 
 .advancedNewsletterPanel .textInputLabel {

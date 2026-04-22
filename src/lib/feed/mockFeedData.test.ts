@@ -273,6 +273,13 @@ describe("enrichStory", () => {
     expect(typeof enriched.cleaned_description).toBe("string");
   });
 
+  it("sets place_scoped_for_ui when the story is saved-place scoped", () => {
+    expect(enrichStory(makeStory({ user_place_id: 3 })).place_scoped_for_ui).toBe(
+      true,
+    );
+    expect(enrichStory(makeStory()).place_scoped_for_ui).toBe(false);
+  });
+
   it("uses type_icon from TYPE_ICONS map for each card type", () => {
     const types: CardType[] = [
       "alert", "trend", "business", "spending", "justice", "safety",

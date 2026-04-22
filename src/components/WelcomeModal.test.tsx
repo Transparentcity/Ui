@@ -3,7 +3,7 @@
  * Verifies each step (welcome, preferences)
  * renders fast and does not block on API calls during initial paint.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import WelcomeModal from "./WelcomeModal";
@@ -61,16 +61,23 @@ const mockGetUserPreferences = vi.fn().mockResolvedValue({ extra: {} });
 const mockSaveCity = vi.fn().mockResolvedValue(undefined);
 const mockUpdateUserPreferences = vi.fn().mockResolvedValue(undefined);
 const mockGetCity = vi.fn().mockResolvedValue({ id: 1, is_active: true, name: "San Francisco" });
+const mockGetCityLeaders = vi.fn().mockResolvedValue([]);
 const mockCreatePlace = vi.fn().mockResolvedValue({ id: 42 });
 const mockRunPlaceMetricsAndAnomaliesAsJob = vi.fn().mockResolvedValue({ job_id: "job-123" });
+const mockFollowRepresentative = vi.fn().mockResolvedValue({ followed: true, city_id: 1, district: "0" });
+const mockUnfollowRepresentative = vi.fn().mockResolvedValue({ followed: false, city_id: 1, district: "0" });
+const mockGetCurrentPosition = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
   getUserPreferences: (...args: unknown[]) => mockGetUserPreferences(...args),
   saveCity: (...args: unknown[]) => mockSaveCity(...args),
   updateUserPreferences: (...args: unknown[]) => mockUpdateUserPreferences(...args),
   getCity: (...args: unknown[]) => mockGetCity(...args),
+  getCityLeaders: (...args: unknown[]) => mockGetCityLeaders(...args),
   createPlace: (...args: unknown[]) => mockCreatePlace(...args),
   runPlaceMetricsAndAnomaliesAsJob: (...args: unknown[]) => mockRunPlaceMetricsAndAnomaliesAsJob(...args),
+  followRepresentative: (...args: unknown[]) => mockFollowRepresentative(...args),
+  unfollowRepresentative: (...args: unknown[]) => mockUnfollowRepresentative(...args),
 }));
 
 vi.mock("@/lib/findDistrictFromCoordinates", () => ({
@@ -98,35 +105,39 @@ vi.mock("@/lib/utils", () => ({
 }));
 
 // Stub fetch for welcome-email and geocode endpoints
-const mockFetch = vi.fn().mockImplementation((url: string) => {
+function defaultFetchImpl(url: string) {
   if (typeof url === "string" && url.includes("/api/welcome-email")) {
     return Promise.resolve({ ok: true });
   }
   if (typeof url === "string" && url.includes("/api/geocode")) {
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({
-        cityName: "San Francisco",
-        stateName: "California",
-        countryName: "United States",
-        lat: "37.7749",
-        lon: "-122.4194",
-        address: {},
-      }),
+      json: () =>
+        Promise.resolve({
+          cityName: "San Francisco",
+          stateName: "California",
+          countryName: "United States",
+          lat: "37.7749",
+          lon: "-122.4194",
+          address: {},
+        }),
     });
   }
   if (typeof url === "string" && url.includes("/api/reverse-geocode")) {
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({
-        cityName: "San Francisco",
-        stateName: "California",
-        countryName: "United States",
-      }),
+      json: () =>
+        Promise.resolve({
+          cityName: "San Francisco",
+          stateName: "California",
+          countryName: "United States",
+        }),
     });
   }
   return Promise.resolve({ ok: false, status: 404 });
-});
+}
+
+const mockFetch = vi.fn().mockImplementation(defaultFetchImpl);
 vi.stubGlobal("fetch", mockFetch);
 
 describe("WelcomeModal", () => {
@@ -142,6 +153,13 @@ describe("WelcomeModal", () => {
     vi.clearAllMocks();
     mockSearchPublicCities.mockResolvedValue([]);
     mockGetCity.mockResolvedValue({ id: 1, is_active: true, name: "San Francisco" });
+    mockGetCityLeaders.mockResolvedValue([]);
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: mockGetCurrentPosition,
+      },
+    });
   });
 
   // ── Step 1: Welcome (address entry) ──────────────────────────────────
@@ -152,7 +170,7 @@ describe("WelcomeModal", () => {
       render(<WelcomeModal {...defaultProps} />);
       const elapsed = performance.now() - start;
 
-      expect(screen.getByText(/discover your block/i)).toBeInTheDocument();
+      expect(screen.getByText(/discover your place/i)).toBeInTheDocument();
       expect(screen.getByPlaceholderText(/enter city, zip or address/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /use my current location/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^Continue$/i })).toBeInTheDocument();
@@ -193,47 +211,57 @@ describe("WelcomeModal", () => {
       await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "Oakland");
       expect(btn).not.toBeDisabled();
     });
+
+    it("keeps Continue text visible while GPS lookup is loading", async () => {
+      mockGetCurrentPosition.mockImplementation(() => {
+        // Leave pending so the loading state stays visible during the assertion.
+      });
+
+      const user = userEvent.setup();
+      render(<WelcomeModal {...defaultProps} />);
+
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "Oakland");
+      const continueButton = screen.getByRole("button", { name: /^Continue$/i });
+      expect(continueButton).not.toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: /use my current location/i }));
+
+      expect(screen.getByRole("button", { name: /^Continue$/i })).toBeDisabled();
+    });
   });
 
   // ── Step 2: City found -> Preferences ────────────────────────────────
 
   describe("Preferences step", () => {
-    it("renders digest step without category pills", async () => {
+    afterEach(() => {
+      mockFetch.mockImplementation(defaultFetchImpl);
+    });
+
+    const goToStep2 = async (user: ReturnType<typeof userEvent.setup>) => {
       mockSearchPublicCities.mockResolvedValue([
         { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
       ]);
-
-      const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
-
-      const input = screen.getByPlaceholderText(/enter city, zip or address/i);
-      await user.type(input, "San Francisco");
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
       await user.click(screen.getByText(/^Continue$/i));
-
       await waitFor(() => {
-        expect(screen.getByText(/almost there/i)).toBeInTheDocument();
+        expect(screen.getByText(/welcome to transparent\.city/i)).toBeInTheDocument();
       });
+    };
 
-      expect(screen.queryByText("Crime & Safety")).not.toBeInTheDocument();
+    it("shows welcome header and advanced options on step 2", async () => {
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      expect(screen.queryByText(/Crime & Safety/i)).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /advanced newsletter options \(optional\)/i })
       ).toBeInTheDocument();
     });
 
     it("reveals optional personalization textarea under advanced options", async () => {
-      mockSearchPublicCities.mockResolvedValue([
-        { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
-      ]);
-
       const user = userEvent.setup();
-      render(<WelcomeModal {...defaultProps} />);
-
-      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
-      await user.click(screen.getByText(/^Continue$/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/almost there/i)).toBeInTheDocument();
-      });
+      await goToStep2(user);
 
       expect(screen.queryByLabelText(/in your own words \(optional\)/i)).not.toBeInTheDocument();
 
@@ -241,29 +269,160 @@ describe("WelcomeModal", () => {
         screen.getByRole("button", { name: /advanced newsletter options \(optional\)/i })
       );
 
-      expect(
-        screen.getByLabelText(/in your own words \(optional\)/i)
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText(/in your own words \(optional\)/i)).toBeInTheDocument();
     });
 
-    it("weekly digest checkbox is pre-checked", async () => {
+    it("personalized weekly update checkbox is pre-checked", async () => {
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      expect(screen.getByText(/personalized weekly update/i)).toBeInTheDocument();
+      const checkbox = screen.getByRole("checkbox");
+      expect(checkbox).toBeChecked();
+    });
+
+    it("shows no leader cards when city has no leaders", async () => {
+      mockGetCityLeaders.mockResolvedValue([]);
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      expect(screen.queryByRole("button", { name: /follow|following/i })).not.toBeInTheDocument();
+    });
+
+    it("shows mayor card pre-checked as Following when city has a mayor", async () => {
+      mockGetCityLeaders.mockResolvedValue([
+        { id: 1, city_id: 1, name: "London Breed", title: "Mayor", district: null },
+      ]);
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      expect(screen.getByText("London Breed")).toBeInTheDocument();
+      expect(screen.getByText("Mayor")).toBeInTheDocument();
+      const followBtn = screen.getByRole("button", { name: /unfollow london breed/i });
+      expect(followBtn).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("shows both mayor and district rep when district is known", async () => {
+      mockGetCityLeaders.mockResolvedValue([
+        { id: 1, city_id: 1, name: "London Breed", title: "Mayor", district: null },
+        { id: 2, city_id: 1, name: "Rafael Mandelman", title: "Supervisor, District 8", district: 8 },
+      ]);
+      // findDistrictFromCoordinates is already mocked to return 5; here we use address geocode
+      // so district=null (no precise). For this test, make geocode return address type to get district 5.
+      const user = userEvent.setup();
       mockSearchPublicCities.mockResolvedValue([
         { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
       ]);
-
-      const user = userEvent.setup();
       render(<WelcomeModal {...defaultProps} />);
-
       await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
       await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
-        expect(screen.getByText(/almost there/i)).toBeInTheDocument();
-        expect(screen.getByText(/weekly digest/i)).toBeInTheDocument();
+        expect(screen.getByText("London Breed")).toBeInTheDocument();
+      });
+      // District 5 was inferred but leader with district=5 doesn't exist in mock data,
+      // so only mayor card shown.
+      expect(screen.queryByText("Rafael Mandelman")).not.toBeInTheDocument();
+    });
+
+    it("toggling mayor follow button changes aria-pressed", async () => {
+      mockGetCityLeaders.mockResolvedValue([
+        { id: 1, city_id: 1, name: "London Breed", title: "Mayor", district: null },
+      ]);
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      const followBtn = screen.getByRole("button", { name: /unfollow london breed/i });
+      expect(followBtn).toHaveAttribute("aria-pressed", "true");
+
+      await user.click(followBtn);
+
+      expect(screen.getByRole("button", { name: /^follow london breed$/i })).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+    });
+
+    it("calls followRepresentative for checked mayor on Let's go", async () => {
+      mockGetCityLeaders.mockResolvedValue([
+        { id: 1, city_id: 1, name: "London Breed", title: "Mayor", district: null },
+      ]);
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      await user.click(screen.getByText(/let.s go/i));
+
+      await waitFor(() => {
+        expect(mockFollowRepresentative).toHaveBeenCalledWith(1, "0", "test-token");
+      });
+    });
+
+    it("calls unfollowRepresentative when mayor is unchecked before Let's go", async () => {
+      mockGetCityLeaders.mockResolvedValue([
+        { id: 1, city_id: 1, name: "London Breed", title: "Mayor", district: null },
+      ]);
+      const user = userEvent.setup();
+      await goToStep2(user);
+
+      await user.click(screen.getByRole("button", { name: /unfollow london breed/i }));
+      await user.click(screen.getByText(/let.s go/i));
+
+      await waitFor(() => {
+        expect(mockUnfollowRepresentative).toHaveBeenCalledWith(1, "0", "test-token");
+      });
+      expect(mockFollowRepresentative).not.toHaveBeenCalled();
+    });
+
+    it("shows place naming on Almost there when geocode is a precise address", async () => {
+      mockSearchPublicCities.mockResolvedValue([
+        { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
+      ]);
+
+      mockFetch.mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/welcome-email")) {
+          return Promise.resolve({ ok: true });
+        }
+        if (typeof url === "string" && url.includes("/api/geocode")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                cityName: "San Francisco",
+                stateName: "California",
+                countryName: "United States",
+                lat: "37.7749",
+                lon: "-122.4194",
+                address: {},
+                place_type: ["address"],
+              }),
+          });
+        }
+        if (typeof url === "string" && url.includes("/api/reverse-geocode")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                cityName: "San Francisco",
+                stateName: "California",
+                countryName: "United States",
+              }),
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404 });
       });
 
-      const checkbox = screen.getByRole("checkbox");
-      expect(checkbox).toBeChecked();
+      const user = userEvent.setup();
+      render(<WelcomeModal {...defaultProps} />);
+
+      await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "123 Main St");
+      await user.click(screen.getByText(/^Continue$/i));
+
+      await waitFor(() => {
+        expect(screen.getByText(/name your place/i)).toBeInTheDocument();
+      });
+
+      const placeLabelInput = screen.getByRole("textbox", { name: /name your place/i });
+      expect(placeLabelInput).toHaveValue("My place");
     });
 
     it("saves city and navigates immediately on 'Let's go' (prefs save in background)", async () => {
@@ -341,7 +500,7 @@ describe("WelcomeModal", () => {
   describe("Modal behavior", () => {
     it("does not render when isOpen is false", () => {
       render(<WelcomeModal {...defaultProps} isOpen={false} />);
-      expect(screen.queryByText(/discover your block/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/discover your place/i)).not.toBeInTheDocument();
     });
 
     it("resets state when re-opened", async () => {
@@ -349,7 +508,7 @@ describe("WelcomeModal", () => {
       rerender(<WelcomeModal {...defaultProps} isOpen={true} />);
 
       // Should start at welcome step
-      expect(screen.getByText(/discover your block/i)).toBeInTheDocument();
+      expect(screen.getByText(/discover your place/i)).toBeInTheDocument();
     });
   });
 });

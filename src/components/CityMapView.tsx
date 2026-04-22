@@ -186,7 +186,7 @@ function addGPSMarker(map: any, lat: number, lng: number, markerRef: React.Mutab
   return marker;
 }
 
-/** My Block overlay: lat/lon bounding box (same geometry as place metrics + map pin filter). */
+/** My place overlay: lat/lon bounding box (same geometry as place metrics + map pin filter). */
 const PLACE_RADIUS_SOURCE_ID = "place-radius-source";
 const PLACE_RADIUS_LAYER_ID = "place-radius-fill";
 
@@ -269,7 +269,7 @@ function zoomToGPSLocation(
   });
 }
 
-/** Fit the map to the My Block bounding box (preferred over center+zoom when radius is set). */
+/** Fit the map to the My place bounding box (preferred over center+zoom when radius is set). */
 function zoomToPlaceBoundingBox(map: any, lat: number, lng: number, radiusMeters: number) {
   const mapboxgl = (window as any).mapboxgl;
   const b = getPlaceRadiusBoundingBox(lat, lng, radiusMeters);
@@ -842,7 +842,7 @@ export default function CityMapView({
     return () => observer.disconnect();
   }, []);
 
-  // Handle GPS location: add marker, My Block bounding box overlay, find district, zoom.
+  // Handle GPS location: add marker, My place bounding box overlay, find district, zoom.
   // useLayoutEffect so we re-zoom immediately when map refresh starts (before paint).
   useLayoutEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -857,7 +857,7 @@ export default function CityMapView({
       }
       removePlaceRadiusCircle(map);
       // Only zoom to city default when no district is selected (e.g. citywide).
-      // When switching from My Block to a district, let the district zoom effect handle recentering.
+      // When switching from My place to a district, let the district zoom effect handle recentering.
       if (selectedDistrict != null && selectedDistrict !== 0) {
         return;
       }
@@ -880,7 +880,7 @@ export default function CityMapView({
     const handleGPSLocation = () => {
       addGPSMarker(map, lat, lng, gpsMarkerRef, placeLabelRef.current);
 
-      // My Block: show bounding box (same as place metrics lat/lon filter), fit map to box
+      // My place: show bounding box (same as place metrics lat/lon filter), fit map to box
       if (radiusM != null && radiusM > 0) {
         try {
           addPlaceRadiusCircle(map, lat, lng, radiusM);
@@ -911,10 +911,19 @@ export default function CityMapView({
             districtNum = parsed;
           }
         }
-        if (districtNum !== null && onDistrictChange) {
+        // Citywide (0) is an explicit scope: do not re-derive district from GPS when this
+        // effect re-runs after switching from a district — that was snapping users back off
+        // "Mayor / citywide" in the Official Selector while a home/pin location is still set.
+        const isExplicitCitywide =
+          selectedDistrict == null || selectedDistrict === 0;
+        if (districtNum !== null && onDistrictChange && !isExplicitCitywide) {
           onDistrictChange(districtNum);
         }
-        zoomToDistrictWithGPS(map, lat, lng, district.feature);
+        if (isExplicitCitywide) {
+          zoomToGPSLocation(map, lat, lng, radiusM);
+        } else {
+          zoomToDistrictWithGPS(map, lat, lng, district.feature);
+        }
       } else {
         zoomToGPSLocation(map, lat, lng, radiusM);
       }
@@ -932,7 +941,7 @@ export default function CityMapView({
   const placeCircleKey = placeCircle
     ? `${placeCircle.lat},${placeCircle.lng},${placeCircle.radius_m},${placeLabel ?? ""}`
     : null;
-  // When My Block is selected (placeCircle set), re-zoom to center immediately when map refresh starts.
+  // When My place is selected (placeCircle set), re-zoom to center immediately when map refresh starts.
   useLayoutEffect(() => {
     if (!placeCircleKey || !placeCircle || !mapInstanceRef.current) return;
     const map = mapInstanceRef.current;

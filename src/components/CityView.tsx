@@ -21,7 +21,7 @@ import {
 } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
-import { getPresetMetricDateRange, getDefaultDateRangeFromMetrics, type MetricDateRange } from "@/lib/dateRange";
+import { getPresetMetricDateRange, type MetricDateRange } from "@/lib/dateRange";
 // AnomalyResult import removed – anomalies section hidden
 import { useAuth0 } from "@auth0/auth0-react";
 import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type BatchComparisonsResponse, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
@@ -31,6 +31,7 @@ import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
 import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
+import { resolveGeographicUnitLabel } from "@/lib/geographicUnitLabel";
 import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
@@ -93,7 +94,7 @@ interface MetricWithYTD {
   calculationBreakdown?: import("@/lib/apiClient").CalculationBreakdown | null;
 }
 
-/** Minimal place for Official Selector "My block" */
+/** Minimal place for Official Selector "My place" scope */
 interface UserPlaceForSelector {
   id: number;
   label: string;
@@ -113,7 +114,7 @@ interface DashboardMetricsSectionProps {
   onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
   leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
   newsletterQueriesEnabled?: boolean; // When false, defers newsletter/follow API calls (slow-connection UX)
-  /** User's saved places for "My block" selector */
+  /** User's saved places for "My places" in the official selector */
   userPlaces?: UserPlaceForSelector[];
   selectedPlaceId?: number | null;
   onPlaceSelect?: (placeId: number | null) => void;
@@ -126,6 +127,8 @@ interface DashboardMetricsSectionProps {
   onConsumePlaceMetricsBootstrap?: () => void;
   /** ISO timestamp of the last place-level data refresh, shown as "Last updated" next to Metrics heading */
   lastRefreshAt?: string | null;
+  /** Ward vs District (and similar) for dashboard scope labels next to comparison selectors. */
+  geographicUnitLabel?: string;
 }
 
 // Time series data point for sparkline
@@ -555,7 +558,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District" }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   // Block (place) scope: metrics and anomalies for selected place
@@ -589,7 +592,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       setPlaceJobProgress({
         status: "pending",
         progress: 0,
-        statusMessage: "Computing metrics for your block…",
+        statusMessage: "Computing metrics for your place…",
       });
     }
 
@@ -1400,16 +1403,16 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
       return `${selectedPlace.label} (${selectedPlace.radius_m}m map box) personalized dashboard`;
     }
     if (selectedLeader) {
-      const districtText = selectedLeader.district 
-        ? `District ${selectedLeader.district}` 
+      const districtText = selectedLeader.district
+        ? `${geographicUnitLabel} ${selectedLeader.district}`
         : "Citywide";
       return `${selectedLeader.title}: ${selectedLeader.name} - ${districtText} Dashboard`;
     }
     if (district === 0 || district === null) {
       return "Citywide Dashboard";
     }
-    return `District ${district} Dashboard`;
-  }, [selectedPlaceId, selectedPlace, selectedLeader, district]);
+    return `${geographicUnitLabel} ${district} Dashboard`;
+  }, [selectedPlaceId, selectedPlace, selectedLeader, district, geographicUnitLabel]);
 
   // Get label for comparison type
   const getComparisonTypeLabel = (type: ComparisonType): string => {
@@ -1547,7 +1550,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               ? selectedPlace.label
               : district === 0 || district === null
                 ? "Citywide"
-                : `District ${district}`}
+                : `${geographicUnitLabel} ${district}`}
           </span>
         </div>
         {!selectedPlaceId && (
@@ -1679,7 +1682,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             <span>
               {bootstrapPlaceMetricsForPlaceId === selectedPlaceId &&
               placeRunLoading
-                ? "Computing metrics for your block…"
+                ? "Computing metrics for your place…"
                 : "Loading personalized dashboard…"}
             </span>
           </div>
@@ -2076,7 +2079,7 @@ export default function CityView({
     getPresetMetricDateRange("ytd")
   );
   // Use initialDistrict if provided, otherwise default to 0 (mayor/citywide)
-  // When initialPlaceId is set (My block), we use place scope so district is 0 and place is set from the start to avoid flashing "Citywide".
+  // When initialPlaceId is set (saved place), we use place scope so district is 0 and place is set from the start to avoid flashing "Citywide".
   const [selectedDistrict, setSelectedDistrict] = useState<number | null>(
     initialPlaceId != null ? 0 : (initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0)
   );
@@ -2117,6 +2120,11 @@ export default function CityView({
   const unfollowMutation = useUnfollowRepresentative(cityId ?? null);
   const { data: publicCityDistricts = [] } = usePublicCityDistricts(cityId, { enabled: !!cityId && cityLoaded });
 
+  const geographicUnitLabel = useMemo(
+    () => resolveGeographicUnitLabel(mapLeaders, cityData?.geographic_structures),
+    [mapLeaders, cityData?.geographic_structures],
+  );
+
   // When city has district-level data but no leaders in structure (e.g. Chicago, Oakland), build synthetic leaders so district nav still shows
   const syntheticLeadersFromDistricts = useMemo((): CityLeader[] => {
     if (!cityId || !Array.isArray(publicCityDistricts) || publicCityDistricts.length === 0) return [];
@@ -2125,11 +2133,11 @@ export default function CityView({
       .sort((a, b) => a - b)
       .map((d) => ({
         city_id: cityId,
-        name: `District ${d}`,
-        title: "District",
+        name: `${geographicUnitLabel} ${d}`,
+        title: geographicUnitLabel,
         district: d,
       }));
-  }, [cityId, publicCityDistricts]);
+  }, [cityId, publicCityDistricts, geographicUnitLabel]);
 
   /**
    * Official selector options: city structure leaders (mayor + named council), plus any
@@ -2178,7 +2186,7 @@ export default function CityView({
   const saveCityMutation = useSaveCity();
   const unsaveCityMutation = useUnsaveCity();
 
-  // Auth for user places (My block)
+  // Auth for user places (My places)
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   useEffect(() => {
     if (!cityId || !cityLoaded || !isAuthenticated) {
@@ -2224,9 +2232,10 @@ export default function CityView({
   const headerFollowerCount = leaderFollowerCounts?.[headerDistrictStr];
   const handleHeaderFollowToggle = useCallback(() => {
     if (followPending) return;
-    const label = headerDistrictStr === "0"
-      ? (cityData?.name || "this city")
-      : `District ${headerDistrictStr}`;
+    const label =
+      headerDistrictStr === "0"
+        ? cityData?.name || "this city"
+        : `${geographicUnitLabel} ${headerDistrictStr}`;
     if (isFollowed) {
       unfollowMutation.mutate(headerDistrictStr, {
         onSuccess: () => toast.success(`Unfollowed ${label}`),
@@ -2239,12 +2248,32 @@ export default function CityView({
           }),
       });
     }
-  }, [followPending, isFollowed, unfollowMutation, followMutation, headerDistrictStr, cityData?.name]);
+  }, [
+    followPending,
+    isFollowed,
+    unfollowMutation,
+    followMutation,
+    headerDistrictStr,
+    cityData?.name,
+    geographicUnitLabel,
+  ]);
 
-  // Default map date range to YTD so it aligns with dashboard YTD comparisons
+  /** District follow sits beside the official selector; keep a single Follow control (not duplicated in the hero). */
+  const followInlineWithDistrictSelector = useMemo(() => {
+    const d = selectedDistrict ?? 0;
+    return d > 0 && selectedPlaceId == null;
+  }, [selectedDistrict, selectedPlaceId]);
+
+  // Month-to-date on the map when opening a newly saved place (Search Cities / bootstrap job).
   useEffect(() => {
-    setMetricDateRange(getPresetMetricDateRange("ytd"));
-  }, [cityData?.metrics, cityId]);
+    if (
+      bootstrapPlaceMetricsForPlaceId != null &&
+      initialPlaceId != null &&
+      bootstrapPlaceMetricsForPlaceId === initialPlaceId
+    ) {
+      setMetricDateRange(getPresetMetricDateRange("mtd"));
+    }
+  }, [bootstrapPlaceMetricsForPlaceId, initialPlaceId]);
 
   // Clear old city data immediately when cityId changes
   useEffect(() => {
@@ -2255,6 +2284,7 @@ export default function CityView({
       setIsCityDataReady(false);
       setSelectedDistrict(initialDistrict ?? 0);
       setDistrictGPSLocation(null);
+      setMetricDateRange(getPresetMetricDateRange("ytd"));
     }
     previousCityIdRef.current = cityId;
   }, [cityId, initialDistrict]);
@@ -2271,7 +2301,7 @@ export default function CityView({
   useEffect(() => {
     if (initialPlaceId != null) {
       setSelectedPlaceId(initialPlaceId);
-      setSelectedDistrict(0); // Place scope; district nav shows "My block" etc.
+      setSelectedDistrict(0); // Place scope; district nav shows "My place" etc.
     } else {
       // User clicked a district in the sidebar (initialPlaceId was set to null) — clear place so district selection sticks
       setSelectedPlaceId(null);
@@ -2399,10 +2429,13 @@ export default function CityView({
             showDateRange={false}
             cityId={cityId}
             selectedDistrict={selectedDistrict}
+            districtUnitLabel={geographicUnitLabel}
             isFollowed={isFollowed}
             followPending={followPending}
             followerCount={headerFollowerCount}
-            onFollowToggle={handleHeaderFollowToggle}
+            onFollowToggle={
+              followInlineWithDistrictSelector ? undefined : handleHeaderFollowToggle
+            }
             showAdminIcon={isAdmin}
             onAdminClick={() => setAdminDrawerOpen(true)}
           />
@@ -2428,8 +2461,13 @@ export default function CityView({
                 onGPSLocation={(location) => setDistrictGPSLocation(location)}
                 leaderFollowerCounts={leaderFollowerCounts}
                 cityId={cityId}
-                publicPagePath={cityData?.name ? `/c/${slugify(cityData.name)}` : undefined}
                 newsletterQueriesEnabled={cityLoaded}
+                onDistrictFollowToggle={
+                  followInlineWithDistrictSelector ? handleHeaderFollowToggle : undefined
+                }
+                isDistrictFollowed={isFollowed}
+                districtFollowPending={followPending}
+                districtFollowerCount={headerFollowerCount}
                 userPlaces={userPlaces}
                 selectedPlaceId={selectedPlaceId}
                 onPlaceSelect={(id) => {
@@ -2444,6 +2482,7 @@ export default function CityView({
                 }}
                 openTrigger={openDistrictTrigger}
                 placeRefreshLastRunAt={lastPlaceRefreshAt}
+                geographicStructures={cityData.geographic_structures}
               />
             </div>
           ) : null}
@@ -2562,6 +2601,7 @@ export default function CityView({
             bootstrapPlaceMetricsForPlaceId={bootstrapPlaceMetricsForPlaceId}
             onConsumePlaceMetricsBootstrap={onConsumePlaceMetricsBootstrap}
             lastRefreshAt={lastPlaceRefreshAt}
+            geographicUnitLabel={geographicUnitLabel}
           />
         </section>
 

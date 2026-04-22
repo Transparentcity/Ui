@@ -3,14 +3,15 @@
   overflow: hidden;
   border: 1px solid var(--border-primary, #e5e7eb);
   margin: 0;
+  background: var(--bg-primary, #ffffff);
 }
 
 .toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  background: var(--bg-secondary, #f8f9fa);
+  padding: 10px 14px;
+  background: var(--bg-primary, #ffffff);
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
 }
 
@@ -43,6 +44,35 @@
   accent-color: var(--brand-primary, #ad35fa);
 }
 
+.mapInteractiveWrap {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  min-height: 160px;
+}
+
+.mapInteractive {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.centerPinOverlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.28));
+}
+
+.centerPinSvg {
+  display: block;
+  color: var(--brand-primary, #ad35fa);
+}
+
 .mapImg {
   display: block;
   width: 100%;
@@ -65,9 +95,11 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--bg-secondary, #f8f9fa);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-primary, #ffffff);
   border-top: 1px solid var(--border-primary, #e5e7eb);
 }
 
@@ -75,33 +107,72 @@
   padding: 8px 16px;
   font-size: 14px;
   font-weight: 600;
+  font-family: inherit;
   color: #fff;
   background: var(--brand-primary, #ad35fa);
   border: none;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-sm, 6px);
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .saveButton:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--brand-primary-hover, #9333ea);
 }
 
 .saveButton:disabled {
-  opacity: 0.7;
+  opacity: 0.65;
   cursor: not-allowed;
 }
 
 .cancelButton {
   padding: 8px 16px;
   font-size: 14px;
-  color: var(--text-secondary, #6b7280);
-  background: transparent;
-  border: 1px solid var(--border-primary, #e5e7eb);
-  border-radius: var(--radius-md, 8px);
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-primary, #111827);
+  background: var(--bg-tertiary, #f3f4f6);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
 .cancelButton:hover:not(:disabled) {
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary, #e5e7eb);
+}
+
+.cancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Full-height body inside a column flex modal (e.g. search → save place) */
+.stretchEmbed {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.stretchEmbed .mapInteractiveWrap {
+  flex: 1;
+  min-height: 200px;
+  height: auto;
+}
+
+.stretchEmbed .mapImg {
+  flex: 1;
+  min-height: 180px;
+  max-height: min(40vh, 280px);
+  width: 100%;
+  object-fit: cover;
+}
+
+.stretchEmbed .mapPlaceholder {
+  flex: 1;
+  min-height: 140px;
 }

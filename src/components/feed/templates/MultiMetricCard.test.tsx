@@ -98,6 +98,7 @@ function makeStory(
     embed_url_resolved: null,
     cleaned_description: "",
     canonical_url: "/feed/1",
+    place_scoped_for_ui: false,
     ...overrides,
   };
 }

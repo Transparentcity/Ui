@@ -8,7 +8,7 @@ import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
 import ResearchList from "./ResearchList";
-import SidebarCitySearch from "./SidebarCitySearch";
+import SidebarCitySearch, { type SidebarCitySelectOptions } from "./SidebarCitySearch";
 import styles from "./Sidebar.module.css";
 import type { UserPlace } from "@/lib/apiClient";
 
@@ -46,7 +46,7 @@ interface SidebarProps {
   onResearchClick?: (reportId: number) => void;
   currentResearchId?: number | null;
   onResearchDeleted?: (reportId: number) => void;
-  onCitySelect?: (cityId: number) => void;
+  onCitySelect?: (cityId: number, opts?: SidebarCitySelectOptions) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
   /** Called after user saves a personalized place from Search Cities (optional full place for navigation + metrics bootstrap). */
   onPlaceSaved?: (place?: UserPlace) => void;
@@ -54,8 +54,8 @@ interface SidebarProps {
   onPlaceRenamed?: (placeId: number, newLabel: string) => void;
   /** Called after a place is deleted (so parent can refetch and clear selection). */
   onPlaceDeleted?: (placeId: number) => void;
-  /** Called when user clicks "Find your district" in Search Cities; e.g. open district modal when a city is selected. */
-  onOpenFindDistrict?: () => void;
+  /** Called after user removes a followed district from My Places (sidebar). */
+  onDistrictRemoved?: (cityId: number, district: string) => void;
   onMenuToggle?: () => void;
   currentView?: string;
   /** Current sidebar width in pixels (for resizable sidebar). */
@@ -113,7 +113,7 @@ export default function Sidebar({
   onPlaceSaved,
   onPlaceRenamed,
   onPlaceDeleted,
-  onOpenFindDistrict,
+  onDistrictRemoved,
   onMenuToggle,
   currentView,
   sidebarWidth,
@@ -473,15 +473,14 @@ export default function Sidebar({
           {/* City Search */}
           {onCitySelect && (
             <SidebarCitySearch
-              onCitySelect={(cityId) => {
-                onCitySelect(cityId);
+              onCitySelect={(cityId, opts) => {
+                onCitySelect(cityId, opts);
                 if (isNarrowScreen() && onClose) {
                   onClose();
                 }
               }}
               onGPSLocation={onGPSLocation}
               onPlaceSaved={onPlaceSaved}
-              onFindDistrict={onOpenFindDistrict}
             />
           )}
 
@@ -525,6 +524,7 @@ export default function Sidebar({
             }}
             onPlaceRenamed={onPlaceRenamed}
             onPlaceDeleted={onPlaceDeleted}
+            onDistrictRemoved={onDistrictRemoved}
             activeCityId={activeCityId}
             activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
             onCitySectionClick={onCitySectionClick ? (cityId, section) => {

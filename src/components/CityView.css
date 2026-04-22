@@ -38,9 +38,17 @@
 }
 
 .city-view-place-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 12px 12px;
   background: rgba(255, 255, 255, 0.6);
   border-top: 1px solid var(--border-primary);
+}
+
+.city-view-place-selector-row > .district-navigation-bar {
+  flex: 1;
+  min-width: 0;
 }
 
 .city-view-place-selector-fallback {

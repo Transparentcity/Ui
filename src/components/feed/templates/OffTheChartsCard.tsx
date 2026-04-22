@@ -99,6 +99,7 @@ export default function OffTheChartsCard({ story, children }: OffTheChartsCardPr
         neighborhoodLabel={story.neighborhood_label}
         categoryColor={story.category_color}
         storyType={story.story_type}
+        placeScoped={story.place_scoped_for_ui}
       />
       <div className={`${styles.otcBadge} ${isMilestone ? styles.milestoneBadge : ""}`}>
         {badge.emoji} {badge.label}

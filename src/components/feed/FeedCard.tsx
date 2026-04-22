@@ -4,10 +4,22 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
-import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
-import { useTrackFeedEngagement } from "@/lib/hooks/useFeed";
+import {
+  canRestorePlacePrivateScope,
+  isPrivateFeedStory,
+  requiresPublishForPublicShare,
+} from "@/lib/feed/canonicalUrl";
+import { runSharePublicUrl } from "@/lib/feed/sharePublicUrl";
+import {
+  feedKeys,
+  useTrackFeedEngagement,
+} from "@/lib/hooks/useFeed";
+import { useAuth0 } from "@auth0/auth0-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { restorePlaceScopeOnFeedStory } from "@/lib/apiClient";
 import CardActionBar from "./CardActionBar";
 import OverflowMenu from "./OverflowMenu";
+import FeedStoryShareDialog from "./FeedStoryShareDialog";
 import TextOnlyCard from "./templates/TextOnlyCard";
 import TextChartCard from "./templates/TextChartCard";
 import MultiMetricCard from "./templates/MultiMetricCard";
@@ -39,9 +51,38 @@ export default function FeedCard({
 }: FeedCardProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const trackEngagement = useTrackFeedEngagement();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [hiding, setHiding] = useState(false);
+  const [placeShareOpen, setPlaceShareOpen] = useState(false);
+
+  const showMakePrivate =
+    isAuthenticated && canRestorePlacePrivateScope(story);
+  const showOverflowMenu = !!isAdmin || showMakePrivate;
+
+  const makePrivateMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getAccessTokenSilently();
+      return restorePlaceScopeOnFeedStory(story.id, token);
+    },
+    onSuccess: (res) => {
+      const id = res.story.id;
+      queryClient.setQueryData(feedKeys.detail(id), { story: res.story });
+      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.places() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.detail(id) });
+      toast.success("Story is private to your saved place again.");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not update this story.");
+    },
+  });
+
+  const handleMakePrivate = useCallback(() => {
+    makePrivateMutation.mutate();
+  }, [makePrivateMutation]);
 
   // Close overflow when clicking outside (desktop)
   useEffect(() => {
@@ -71,18 +112,17 @@ export default function FeedCard({
   ]);
 
   const handleShare = useCallback(() => {
-    trackEngagement.mutate({ storyId: story.id, action: "share" });
-    const path = resolveOutboundCanonicalPath(story);
-    const url = `${window.location.origin}${path}`;
-
-    if (typeof navigator.share === "function") {
-      navigator.share({ title: story.headline, url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(url).then(
-        () => toast.success("Link copied to clipboard"),
-        () => toast.error("Could not copy link"),
-      );
+    if (requiresPublishForPublicShare(story)) {
+      setPlaceShareOpen(true);
+      return;
     }
+    if (isPrivateFeedStory(story)) {
+      toast.info(
+        "This story is only visible in your account and does not have a shareable public link.",
+      );
+      return;
+    }
+    runSharePublicUrl(story, trackEngagement);
   }, [story, trackEngagement]);
 
   const handleHide = useCallback(() => {
@@ -143,12 +183,13 @@ export default function FeedCard({
   const actionBar = (
     <CardActionBar
       onShare={handleShare}
-      onOverflow={isAdmin ? () => setOverflowOpen((o) => !o) : undefined}
-      showOverflow={!!isAdmin}
+      onOverflow={showOverflowMenu ? () => setOverflowOpen((o) => !o) : undefined}
+      showOverflow={showOverflowMenu}
     />
   );
 
   return (
+    <>
     <article className={cardClassName} onClick={handleCardClick} tabIndex={0} onKeyDown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === "TEXTAREA" || tag === "INPUT") return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}>
       {Template === PhotoCard ? (
         <PhotoCard story={story} variant={photoVariant}>{actionBar}</PhotoCard>
@@ -156,19 +197,30 @@ export default function FeedCard({
         <Template story={story}>{actionBar}</Template>
       )}
 
-      {/* Overflow menu anchor (admin only, positioned relative to action bar ···) */}
-      {isAdmin && (
+      {/* Overflow (admin tools and/or owner "Make private") */}
+      {showOverflowMenu && (
         <div className={styles.overflowAnchor} style={{ position: "absolute", right: 16, bottom: 16 }}>
           <OverflowMenu
             open={overflowOpen}
             onClose={() => setOverflowOpen(false)}
             onShare={handleShare}
-            onHide={handleHide}
+            onHide={isAdmin ? handleHide : undefined}
             onDelete={handleDelete}
+            onMakePrivate={showMakePrivate ? handleMakePrivate : undefined}
+            makePrivatePending={makePrivateMutation.isPending}
+            omitShare={showMakePrivate && !isAdmin}
             mobile={isMobile}
           />
         </div>
       )}
     </article>
+    {requiresPublishForPublicShare(story) && (
+      <FeedStoryShareDialog
+        story={story}
+        open={placeShareOpen}
+        onOpenChange={setPlaceShareOpen}
+      />
+    )}
+    </>
   );
 }

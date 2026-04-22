@@ -91,6 +91,11 @@ export function listFeedStories(
     order_by?: string;
     /** When true and no city_id, return all active stories (ignore subscription/follows). Use for "All Cities" view. */
     all_cities?: boolean;
+    /**
+     * With all_cities=true, include saved-place-scoped rows for staff (feed admin).
+     * Admins see all cities; city leads only cities they lead.
+     */
+    include_staff_saved_place_stories?: boolean;
     /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
     story_type?: string | null;
     /** Saved place (user_places.id); API verifies ownership. */
@@ -114,6 +119,9 @@ export function listFeedStories(
   if (options?.offset) params.append("offset", options.offset.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
   if (options?.all_cities) params.append("all_cities", "true");
+  if (options?.include_staff_saved_place_stories) {
+    params.append("include_staff_saved_place_stories", "true");
+  }
   if (options?.story_type) params.append("story_type", options.story_type);
   if (options?.user_place_id != null) {
     params.append("user_place_id", String(options.user_place_id));

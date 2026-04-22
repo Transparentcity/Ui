@@ -7,8 +7,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { requiresPublishForPublicShare } from "@/lib/feed/canonicalUrl";
 
 // ── jsdom polyfills ──────────────────────────────────────────────────────
 
@@ -76,7 +78,7 @@ import FeedCard from "./FeedCard";
 // ── Test factory ────────────────────────────────────────────────────────
 
 function makeEnrichedStory(overrides: Partial<EnrichedFeedStory> = {}): EnrichedFeedStory {
-  return {
+  const story: EnrichedFeedStory = {
     id: 42,
     story_type: "alert",
     city_id: 57260,
@@ -120,8 +122,13 @@ function makeEnrichedStory(overrides: Partial<EnrichedFeedStory> = {}): Enriched
     embed_url_resolved: null,
     cleaned_description: "Thefts have increased 25% this month in the district.",
     canonical_url: "/feed/42",
+    place_scoped_for_ui: false,
     ...overrides,
   };
+  if (!("place_scoped_for_ui" in overrides)) {
+    story.place_scoped_for_ui = requiresPublishForPublicShare(story);
+  }
+  return story;
 }
 
 describe("FeedCard", () => {
@@ -133,13 +140,18 @@ describe("FeedCard", () => {
   });
 
   function renderCard(storyOverrides: Partial<EnrichedFeedStory> = {}, { isAdmin = false }: { isAdmin?: boolean } = {}) {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
     return render(
-      <FeedCard
-        story={makeEnrichedStory(storyOverrides)}
-        isAdmin={isAdmin}
-        onHide={onHide}
-        onDelete={onDelete}
-      />
+      <QueryClientProvider client={qc}>
+        <FeedCard
+          story={makeEnrichedStory(storyOverrides)}
+          isAdmin={isAdmin}
+          onHide={onHide}
+          onDelete={onDelete}
+        />
+      </QueryClientProvider>,
     );
   }
 
@@ -151,8 +163,18 @@ describe("FeedCard", () => {
   });
 
   it("renders a saved place label when the story is place-scoped", () => {
-    renderCard({ neighborhood_label: "Noe Valley Home" });
+    renderCard({ user_place_id: 7, neighborhood_label: "Noe Valley Home" });
     expect(screen.getByText("Noe Valley Home")).toBeInTheDocument();
+  });
+
+  it("shows a saved place pin for place-scoped stories", () => {
+    renderCard({ user_place_id: 99, neighborhood_label: "Noe Valley Home" });
+    expect(screen.getByLabelText("Saved place")).toBeInTheDocument();
+  });
+
+  it("does not show a saved place pin for city feed stories", () => {
+    renderCard();
+    expect(screen.queryByLabelText("Saved place")).not.toBeInTheDocument();
   });
 
   it("renders Share button in action bar", () => {
@@ -198,17 +220,22 @@ describe("FeedCard", () => {
 
   it("opens in-app feed detail when onOpenFeedDetail is set", () => {
     const onOpenFeedDetail = vi.fn();
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
     render(
-      <FeedCard
-        story={makeEnrichedStory({
-          canonical_url: "/c/san-francisco/metrics/crime-incidents",
-          card_type: "alert",
-          metadata: { metric_key: "crime-incidents" },
-        })}
-        onHide={onHide}
-        onDelete={onDelete}
-        onOpenFeedDetail={onOpenFeedDetail}
-      />,
+      <QueryClientProvider client={qc}>
+        <FeedCard
+          story={makeEnrichedStory({
+            canonical_url: "/c/san-francisco/metrics/crime-incidents",
+            card_type: "alert",
+            metadata: { metric_key: "crime-incidents" },
+          })}
+          onHide={onHide}
+          onDelete={onDelete}
+          onOpenFeedDetail={onOpenFeedDetail}
+        />
+      </QueryClientProvider>,
     );
     fireEvent.click(screen.getByRole("article"));
     expect(onOpenFeedDetail).toHaveBeenCalledWith(
@@ -235,6 +262,17 @@ describe("FeedCard", () => {
     const shareBtn = screen.getByLabelText("Share");
     fireEvent.click(shareBtn);
     expect(mockMutate).toHaveBeenCalledWith({ storyId: 42, action: "share" });
+  });
+
+  it("opens share dialog for saved-place stories with URL field and Share link", () => {
+    renderCard({ user_place_id: 99, metadata: {} });
+    const shareBtn = screen.getByLabelText("Share");
+    fireEvent.click(shareBtn);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: /public link/i })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Public story link")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Share link" })).toBeEnabled();
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   // ── Multi-metric period context ─────────────────────────────────────────

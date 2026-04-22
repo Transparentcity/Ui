@@ -409,7 +409,7 @@ export default function NewsletterAdminSubscribersTab() {
     <>
       <div className={styles.infoBox}>
         Each subscriber&apos;s email newsletter settings (communication preferences and district subscriptions), saved
-        places count (all pins in My Places, including My Block), which cities and districts they follow, past sends in
+        places count (all pins in My Places, including default saved-place labels such as My place), which cities and districts they follow, past sends in
         the outbox / newsletter_sends tables, and admin-generated drafts (queued to Pending on the dashboard). Users can
         also change preferences in their profile or via unsubscribe links.
       </div>
@@ -772,7 +772,7 @@ function UserNewsletterRow({
                       </span>
                       {": "}
                       {overview.saved_places_count ?? 0}
-                      {" (all My Places rows, including My Block). "}
+                      {" (all My Places rows, including saved places). "}
                       <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Cities</span>
                       {": "}
                       {formatFollowedCityNames(overview.subscriptions, cities) || "—"}

@@ -5,18 +5,36 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { useFeedStoryDetail, useCityFeedStories, useTrackFeedEngagement } from "@/lib/hooks/useFeed";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth0 } from "@auth0/auth0-react";
+import {
+  feedKeys,
+  useCityFeedStories,
+  useFeedStoryDetail,
+  useTrackFeedEngagement,
+} from "@/lib/hooks/useFeed";
 import { enrichStory, enrichStories } from "@/lib/feed/mockFeedData";
-import { resolveOutboundCanonicalPath } from "@/lib/feed/canonicalUrl";
+import {
+  canRestorePlacePrivateScope,
+  isPrivateFeedStory,
+  requiresPublishForPublicShare,
+  resolveOutboundCanonicalPath,
+} from "@/lib/feed/canonicalUrl";
+import { runSharePublicUrl } from "@/lib/feed/sharePublicUrl";
+import { restorePlaceScopeOnFeedStory } from "@/lib/apiClient";
 import { fetchDetailNarrative, type DetailNarrative } from "@/lib/feed/fetchReportNarratives";
 import { FeedStoryDetailView } from "@/components/feed/FeedStoryDetailView";
+import FeedStoryShareDialog from "@/components/feed/FeedStoryShareDialog";
 import styles from "@/components/feed/feed.module.css";
 
 export default function FeedDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const storyId = Number(params.id);
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
+  const [placeShareOpen, setPlaceShareOpen] = useState(false);
   const trackEngagement = useTrackFeedEngagement();
 
   const { data: storyResponse, isLoading, error } = useFeedStoryDetail(
@@ -25,6 +43,28 @@ export default function FeedDetailPage() {
 
   const rawStory = storyResponse?.story ?? null;
   const story = rawStory ? enrichStory(rawStory) : null;
+
+  const showMakePrivate =
+    Boolean(story) && isAuthenticated && canRestorePlacePrivateScope(story!);
+
+  const makePrivateMutation = useMutation({
+    mutationFn: async () => {
+      if (!story) throw new Error("No story");
+      const token = await getAccessTokenSilently();
+      return restorePlaceScopeOnFeedStory(story.id, token);
+    },
+    onSuccess: (res) => {
+      const id = res.story.id;
+      queryClient.setQueryData(feedKeys.detail(id), { story: res.story });
+      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.places() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.detail(id) });
+      toast.success("Story is private to your saved place again.");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not update this story.");
+    },
+  });
 
   useEffect(() => {
     if (rawStory) {
@@ -56,16 +96,17 @@ export default function FeedDetailPage() {
 
   const handleShare = () => {
     if (!story) return;
-    trackEngagement.mutate({ storyId, action: "share" });
-    const url = `${window.location.origin}${outboundPath}`;
-    if (typeof navigator.share === "function") {
-      navigator.share({ title: story.headline, url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(url).then(
-        () => toast.success("Link copied to clipboard"),
-        () => toast.error("Could not copy link"),
-      );
+    if (requiresPublishForPublicShare(story)) {
+      setPlaceShareOpen(true);
+      return;
     }
+    if (isPrivateFeedStory(story)) {
+      toast.info(
+        "This story is only visible in your account and does not have a shareable public link.",
+      );
+      return;
+    }
+    runSharePublicUrl(story, trackEngagement);
   };
 
   if (isLoading) {
@@ -105,33 +146,46 @@ export default function FeedDetailPage() {
   }
 
   return (
-    <div className={styles.detailContainer}>
-      <button
-        type="button"
-        className={styles.detailBack}
-        onClick={() => router.back()}
-      >
-        {"\u2190"} Back
-      </button>
-
-      <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-gray-200 pb-3 dark:border-slate-600">
-        <Link
-          href={outboundPath}
-          className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
-          target="_blank"
-          rel="noopener noreferrer"
+    <>
+      <div className={styles.detailContainer}>
+        <button
+          type="button"
+          className={styles.detailBack}
+          onClick={() => router.back()}
         >
-          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-          Open page
-        </Link>
-      </div>
+          {"\u2190"} Back
+        </button>
 
-      <FeedStoryDetailView
-        story={story}
-        detailNarrative={detailNarrative}
-        relatedStories={relatedStories}
-        onShare={handleShare}
-      />
-    </div>
+        <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-gray-200 pb-3 dark:border-slate-600">
+          <Link
+            href={outboundPath}
+            className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+            Open page
+          </Link>
+        </div>
+
+        <FeedStoryDetailView
+          story={story}
+          detailNarrative={detailNarrative}
+          relatedStories={relatedStories}
+          onShare={handleShare}
+          onMakePrivate={
+            showMakePrivate ? () => makePrivateMutation.mutate() : undefined
+          }
+          makePrivatePending={makePrivateMutation.isPending}
+        />
+      </div>
+      {requiresPublishForPublicShare(story) && (
+        <FeedStoryShareDialog
+          story={story}
+          open={placeShareOpen}
+          onOpenChange={setPlaceShareOpen}
+        />
+      )}
+    </>
   );
 }

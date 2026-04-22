@@ -1,16 +1,13 @@
 "use client";
 
-import {
-  type MouseEvent as ReactMouseEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useTheme } from "@/contexts/ThemeContext";
-import type { CityLeader, CityShapefile } from "@/lib/apiClient";
+import type { CityDetail, CityLeader, CityShapefile } from "@/lib/apiClient";
+import {
+  pluralGeographicUnitLabel,
+  resolveGeographicUnitLabel,
+} from "@/lib/geographicUnitLabel";
 import { createPlace, type UserPlace } from "@/lib/apiClient";
 import {
   isLikelyZipcode,
@@ -21,6 +18,7 @@ import {
   type GeocodeResult,
 } from "@/lib/locationSearchUtils";
 import LocationMapSave from "@/components/LocationMapSave";
+import FollowButton from "@/components/FollowButton";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
 import "./DistrictNavigation.css";
 
@@ -35,11 +33,61 @@ function normalizeDistrictValue(value: unknown): number | null {
 
 function isLikelyDistrictNumber(q: string): boolean {
   const s = q.trim();
-  // Match patterns like "District 1", "D1", "1", etc.
-  return /^(district\s*)?[0-9]+$/i.test(s);
+  // Match patterns like "District 1", "Ward 3", "D1", "1", etc.
+  return (
+    /^(district\s*)?[0-9]+$/i.test(s) ||
+    /^(ward\s*)?[0-9]+$/i.test(s)
+  );
 }
 
-/** User-saved place for "My block" scope */
+function formatFollowerLabel(n: number): string {
+  return `${n} ${n === 1 ? "follower" : "followers"}`;
+}
+
+const GEO_UNIT_PREFIX = "district|ward|precinct|beat|division";
+
+/**
+ * Short role noun from a leader title for the official selector (e.g. "Supervisor", "Alderman").
+ * Strips a leading "District 3" / "Ward 5" style prefix so we can render "Ward 5 Alderman" without duplication.
+ */
+function extractDistrictOfficialRoleNoun(title: string | null | undefined): string | null {
+  if (title == null) return null;
+  let s = title.trim();
+  if (!s) return null;
+  if (new RegExp(`^(${GEO_UNIT_PREFIX})$`, "i").test(s)) return null;
+
+  s = s.replace(new RegExp(`^\\s*(${GEO_UNIT_PREFIX})(\\s+\\d+)?\\s+`, "i"), "").trim();
+  if (!s) return null;
+
+  s = s.replace(new RegExp(`\\s*[,–-]?\\s*(${GEO_UNIT_PREFIX})\\s*\\d+\\s*$`, "i"), "").trim();
+  if (!s) return null;
+  if (new RegExp(`^(${GEO_UNIT_PREFIX})$`, "i").test(s)) return null;
+
+  return s
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function resolveDistrictOfficialRoleNoun(
+  district: number,
+  leaders: CityLeader[],
+  currentRepresentative: CityLeader | null,
+): string {
+  const fromTitle = (t: string | null | undefined) => extractDistrictOfficialRoleNoun(t);
+
+  const fromCurrent = fromTitle(currentRepresentative?.title);
+  if (fromCurrent) return fromCurrent;
+
+  for (const l of leaders) {
+    if (normalizeDistrictValue(l.district) !== district) continue;
+    const n = fromTitle(l.title);
+    if (n) return n;
+  }
+  return "Representative";
+}
+
+/** User-saved place for "My place" scope */
 export interface UserPlaceForSelector {
   id: number;
   label: string;
@@ -56,13 +104,16 @@ interface DistrictNavigationProps {
   leaderFollowerCounts?: Record<string, number>;
   /** City ID for Follow button and follow API. If omitted, Follow is hidden. */
   cityId?: number | null;
-  /** Public page path (e.g. `/c/san-francisco`) for the Share button. If omitted, Share is hidden. */
-  publicPagePath?: string | null;
   /** When false, defers fetching follow state until e.g. city has loaded (improves slow-connection UX). */
   newsletterQueriesEnabled?: boolean;
-  /** User's saved places for this city (enables "My block" in selector). */
+  /** Follow for the selected district (to the right of the selector when district is set and not My place). */
+  onDistrictFollowToggle?: () => void;
+  isDistrictFollowed?: boolean;
+  districtFollowPending?: boolean;
+  districtFollowerCount?: number;
+  /** User's saved places for this city (enables "My places" in selector). */
   userPlaces?: UserPlaceForSelector[];
-  /** Currently selected place ID when in "My block" scope. */
+  /** Currently selected place ID when in "My place" scope. */
   selectedPlaceId?: number | null;
   /** Called when user selects a place (clears district). Call onDistrictSelect(null) when selecting a place. */
   onPlaceSelect?: (placeId: number | null) => void;
@@ -72,6 +123,8 @@ interface DistrictNavigationProps {
   openTrigger?: number;
   /** When the batch place-refresh job last ran (ISO string); shown next to place name. */
   placeRefreshLastRunAt?: string | null;
+  /** From city detail; used for Ward vs District (and similar) wording in the selector. */
+  geographicStructures?: CityDetail["geographic_structures"];
 }
 
 // Helper function to check if a point is inside a polygon
@@ -185,37 +238,42 @@ export default function DistrictNavigation({
   onGPSLocation,
   leaderFollowerCounts,
   cityId,
-  publicPagePath,
   newsletterQueriesEnabled = true,
+  onDistrictFollowToggle,
+  isDistrictFollowed = false,
+  districtFollowPending = false,
+  districtFollowerCount,
   userPlaces = [],
   selectedPlaceId = null,
   onPlaceSelect,
   onPlaceSaved,
   openTrigger,
   placeRefreshLastRunAt,
+  geographicStructures,
 }: DistrictNavigationProps) {
   const normalizedSelectedDistrict = useMemo(() => {
     const normalized = normalizeDistrictValue(selectedDistrict);
     return normalized ?? 0;
   }, [selectedDistrict]);
   const district = normalizedSelectedDistrict;
+  const geographicUnitLabel = useMemo(
+    () => resolveGeographicUnitLabel(leaders, geographicStructures),
+    [leaders, geographicStructures],
+  );
   const isPlaceScope = selectedPlaceId != null && selectedPlaceId > 0;
   const selectedPlace = userPlaces.find((p) => p.id === selectedPlaceId);
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
-  const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   /** Point resolved from address/zip geocode or GPS; show map + save when set. */
   const [pendingPoint, setPendingPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [saveBlockLoading, setSaveBlockLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const shareFeedbackRef = useRef<number | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   const geoLoadingTimeoutRef = useRef<number | null>(null);
   const addressSuggestTimeoutRef = useRef<number | null>(null);
@@ -290,11 +348,13 @@ export default function DistrictNavigation({
     if (!trimmed) return districtOptions;
     
     const lowerQuery = trimmed.toLowerCase();
+    const unitLower = geographicUnitLabel.toLowerCase();
     const filtered = districtOptions.filter(
       (option) =>
         option.name.toLowerCase().includes(lowerQuery) ||
         String(option.district).includes(trimmed) ||
         `district ${option.district}`.toLowerCase().includes(lowerQuery) ||
+        `${unitLower} ${option.district}`.includes(lowerQuery) ||
         `d${option.district}`.toLowerCase().includes(lowerQuery) ||
         (option.district === 0 && (
           "citywide".includes(lowerQuery) ||
@@ -307,7 +367,7 @@ export default function DistrictNavigation({
     const others = filtered.filter(opt => opt.district !== 0);
     
     return citywide ? [citywide, ...others] : filtered;
-  }, [trimmed, districtOptions]);
+  }, [trimmed, districtOptions, geographicUnitLabel]);
 
   // For portal rendering
   useEffect(() => {
@@ -324,51 +384,12 @@ export default function DistrictNavigation({
     return () => {
       if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
       if (geoLoadingTimeoutRef.current) window.clearTimeout(geoLoadingTimeoutRef.current);
-      if (shareFeedbackRef.current) window.clearTimeout(shareFeedbackRef.current);
     };
   }, []);
 
   useEffect(() => {
     if (openTrigger != null && openTrigger > 0) setOpen(true);
   }, [openTrigger]);
-
-  const handleShare = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    if (!publicPagePath || typeof window === "undefined") return;
-    const url = window.location.origin + publicPagePath;
-    const title = "View on Transparent.city";
-    if (navigator.share) {
-      navigator
-        .share({ url, title })
-        .then(() => {
-          setShareFeedback("Shared");
-          if (shareFeedbackRef.current) window.clearTimeout(shareFeedbackRef.current);
-          shareFeedbackRef.current = window.setTimeout(() => {
-            setShareFeedback(null);
-            shareFeedbackRef.current = null;
-          }, 1500);
-        })
-        .catch(() => {
-          copyAndFeedback(url);
-        });
-    } else {
-      copyAndFeedback(url);
-    }
-  };
-
-  function copyAndFeedback(url: string) {
-    navigator.clipboard.writeText(url).then(
-      () => {
-        setShareFeedback("Link copied!");
-        if (shareFeedbackRef.current) window.clearTimeout(shareFeedbackRef.current);
-        shareFeedbackRef.current = window.setTimeout(() => {
-          setShareFeedback(null);
-          shareFeedbackRef.current = null;
-        }, 1500);
-      },
-      () => { setShareFeedback(""); }
-    );
-  }
 
   // Close on escape key
   useEffect(() => {
@@ -485,7 +506,9 @@ export default function DistrictNavigation({
     }
 
     if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
-    setError("Location found but not within any known district");
+    setError(
+      `Location found but not within any known ${geographicUnitLabel.toLowerCase()}`,
+    );
   };
 
   const handleDistrictSelect = (district: number | string) => {
@@ -515,7 +538,7 @@ export default function DistrictNavigation({
       const token = await getAccessTokenSilently();
       const place = await createPlace(token, {
         city_id: cityId,
-        label: opts.label.trim() || "My Block",
+        label: opts.label.trim() || "My place",
         lat: pendingPoint.lat,
         lng: pendingPoint.lng,
         radius_m: opts.radius_m,
@@ -568,7 +591,9 @@ export default function DistrictNavigation({
       }
 
       if (onGPSLocation) onGPSLocation({ lat, lng });
-      setError("Location found but not within any known district");
+      setError(
+      `Location found but not within any known ${geographicUnitLabel.toLowerCase()}`,
+    );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -629,7 +654,9 @@ export default function DistrictNavigation({
       }
 
       if (onGPSLocation) onGPSLocation({ lat, lng });
-      setError("Your location is not within any known district");
+      setError(
+        `Your location is not within any known ${geographicUnitLabel.toLowerCase()}`,
+      );
     } catch (e) {
       console.error("GPS location error:", e);
       if (geoLoadingTimeoutRef.current) {
@@ -655,7 +682,7 @@ export default function DistrictNavigation({
           handleDistrictSelect(districtNum);
           return;
         }
-        setError(`District ${districtNum} not found`);
+        setError(`${geographicUnitLabel} ${districtNum} not found`);
         return;
       }
     }
@@ -678,7 +705,9 @@ export default function DistrictNavigation({
     
     // If multiple matches, show error
     if (filteredDistricts.length > 1) {
-      setError("Multiple districts match. Please be more specific.");
+      setError(
+        `Multiple ${pluralGeographicUnitLabel(geographicUnitLabel).toLowerCase()} match. Please be more specific.`,
+      );
       return;
     }
     
@@ -692,82 +721,99 @@ export default function DistrictNavigation({
     handleGeocodeQuery();
   };
 
-  if (!mounted) return null;
-
   // Determine display name and label (place scope overrides district)
-  // When place is selected but selectedPlace not yet loaded (userPlaces still fetching), show "My block" to avoid flashing "Citywide"
+  // When place is selected but selectedPlace not yet loaded (userPlaces still fetching), show "My place" to avoid flashing "Citywide"
   const displayName = isPlaceScope
-    ? (selectedPlace ? selectedPlace.label : "My Block")
+    ? (selectedPlace ? selectedPlace.label : "My place")
     : currentRepresentative
     ? currentRepresentative.name
     : isMayor
     ? "Mayor"
     : district > 0
-    ? `District ${district}`
+    ? `${geographicUnitLabel} ${district}`
     : "Mayor";
-  const labelText = isPlaceScope ? "My block:" : isMayor ? "Mayor:" : "District Representative:";
+  const officialSelectorLabelText = useMemo(() => {
+    if (isPlaceScope) return "My place:";
+    if (isMayor) return "Mayor:";
+    if (district <= 0) return "Mayor:";
+    const role = resolveDistrictOfficialRoleNoun(district, leaders, currentRepresentative);
+    return `${geographicUnitLabel} ${district} ${role}:`;
+  }, [
+    isPlaceScope,
+    isMayor,
+    district,
+    leaders,
+    currentRepresentative,
+    geographicUnitLabel,
+  ]);
+
+  if (!mounted) return null;
+
+  const showDistrictFollow =
+    cityId != null &&
+    onDistrictFollowToggle != null &&
+    !isPlaceScope &&
+    district > 0;
+  const districtFollowEntityLabel = `${geographicUnitLabel} ${district}`;
 
   return (
     <>
-      {/* District Header - Clickable */}
-      <div
-        className="district-navigation-header"
-        onClick={() => setOpen(true)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setOpen(true);
-          }
-        }}
-        aria-label="Select district"
-      >
-        <div className="district-navigation-content">
-          <div className="district-navigation-title-row">
-            <span className="district-navigation-label">{labelText}</span>
-            <span className="district-navigation-name">{displayName}</span>
-            {isPlaceScope && placeRefreshLastRunAt && (
-              <span className="district-navigation-refresh">
-                (refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
-              </span>
-            )}
+      <div className="district-navigation-bar">
+        {/* Official / place selector — chevron ends the control; Follow is outside when on a district. */}
+        <div
+          className="district-navigation-header"
+          onClick={() => setOpen(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setOpen(true);
+            }
+          }}
+          aria-label="Open official and location selector"
+        >
+          <div className="district-navigation-content">
+            <div className="district-navigation-title-row">
+              <span className="district-navigation-label">{officialSelectorLabelText}</span>
+              <span className="district-navigation-name">{displayName}</span>
+              {isPlaceScope && placeRefreshLastRunAt && (
+                <span className="district-navigation-refresh">
+                  (refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="district-navigation-actions">
+            <svg
+              className="district-navigation-chevron"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </div>
         </div>
-        <div className="district-navigation-actions">
-          {publicPagePath != null && (
-            <button
-              type="button"
-              className="district-navigation-share"
-              onClick={handleShare}
-              aria-label="Share public page"
-            >
-              {shareFeedback ? shareFeedback : (
-                <>
-                  <span className="district-navigation-share-text">Share</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                  </svg>
-                </>
-              )}
-            </button>
-          )}
-          <svg
-            className="district-navigation-chevron"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
+        {showDistrictFollow && (
+          <div className="district-navigation-follow-aside">
+            <FollowButton
+              following={isDistrictFollowed}
+              loading={districtFollowPending}
+              count={districtFollowerCount}
+              size="compact"
+              onClick={onDistrictFollowToggle}
+              label={isDistrictFollowed ? "Following" : undefined}
+              entityLabel={districtFollowEntityLabel}
+            />
+          </div>
+        )}
       </div>
 
       {/* Search Modal */}
@@ -782,7 +828,7 @@ export default function DistrictNavigation({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="district-navigation-modal-header">
-                <h2>Find Your District</h2>
+                <h2>Find Your {geographicUnitLabel}</h2>
                 <button
                   className="district-navigation-modal-close"
                   onClick={closeModal}
@@ -808,7 +854,7 @@ export default function DistrictNavigation({
                         handleQuerySubmit();
                       }
                     }}
-                    placeholder="Search by address, zipcode, district number, or representative name..."
+                    placeholder={`Search by address, zipcode, ${geographicUnitLabel.toLowerCase()} number, or representative name...`}
                     className="district-navigation-input"
                     autoComplete="off"
                   />
@@ -875,10 +921,11 @@ export default function DistrictNavigation({
                     cityId={cityId}
                     lat={pendingPoint.lat}
                     lng={pendingPoint.lng}
+                    defaultLabel="My place"
                     defaultRadiusM={DEFAULT_PLACE_RADIUS_M}
                     onSave={handleSavePlace}
                     saving={saveBlockLoading}
-                    saveButtonLabel="Save as my block"
+                    saveButtonLabel="Save as my place"
                     onCancel={() => setPendingPoint(null)}
                     className="district-navigation-location-map-save"
                   />
@@ -888,7 +935,7 @@ export default function DistrictNavigation({
                 {trimmed && filteredDistricts.length > 0 && (
                   <div className="district-navigation-results">
                     <div className="district-navigation-results-header">
-                      Matching Districts:
+                      Matching {pluralGeographicUnitLabel(geographicUnitLabel)}:
                     </div>
                     {filteredDistricts.map((option) => (
                       <button
@@ -900,11 +947,13 @@ export default function DistrictNavigation({
                           {option.name}
                         </div>
                         <div className="district-navigation-result-district">
-                          {option.district === 0 ? "Mayor (Citywide)" : `District ${option.district}`}
+                          {option.district === 0
+                            ? "Mayor (Citywide)"
+                            : `${geographicUnitLabel} ${option.district}`}
                         </div>
                         {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                             <div className="district-navigation-result-subscribers">
-                              {leaderFollowerCounts[String(option.district)]}
+                              {formatFollowerLabel(leaderFollowerCounts[String(option.district)] ?? 0)}
                             </div>
                           )}
                       </button>
@@ -912,11 +961,11 @@ export default function DistrictNavigation({
                   </div>
                 )}
 
-                {/* My block (user places) – shown first */}
+                {/* My places (user-saved pins) – shown first */}
                 {!trimmed && userPlaces.length > 0 && (
                   <div className="district-navigation-results">
                     <div className="district-navigation-results-header">
-                      My block:
+                      My places:
                       {placeRefreshLastRunAt && (
                         <span className="district-navigation-results-refresh">
                           {" "}Last refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
@@ -935,7 +984,7 @@ export default function DistrictNavigation({
                             {place.label}
                           </div>
                           <div className="district-navigation-result-district">
-                            Block
+                            Place
                           </div>
                         </button>
                       );
@@ -947,7 +996,7 @@ export default function DistrictNavigation({
                 {!trimmed && districtOptions.length > 0 && (
                   <div className="district-navigation-results">
                     <div className="district-navigation-results-header">
-                      All Districts:
+                      All {pluralGeographicUnitLabel(geographicUnitLabel)}:
                     </div>
                     {districtOptions.map((option) => {
                       const isSelected =
@@ -964,11 +1013,13 @@ export default function DistrictNavigation({
                             {option.name}
                           </div>
                           <div className="district-navigation-result-district">
-                            {option.district === 0 ? "Mayor (Citywide)" : `District ${option.district}`}
+                            {option.district === 0
+                            ? "Mayor (Citywide)"
+                            : `${geographicUnitLabel} ${option.district}`}
                           </div>
                           {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                               <div className="district-navigation-result-subscribers">
-                                {leaderFollowerCounts[String(option.district)]}
+                                {formatFollowerLabel(leaderFollowerCounts[String(option.district)] ?? 0)}
                               </div>
                             )}
                         </button>

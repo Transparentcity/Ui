@@ -127,6 +127,20 @@ const isNarrowScreen = (): boolean => {
   return window.innerWidth <= MOBILE_BREAKPOINT;
 };
 
+/** Post–search-cities auto-follow copy; dismissible banner on city dashboard. */
+function buildSearchFollowOnboardingBannerMessage(
+  cityDisplayName: string | undefined,
+  district: number | null | undefined
+): string {
+  const label = cityDisplayName?.trim() || "your city";
+  const detailHint =
+    "Add your detailed location for an even more detailed breakdown of things happening in your area.";
+  if (district != null && district !== 0) {
+    return `You are following both ${label} and District ${district} in My places. ${detailHint}`;
+  }
+  return `You are following ${label} citywide in My places. ${detailHint}`;
+}
+
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isLoading, user, getAccessTokenSilently } =
@@ -174,6 +188,11 @@ export default function DashboardPage() {
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
+  /** One-shot banner after search-cities auto-follow (dismiss clears until next qualifying navigation). */
+  const [searchFollowBanner, setSearchFollowBanner] = useState<{
+    message: string;
+    cityId: number;
+  } | null>(null);
   const onboardingRepNotifyRef = useRef<((name: string, title?: string) => void) | null>(null);
   const onboardingBackgroundWorkRef = useRef<{ start: () => void; complete: () => void } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -264,6 +283,7 @@ export default function DashboardPage() {
     setCitySelection({ district: null, placeId: null });
     setPlaceIdPendingPlaceMetricsBootstrap(null);
     setAllUserPlaces([]);
+    setSearchFollowBanner(null);
     setShowWelcomeModal(false);
     setSettingsOpen(false);
     setUserPreferences(null);
@@ -800,13 +820,6 @@ export default function DashboardPage() {
     // City search is now handled by the CityTypeahead component in the Sidebar
   };
 
-  const handleOpenFindDistrict = () => {
-    if (activeCityId != null) {
-      setRequestOpenDistrictModal(activeCityId);
-      setCurrentView("city");
-    }
-  };
-
   const handleViewChange = (view: string) => {
     const nextView = view as ViewType;
     setCurrentView(nextView);
@@ -897,6 +910,7 @@ export default function DashboardPage() {
         setPlaceIdPendingPlaceMetricsBootstrap(place.id);
         handlePlaceClick(place.city_id, place.id, place);
         setCurrentView("city");
+        setInitialSection("map");
       }
     },
     [refreshAllUserPlaces, handlePlaceClick]
@@ -925,6 +939,17 @@ export default function DashboardPage() {
     if (citySelection.placeId === placeId) {
       setCitySelection((prev) => ({ ...prev, placeId: null }));
       setInitialPlaceId(null);
+    }
+  };
+
+  const handleDistrictRemoved = (cityId: number, district: string) => {
+    if (
+      activeCityId === cityId &&
+      citySelection.district != null &&
+      String(citySelection.district) === district
+    ) {
+      setCitySelection((prev) => ({ ...prev, district: null }));
+      setInitialDistrict(null);
     }
   };
 
@@ -990,8 +1015,8 @@ export default function DashboardPage() {
 
   /**
    * Nudge until the user has a street-level home in prefs, a linked block, or a saved
-   * My Block for that city. District alone (e.g. inferred from ZIP) does not dismiss
-   * the banner — we still invite a precise address / My Block.
+   * A saved place for that city. District alone (e.g. inferred from ZIP) does not dismiss
+   * the banner — we still invite a precise address / saved place.
    */
   const showFeedPersonalizeBanner = useMemo(() => {
     if (!userPreferences?.extra) return false;
@@ -1319,6 +1344,8 @@ export default function DashboardPage() {
     }
   };
 
+  // Early returns must come after all hooks to avoid "rendered more hooks" error
+  
   // Only block on Auth0; show shell + feed immediately. Admin/gov state fills in when ready.
   if (isLoading) {
     return (
@@ -1337,6 +1364,11 @@ export default function DashboardPage() {
 
   return (
     <div className={`${styles.dashboardLayout} ${sidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
+      <PlaceOnboardingProvider
+        initialJob={onboardingJob}
+        notifyRepFoundRef={onboardingRepNotifyRef}
+        backgroundWorkRef={onboardingBackgroundWorkRef}
+      >
       <TitleBar
         onMenuToggle={handleMenuToggle}
         isAdmin={isAdmin}
@@ -1405,6 +1437,7 @@ export default function DashboardPage() {
         onPlaceSaved={handlePlaceSaved}
         onPlaceRenamed={handlePlaceRenamed}
         onPlaceDeleted={handlePlaceDeleted}
+        onDistrictRemoved={handleDistrictRemoved}
         onCitySectionClick={(cityId, section) => {
           setActiveCityId(cityId);
           setInitialDistrict(null);
@@ -1432,28 +1465,39 @@ export default function DashboardPage() {
             setCurrentResearchId(null);
           }
         }}
-        onCitySelect={(cityId) => {
+        onCitySelect={(cityId, opts) => {
           setActiveCityId(cityId);
-          setInitialDistrict(null); // Clear initial district when manually selecting
           setInitialPlaceId(null);
-          setCitySelection({ district: null, placeId: null });
+          setInitialPlaceGps(null);
+          if (opts && "district" in opts) {
+            const d = opts.district;
+            setInitialDistrict(d !== undefined && d !== null ? d : null);
+            setCitySelection({
+              district: d !== undefined && d !== null ? d : null,
+              placeId: null,
+            });
+          } else {
+            setInitialDistrict(null);
+            setCitySelection({ district: null, placeId: null });
+          }
+          setInitialSection(null);
           setCurrentView("city");
           setCurrentSessionId(null); // Clear chat session when selecting a city
           setIsCurrentSessionJobSession(false);
+          if (opts?.searchOnboardingAutoFollow) {
+            setSearchFollowBanner({
+              cityId,
+              message: buildSearchFollowOnboardingBannerMessage(opts.cityDisplayName, opts.district),
+            });
+          }
           // Preserve GPS location - it will only be cleared when user manually
           // selects a city from the sidebar list (via handleCityClick)
         }}
         onGPSLocation={(location) => {
           setGpsLocation(location);
         }}
-        onOpenFindDistrict={handleOpenFindDistrict}
       />
 
-      <PlaceOnboardingProvider
-        initialJob={onboardingJob}
-        notifyRepFoundRef={onboardingRepNotifyRef}
-        backgroundWorkRef={onboardingBackgroundWorkRef}
-      >
       <main className={`${styles.mainContent} ${sidebarOpen ? "" : styles.mainContentCollapsed}`} id="main-content">
         {impersonationState && (
           <ImpersonationBanner
@@ -1471,6 +1515,20 @@ export default function DashboardPage() {
             Government View
           </div>
         )}
+        {searchFollowBanner &&
+          currentView === "city" &&
+          activeCityId === searchFollowBanner.cityId && (
+            <div className={styles.searchFollowBanner} role="status">
+              <p className={styles.searchFollowBannerText}>{searchFollowBanner.message}</p>
+              <button
+                type="button"
+                className={styles.searchFollowBannerDismiss}
+                onClick={() => setSearchFollowBanner(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
         <div className={styles.viewsContainer}>
           {currentView === "chat" && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>

@@ -258,6 +258,48 @@
   color: var(--text-primary);
 }
 
+/* District row + overflow menu (remove from follows) */
+.districtSubItemRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.districtSubItemRow .districtSubItem {
+  flex: 1;
+  min-width: 0;
+}
+
+.districtMenuBtn {
+  opacity: 0;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  transition: opacity 0.2s, background 0.2s;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.districtSubItemRow:hover .districtMenuBtn {
+  opacity: 1;
+}
+
+.districtMenuBtn:hover {
+  background: var(--border-primary);
+}
+
+.districtSubItemRow .placeMenu {
+  right: 0;
+  top: 100%;
+  transform: translateY(2px);
+}
+
 /* Saved places under same city (same hierarchy as districts, subtle difference) */
 .placeSubList {
   display: flex;

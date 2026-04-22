@@ -109,7 +109,13 @@ export default function FeedAdmin() {
 
       // Fetch cities in parallel with first batch of stories
       const [firstBatch, citiesRes] = await Promise.all([
-        listFeedStories(token, { all_cities: true, limit: FETCH_BATCH, offset: 0, order_by: "story_date:desc" }),
+        listFeedStories(token, {
+          all_cities: true,
+          include_staff_saved_place_stories: true,
+          limit: FETCH_BATCH,
+          offset: 0,
+          order_by: "story_date:desc",
+        }),
         listCitiesWithFeedStories(token),
       ]);
 
@@ -125,6 +131,7 @@ export default function FeedAdmin() {
         while (true) {
           const batch = await listFeedStories(token, {
             all_cities: true,
+            include_staff_saved_place_stories: true,
             limit: FETCH_BATCH,
             offset,
             order_by: "story_date:desc",
@@ -421,6 +428,9 @@ export default function FeedAdmin() {
                   <th className={styles.th}>City</th>
                   <th className={styles.th}>Headline</th>
                   <th className={styles.th}>Type</th>
+                  <th className={`${styles.th} ${styles.hideNarrow}`} title="user_places.id when the story is saved-place scoped">
+                    Saved place
+                  </th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Views</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Clicks</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Scheduled job</th>
@@ -451,6 +461,15 @@ export default function FeedAdmin() {
                     </td>
                     <td className={styles.td}>
                       <span className={styles.badge}>{story.story_type}</span>
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      {story.user_place_id != null ? (
+                        <span className={styles.badge} title="Tagged to a user saved place">
+                          {story.user_place_id}
+                        </span>
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
                       {story.view_count.toLocaleString()}

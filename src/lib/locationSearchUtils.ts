@@ -250,3 +250,77 @@ export async function resolveCityFromGeocode(
 
   return { city: best, coordinates };
 }
+
+/** Minimal city row shape for direct-match logic (avoids coupling to public API types). */
+export type CitySearchListItem = {
+  id: number;
+  name: string;
+  display_name: string;
+  state?: string | null;
+  emoji?: string | null;
+};
+
+function normalizeCitySearchText(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * True if the user's query is an exact match for this city's display name, name,
+ * or "Name, ST" short form (case-insensitive).
+ */
+export function cityDisplayExactlyMatchesQuery(
+  city: CitySearchListItem,
+  query: string
+): boolean {
+  const q = normalizeCitySearchText(query);
+  if (!q) return false;
+  if (normalizeCitySearchText(city.display_name) === q) return true;
+  if (normalizeCitySearchText(city.name) === q) return true;
+  if (city.state) {
+    const st = city.state.trim();
+    const commaForm = normalizeCitySearchText(`${city.name}, ${st}`);
+    if (commaForm === q) return true;
+  }
+  return false;
+}
+
+/**
+ * When the API returns cities and the query uniquely identifies one row, return that city
+ * so the UI can show a single row (icon + name) instead of the full autocomplete list.
+ */
+export function getDirectMatchDisplayCity(
+  results: CitySearchListItem[],
+  query: string
+): CitySearchListItem | null {
+  const q = normalizeCitySearchText(query);
+  if (!q || results.length === 0) return null;
+
+  const exactHits = results.filter((c) => cityDisplayExactlyMatchesQuery(c, query));
+  if (exactHits.length === 1) {
+    return exactHits[0] ?? null;
+  }
+
+  if (results.length === 1) {
+    const only = results[0]!;
+    const display = normalizeCitySearchText(only.display_name);
+    const name = normalizeCitySearchText(only.name);
+    if (display === q || name === q) return only;
+    const firstSeg = normalizeCitySearchText(only.display_name.split(",")[0] ?? "");
+    if (firstSeg === q) return only;
+    if (display.startsWith(`${q},`) || display.startsWith(`${q} ,`)) return only;
+  }
+
+  return null;
+}
+
+const PRECISE_ADDRESS_PLACE_TYPES = new Set(["address", "poi", "street", "intersection"]);
+
+/**
+ * Mapbox-style suggestions: street-level and POIs need the place-naming flow;
+ * coarse features (place, postcode only, etc.) can go straight to city/district navigation.
+ */
+export function isPreciseAddressSuggestion(s: AddressSuggestion): boolean {
+  const types = s.place_types;
+  if (!types || types.length === 0) return true;
+  return types.some((t) => PRECISE_ADDRESS_PLACE_TYPES.has(t));
+}

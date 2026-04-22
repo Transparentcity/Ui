@@ -65,8 +65,8 @@
   margin: 0.5rem 16px 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-  background: rgba(245, 166, 35, 0.08);
-  border-left: 3px solid #f5a623;
+  background: rgba(173, 53, 250, 0.06);
+  border-left: 3px solid var(--brand-primary, #ad35fa);
   border-radius: 0 4px 4px 0;
   line-height: 1.4;
 }
@@ -78,7 +78,7 @@
 
 .metric-staleness-incomplete-label {
   font-weight: 600;
-  color: #c87d10;
+  color: var(--brand-primary, #ad35fa);
 }
 
 /* Last updated */

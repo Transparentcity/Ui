@@ -486,8 +486,8 @@ export default function MetricDetailModal({
                   {!isStale && staleness_days !== undefined && staleness_days > 0 && (
                     <div className="metric-staleness-badge">
                       <span className="metric-staleness-icon">⏱</span>
-                      ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — data for the most recent {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as{" "}
-                      <span className="metric-staleness-incomplete-label">incomplete</span> on the chart below.
+                      ~{staleness_days} day{staleness_days !== 1 ? "s" : ""} to fully report — the most recent {staleness_days} day{staleness_days !== 1 ? "s" : ""} may still be updating, shown as a{" "}
+                      <span className="metric-staleness-incomplete-label">dotted line</span> on the current-year series (legend: Incomplete data).
                     </div>
                   )}
                   <div className="metric-chart-container">

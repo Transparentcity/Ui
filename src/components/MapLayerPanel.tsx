@@ -73,6 +73,8 @@ interface MapLayerPanelProps {
   canShowDots?: boolean;
   /** When set, show loading indicator for the selected choropleth view (lazy-loading). */
   loadingViewId?: string | null;
+  /** Reverse the header toggle arrows for embedded map layouts. */
+  reverseToggleArrowDirection?: boolean;
 }
 
 // Icon mapping for different shape layer types
@@ -134,10 +136,14 @@ export default function MapLayerPanel({
   onToggleDots,
   canShowDots = true,
   loadingViewId = null,
+  reverseToggleArrowDirection = false,
 }: MapLayerPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { theme } = useTheme();
   const isLoadingView = loadingViewId != null && selectedShapeLayer === loadingViewId;
+  const toggleArrow = reverseToggleArrowDirection
+    ? (isOpen ? "→" : "←")
+    : (isOpen ? "←" : "→");
 
   const shapeLayers =
     availableViews && availableViews.length > 0
@@ -177,7 +183,7 @@ export default function MapLayerPanel({
             setIsOpen(!isOpen);
           }}
         >
-          {isOpen ? "←" : "→"}
+          {toggleArrow}
         </button>
         {isOpen && (
           <>

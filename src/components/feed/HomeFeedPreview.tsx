@@ -98,6 +98,7 @@ export default function HomeFeedPreview({ initialStories, metricCards = [] }: Ho
                     subline={story.subline}
                     neighborhoodLabel={story.neighborhood_label}
                     categoryColor={story.category_color}
+                    placeScoped={story.place_scoped_for_ui}
                   />
                   <h3 className={styles.cardHeadline}>{story.headline}</h3>
                   {story.cleaned_description && (

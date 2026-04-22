@@ -1,5 +1,5 @@
 /**
- * Tests for feed filter logic: topic ordering, My Block address gating,
+ * Tests for feed filter logic: topic ordering, My place address gating,
  * district collapsibility, client-side filtering, and empty state conditions.
  *
  * These are pure logic tests that validate the filtering behavior
@@ -75,7 +75,7 @@ function filterStories(
 describe("Topic filter chip order", () => {
   const TOPIC_ORDER = [
     { value: "", label: "All topics" },
-    { value: "my_block", label: "My Block" },
+    { value: "my_block", label: "My place" },
     { value: "safety", label: "Safety" },
     { value: "justice", label: "Justice" },
     { value: "business", label: "Business" },
@@ -87,7 +87,7 @@ describe("Topic filter chip order", () => {
     { value: "311_images", label: "311 Photos" },
   ];
 
-  it("places My Block as the second chip (right after All topics)", () => {
+  it("places My place as the second chip (right after All topics)", () => {
     expect(TOPIC_ORDER[0].value).toBe("");
     expect(TOPIC_ORDER[1].value).toBe("my_block");
   });
@@ -110,9 +110,9 @@ describe("Topic filter chip order", () => {
   });
 });
 
-// ── My Block client-side filter ───────────────────────────────────────────
+// ── My place (my_block) client-side filter ──────────────────────────────────
 
-describe("My Block filter", () => {
+describe("My place filter", () => {
   it("shows only stories with my_block metadata when filter is active", () => {
     const stories = [
       makeStory({ id: 1, metadata: { my_block: true } }),
@@ -143,14 +143,14 @@ describe("My Block filter", () => {
   });
 });
 
-// ── My Block address gating ───────────────────────────────────────────────
+// ── My place address gating ─────────────────────────────────────────────────
 
-describe("My Block address gating", () => {
+describe("My place address gating", () => {
   it("should open location modal when user has no saved places", () => {
     const userPlaces: { id: number; city_id: number; label: string }[] = [];
     const hasAddress = userPlaces.length > 0;
 
-    // Simulate clicking My Block without address
+    // Simulate clicking My place without address
     let showLocationModal = false;
     let selectedTopic: string | null = null;
 
@@ -165,7 +165,7 @@ describe("My Block address gating", () => {
   });
 
   it("should set topic to my_block when user has saved places", () => {
-    const userPlaces = [{ id: 1, city_id: 57260, label: "My Block" }];
+    const userPlaces = [{ id: 1, city_id: 57260, label: "My place" }];
     const hasAddress = userPlaces.length > 0;
 
     let showLocationModal = false;
@@ -182,9 +182,9 @@ describe("My Block address gating", () => {
   });
 });
 
-// ── My Block empty state conditions ───────────────────────────────────────
+// ── My place empty state conditions ────────────────────────────────────────
 
-describe("My Block empty state", () => {
+describe("My place empty state", () => {
   it("shows 'no stories yet' when user has address but no my_block stories", () => {
     const stories = [
       makeStory({ id: 1, metadata: {} }),
@@ -196,7 +196,7 @@ describe("My Block empty state", () => {
 
     expect(isMyBlockEmpty).toBe(true);
     expect(hasAddress).toBe(true);
-    // Component would show: "No My Block stories yet"
+    // Component would show: "No My place stories yet"
   });
 
   it("shows 'add address' when user has no address and no my_block stories", () => {
@@ -224,7 +224,7 @@ describe("My Block empty state", () => {
   });
 });
 
-// ── Topic filter (non-My Block) ───────────────────────────────────────────
+// ── Topic filter (non-my_block) ────────────────────────────────────────────
 
 describe("Topic filter (card_type matching)", () => {
   it("filters by card_type for standard topics", () => {

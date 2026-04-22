@@ -63,6 +63,7 @@ const TOPIC_LABELS: Record<string, string> = {
   context: "Context", off_the_charts: "Off the Charts",
   comparison: "Your District", milestone: "Milestones",
   "311_images": "311 Photos",
+  my_block: "My place",
 };
 
 interface FeedContainerProps {

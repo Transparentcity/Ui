@@ -11,6 +11,7 @@ import {
   normalizeChoroplethDistrictKey,
   type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
+import { isJunkWgs84LngLat } from "@/lib/mapCoordinateSanity";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
 import "./ProgressiveMapView.css";
@@ -226,47 +227,162 @@ async function getCachedShapeGeometry(instanceId: number): Promise<any> {
  * - Separate latitude/longitude fields
  */
 function normalizePointData(points: Array<Record<string, any>>): Array<{ lat: number; lon: number; [key: string]: any }> {
+  const toNum = (v: unknown): number | null => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "") {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
+
   return points
     .map((p: any) => {
-      // Already has lat/lon
-      if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-        return p;
+      let lat: number | null = null;
+      let lon: number | null = null;
+
+      const latDirect = toNum(p.lat);
+      const lonDirect = toNum(p.lon ?? p.lng);
+      if (latDirect != null && lonDirect != null) {
+        lat = latDirect;
+        lon = lonDirect;
       }
-      
-      // Try to extract from GeoJSON Point format
-      const geoJsonFields = ['intersection_point', 'point', 'location', 'geometry', 'geom'];
-      for (const field of geoJsonFields) {
-        const geoPoint = p[field];
-        if (geoPoint && geoPoint.type === 'Point' && Array.isArray(geoPoint.coordinates)) {
-          const [lng, lat] = geoPoint.coordinates;
-          if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-            return { ...p, lat, lon: lng };
+
+      if (lat == null || lon == null) {
+        const geoJsonFields = ["intersection_point", "point", "location", "geometry", "geom"];
+        for (const field of geoJsonFields) {
+          const geoPoint = p[field];
+          if (geoPoint && geoPoint.type === "Point" && Array.isArray(geoPoint.coordinates)) {
+            const lngN = toNum(geoPoint.coordinates[0]);
+            const latN = toNum(geoPoint.coordinates[1]);
+            if (latN != null && lngN != null) {
+              lat = latN;
+              lon = lngN;
+              break;
+            }
           }
         }
       }
-      
-      // Try latitude/longitude fields
-      if (typeof p.latitude === 'number' && typeof p.longitude === 'number') {
-        return { ...p, lat: p.latitude, lon: p.longitude };
+
+      if (lat == null || lon == null) {
+        const la = toNum(p.latitude);
+        const lo = toNum(p.longitude);
+        if (la != null && lo != null) {
+          lat = la;
+          lon = lo;
+        }
       }
-      
-      // Try lng instead of lon
-      if (typeof p.lat === 'number' && typeof p.lng === 'number') {
-        return { ...p, lon: p.lng };
+
+      if (lat == null || lon == null) {
+        return null;
       }
-      
-      // Could not extract coordinates
-      return null;
+
+      if (isJunkWgs84LngLat(lon, lat)) {
+        return null;
+      }
+
+      return { ...p, lat, lon };
     })
-    .filter((p): p is { lat: number; lon: number; [key: string]: any } => 
-      p !== null && 
-      typeof p.lat === 'number' && 
-      typeof p.lon === 'number' &&
-      !isNaN(p.lat) && 
-      !isNaN(p.lon) &&
-      isFinite(p.lat) &&
-      isFinite(p.lon)
-    );
+    .filter((p): p is { lat: number; lon: number; [key: string]: any } => p !== null);
+}
+
+type AggregatedPointFeature = {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: Record<string, any>;
+};
+
+/**
+ * Merge rows that share the same ~1e-6° map cell into one circle (count scales radius).
+ * When map_config has series_field + series_colors, only rows with the same series
+ * value merge; different categories at the same address are offset slightly so every
+ * color stays visible (matches backend point-map PNG / static overlay).
+ */
+function buildAggregatedPointFeatures(
+  pointData: Array<{ lat: number; lon: number; [key: string]: any }>,
+  mapConfig: Record<string, any> | undefined,
+): AggregatedPointFeature[] {
+  const seriesField = mapConfig?.series_field as string | undefined;
+  const seriesColors = mapConfig?.series_colors as Record<string, string> | undefined;
+  const hasSeriesColor = !!(
+    seriesField &&
+    seriesColors &&
+    Object.keys(seriesColors).length > 0
+  );
+
+  const bucketMap = new Map<
+    string,
+    { points: any[]; lat: number; lon: number; locKey: string }
+  >();
+
+  for (const point of pointData) {
+    const locKey = `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
+    const key =
+      hasSeriesColor && seriesField
+        ? `${locKey}|${
+            point[seriesField] === null || point[seriesField] === undefined
+              ? ""
+              : String(point[seriesField])
+          }`
+        : locKey;
+    if (!bucketMap.has(key)) {
+      bucketMap.set(key, {
+        points: [],
+        lat: point.lat,
+        lon: point.lon,
+        locKey,
+      });
+    }
+    bucketMap.get(key)!.points.push(point);
+  }
+
+  const byLoc = new Map<
+    string,
+    Array<{ key: string; data: { points: any[]; lat: number; lon: number; locKey: string } }>
+  >();
+  for (const [key, data] of bucketMap) {
+    const loc = hasSeriesColor ? data.locKey : key;
+    if (!byLoc.has(loc)) byLoc.set(loc, []);
+    byLoc.get(loc)!.push({ key, data });
+  }
+
+  const features: AggregatedPointFeature[] = [];
+  let index = 0;
+  const sortedLocs = Array.from(byLoc.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  for (const [, group] of sortedLocs) {
+    group.sort((a, b) => String(a.key).localeCompare(String(b.key)));
+    const n = group.length;
+    const baseLat = group[0]!.data.lat;
+    const baseLon = group[0]!.data.lon;
+    for (let i = 0; i < group.length; i += 1) {
+      const { data } = group[i]!;
+      const count = data.points.length;
+      const firstPoint = data.points[0]!;
+      let lat = data.lat;
+      let lon = data.lon;
+      if (hasSeriesColor && n > 1) {
+        const theta = (2 * Math.PI * i) / n;
+        const r = 0.0002 * (1 + 0.15 * (n - 1));
+        lat = baseLat + r * Math.sin(theta);
+        lon =
+          baseLon +
+          (r * Math.cos(theta)) /
+            Math.max(Math.cos((baseLat * Math.PI) / 180), 0.2);
+      }
+      features.push({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [lon, lat] },
+        properties: {
+          id: index,
+          count,
+          allPoints: count > 1 ? data.points : undefined,
+          ...firstPoint,
+        },
+      });
+      index += 1;
+    }
+  }
+  return features;
 }
 
 export default function ProgressiveMapView({
@@ -611,11 +727,9 @@ export default function ProgressiveMapView({
 
         const isDistrictMap =
           mapData.map_type === "choropleth" || mapData.map_type === "delta";
-        const hasPointCoords = mapData.location_data?.some(
-          (p: any) =>
-            (p?.lat != null || p?.latitude != null) &&
-            (p?.lon != null || p?.lng != null || p?.longitude != null)
-        );
+        const hasPointCoords =
+          Array.isArray(mapData.location_data) &&
+          normalizePointData(mapData.location_data).length > 0;
         if (
           mapData.city_id &&
           isDistrictMap &&
@@ -913,11 +1027,7 @@ export default function ProgressiveMapView({
           } 
           // Fall back to location_data if points aren't available
           else if (mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0) {
-            const validLocationData = mapData.location_data.filter((p: any) => 
-              p && 
-              typeof p.lat === 'number' && 
-              typeof p.lon === 'number'
-            );
+            const validLocationData = normalizePointData(mapData.location_data);
             if (validLocationData.length > 0) {
               aggregation = computeAggregationForShapeLayer(validLocationData, shapeLayer.identifier_field);
             }
@@ -1249,41 +1359,11 @@ export default function ProgressiveMapView({
   const itemNounCap = itemNoun.charAt(0).toUpperCase() + itemNoun.slice(1);
 
   const addPointsLayer = (mapInstance: any, pointData: Array<{ lat: number; lon: number; [key: string]: any }>) => {
-    
-    // Aggregate points at identical locations to show count-scaled markers
-    const locationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
-    
-    pointData.forEach((point: any) => {
-      // Round to 6 decimal places for grouping (about 0.1 meter precision)
-      const key = `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
-      if (!locationMap.has(key)) {
-        locationMap.set(key, { points: [], lat: point.lat, lon: point.lon });
-      }
-      locationMap.get(key)!.points.push(point);
-    });
-    
-    // Create features with count property for scaling
-    const aggregatedFeatures = Array.from(locationMap.entries()).map(([key, data], index) => {
-      const count = data.points.length;
-      // Use the first point's properties, but add count
-      const firstPoint = data.points[0];
-      return {
-        type: "Feature" as const,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [data.lon, data.lat],
-        },
-        properties: {
-          id: index,
-          count,
-          // Include all points data for popup (when count > 1)
-          allPoints: count > 1 ? data.points : undefined,
-          ...firstPoint,
-        },
-      };
-    });
-    
-    
+    const aggregatedFeatures = buildAggregatedPointFeatures(
+      pointData,
+      mapData.map_config as Record<string, any> | undefined,
+    );
+
     const geojsonData = {
       type: "FeatureCollection" as const,
       features: aggregatedFeatures,
@@ -1444,35 +1524,11 @@ export default function ProgressiveMapView({
 
   // Add comparison period points as grey dots (rendered below current period points)
   const addComparisonPointsLayer = (mapInstance: any, pointData: Array<{ lat: number; lon: number; [key: string]: any }>) => {
-    
-    // Aggregate points at identical locations
-    const locationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
-    
-    pointData.forEach((point: any) => {
-      const key = `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
-      if (!locationMap.has(key)) {
-        locationMap.set(key, { points: [], lat: point.lat, lon: point.lon });
-      }
-      locationMap.get(key)!.points.push(point);
-    });
-    
-    const aggregatedFeatures = Array.from(locationMap.entries()).map(([key, data], index) => {
-      const count = data.points.length;
-      const firstPoint = data.points[0];
-      return {
-        type: "Feature" as const,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [data.lon, data.lat],
-        },
-        properties: {
-          id: index,
-          count,
-          ...firstPoint,
-        },
-      };
-    });
-    
+    const aggregatedFeatures = buildAggregatedPointFeatures(
+      pointData,
+      mapData.map_config as Record<string, any> | undefined,
+    );
+
     const geojsonData = {
       type: "FeatureCollection" as const,
       features: aggregatedFeatures,
@@ -1579,7 +1635,7 @@ export default function ProgressiveMapView({
   // Legacy addPoints function - delegates to addPointsLayer
   const addPoints = (mapInstance: any) => {
     if (!mapData.location_data || !Array.isArray(mapData.location_data)) return;
-    const pointData = mapData.location_data.filter((p: any) => p.lat && p.lon);
+    const pointData = normalizePointData(mapData.location_data);
     if (pointData.length === 0) return;
     addPointsLayer(mapInstance, pointData);
   };
@@ -1605,6 +1661,7 @@ export default function ProgressiveMapView({
           availableViews={availableViews.length > 0 ? availableViews : undefined}
           selectedShapeLayer={selectedShapeLayer}
           loadingViewId={loadingLazyView && selectedShapeLayer ? selectedShapeLayer : null}
+          reverseToggleArrowDirection
           onShapeLayerSelect={(shapeLayerId) => {
             // Set the shape layer (empty string clears it)
             setSelectedShapeLayer(shapeLayerId || null);

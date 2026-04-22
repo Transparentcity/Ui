@@ -233,8 +233,8 @@ export default function ChartViewClient({
             <p className="chart-view-completeness-footer">
               {staleness_days != null && staleness_days > 0 ? (
                 <>
-                  Shaded range: the latest {staleness_days} day
-                  {staleness_days !== 1 ? "s" : ""} may still be updating.{" "}
+                  Dotted segment: the latest {staleness_days} day
+                  {staleness_days !== 1 ? "s" : ""} may still be updating (incomplete data).{" "}
                 </>
               ) : null}
               <Link href={reportingCompletenessHref}>

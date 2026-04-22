@@ -1832,7 +1832,7 @@ export interface GetMapDataRequest {
   end_date?: string | null;
   districts?: number[] | null;
   /**
-   * When set (e.g. My Block), spatial filter matches saved-place metrics: lat/lon metrics use
+   * When set (e.g. saved My place), spatial filter matches saved-place metrics: lat/lon metrics use
    * the same bounding box as the purple map overlay; point-geometry metrics use a geodesic circle.
    */
   center_lat?: number | null;
@@ -2666,6 +2666,7 @@ export interface CityDetail {
   is_active: boolean;
   structure_status?: string | null;
   geographic_structures?: Array<{
+    id?: number;
     structure_name?: string;
     structure_type?: string;
     identifier_field?: string;
@@ -3135,7 +3136,7 @@ export function getSavedDistricts(token: string): Promise<SavedDistrict[]> {
 }
 
 // ---------------------------------------------------------------------------
-// User Places (My block) API
+// User Places (saved places / My place) API
 // ---------------------------------------------------------------------------
 
 export interface UserPlace {
@@ -3676,7 +3677,7 @@ export interface AdminUserNewsletterOverview {
   newsletter_frequency: "weekly" | "monthly";
   home_location: { city_id?: number; district?: number | string | null } | null;
   subscriptions: NewsletterSubscription[];
-  /** All rows in ``user_places`` for this user (My Block + other saved pins). */
+  /** All rows in ``user_places`` for this user (saved places / My place pins and other pins). */
   saved_places_count?: number;
 }
 
@@ -4100,9 +4101,12 @@ export function listFeedStories(
     /** Filter by feed story category (e.g. 'personal_newsletter'). */
     category?: string | null;
     limit?: number;
+    offset?: number;
     order_by?: string;
     /** When true and no city_id, return all active stories (ignore subscription/follows). Use for "All Cities" view. */
     all_cities?: boolean;
+    /** With all_cities, include saved-place-scoped rows for staff (feed admin). */
+    include_staff_saved_place_stories?: boolean;
     story_type?: string | null;
     /** Saved place (user_places.id); API verifies ownership. */
     user_place_id?: number | null;
@@ -4124,8 +4128,12 @@ export function listFeedStories(
   }
   if (options?.category) params.append("category", options.category);
   if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.offset != null) params.append("offset", String(options.offset));
   if (options?.order_by) params.append("order_by", options.order_by);
   if (options?.all_cities) params.append("all_cities", "true");
+  if (options?.include_staff_saved_place_stories) {
+    params.append("include_staff_saved_place_stories", "true");
+  }
   if (options?.story_type) params.append("story_type", options.story_type);
   if (options?.user_place_id != null) {
     params.append("user_place_id", String(options.user_place_id));
@@ -4171,6 +4179,32 @@ export function trackFeedEngagement(
     `/api/feed/story/${storyId}/engage`,
     "POST",
     { action },
+    token
+  );
+}
+
+/** Remove saved-place scope so the story is readable on public story URLs. */
+export function publishPlaceFeedStoryForSharing(
+  storyId: number,
+  token: string
+): Promise<FeedStoryResponse> {
+  return request<FeedStoryResponse>(
+    `/api/feed/story/${storyId}/publish-public`,
+    "POST",
+    {},
+    token
+  );
+}
+
+/** Re-attach saved-place scope after sharing (uses metadata from publish-public). */
+export function restorePlaceScopeOnFeedStory(
+  storyId: number,
+  token: string
+): Promise<FeedStoryResponse> {
+  return request<FeedStoryResponse>(
+    `/api/feed/story/${storyId}/restore-place-scope`,
+    "POST",
+    {},
     token
   );
 }

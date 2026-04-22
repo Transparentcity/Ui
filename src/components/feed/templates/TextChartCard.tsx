@@ -32,6 +32,7 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
         neighborhoodLabel={story.neighborhood_label}
         categoryColor={story.category_color}
         storyType={story.story_type}
+        placeScoped={story.place_scoped_for_ui}
       />
       <h2 className={styles.cardHeadline}>{story.headline}</h2>
       {story.cleaned_description && (

@@ -884,7 +884,9 @@ export default function TimeSeriesChart({
     // Special handling for YTD - compare years by day-of-year
     if (periodType === "ytd") {
       const currentYear = new Date().getFullYear();
-      const incompleteColor = "#f5a623";
+      /** Color of the first incomplete tail trace — legend-only entry matches this. */
+      let incompleteLegendLineColor: string | null = null;
+      let ytdIncompleteForLegend = false;
 
       // Check if we have original groups (like supervisor_district)
       const hasOriginalGroups = Array.from(aggregatedByGroup.keys()).some(key => key.includes("|"));
@@ -962,15 +964,17 @@ export default function TimeSeriesChart({
                 }),
               });
               if (incompleteX.length > 1) {
+                ytdIncompleteForLegend = true;
+                if (incompleteLegendLineColor == null) incompleteLegendLineColor = groupColor;
                 traces.push({
                   x: incompleteX,
                   y: incompleteY,
                   type: "scatter",
                   mode: "lines+markers",
                   name: `${originalGroup} ${yearStr} (incomplete)`,
-                  line: { color: incompleteColor, width: 2, dash: "dash" },
-                  marker: { color: incompleteColor, size: 5 },
-                  showlegend: true,
+                  line: { color: groupColor, width: 2, dash: "dot" },
+                  marker: { color: groupColor, size: 5 },
+                  showlegend: false,
                   hovertemplate: `${originalGroup} ${yearStr} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
@@ -1024,13 +1028,15 @@ export default function TimeSeriesChart({
               });
 
               if (incompleteX.length > 1) {
+                ytdIncompleteForLegend = true;
+                if (incompleteLegendLineColor == null) incompleteLegendLineColor = groupColor;
                 traces.push({
                   x: incompleteX,
                   y: incompleteY,
                   type: "scatter",
                   mode: "lines",
                   name: `${originalGroup} ${yearStr} (incomplete)`,
-                  line: { color: incompleteColor, width: 0.75 },
+                  line: { color: groupColor, width: 0.75 },
                   opacity: 0.2,
                   showlegend: false,
                   hoverinfo: "skip",
@@ -1041,8 +1047,8 @@ export default function TimeSeriesChart({
                   type: "scatter",
                   mode: "lines",
                   name: `${originalGroup} ${yearStr} 7-Day Avg (incomplete)`,
-                  line: { color: incompleteColor, width: 2, dash: "dash" },
-                  showlegend: true,
+                  line: { color: groupColor, width: 2, dash: "dot" },
+                  showlegend: false,
                   hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
@@ -1118,15 +1124,17 @@ export default function TimeSeriesChart({
               }),
             });
             if (incompleteX.length > 1) {
+              ytdIncompleteForLegend = true;
+              if (incompleteLegendLineColor == null) incompleteLegendLineColor = lineColor;
               traces.push({
                 x: incompleteX,
                 y: incompleteY,
                 type: "scatter",
                 mode: "lines+markers",
                 name: "Incomplete",
-                line: { color: incompleteColor, width: 2, dash: "dash" },
-                marker: { color: incompleteColor, size: 5 },
-                showlegend: true,
+                line: { color: lineColor, width: 2, dash: "dot" },
+                marker: { color: lineColor, size: 5 },
+                showlegend: false,
                 hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: incompleteX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
@@ -1175,15 +1183,17 @@ export default function TimeSeriesChart({
               }),
             });
 
-            // Incomplete: raw faint + dashed avg7
+            // Incomplete: raw faint + dotted avg7 (same color as this year)
             if (incompleteX.length > 1) {
+              ytdIncompleteForLegend = true;
+              if (incompleteLegendLineColor == null) incompleteLegendLineColor = lineColor;
               traces.push({
                 x: incompleteX,
                 y: incompleteY,
                 type: "scatter",
                 mode: "lines",
                 name: "Incomplete",
-                line: { color: incompleteColor, width: 0.75 },
+                line: { color: lineColor, width: 0.75 },
                 opacity: 0.2,
                 showlegend: false,
                 hoverinfo: "skip",
@@ -1194,8 +1204,8 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines",
                 name: "Incomplete",
-                line: { color: incompleteColor, width: 2, dash: "dash" },
-                showlegend: true,
+                line: { color: lineColor, width: 2, dash: "dot" },
+                showlegend: false,
                 hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: incompleteX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
@@ -1204,6 +1214,21 @@ export default function TimeSeriesChart({
               });
             }
           }
+        });
+      }
+
+      if (ytdIncompleteForLegend && staleness_days && staleness_days > 0) {
+        const legendLineColor = incompleteLegendLineColor ?? "#ad35fa";
+        traces.push({
+          x: [null],
+          y: [null],
+          type: "scatter",
+          mode: "lines",
+          name: "Incomplete data",
+          line: { color: legendLineColor, width: 2, dash: "dot" },
+          showlegend: true,
+          visible: "legendonly",
+          hoverinfo: "skip",
         });
       }
     } else {
@@ -1329,7 +1354,14 @@ export default function TimeSeriesChart({
     }
 
     return traces;
-  }, [aggregatedByGroup, periodType, hasGroups, metadata, stackedView, staleness_days]);
+  }, [
+    aggregatedByGroup,
+    periodType,
+    hasGroups,
+    metadata,
+    stackedView,
+    staleness_days,
+  ]);
 
   const chartTitleText =
     metadata?.chart_title ||
@@ -1434,28 +1466,6 @@ export default function TimeSeriesChart({
       const minDay = allDayValues.length > 0 ? Math.min(...allDayValues) : 1;
       const maxDay = allDayValues.length > 0 ? Math.max(...allDayValues) : 365;
 
-      // Shaded incomplete region for current year (works for keys "2026" or "District|2026")
-      const incompleteShapes: any[] = [];
-      if (staleness_days && staleness_days > 0) {
-        const cy = new Date().getFullYear();
-        const cyMaxDay = getYtdMaxDayOfYearForCalendarYear(aggregatedByGroup, cy);
-        if (cyMaxDay !== null) {
-          const cutoffDay = cyMaxDay - staleness_days;
-          incompleteShapes.push({
-            type: "rect",
-            xref: "x",
-            yref: "paper",
-            x0: cutoffDay,
-            x1: cyMaxDay + 5,
-            y0: 0,
-            y1: 1,
-            fillcolor: "rgba(245, 166, 35, 0.07)",
-            line: { width: 0 },
-            layer: "below",
-          });
-        }
-      }
-      
       return {
         title: {
           text: plotlyTitleText,
@@ -1557,7 +1567,6 @@ export default function TimeSeriesChart({
             color: hoverTextColor,
           },
         },
-        shapes: incompleteShapes,
         height,
       };
     }
@@ -1655,7 +1664,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, hoverBgColor, hoverTextColor, legendBgColor, staleness_days, isMobile]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile]);
 
   const config = {
     responsive: true,
