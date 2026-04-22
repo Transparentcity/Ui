@@ -10,6 +10,7 @@ import {
 import MetricFeedCard from "@/components/feed/MetricFeedCard";
 import { getCategoryMeta } from "@/lib/feed/mockFeedData";
 import CardHeader from "@/components/feed/CardHeader";
+import SourceLine from "@/components/SourceLine";
 import feedStyles from "@/components/feed/feed.module.css";
 
 type Props = {
@@ -143,6 +144,9 @@ function StoryFeedCard({
       {story.description && (
         <p className={feedStyles.cardDescription}>{story.description}</p>
       )}
+      <div style={{ marginTop: "auto", paddingTop: 12 }}>
+        <SourceLine category={actor} citySlug={slug} />
+      </div>
     </>
   );
 

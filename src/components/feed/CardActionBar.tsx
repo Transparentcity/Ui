@@ -12,6 +12,10 @@ interface CardActionBarProps {
   onOverflow?: () => void;
   showOverflow?: boolean;
   story?: EnrichedFeedStory;
+  /** Explicit source attribution (used when no enriched story is available, e.g. metric cards). */
+  sourceCategory?: string;
+  sourceCitySlug?: string;
+  sourceMetricSlug?: string;
 }
 
 export default function CardActionBar({
@@ -19,6 +23,9 @@ export default function CardActionBar({
   onOverflow,
   showOverflow = true,
   story,
+  sourceCategory,
+  sourceCitySlug,
+  sourceMetricSlug,
 }: CardActionBarProps) {
   const handleShare = useCallback(
     (e: React.MouseEvent) => {
@@ -36,12 +43,19 @@ export default function CardActionBar({
     [onOverflow],
   );
 
-  const citySlug = story?.city_name ? slugify(story.city_name) : "";
+  const storyCitySlug = story?.city_name ? slugify(story.city_name) : "";
+  const resolvedCitySlug = sourceCitySlug ?? storyCitySlug;
+  const resolvedCategory = sourceCategory ?? story?.actor ?? "";
+  const resolvedMetricSlug = sourceMetricSlug;
 
   return (
     <div className={styles.actionBar}>
-      {story && citySlug && (
-        <SourceLine category={story.actor ?? ""} citySlug={citySlug} />
+      {resolvedCitySlug && resolvedCategory && (
+        <SourceLine
+          category={resolvedCategory}
+          citySlug={resolvedCitySlug}
+          metricSlug={resolvedMetricSlug}
+        />
       )}
 
       <div className={styles.actionSpacer} />
