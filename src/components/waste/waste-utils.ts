@@ -125,6 +125,25 @@ export function getWasteCategoryDescription(category: string): string {
   return WASTE_CATEGORY_DESCRIPTIONS[key]
 }
 
+// ── Confirmed fraud entities ────────────────────────────────────────────────
+
+// Case-insensitive substring patterns that mark an entity as a previously
+// confirmed fraud/waste case (verified via audit, investigation, or public
+// record). Used to render a "Confirmed" badge so these entities are not
+// mistaken for newly surfaced findings.
+const CONFIRMED_FRAUD_ENTITY_PATTERNS: string[] = [
+  "will do it construction",
+  "robert lacy",
+  "jones",
+  "henriquez",
+]
+
+export function isConfirmedFraudEntity(name: string | null | undefined): boolean {
+  if (!name) return false
+  const hay = name.toLowerCase()
+  return CONFIRMED_FRAUD_ENTITY_PATTERNS.some((p) => hay.includes(p))
+}
+
 // ── Dollar formatting ───────────────────────────────────────────────────────
 
 export function formatDollar(amount: number | null | undefined): string {

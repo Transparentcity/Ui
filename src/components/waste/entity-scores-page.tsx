@@ -45,8 +45,10 @@ import {
   ChevronRight,
   X,
   Target,
+  ShieldCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isConfirmedFraudEntity } from "./waste-utils"
 import type { WasteEntityScore } from "@/lib/apiClient"
 
 type SortField = "composite_score" | "severity_tier" | "signal_count"
@@ -314,7 +316,20 @@ export function EntityScoresPage() {
                     }
                   }}
                 >
-                  <TableCell className="font-medium">{entity.entity_name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{entity.entity_name}</span>
+                      {isConfirmedFraudEntity(entity.entity_name) && (
+                        <span
+                          title="Previously confirmed case — not a newly surfaced finding"
+                          className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded"
+                        >
+                          <ShieldCheck className="w-2.5 h-2.5" />
+                          Confirmed
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="capitalize text-gray-500">{entity.entity_type}</TableCell>
                   <TableCell className="w-[140px]">
                     <ScoreBar score={entity.composite_score} />
