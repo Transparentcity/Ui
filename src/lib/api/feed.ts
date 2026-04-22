@@ -207,6 +207,66 @@ export interface DeleteFeedStoriesByCityResponse {
   district?: number | null;
 }
 
+// Hand-authored create / edit (admin)
+export interface CreateFeedStoryPayload {
+  city_id: number;
+  district?: number;
+  headline: string;
+  description: string;
+  summary?: string | null;
+  story_type?: string;
+  status?: "draft" | "active" | "archived" | "hidden";
+  visualization_type?: "chart" | "map" | "anomaly" | null;
+  image_url?: string | null;
+  image_alt?: string | null;
+  image_caption?: string | null;
+  cta_label?: string | null;
+  article_html?: string | null;
+  is_featured?: boolean;
+  priority_score?: number;
+  /** ISO date string, e.g. "2026-04-20". Defaults to today on the server. */
+  story_date?: string | null;
+  metadata?: Record<string, any> | null;
+}
+
+export interface CreateFeedStoryResponse {
+  success: boolean;
+  id: number;
+  short_hash: string;
+  detail_url: string;
+}
+
+export interface UpdateFeedStoryResponse {
+  success: boolean;
+  id: number;
+  updated_fields: string[];
+}
+
+export function createFeedStory(
+  payload: CreateFeedStoryPayload,
+  token: string
+): Promise<CreateFeedStoryResponse> {
+  return request<CreateFeedStoryResponse>(
+    `/api/feed/admin/story`,
+    "POST",
+    payload,
+    token
+  );
+}
+
+export function updateFeedStory(
+  storyId: number,
+  patch: Partial<CreateFeedStoryPayload>,
+  token: string
+): Promise<UpdateFeedStoryResponse> {
+  return request<UpdateFeedStoryResponse>(
+    `/api/feed/admin/story/${storyId}`,
+    "PATCH",
+    patch,
+    token
+  );
+}
+
 export function deleteFeedStory(storyId: number, token: string): Promise<DeleteFeedStoryResponse> {
   return request<DeleteFeedStoryResponse>(
     `/api/feed/admin/story/${storyId}`,
