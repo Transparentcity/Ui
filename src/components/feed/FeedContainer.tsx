@@ -35,6 +35,7 @@ import BrandedLoader from "@/components/BrandedLoader";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import { slugify } from "@/lib/utils";
 import OnboardingBanner from "./OnboardingBanner";
+import PublicRecordBanner from "@/components/PublicRecordBanner";
 import FilterPanel, {
   type CityInfo,
   type DistrictsForCity,
@@ -1184,6 +1185,8 @@ export default function FeedContainer({
           </button>
         </div>
       </div>
+
+      <PublicRecordBanner />
 
       {/* ── Active filter pills (+ place navigation when the feed mixes in saved-place stories) ── */}
       {showPillsRow && (

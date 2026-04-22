@@ -44,6 +44,11 @@
   color: var(--brand-primary, #ad35fa);
 }
 
+.previewCardFoot {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
 /* Skeleton loading states */
 .skeletonHeader {
   width: 45%;

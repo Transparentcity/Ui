@@ -2,18 +2,23 @@
 
 import { useCallback } from "react";
 import { Share2 } from "lucide-react";
+import SourceLine from "@/components/SourceLine";
+import { slugify } from "@/lib/utils";
+import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import styles from "./feed.module.css";
 
 interface CardActionBarProps {
   onShare: () => void;
   onOverflow?: () => void;
   showOverflow?: boolean;
+  story?: EnrichedFeedStory;
 }
 
 export default function CardActionBar({
   onShare,
   onOverflow,
   showOverflow = true,
+  story,
 }: CardActionBarProps) {
   const handleShare = useCallback(
     (e: React.MouseEvent) => {
@@ -31,8 +36,16 @@ export default function CardActionBar({
     [onOverflow],
   );
 
+  const citySlug = story?.city_name ? slugify(story.city_name) : "";
+
   return (
     <div className={styles.actionBar}>
+      {story && citySlug && (
+        <SourceLine category={story.actor ?? ""} citySlug={citySlug} />
+      )}
+
+      <div className={styles.actionSpacer} />
+
       <button
         type="button"
         className={styles.actionBtn}
@@ -44,18 +57,14 @@ export default function CardActionBar({
       </button>
 
       {showOverflow && (
-        <>
-          <div className={styles.actionSpacer} />
-
-          <button
-            type="button"
-            className={styles.overflowBtn}
-            onClick={handleOverflow}
-            aria-label="More options"
-          >
-            &middot;&middot;&middot;
-          </button>
-        </>
+        <button
+          type="button"
+          className={styles.overflowBtn}
+          onClick={handleOverflow}
+          aria-label="More options"
+        >
+          &middot;&middot;&middot;
+        </button>
       )}
     </div>
   );
