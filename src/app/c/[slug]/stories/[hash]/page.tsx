@@ -28,6 +28,7 @@ import { slugify } from "@/lib/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 import SourceLine from "@/components/SourceLine";
 import { enrichStory } from "@/lib/feed/mockFeedData";
+import type { FeedStory } from "@/lib/hooks/useFeed";
 
 export const revalidate = 3600;
 
@@ -245,7 +246,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           </span>
           <span className="story-meta-sep" aria-hidden="true">·</span>
           <SourceLine
-            category={enrichStory(story).actor ?? ""}
+            category={enrichStory(story as unknown as FeedStory).actor ?? ""}
             citySlug={slug}
             variant="byline"
           />
