@@ -25,6 +25,28 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function driverLabel(f: WasteFinding): string {
+  if (f.headline && f.headline.trim().length > 0) return f.headline
+  const metric = [f.metric, f.metricDetail].filter(Boolean).join(" ").trim()
+  if (f.entity && metric) return `${f.entity} — ${metric}`
+  if (metric) return metric
+  if (f.description) {
+    const firstSentence = f.description.split(/(?<=[.!?])\s/)[0]
+    return firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}…` : firstSentence
+  }
+  return f.subcategory || f.category
+}
+
+function formatCompactDollars(n: number): string {
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${(n / 1_000).toFixed(0)}K`
+  return `${Math.round(n)}`
+}
+
 // ── Domain Labels ───────────────────────────────────────────────────────────
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -294,13 +316,34 @@ function DepartmentBriefing({
                 Top Risk Drivers
               </span>
             </div>
-            <div className="space-y-1">
-              {topDrivers.map((f, i) => (
-                <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                  <span className="text-red-400 mt-0.5 shrink-0">&#x25cf;</span>
-                  <span className="line-clamp-1">{f.metric}</span>
-                </div>
-              ))}
+            <div className="space-y-1.5">
+              {topDrivers.map((f, i) => {
+                const label = driverLabel(f)
+                const categoryLabel = getWasteCategoryLabel(normalizeWasteCategory(f.category))
+                return (
+                  <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                    <span
+                      className={cn(
+                        "mt-0.5 shrink-0",
+                        f.severity === "critical" ? "text-red-500" : "text-orange-400"
+                      )}
+                    >
+                      &#x25cf;
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-gray-800 line-clamp-2 leading-snug">{label}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        <span className="capitalize">{f.severity}</span>
+                        {" · "}
+                        {categoryLabel}
+                        {f.estimated_dollar_impact
+                          ? ` · ~$${formatCompactDollars(f.estimated_dollar_impact)} est.`
+                          : ""}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
