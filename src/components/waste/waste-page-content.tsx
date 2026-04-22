@@ -44,6 +44,29 @@ type SignalTierFilter = "primary" | "all"
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 900
 const STALE_DATA_WARNING_DAYS = 7
 
+const SEVERITY_FILTERS: SeverityFilter[] = ["all", "critical", "high", "medium"]
+const SIGNAL_TIER_FILTERS: SignalTierFilter[] = ["primary", "all"]
+const SORT_MODES: FindingSortMode[] = ["severity", "amount", "demo"]
+
+function readInitialFilters(): {
+  severity: SeverityFilter
+  signalTier: SignalTierFilter
+  sort: FindingSortMode
+} {
+  if (typeof window === "undefined") {
+    return { severity: "all", signalTier: "primary", sort: "severity" }
+  }
+  const params = new URLSearchParams(window.location.search)
+  const rawSev = params.get("sev") as SeverityFilter | null
+  const rawTier = params.get("tier") as SignalTierFilter | null
+  const rawSort = params.get("sort") as FindingSortMode | null
+  return {
+    severity: rawSev && SEVERITY_FILTERS.includes(rawSev) ? rawSev : "all",
+    signalTier: rawTier && SIGNAL_TIER_FILTERS.includes(rawTier) ? rawTier : "primary",
+    sort: rawSort && SORT_MODES.includes(rawSort) ? rawSort : "severity",
+  }
+}
+
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)
   const now = new Date()
@@ -144,9 +167,25 @@ function DataSourceDetails({ freshness }: { freshness: WasteDataFreshness[] }) {
 
 export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
-  const [signalTierFilter, setSignalTierFilter] = useState<SignalTierFilter>("primary")
-  const [sortMode, setSortMode] = useState<FindingSortMode>("severity")
+  const initialFilters = useMemo(() => readInitialFilters(), [])
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(initialFilters.severity)
+  const [signalTierFilter, setSignalTierFilter] = useState<SignalTierFilter>(initialFilters.signalTier)
+  const [sortMode, setSortMode] = useState<FindingSortMode>(initialFilters.sort)
+
+  // Persist filter state to the URL so reloads and deep-links preserve them.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    if (severityFilter === "all") params.delete("sev")
+    else params.set("sev", severityFilter)
+    if (signalTierFilter === "primary") params.delete("tier")
+    else params.set("tier", signalTierFilter)
+    if (sortMode === "severity") params.delete("sort")
+    else params.set("sort", sortMode)
+    const query = params.toString()
+    const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`
+    window.history.replaceState(null, "", next)
+  }, [severityFilter, signalTierFilter, sortMode])
 
   // Flagged finding IDs (persisted in localStorage)
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
@@ -284,7 +323,6 @@ export function WastePageContent() {
       const raw = window.location.hash.replace("#", "")
       if (!raw) return
       setActiveCategory(normalizeWasteCategory(raw))
-      setSeverityFilter("all")
     }
 
     applyHashCategory()
@@ -322,13 +360,15 @@ export function WastePageContent() {
     )
   }, [displayData])
 
-  // Reset severity filter when category changes
+  // Filters persist across category switches so users can compare "critical only"
+  // across multiple domains without re-selecting. URL hash still tracks the active
+  // category for backwards-compatible deep links.
   const handleCategoryChange = (cat: string) => {
     const normalized = normalizeWasteCategory(cat)
     setActiveCategory(normalized)
-    setSeverityFilter("all")
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `#${normalized}`)
+      const query = window.location.search
+      window.history.replaceState(null, "", `${window.location.pathname}${query}#${normalized}`)
     }
   }
 
@@ -361,7 +401,10 @@ export function WastePageContent() {
     ) ?? null
   }, [displayData, activeCategory])
 
-  const carriedOverCategories = displayData?.carried_over_categories ?? []
+  const carriedOverCategories = useMemo(
+    () => displayData?.carried_over_categories ?? [],
+    [displayData]
+  )
 
   const hasDataQualityInfo = useMemo(() => {
     const freshness = displayData?.data_freshness
@@ -907,6 +950,7 @@ export function WastePageContent() {
                   onSkip={handleSkip}
                   sortMode={sortMode}
                   cityId={selectedCityId}
+                  carriedOverCategories={carriedOverCategories}
                 />
               )}
             </>
