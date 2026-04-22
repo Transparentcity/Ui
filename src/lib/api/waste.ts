@@ -51,6 +51,7 @@ export interface WasteDataFreshness {
   data_as_of: string | null;
   data_loaded_at: string | null;
   rows_fetched: number;
+  is_partial: boolean;
   is_partial_year: boolean;
   stale: boolean;
   stale_reason: string | null;
