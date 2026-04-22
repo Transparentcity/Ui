@@ -1,4 +1,9 @@
-import type { WasteAnalyzeResponse } from "@/lib/apiClient"
+import type {
+  WasteAnalyzeResponse,
+  WasteCategorySummary,
+  WasteFinding,
+  WasteSummaryResponse,
+} from "@/lib/apiClient"
 
 // ── Category normalization ──────────────────────────────────────────────────
 
@@ -292,4 +297,221 @@ export function escapeSoql(value: string): string {
  */
 export function escapeSoqlLike(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "''")
+}
+
+// ── Multi-run merge ─────────────────────────────────────────────────────────
+
+export interface PersistedRunBundle {
+  analysisTimestamp: string | null
+  errors: string[]
+  response: WasteAnalyzeResponse
+}
+
+export interface CarriedOverCategoryInfo {
+  category: WasteCategoryKey
+  analysisTimestamp: string | null
+  reason: string
+}
+
+export interface MergedPersistedResult {
+  /** Merged response with `carried_over_categories` populated. */
+  response: WasteAnalyzeResponse
+  /** Same data, surfaced for convenience. */
+  carriedOver: CarriedOverCategoryInfo[]
+}
+
+/**
+ * Known detector family prefixes emitted by the backend in error messages.
+ * Anything outside this set is ignored so we don't falsely flag a category
+ * via `normalizeWasteCategory`'s "payroll" fallback for unknown inputs.
+ */
+const KNOWN_ERROR_FAMILIES: Record<string, WasteCategoryKey> = {
+  payroll: "payroll",
+  contracts: "contracts",
+  vendor: "contracts",
+  vendors: "contracts",
+  infrastructure: "infrastructure",
+  services: "infrastructure",
+  influence: "influence",
+  lobbying: "influence",
+  integrity: "integrity",
+  personnel: "integrity",
+  confirmed: "confirmed",
+  convergence: "convergence",
+}
+
+/**
+ * Parse the error message list from a run, identifying which category families
+ * had failures (timeouts or exceptions). The backend emits messages like
+ * `"contracts: timed out after 120s"` or `"vendor: <exception>"`.
+ *
+ * Only whitelisted family prefixes are recognized. The `prefetch:` prefix is
+ * skipped because prefetch failures apply to every detector and are surfaced
+ * elsewhere. Unknown families are ignored to avoid silently corrupting the
+ * per-category error set.
+ */
+export function categoriesWithErrors(errors: string[] | null | undefined): Set<WasteCategoryKey> {
+  const failed = new Set<WasteCategoryKey>()
+  if (!errors) return failed
+  for (const msg of errors) {
+    const match = /^([a-zA-Z_]+):/.exec(msg)
+    if (!match) continue
+    const raw = match[1].toLowerCase()
+    if (raw === "prefetch") continue
+    const mapped = KNOWN_ERROR_FAMILIES[raw]
+    if (!mapped) continue
+    failed.add(mapped)
+  }
+  return failed
+}
+
+function emptySummary(): WasteSummaryResponse {
+  return {
+    total_findings: 0,
+    critical_count: 0,
+    estimated_exposure: 0,
+    gross_exposure: 0,
+    net_exposure: 0,
+    departments_affected: 0,
+    categories: [],
+  }
+}
+
+function summaryForCategory(
+  summary: WasteSummaryResponse | undefined,
+  category: WasteCategoryKey,
+): WasteCategorySummary | null {
+  if (!summary?.categories) return null
+  return (
+    summary.categories.find(
+      (c) => normalizeWasteCategory(c.category) === category,
+    ) ?? null
+  )
+}
+
+/**
+ * Canonical category keys that can appear in persisted waste findings. Drives
+ * the merge loop below. Note: "convergence" is a derived view of the other
+ * categories, but persisted findings can carry that label too.
+ */
+const MERGEABLE_CATEGORIES: WasteCategoryKey[] = [
+  "payroll",
+  "contracts",
+  "infrastructure",
+  "influence",
+  "integrity",
+  "confirmed",
+  "convergence",
+]
+
+/**
+ * Merge findings across the most recent completed runs. For each canonical
+ * category we trust the newest run that did NOT record an error for that
+ * family (even if it has 0 findings — a legitimate zero is still truth).
+ * Only when the newest run errored for a family do we fall back to an older
+ * run's findings, and that category is labeled as carried-over.
+ *
+ * Runs must be ordered newest-first.
+ */
+export function mergePersistedRuns(
+  runs: PersistedRunBundle[],
+): MergedPersistedResult | null {
+  if (runs.length === 0) return null
+
+  const latest = runs[0]
+  const mergedFindings: WasteFinding[] = []
+  const mergedCategorySummaries: WasteCategorySummary[] = []
+  const carriedOver: CarriedOverCategoryInfo[] = []
+  const seenIds = new Set<string>()
+
+  // Precompute each run's failed-category set once.
+  const errorsByRun = runs.map((r) => categoriesWithErrors(r.errors))
+
+  for (const category of MERGEABLE_CATEGORIES) {
+    // Walk newest → oldest, skipping runs that explicitly errored for this
+    // category. The first non-errored run is authoritative.
+    let pickedIndex = -1
+    for (let i = 0; i < runs.length; i++) {
+      if (errorsByRun[i].has(category)) continue
+      pickedIndex = i
+      break
+    }
+    if (pickedIndex < 0) continue
+
+    const picked = runs[pickedIndex]
+    const findingsForCat = picked.response.findings.filter(
+      (f) => normalizeWasteCategory(f.category) === category,
+    )
+
+    for (const f of findingsForCat) {
+      if (seenIds.has(f.id)) continue
+      seenIds.add(f.id)
+      mergedFindings.push(f)
+    }
+
+    const catSummary = summaryForCategory(picked.response.summary, category)
+    if (catSummary) mergedCategorySummaries.push(catSummary)
+
+    // Only flag as carried-over when we actually pulled data from an older
+    // run that the latest run couldn't provide. No label for "picked i=0"
+    // or for "every run was empty for this category".
+    if (pickedIndex > 0 && findingsForCat.length > 0) {
+      carriedOver.push({
+        category,
+        analysisTimestamp: picked.analysisTimestamp,
+        reason: "carried from earlier run",
+      })
+    }
+  }
+
+  // Rebuild totals from the merged per-category summaries so the stat bar
+  // stays internally consistent after carry-over. Fall back to counting the
+  // merged findings if a picked run lacked a summary entry.
+  const totalFromSummaries = mergedCategorySummaries.reduce(
+    (acc, c) => {
+      acc.findings += c.finding_count ?? 0
+      acc.critical += c.critical_count ?? 0
+      acc.amount += c.total_amount ?? 0
+      return acc
+    },
+    { findings: 0, critical: 0, amount: 0 },
+  )
+
+  const findingsCount = mergedFindings.length
+  const criticalCount = mergedFindings.filter(
+    (f) => f.severity === "critical",
+  ).length
+  const departmentsAffected = new Set(
+    mergedFindings.map((f) => f.department).filter((d) => !!d),
+  ).size
+
+  const summary: WasteSummaryResponse = {
+    ...(latest.response.summary ?? emptySummary()),
+    total_findings: findingsCount || totalFromSummaries.findings,
+    critical_count: criticalCount || totalFromSummaries.critical,
+    // We don't know the backend's de-duplicated gross/net math after merging,
+    // so report the summed exposure consistently across gross/net/estimated.
+    estimated_exposure: totalFromSummaries.amount,
+    gross_exposure: totalFromSummaries.amount,
+    net_exposure: totalFromSummaries.amount,
+    departments_affected:
+      departmentsAffected ||
+      latest.response.summary?.departments_affected ||
+      0,
+    categories: mergedCategorySummaries,
+  }
+
+  return {
+    response: {
+      ...latest.response,
+      findings: mergedFindings,
+      summary,
+      carried_over_categories: carriedOver.map((c) => ({
+        category: c.category,
+        analysis_timestamp: c.analysisTimestamp,
+        reason: c.reason,
+      })),
+    },
+    carriedOver,
+  }
 }

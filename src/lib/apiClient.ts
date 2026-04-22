@@ -5956,6 +5956,17 @@ export interface WasteAnalyzeResponse {
   analysis_timestamp: string | null;
   errors: string[];
   data_freshness: WasteDataFreshness[];
+  /**
+   * Client-only field: when findings are merged across multiple persisted
+   * runs (because the most recent run had timeouts for some categories),
+   * this lists the categories whose findings came from an older run.
+   * Not sent by the backend.
+   */
+  carried_over_categories?: {
+    category: string;
+    analysis_timestamp: string | null;
+    reason: string;
+  }[];
 }
 
 export interface WasteRunJobResponse {

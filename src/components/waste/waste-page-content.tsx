@@ -198,7 +198,9 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
-  // Load last persisted run from DB — instant data even when live analysis times out
+  // Load last persisted run from DB — instant data even when live analysis times out.
+  // The hook merges across the last few runs so a single timed-out detector
+  // (e.g. contracts hitting the 120s cap on SF) doesn't wipe out a category.
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
 
   // Only auto-fetch live analysis if we have NO fallback data (cache or persisted).
@@ -359,26 +361,31 @@ export function WastePageContent() {
     ) ?? null
   }, [displayData, activeCategory])
 
+  const carriedOverCategories = displayData?.carried_over_categories ?? []
+
   const hasDataQualityInfo = useMemo(() => {
     const freshness = displayData?.data_freshness
     const hasFreshnessInfo = (freshness?.length ?? 0) > 0 &&
       (freshness?.some((d) => d.stale || d.is_partial_year) ?? false)
     const hasErrors = (displayData?.errors?.length ?? 0) > 0
-    return hasFreshnessInfo || hasErrors
-  }, [displayData])
+    const hasCarriedOver = carriedOverCategories.length > 0
+    return hasFreshnessInfo || hasErrors || hasCarriedOver
+  }, [displayData, carriedOverCategories])
 
   const dataQualitySummaryLabel = useMemo(() => {
     const staleCount = displayData?.data_freshness?.filter((d) => d.stale).length ?? 0
     const errorCount = displayData?.errors?.length ?? 0
+    const carriedCount = carriedOverCategories.length
     const parts: string[] = []
     if (staleCount > 0) parts.push(`${staleCount} stale dataset${staleCount !== 1 ? "s" : ""}`)
     if (errorCount > 0) parts.push(`${errorCount} detector issue${errorCount !== 1 ? "s" : ""}`)
+    if (carriedCount > 0) parts.push(`${carriedCount} categor${carriedCount !== 1 ? "ies" : "y"} from earlier run`)
     if (parts.length === 0) {
       const partialCount = displayData?.data_freshness?.filter((d) => d.is_partial_year).length ?? 0
       if (partialCount > 0) parts.push(`${partialCount} partial-year dataset${partialCount !== 1 ? "s" : ""}`)
     }
     return parts.length > 0 ? parts.join(", ") : "Data sources"
-  }, [displayData])
+  }, [displayData, carriedOverCategories])
 
   const consolidatedStatus = useMemo(() => {
     if (isManualRefreshing) return null
@@ -577,6 +584,19 @@ export function WastePageContent() {
                         </p>
                         {displayData.errors.map((err, i) => (
                           <p key={i} className="text-xs text-amber-600">{err}</p>
+                        ))}
+                      </div>
+                    )}
+                    {carriedOverCategories.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-purple-700">
+                          {carriedOverCategories.length} categor{carriedOverCategories.length !== 1 ? "ies" : "y"} carried from an earlier run
+                        </p>
+                        {carriedOverCategories.map((c) => (
+                          <p key={c.category} className="text-xs text-purple-600">
+                            {getWasteCategoryLabel(c.category)}
+                            {c.analysis_timestamp ? ` — as of ${formatAge(c.analysis_timestamp)}` : ""}
+                          </p>
                         ))}
                       </div>
                     )}

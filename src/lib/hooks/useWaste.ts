@@ -59,6 +59,10 @@ import {
   type CityMethodologyResponse,
   type SystemMethodologyResponse,
 } from "@/lib/apiClient"
+import {
+  mergePersistedRuns,
+  type PersistedRunBundle,
+} from "@/components/waste/waste-utils"
 
 /**
  * Fetch waste analysis findings with TanStack Query.
@@ -460,9 +464,14 @@ export function useLatestWasteRun(
 }
 
 /**
- * Load the latest *completed* persisted run result from the database.
- * This is fast (DB read, no analysis) and gives the user instant data
- * even when a fresh analysis would time out.
+ * Load persisted run results from the database, merging the last few
+ * completed runs so that a single timed-out detector doesn't wipe out a
+ * whole category from the UI.
+ *
+ * For each category, findings are taken from the most recent run that did
+ * not record an error for that family. The newest run's data_freshness and
+ * analysis_timestamp are used as the headline timestamp; `carriedOver`
+ * reports any categories sourced from an older run.
  */
 export function useLatestPersistedWasteResult(cityId: number | null) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0()
@@ -472,15 +481,31 @@ export function useLatestPersistedWasteResult(cityId: number | null) {
     queryFn: async () => {
       if (!cityId) return null
       const token = await getAccessTokenSilently()
-      // Find the latest completed run (filter server-side)
-      const runs = await listWasteRuns(token, cityId, undefined, 1, "completed")
-      const latestRun = runs[0]
-      if (!latestRun) return null
-      try {
-        return await getWasteRunResult(token, Number(latestRun.id), cityId)
-      } catch {
-        return null
-      }
+      const runs = await listWasteRuns(token, cityId, undefined, 5, "completed")
+      if (runs.length === 0) return null
+
+      const bundles = await Promise.all(
+        runs.map(async (run) => {
+          try {
+            const response = await getWasteRunResult(token, Number(run.id), cityId)
+            return {
+              analysisTimestamp: response.analysis_timestamp ?? run.analysis_timestamp,
+              errors: response.errors ?? run.errors ?? [],
+              response,
+            } satisfies PersistedRunBundle
+          } catch {
+            return null
+          }
+        })
+      )
+
+      const usable = bundles.filter(
+        (b): b is PersistedRunBundle => b !== null
+      )
+      if (usable.length === 0) return null
+
+      const merged = mergePersistedRuns(usable)
+      return merged?.response ?? null
     },
     enabled: isAuthenticated && !!cityId,
     staleTime: 10 * 60 * 1000, // 10 min — persisted data doesn't change often
