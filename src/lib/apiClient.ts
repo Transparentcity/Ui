@@ -4870,6 +4870,10 @@ export interface NewsletterGenerationExclusionSummary {
   included_distinct_emails?: number;
   excluded_from_pipeline_launched_cohort?: number;
   exclusion_summary_note?: string;
+  /** Total active platform users (excluding test accounts). */
+  total_active_users?: number;
+  /** Active users with no newsletter subscription for this frequency. */
+  users_without_any_subscription?: number;
 }
 
 /** Rough USD estimate for planned Seymour sessions (server default model). */
@@ -4909,13 +4913,19 @@ export interface NewsletterGenerationPreview {
   saved_newsletter_seymour_model_key?: string | null;
   /** Model key used for the cost estimate for this response. */
   model_key_used_for_estimate?: string;
-  /** Per-city shared grouping breakdown for the next run. */
+  /** Total active platform users (excluding test accounts). */
+  total_active_users?: number;
+  /** Active users with no newsletter subscription for this frequency. */
+  users_without_any_subscription?: number;
+  /** Per-city shared grouping breakdown for the next run (sorted by most recipients first). */
   shared_groups_per_city: Array<{
     city_id: number;
     city_name: string;
     shared_groups: number;
     districts: number[];
     shared_recipients: number;
+    /** Per-district breakdown sorted by most recipients first. */
+    group_details?: Array<{ district: number; recipients: number }>;
   }>;
 }
 

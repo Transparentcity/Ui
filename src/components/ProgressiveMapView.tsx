@@ -404,6 +404,7 @@ export default function ProgressiveMapView({
   const [loadingLazyView, setLoadingLazyView] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const savedPlaceMarkerRef = useRef<any>(null);
 
   // Backend-provided default view and available views (single load, no discovery)
   const defaultView = mapData.map_config?.default_view as DefaultView | undefined;
@@ -808,6 +809,7 @@ export default function ProgressiveMapView({
             if (isPointMap) {
               loadPointMap(map);
             }
+            addSavedPlaceOverlay(map);
           } catch (err) {
             console.error("Error loading map layers:", err);
             onError?.(`Failed to load map layers: ${err instanceof Error ? err.message : String(err)}`);
@@ -829,6 +831,10 @@ export default function ProgressiveMapView({
 
     return () => {
       cancelled = true;
+      if (savedPlaceMarkerRef.current) {
+        try { savedPlaceMarkerRef.current.remove(); } catch { /* ignore */ }
+        savedPlaceMarkerRef.current = null;
+      }
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();
@@ -1353,6 +1359,57 @@ export default function ProgressiveMapView({
     const pointData = normalizePointData(mapData.location_data);
     if (pointData.length === 0) return;
     addPointsLayer(mapInstance, pointData);
+  };
+
+  const addSavedPlaceOverlay = (mapInstance: any) => {
+    const overlay = (mapData.map_config as any)?.saved_place_overlay;
+    if (!overlay || overlay.kind !== "saved_place_circle") return;
+
+    const { circles_geojson, center_lat, center_lon, label } = overlay;
+    if (!circles_geojson || center_lat == null || center_lon == null) return;
+
+    // Boundary fill + dashed outline
+    try {
+      if (mapInstance.getLayer("saved-place-fill")) mapInstance.removeLayer("saved-place-fill");
+      if (mapInstance.getLayer("saved-place-outline")) mapInstance.removeLayer("saved-place-outline");
+      if (mapInstance.getSource("saved-place-area")) mapInstance.removeSource("saved-place-area");
+
+      mapInstance.addSource("saved-place-area", { type: "geojson", data: circles_geojson });
+
+      mapInstance.addLayer({
+        id: "saved-place-fill",
+        type: "fill",
+        source: "saved-place-area",
+        paint: { "fill-color": "#ad35fa", "fill-opacity": 0.08 },
+      });
+
+      mapInstance.addLayer({
+        id: "saved-place-outline",
+        type: "line",
+        source: "saved-place-area",
+        paint: { "line-color": "#ad35fa", "line-width": 2, "line-dasharray": [3, 2] },
+      });
+    } catch (err) {
+      console.error("[ProgressiveMapView] Error adding saved place boundary:", err);
+    }
+
+    // Center pin with label
+    try {
+      if (savedPlaceMarkerRef.current) {
+        savedPlaceMarkerRef.current.remove();
+        savedPlaceMarkerRef.current = null;
+      }
+
+      const el = document.createElement("div");
+      el.className = "saved-place-marker";
+      el.innerHTML = `<div class="saved-place-marker__pin"></div><div class="saved-place-marker__label">${String(label || "My place")}</div>`;
+
+      savedPlaceMarkerRef.current = new (window as any).mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([center_lon, center_lat])
+        .addTo(mapInstance);
+    } catch (err) {
+      console.error("[ProgressiveMapView] Error adding saved place marker:", err);
+    }
   };
 
   const itemNoun = (mapData.map_config?.item_noun as string) || "items";

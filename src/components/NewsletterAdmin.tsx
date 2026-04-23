@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
@@ -25,7 +26,6 @@ import {
   getNewsletterGenerationPreview,
   getAvailableModels,
   putNewsletterWeeklySeymourModel,
-  listJobs,
   listNewsletterEditionsAdmin,
   type CityListItem,
   type NewsletterReport,
@@ -33,7 +33,6 @@ import {
   type NewsletterSendItem,
   type NewsletterGenerationPreview,
   type NewsletterEditionAdminItem,
-  type Job,
 } from "@/lib/apiClient";
 import {
   listPublicCitiesForSitemap,
@@ -923,6 +922,264 @@ function WorkloadCard({
   );
 }
 
+function WaterfallRow({
+  indent = 0,
+  connector,
+  label,
+  count,
+  badge,
+  badgeColor,
+  muted,
+  children,
+}: {
+  indent?: number;
+  connector?: "branch" | "last";
+  label: ReactNode;
+  count?: number | null;
+  badge?: string;
+  badgeColor?: string;
+  muted?: boolean;
+  children?: ReactNode;
+}) {
+  const INDENT_PX = 20;
+  return (
+    <div style={{ marginLeft: indent * INDENT_PX }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          fontSize: 12,
+          lineHeight: 1.5,
+          color: muted ? "var(--text-tertiary, #9ca3af)" : "var(--text-primary)",
+        }}
+      >
+        {connector && (
+          <span style={{ color: "var(--text-tertiary, #9ca3af)", fontFamily: "monospace", flexShrink: 0, fontSize: 11 }}>
+            {connector === "branch" ? "├─" : "└─"}
+          </span>
+        )}
+        <span style={{ fontWeight: muted ? 400 : 500 }}>{label}</span>
+        {count != null && (
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: 13,
+              color: muted ? "var(--text-tertiary, #9ca3af)" : "var(--text-primary)",
+              minWidth: 28,
+            }}
+          >
+            {count.toLocaleString()}
+          </span>
+        )}
+        {badge && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.03em",
+              background: `${badgeColor ?? "var(--text-tertiary, #9ca3af)"}22`,
+              color: badgeColor ?? "var(--text-secondary)",
+              border: `1px solid ${badgeColor ?? "var(--border-color, #e5e7eb)"}`,
+              borderRadius: 3,
+              padding: "1px 5px",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            {badge}
+          </span>
+        )}
+      </div>
+      {children && <div style={{ marginTop: 2 }}>{children}</div>}
+    </div>
+  );
+}
+
+function WorkloadWaterfall({ workload }: { workload: NewsletterGenerationPreview }) {
+  const ex = workload.exclusion_summary ?? {};
+  const totalUsers = workload.total_active_users ?? null;
+  const noAccountSub = workload.users_without_any_subscription ?? null;
+  const anySubCount = ex.distinct_emails_any_city ?? null;
+  const excludedLaunched = ex.excluded_from_pipeline_launched_cohort ?? 0;
+  const onlyNonLaunched = ex.distinct_emails_only_non_launched_cities ?? 0;
+  const totalExcluded = excludedLaunched + onlyNonLaunched;
+  const inPipeline = ex.included_distinct_emails ?? (workload.total_pipeline_recipients ?? workload.total_weekly_recipients);
+  const personalized = workload.personalized_recipients;
+  const sharedRecipients = workload.shared_recipients;
+  const sharedGroups = workload.shared_llm_calls_planned;
+
+  const PURPLE = "var(--brand-primary, #ad35fa)";
+  const BLUE = "#2563eb";
+  const GREEN = "var(--green, #16a34a)";
+  const GRAY = "var(--text-tertiary, #9ca3af)";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* ── Main waterfall: root = newsletter subscribers ──────────── */}
+      <div
+        style={{
+          border: "1px solid var(--border-color, #e5e7eb)",
+          borderRadius: 8,
+          padding: "12px 14px",
+          background: "var(--bg-subtle, #f9fafb)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+          Subscriber waterfall — token distribution
+        </div>
+
+        {/* Root: total subscribers */}
+        <WaterfallRow
+          label="Subscribers (any city, this frequency)"
+          count={anySubCount}
+        >
+          {/* Excluded */}
+          {totalExcluded > 0 && (
+            <WaterfallRow
+              indent={1}
+              connector="branch"
+              label="Excluded from this run"
+              count={totalExcluded}
+              badge="no email · 0 LLM"
+              badgeColor={GRAY}
+              muted
+            >
+              {onlyNonLaunched > 0 && (
+                <WaterfallRow
+                  indent={1}
+                  connector="branch"
+                  label="Only subscribed to non-launched cities"
+                  count={onlyNonLaunched}
+                  muted
+                />
+              )}
+              {excludedLaunched > 0 && (
+                <WaterfallRow
+                  indent={1}
+                  connector="last"
+                  label="Subscribed to launched city but no active account"
+                  count={excludedLaunched}
+                  muted
+                />
+              )}
+            </WaterfallRow>
+          )}
+
+          {/* In this run */}
+          <WaterfallRow
+            indent={1}
+            connector="last"
+            label={<strong>In this run</strong>}
+            count={inPipeline}
+            badge={`${workload.total_llm_calls_planned} LLM run${workload.total_llm_calls_planned !== 1 ? "s" : ""}`}
+            badgeColor={GREEN}
+          >
+            {/* Personalized */}
+            <WaterfallRow
+              indent={1}
+              connector="branch"
+              label="Personalized email"
+              count={personalized}
+              badge={`${personalized} LLM run${personalized !== 1 ? "s" : ""} · 1 per subscriber`}
+              badgeColor={PURPLE}
+            />
+
+            {/* Shared */}
+            <WaterfallRow
+              indent={1}
+              connector="last"
+              label="Shared email"
+              count={sharedRecipients}
+              badge={`${sharedGroups} LLM run${sharedGroups !== 1 ? "s" : ""} · 1 per group`}
+              badgeColor={BLUE}
+            >
+              {workload.shared_groups_per_city.length > 0 && (
+                <div style={{ marginLeft: 20, marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {workload.shared_groups_per_city.map((city, ci) => {
+                    const isLast = ci === workload.shared_groups_per_city.length - 1;
+                    return (
+                      <div key={city.city_id}>
+                        <WaterfallRow
+                          connector={isLast ? "last" : "branch"}
+                          label={<span style={{ fontWeight: 600 }}>{city.city_name}</span>}
+                          count={city.shared_recipients}
+                          badge={`${city.shared_groups} group${city.shared_groups !== 1 ? "s" : ""}`}
+                          badgeColor={BLUE}
+                        >
+                          {city.group_details && city.group_details.length > 0 && (
+                            <div style={{ marginLeft: 20, display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+                              {city.group_details.map((g, gi) => {
+                                const isLastGroup = gi === (city.group_details?.length ?? 0) - 1;
+                                return (
+                                  <WaterfallRow
+                                    key={g.district}
+                                    connector={isLastGroup ? "last" : "branch"}
+                                    label={g.district === 0 ? "Whole city (no district)" : `District ${g.district}`}
+                                    count={g.recipients}
+                                    badge={`${g.recipients} recipient${g.recipients !== 1 ? "s" : ""} share 1 LLM run`}
+                                    badgeColor={BLUE}
+                                    muted={false}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
+                        </WaterfallRow>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </WaterfallRow>
+          </WaterfallRow>
+        </WaterfallRow>
+      </div>
+
+      {/* ── Platform account context (separate callout) ─────────────── */}
+      {(totalUsers != null || noAccountSub != null) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            fontSize: 12,
+            color: "var(--text-secondary)",
+          }}
+        >
+          {totalUsers != null && (
+            <span
+              style={{
+                background: "var(--bg-canvas, #fff)",
+                border: "1px solid var(--border-color, #e5e7eb)",
+                borderRadius: 5,
+                padding: "4px 10px",
+              }}
+            >
+              <strong style={{ color: "var(--text-primary)" }}>{totalUsers.toLocaleString()}</strong> active platform account{totalUsers !== 1 ? "s" : ""}
+            </span>
+          )}
+          {noAccountSub != null && (
+            <span
+              style={{
+                background: "var(--bg-canvas, #fff)",
+                border: "1px solid var(--border-color, #e5e7eb)",
+                borderRadius: 5,
+                padding: "4px 10px",
+              }}
+            >
+              <strong style={{ color: "var(--text-primary)" }}>{noAccountSub.toLocaleString()}</strong> account{noAccountSub !== 1 ? "s" : ""} with no newsletter subscription
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NewsletterDashboardQueue({
   workloadEstimateModelKey,
   setWorkloadEstimateModelKey,
@@ -960,13 +1217,9 @@ function NewsletterDashboardQueue({
   // Workload preview
   const [workload, setWorkload] = useState<NewsletterGenerationPreview | null>(null);
   const [workloadLoading, setWorkloadLoading] = useState(true);
-  const [workloadOpen, setWorkloadOpen] = useState(false);
+  const [workloadOpen, setWorkloadOpen] = useState(true);
   const [workloadFrequency, setWorkloadFrequency] = useState<"weekly" | "monthly">("weekly");
   const [saveNewsletterModelBusy, setSaveNewsletterModelBusy] = useState(false);
-
-  // Recent weekly_newsletter jobs
-  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
-  const [jobsOpen, setJobsOpen] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -1000,16 +1253,14 @@ function NewsletterDashboardQueue({
             ? previewModelKeyOverride
             : workloadEstimateModelKey;
         const mk = mkSource.trim();
-        const [preview, jobs, modelGroups] = await Promise.all([
+        const [preview, modelGroups] = await Promise.all([
           getNewsletterGenerationPreview(token, {
             frequency: workloadFrequency,
             ...(mk ? { model_key: mk } : {}),
           }),
-          listJobs(token, 20, undefined, undefined, "weekly_newsletter"),
           getAvailableModels(token).catch(() => []),
         ]);
         setWorkload(preview);
-        setRecentJobs(jobs.jobs);
         const flat = modelGroups
           .flatMap((g) =>
             g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
@@ -1323,9 +1574,8 @@ function NewsletterDashboardQueue({
                 : ""}
               {workload.cost_estimate_usd ? (
                 <>
-                  {" · ~"}
+                  {" · "}
                   {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
-                  {" est."}
                 </>
               ) : null}
             </span>
@@ -1342,48 +1592,10 @@ function NewsletterDashboardQueue({
                 <span style={{ fontSize: 13 }}>Loading workload…</span>
               </div>
             ) : workload ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div className={styles.muted} style={{ fontSize: 12, lineHeight: 1.45 }}>
-                  Only subscribers following launched cities are counted.{" "}
-                  <strong style={{ color: "var(--text-primary)" }}>Personalized</strong> = one Seymour
-                  session per subscriber with any saved place (each gets their own email).{" "}
-                  <strong style={{ color: "var(--text-primary)" }}>Shared</strong> = one Seymour session per
-                  city/district group; every subscriber in that group without saved places receives the same
-                  generated draft (so LLM count is groups, not recipient count).
-                </div>
-                {workload.exclusion_summary?.exclusion_summary_note ? (
-                  <div
-                    className={styles.muted}
-                    style={{
-                      fontSize: 12,
-                      lineHeight: 1.45,
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      border: "1px solid var(--border-color, #e5e7eb)",
-                      background: "var(--bg-subtle, #fafafa)",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                      Subscribers not in this run:{" "}
-                    </span>
-                    {workload.exclusion_summary.exclusion_summary_note}
-                  </div>
-                ) : null}
-                {workload.llm_generation_plan?.routing_summary ? (
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-primary)",
-                      background: "var(--bg-subtle, #f9fafb)",
-                      border: "1px solid var(--border-color, #e5e7eb)",
-                      borderRadius: 6,
-                      padding: "10px 12px",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {workload.llm_generation_plan.routing_summary}
-                  </div>
-                ) : null}
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* ── Token waterfall ───────────────────────────────────── */}
+                <WorkloadWaterfall workload={workload} />
+                {/* ── Cost estimate ─────────────────────────────────────── */}
                 {workload.cost_estimate_usd ? (
                   <div
                     style={{
@@ -1396,96 +1608,23 @@ function NewsletterDashboardQueue({
                     }}
                   >
                     <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
-                      Cost estimate (rough)
+                      Cost estimate
                     </div>
-                    Model <strong>{workload.cost_estimate_usd.model_key}</strong>
-                    {workload.model_key_used_for_estimate &&
-                    workload.model_key_used_for_estimate !== workload.cost_estimate_usd.model_key ? (
-                      <span> (resolved: {workload.model_key_used_for_estimate})</span>
-                    ) : null}
-                    {" · "}
-                    ~{formatWorkloadMoneyUsd(workload.cost_estimate_usd.personalized_estimated_usd)} for{" "}
+                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.personalized_estimated_usd)} for{" "}
                     {workload.cost_estimate_usd.personalized_seymour_sessions} personalized session
                     {workload.cost_estimate_usd.personalized_seymour_sessions !== 1 ? "s" : ""}
-                    {" · ~"}
+                    {" · "}
                     {formatWorkloadMoneyUsd(workload.cost_estimate_usd.shared_estimated_usd)} for{" "}
                     {workload.cost_estimate_usd.shared_seymour_sessions} shared session
                     {workload.cost_estimate_usd.shared_seymour_sessions !== 1 ? "s" : ""}
                     {" · "}
                     <strong style={{ color: "var(--text-primary)" }}>
-                      Total ~{formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
+                      Total {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
                     </strong>
-                    {" (range "}
-                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_low_estimate_usd)}
-                    {"–"}
-                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_high_estimate_usd)}
-                    {"). "}
-                    Uses one-shot token profile per session; tool usage varies.
+                    {". "}
+                    <span className={styles.muted}>{workload.cost_estimate_usd.methodology ?? "$2.00 flat per session."}</span>
                   </div>
                 ) : null}
-                {/* Cost summary */}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                  gap: 8,
-                }}>
-                  <WorkloadCard
-                    label="Personalized LLM runs"
-                    value={workload.personalized_llm_calls_planned}
-                    sub="one session per subscriber with saved places"
-                  />
-                  <WorkloadCard
-                    label="Shared LLM runs"
-                    value={workload.shared_llm_calls_planned}
-                    sub="one session per city / district group"
-                  />
-                  <WorkloadCard
-                    label="Total LLM runs"
-                    value={workload.total_llm_calls_planned}
-                    sub="personalized + shared (generation only)"
-                    accent
-                  />
-                  <WorkloadCard
-                    label="Shared groups"
-                    value={workload.shared_city_district_groups_planned}
-                    sub="same as shared LLM runs"
-                  />
-                  <WorkloadCard
-                    label="Recipients (personalized)"
-                    value={workload.personalized_recipients}
-                    sub="each matched to their own session"
-                  />
-                  <WorkloadCard
-                    label="Recipients (shared)"
-                    value={workload.shared_recipients}
-                    sub="many per draft — not extra LLM calls"
-                  />
-                </div>
-                {/* Per-city breakdown */}
-                {workload.shared_groups_per_city.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-                      Shared groups per launched city
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {workload.shared_groups_per_city.map((c) => (
-                        <span
-                          key={c.city_id}
-                          style={{
-                            fontSize: 12,
-                            background: "var(--bg-subtle, #f3f4f6)",
-                            border: "1px solid var(--border-color, #e5e7eb)",
-                            borderRadius: 4,
-                            padding: "2px 8px",
-                          }}
-                          title={`Districts: ${c.districts.length > 0 ? c.districts.join(", ") : "none"} · Shared recipients: ${c.shared_recipients}`}
-                        >
-                          {c.city_name}: {c.shared_groups} group{c.shared_groups !== 1 ? "s" : ""} · {c.shared_recipients} recipient{c.shared_recipients !== 1 ? "s" : ""}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
@@ -1493,88 +1632,6 @@ function NewsletterDashboardQueue({
               </span>
             )}
           </div>
-        )}
-      </div>
-
-      {/* ── Recent weekly newsletter runs ─────────────────────────── */}
-      <div className={styles.tableContainer} style={{ marginBottom: 8 }}>
-        <div
-          className={styles.tableHeader}
-          style={{ cursor: "pointer", userSelect: "none" }}
-          onClick={() => setJobsOpen((o) => !o)}
-        >
-          <span className={styles.tableTitle}>
-            {jobsOpen ? "▼" : "▶"} Recent runs
-          </span>
-          <span className={styles.tableCount} style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>
-            ({recentJobs.length})
-          </span>
-        </div>
-        {jobsOpen && (
-          recentJobs.length === 0 ? (
-            <div style={{ padding: "10px 16px", fontSize: 13, color: "var(--text-secondary)" }}>
-              No weekly newsletter jobs found.
-            </div>
-          ) : (
-            <div className={styles.tableWrapper}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th className={styles.th}>Completed</th>
-                    <th className={styles.th}>Status</th>
-                    <th className={styles.th}>Recipients</th>
-                    <th className={styles.th}>Queued</th>
-                    <th className={styles.th}>Sent</th>
-                    <th className={styles.th} title="Shared city / district groups generated in the run">Shared groups</th>
-                    <th className={styles.th} title="Personalized Seymour calls run in the job">Personalized</th>
-                    <th className={styles.th} title="Total Seymour calls run in the job">LLM calls</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentJobs.map((job) => {
-                    const r = (job.result as Record<string, any>) || {};
-                    const sharedGroups = r.shared_city_district_groups ?? "—";
-                    const personalizedCount = r.personalized_llm_calls ?? r.personalized_count ?? "—";
-                    const llmCalls = r.total_llm_calls ?? "—";
-                    const statusColor =
-                      job.status === "completed" ? "var(--green, #16a34a)"
-                      : job.status === "failed" ? "var(--red, #dc2626)"
-                      : "var(--text-secondary)";
-                    return (
-                      <tr key={job.job_id}>
-                        <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-                          {job.completed_at ? formatDate(job.completed_at) : "—"}
-                        </td>
-                        <td className={styles.td}>
-                          <span style={{ fontSize: 12, color: statusColor, fontWeight: 500 }}>
-                            {job.status}
-                          </span>
-                        </td>
-                        <td className={styles.td} style={{ fontSize: 12 }}>
-                          {r.recipients_processed ?? "—"}
-                        </td>
-                        <td className={styles.td} style={{ fontSize: 12 }}>
-                          {r.newsletters_queued ?? "—"}
-                        </td>
-                        <td className={styles.td} style={{ fontSize: 12 }}>
-                          {r.newsletters_sent ?? "—"}
-                        </td>
-                        <td className={styles.td} style={{ fontSize: 12 }}>
-                          {sharedGroups}
-                        </td>
-                        <td className={styles.td} style={{ fontSize: 12 }}>
-                          {personalizedCount}
-                        </td>
-                        <td className={styles.td} style={{ fontSize: 12 }}>
-                          {llmCalls}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
         )}
       </div>
 

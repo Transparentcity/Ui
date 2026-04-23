@@ -705,6 +705,7 @@ export default function PublicMapPage() {
   const [mapSeoSaving, setMapSeoSaving] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const savedPlaceMarkerRef = useRef<any>(null);
   const dotsDistrictIdRef = useRef<string | null>(null);
   const multiLayerVisibilityRef = useRef<Record<number, boolean>>({});
   /** Avoid setStyle on mount — map ctor already applied this theme; redundant setStyle wipes custom layers. */
@@ -2600,6 +2601,52 @@ export default function PublicMapPage() {
         });
       }
       
+      // Saved-place overlay: boundary circle + center pin with label
+      const savedPlaceOverlay = map.map_config?.saved_place_overlay as Record<string, any> | undefined;
+      if (savedPlaceOverlay?.kind === "saved_place_circle" && savedPlaceOverlay.circles_geojson) {
+        try {
+          if (mapInstance.getLayer("saved-place-fill")) mapInstance.removeLayer("saved-place-fill");
+          if (mapInstance.getLayer("saved-place-outline")) mapInstance.removeLayer("saved-place-outline");
+          if (mapInstance.getSource("saved-place-area")) mapInstance.removeSource("saved-place-area");
+
+          mapInstance.addSource("saved-place-area", {
+            type: "geojson",
+            data: savedPlaceOverlay.circles_geojson,
+          });
+          mapInstance.addLayer({
+            id: "saved-place-fill",
+            type: "fill",
+            source: "saved-place-area",
+            paint: { "fill-color": "#ad35fa", "fill-opacity": 0.08 },
+          });
+          mapInstance.addLayer({
+            id: "saved-place-outline",
+            type: "line",
+            source: "saved-place-area",
+            paint: { "line-color": "#ad35fa", "line-width": 2, "line-dasharray": [3, 2] },
+          });
+        } catch (err) {
+          console.error("[PublicMapPage] Error adding saved place boundary:", err);
+        }
+
+        // Center pin + label
+        try {
+          if (savedPlaceMarkerRef.current) {
+            savedPlaceMarkerRef.current.remove();
+            savedPlaceMarkerRef.current = null;
+          }
+          const label = String(savedPlaceOverlay.label || "My place");
+          const el = document.createElement("div");
+          el.className = "saved-place-marker";
+          el.innerHTML = `<div class="saved-place-marker__pin"></div><div class="saved-place-marker__label">${label}</div>`;
+          savedPlaceMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+            .setLngLat([savedPlaceOverlay.center_lon, savedPlaceOverlay.center_lat])
+            .addTo(mapInstance);
+        } catch (err) {
+          console.error("[PublicMapPage] Error adding saved place marker:", err);
+        }
+      }
+
       // Fit bounds if available
       if (map.bounds) {
         mapInstance.fitBounds(map.bounds, {
@@ -2613,6 +2660,10 @@ export default function PublicMapPage() {
     return () => {
       cancelled = true;
       lastAppliedBasemapThemeRef.current = null;
+      if (savedPlaceMarkerRef.current) {
+        try { savedPlaceMarkerRef.current.remove(); } catch { /* ignore */ }
+        savedPlaceMarkerRef.current = null;
+      }
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();
@@ -2935,6 +2986,47 @@ export default function PublicMapPage() {
   if (!map) {
     if (isThumbnail) return <div className="public-map-page embedded thumbnail" />;
     return <div className={`public-map-page ${isEmbedded ? "embedded" : ""}`}>Map not found</div>;
+  }
+
+  // Detect maps that were saved as "point" type but only contain district-level
+  // aggregated data (no lat/lon coordinates) with no shape layers — these cannot
+  // be rendered either as dots or as a choropleth.
+  const _locationData = map.location_data ?? [];
+  const _hasValidCoords = _locationData.some(
+    (pt: any) =>
+      pt.lat != null &&
+      pt.lon != null &&
+      isFinite(Number(pt.lat)) &&
+      isFinite(Number(pt.lon))
+  );
+  const _hasShapeLayers = (map.map_config?.available_shape_layers?.length ?? 0) > 0;
+  const _isDistrictMap = map.map_type === "choropleth" || map.map_type === "delta";
+  const _isUnusableMap =
+    !_isDistrictMap &&
+    !_hasValidCoords &&
+    !_hasShapeLayers &&
+    _locationData.length > 0;
+
+  if (_isUnusableMap) {
+    if (isThumbnail) return <div className="public-map-page embedded thumbnail" />;
+    return (
+      <div className={`public-map-page ${isEmbedded ? "embedded" : ""}`}>
+        <div className="error-container">
+          <h1>{map.title || "Map"}</h1>
+          <p>
+            This map contains aggregated data but no geographic coordinates to
+            display. The data could not be plotted as individual points or as a
+            district choropleth.
+          </p>
+          {!isEmbedded && (
+            <p>
+              If you are an admin, regenerate this map to produce a corrected
+              version.
+            </p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   /** Compact bottom strip for district choropleths (count ramp or delta); avoids large top-left panel. */

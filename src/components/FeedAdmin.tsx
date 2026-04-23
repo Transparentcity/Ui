@@ -101,6 +101,9 @@ export default function FeedAdmin() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Story preview popover
+  const [previewStory, setPreviewStory] = useState<FeedStory | null>(null);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -277,11 +280,8 @@ export default function FeedAdmin() {
     setShowExport(false);
   }, [stories, exportCityId, exportTimeRange, cities]);
 
-  // Open the canonical public story page (same slug as /s/[hash] redirect), not detail_url.
   const handleStoryClick = useCallback((story: FeedStory) => {
-    const path = publicStoryPath(story);
-    const url = path.startsWith("http") ? path : `${window.location.origin}${path}`;
-    window.open(url, "_blank");
+    setPreviewStory(story);
   }, []);
 
   if (loading) {
@@ -550,6 +550,130 @@ export default function FeedAdmin() {
           </div>
         )}
       </div>
+
+      {/* Story Preview Popover */}
+      {previewStory && (
+        <div className={styles.previewOverlay} onClick={() => setPreviewStory(null)}>
+          <div className={styles.previewPanel} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={styles.previewHeader}>
+              <div className={styles.previewMeta}>
+                <span className={styles.badge}>{previewStory.story_type}</span>
+                <span className={styles.muted}>{formatDate(previewStory.story_date)}</span>
+                {previewStory.city_emoji && <span>{previewStory.city_emoji}</span>}
+                <span className={styles.muted}>{previewStory.city_name}</span>
+              </div>
+              <button
+                className={styles.previewClose}
+                onClick={() => setPreviewStory(null)}
+                aria-label="Close preview"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <h2 className={styles.previewHeadline}>{previewStory.headline}</h2>
+
+            {/* Personalization info — shown when the story is saved-place scoped */}
+            {(previewStory.user_place_id != null || previewStory.metadata?.category === "personal_newsletter") && (
+              <div className={styles.previewPersonalization}>
+                <div className={styles.previewPersonalizationTitle}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  Personalized story
+                </div>
+                <div className={styles.previewPersonalizationGrid}>
+                  {previewStory.user_place_id != null && (
+                    <div className={styles.previewInfoRow}>
+                      <span className={styles.previewInfoLabel}>Saved place ID</span>
+                      <span className={styles.previewInfoValue}>{previewStory.user_place_id}</span>
+                    </div>
+                  )}
+                  {previewStory.metadata?.category && (
+                    <div className={styles.previewInfoRow}>
+                      <span className={styles.previewInfoLabel}>Category</span>
+                      <span className={styles.previewInfoValue}>{previewStory.metadata.category}</span>
+                    </div>
+                  )}
+                  {previewStory.metadata?.user_place_ids && Array.isArray(previewStory.metadata.user_place_ids) && previewStory.metadata.user_place_ids.length > 0 && (
+                    <div className={styles.previewInfoRow}>
+                      <span className={styles.previewInfoLabel}>Place IDs</span>
+                      <span className={styles.previewInfoValue}>{(previewStory.metadata.user_place_ids as number[]).join(", ")}</span>
+                    </div>
+                  )}
+                  {previewStory.metadata?.user_id && (
+                    <div className={styles.previewInfoRow}>
+                      <span className={styles.previewInfoLabel}>User ID</span>
+                      <span className={styles.previewInfoValue}>{String(previewStory.metadata.user_id)}</span>
+                    </div>
+                  )}
+                  {previewStory.metadata?.user_email && (
+                    <div className={styles.previewInfoRow}>
+                      <span className={styles.previewInfoLabel}>User email</span>
+                      <span className={styles.previewInfoValue}>{String(previewStory.metadata.user_email)}</span>
+                    </div>
+                  )}
+                  <div className={styles.previewInfoRow}>
+                    <span className={styles.previewInfoLabel}>Privacy</span>
+                    <span className={styles.previewInfoValue}>
+                      <span className={styles.previewPrivacyBadge}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        Private (saved place)
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Article content */}
+            <div className={styles.previewBody}>
+              {previewStory.article_html ? (
+                <div
+                  className={styles.previewArticle}
+                  dangerouslySetInnerHTML={{ __html: previewStory.article_html }}
+                />
+              ) : (
+                <p className={styles.previewFallback}>
+                  {previewStory.summary || previewStory.description || "No content available."}
+                </p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className={styles.previewFooter}>
+              <button className={styles.secondaryBtn} onClick={() => setPreviewStory(null)}>
+                Close
+              </button>
+              <a
+                className={styles.primaryBtn}
+                href={(() => {
+                  const path = publicStoryPath(previewStory);
+                  return path.startsWith("http") ? path : `${typeof window !== "undefined" ? window.location.origin : ""}${path}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                Visit story
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Export Modal */}
       {showExport && (

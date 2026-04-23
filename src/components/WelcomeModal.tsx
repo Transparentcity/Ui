@@ -110,6 +110,7 @@ export default function WelcomeModal({
   const [step, setStep] = useState<Step>("welcome");
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<WelcomeLoadingAction>(null);
+  const [leadersLoading, setLeadersLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState("");
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
@@ -162,6 +163,7 @@ export default function WelcomeModal({
       setPlaceLabel(ONBOARDING_PLACE_LABEL_DEFAULT);
       setMayorFollowed(true);
       setRepFollowed(true);
+      setLeadersLoading(false);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
       // Reset preferences
@@ -426,8 +428,6 @@ export default function WelcomeModal({
       return;
     }
     
-    // District lookup: street-level (GPS, address, POI), or ZIP centroid when allowed.
-    // Broad city/region picks must not infer district.
     const token = await getAccessTokenSilently();
 
     let finalDistrict = district;
@@ -436,16 +436,91 @@ export default function WelcomeModal({
       coordinates &&
       matchedCity &&
       (finalDistrict === null || finalDistrict === undefined);
+
+    const cityDetailPromise = getCity(matchedCity.id, token)
+      .catch((err) => { console.error("Error fetching city details:", err); return null; });
+
+    // Fast-path for precise locations (address/GPS): confirm city is active, then
+    // transition to step 2 immediately while leaders + district load in the background.
+    if (isPrecise && coordinates) {
+      const cityDetail = await cityDetailPromise;
+
+      if (!cityDetail) {
+        setError("Something went wrong loading city data. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      const isActive = cityDetail.is_active ?? false;
+      if (!isActive) {
+        if (onCityNotFound) {
+          onCityNotFound(
+            matchedCity.name,
+            matchedCity.state || null,
+            matchedCity.country || null
+          );
+          onClose();
+        }
+        return;
+      }
+
+      // Advance to step 2 immediately with partial data; leaders fill in shortly after.
+      const partialResult: LocationResult = {
+        cityName: matchedCity.name,
+        state: matchedCity.state || null,
+        country: matchedCity.country || null,
+        matchedCity,
+        cityDetail,
+        leaders: [],
+        mayor: null,
+        councilMember: null,
+        district: null,
+        isActive: true,
+      };
+      setLocationResult(partialResult);
+      setStep("preferences");
+      setLeadersLoading(true);
+
+      // Load leaders + district in the background (don't block the caller's finally block).
+      void (async () => {
+        try {
+          const districtPromise = shouldInferDistrict
+            ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
+                .catch((err) => { console.error("District lookup error:", err); return null; })
+            : Promise.resolve(null);
+          const leadersPromise = getCityLeaders(matchedCity.id, token);
+
+          const [districtResult, leaders] = await Promise.all([districtPromise, leadersPromise]);
+
+          if (districtResult != null) finalDistrict = districtResult;
+          const mayor = pickMayorFromLeaders(leaders);
+          const councilMember = pickRepFromLeaders(leaders, finalDistrict);
+
+          setLocationResult({
+            ...partialResult,
+            leaders,
+            mayor,
+            councilMember,
+            district: finalDistrict,
+          });
+        } catch (err) {
+          console.error("Background leader/district load error:", err);
+        } finally {
+          setLeadersLoading(false);
+        }
+      })();
+
+      return;
+    }
+
+    // Standard path (city-level / postcode): wait for all data before advancing.
     const districtPromise = shouldInferDistrict
-      ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
+      ? findDistrictFromCoordinates(coordinates!.lat, coordinates!.lng, matchedCity.id, token)
           .catch((error) => {
             console.error("Error determining district from coordinates:", error);
             return null;
           })
       : Promise.resolve(null);
-
-    const cityDetailPromise = getCity(matchedCity.id, token)
-      .catch((err) => { console.error("Error fetching city details:", err); return null; });
 
     const leadersPromise = getCityLeaders(matchedCity.id, token);
 
@@ -457,8 +532,6 @@ export default function WelcomeModal({
 
     if (districtResult != null) finalDistrict = districtResult;
 
-    // If the city detail fetch failed entirely, show a retry error
-    // instead of incorrectly telling the user we don't have their city
     if (!cityDetail) {
       setError("Something went wrong loading city data. Please try again.");
       setLoading(false);
@@ -482,7 +555,7 @@ export default function WelcomeModal({
       isActive,
     };
     setLocationResult(result);
-    
+
     if (result.isActive) {
       setStep("preferences");
     } else if (onCityNotFound) {
@@ -814,15 +887,76 @@ export default function WelcomeModal({
       </svg>
     );
 
+    // What the user searched — used in the good-news banner
+    const searchedLabel = locationInput.trim() || (hasPreciseLocation ? "your location" : cityDisplayName);
+
+    // Mapbox static map URL for pin preview (only shown when we have precise coordinates)
+    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    const mapPreviewUrl =
+      hasPreciseLocation && homeCoordinates && mapboxToken
+        ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+ad35fa(${homeCoordinates.lng},${homeCoordinates.lat})/${homeCoordinates.lng},${homeCoordinates.lat},15/380x168@2x?access_token=${mapboxToken}`
+        : null;
+
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
         <h2 className={styles.stepTitle}>Welcome to Transparent.city</h2>
-        <p className={styles.stepWelcomeSubtitle}>
-          You&apos;re now connected to {cityDisplayName}. Here&apos;s who represents you.
+
+        {/* Good news banner — always shown when city is supported */}
+        <div className={styles.goodNewsBanner}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15" />
+            <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Good news — transparent.city covers {searchedLabel}!
+        </div>
+
+        {/* Value prop */}
+        <p className={styles.locationValueProp}>
+          Know your city like an insider. Each week, we turn {locationResult.cityName}&apos;s public data into a personalized briefing for your location — what&apos;s happening citywide, what your officials are working on, and what&apos;s changing on your block.
         </p>
 
-        {/* Leader follow cards */}
-        {(mayor || rep) && (
+        {/* Place name field */}
+        {hasPreciseLocation && homeCoordinates && matched ? (
+          <div className={styles.placeNameField}>
+            <label className={styles.placeNameLabel} htmlFor="welcome-onboarding-place-name">
+              Name your place
+            </label>
+            <input
+              id="welcome-onboarding-place-name"
+              type="text"
+              className={styles.placeNameInput}
+              value={placeLabel}
+              onChange={(e) => setPlaceLabel(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        ) : null}
+
+        {/* Static map pin preview for precise locations */}
+        {mapPreviewUrl && (
+          <div className={styles.locationMapPreview}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mapPreviewUrl}
+              alt={`Map showing your location in ${locationResult.cityName}`}
+              width={380}
+              height={168}
+            />
+          </div>
+        )}
+
+        {/* Leader follow cards — or loading indicator while they're being fetched */}
+        {(leadersLoading || mayor || rep) && (
+          <p className={styles.leaderSectionLabel}>
+            Your briefing will include updates about:
+          </p>
+        )}
+        {leadersLoading ? (
+          <div className={styles.leadersLoadingState}>
+            <Loader size="sm" color="purple" />
+            <span>Finding your mayor and representative&hellip;</span>
+          </div>
+        ) : (mayor || rep) ? (
           <div className={styles.leaderSection}>
             {mayor && (
               <div className={styles.leaderCard}>
@@ -832,6 +966,7 @@ export default function WelcomeModal({
                 <div className={styles.leaderInfo}>
                   <span className={styles.leaderName}>{mayor.name}</span>
                   <span className={styles.leaderTitle}>{mayor.title}</span>
+                  <span className={styles.leaderFollowReason}>Citywide updates</span>
                 </div>
                 <button
                   type="button"
@@ -853,6 +988,9 @@ export default function WelcomeModal({
                 <div className={styles.leaderInfo}>
                   <span className={styles.leaderName}>{rep.name}</span>
                   <span className={styles.leaderTitle}>{rep.title}</span>
+                  <span className={styles.leaderFollowReason}>
+                    {rep.district ? `Updates about District ${rep.district}` : "District updates"}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -867,7 +1005,7 @@ export default function WelcomeModal({
               </div>
             )}
           </div>
-        )}
+        ) : null}
 
         {requestedUnsupportedHome && matched && priorUnsupportedLabel && (
           <div className={styles.unsupportedHomeNotice}>
@@ -912,23 +1050,6 @@ export default function WelcomeModal({
             ) : null}
           </div>
         )}
-
-        {/* Place name */}
-        {hasPreciseLocation && homeCoordinates && matched ? (
-          <div className={styles.placeNameField}>
-            <label className={styles.placeNameLabel} htmlFor="welcome-onboarding-place-name">
-              Name your place
-            </label>
-            <input
-              id="welcome-onboarding-place-name"
-              type="text"
-              className={styles.placeNameInput}
-              value={placeLabel}
-              onChange={(e) => setPlaceLabel(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-        ) : null}
 
         {/* Newsletter opt-in */}
         <div className={styles.emailOptIns}>
