@@ -327,35 +327,14 @@
   transition: background 0.1s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
 }
 
 .cityItem:hover {
   background: var(--bg-secondary);
-}
-
-.cityCheckbox {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  border: 2px solid var(--border-secondary, #ccc);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
-  background: var(--bg-primary);
-}
-
-.cityCheckboxChecked {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
-}
-
-.cityCheckmark {
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .cityName {

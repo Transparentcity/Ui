@@ -908,10 +908,24 @@ export default function FeedContainer({
   }, [atEnd, isLoading, isFetching]);
 
   // ── Toggle follow from filter panel ──
+  // Follow state IS feed selection: updates savedCityIds (authenticated) and always keeps
+  // selectedCityIds in sync so the feed reflects the change immediately.
   const handleToggleFollow = useCallback(
     (cid: number, cityName?: string) => {
+      const wasFollowed = savedCityIds.has(cid) || optimisticFollowedIds.has(cid);
+
+      // Always sync selectedCityIds so anonymous users can filter, and the feed chips stay accurate.
+      setSelectedCityIds((prev) => {
+        const inFeed = wasFollowed || prev.has(cid);
+        const next = new Set(prev);
+        if (inFeed) next.delete(cid);
+        else next.add(cid);
+        return next;
+      });
+
       if (!isAuthenticated) return;
-      if (savedCityIds.has(cid) || optimisticFollowedIds.has(cid)) {
+
+      if (wasFollowed) {
         unsaveCityMutation.mutate(cid);
         setOptimisticFollowedIds((prev) => {
           if (!prev.has(cid)) return prev;
@@ -919,7 +933,6 @@ export default function FeedContainer({
           next.delete(cid);
           return next;
         });
-        // Clear any district selection for the unfollowed city
         setSelectedDistricts((prev) => {
           if (!prev.has(cid)) return prev;
           const next = new Map(prev);
@@ -1039,7 +1052,7 @@ export default function FeedContainer({
     selectedDistricts.size > 0 ||
     selectedPlaceId != null ||
     selectedCityIds.size > 0 ||
-    feedOrder !== "for_you";
+    feedOrder !== "published_at";
 
   // Count active filters for badge
   const activeFilterCount = useMemo(() => {
@@ -1050,7 +1063,7 @@ export default function FeedContainer({
       for (const v of selectedDistricts.values()) count += v.size;
     }
     if (selectedPlaceId !== null) count += 1;
-    if (feedOrder !== "for_you") count += 1;
+    if (feedOrder !== "published_at") count += 1;
     return count;
   }, [selectedCityIds, selectedTopics, selectedDistricts, selectedPlaceId, feedOrder]);
 
@@ -1215,11 +1228,7 @@ export default function FeedContainer({
                   key={`city-${cid}`}
                   type="button"
                   className={styles.activePill}
-                  onClick={() => {
-                    const next = new Set(selectedCityIds);
-                    next.delete(cid);
-                    setSelectedCityIds(next);
-                  }}
+                  onClick={() => handleToggleFollow(cid, c.city_name)}
                 >
                   <span className={styles.activePillLabel}>
                     {c.city_emoji ? `${c.city_emoji} ` : ""}{c.city_name}
@@ -1292,13 +1301,13 @@ export default function FeedContainer({
             )}
 
             {/* Sort pill (only if non-default) */}
-            {feedOrder !== "for_you" && (
+            {feedOrder !== "published_at" && (
               <button
                 type="button"
                 className={styles.activePill}
-                onClick={() => setFeedOrder("for_you")}
+                onClick={() => setFeedOrder("published_at")}
               >
-                <span className={styles.activePillLabel}>Newest first</span>
+                <span className={styles.activePillLabel}>Recommended</span>
                 <span className={styles.activePillX} aria-hidden="true">&times;</span>
               </button>
             )}
@@ -1313,8 +1322,8 @@ export default function FeedContainer({
                 setSelectedTopics(new Set());
                 setSelectedDistricts(new Map());
                 setSelectedPlaceId(null);
-                setOnlyMySavedPlacesFeed(userPlaces.length > 0);
-                setFeedOrder("for_you");
+                setOnlyMySavedPlacesFeed(false);
+                setFeedOrder("published_at");
               }}
             >
               Clear all
@@ -1472,8 +1481,8 @@ export default function FeedContainer({
                   setSelectedTopics(new Set());
                   setSelectedDistricts(new Map());
                   setSelectedPlaceId(null);
-                  setOnlyMySavedPlacesFeed(userPlaces.length > 0);
-                  setFeedOrder("for_you");
+                  setOnlyMySavedPlacesFeed(false);
+                  setFeedOrder("published_at");
                 }}
               >
                 Clear all filters

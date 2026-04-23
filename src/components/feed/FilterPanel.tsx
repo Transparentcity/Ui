@@ -68,10 +68,6 @@ const ALL_TOPICS = [
   { value: "trend", label: "Trends" },
   { value: "justice", label: "Justice" },
   { value: "context", label: "Context" },
-  { value: "off_the_charts", label: "Off the Charts" },
-  { value: "comparison", label: "Your District" },
-  { value: "milestone", label: "Milestones" },
-  { value: "311_images", label: "311 Photos" },
 ] as const;
 
 /* ── Component ────────────────────────────────────────────────────────────── */
@@ -184,7 +180,7 @@ export default function FilterPanel({
                   selectedTopics: new Set(),
                   selectedDistricts: new Map(),
                   selectedPlaceId: null,
-                  onlyMySavedPlaces: userPlaces.length > 0,
+                  onlyMySavedPlaces: false,
                   feedOrder: "published_at",
                 };
                 applyIfDesktop(cleared);
@@ -209,7 +205,15 @@ export default function FilterPanel({
             allCities={allCities}
             savedCityIds={savedCityIds}
             selected={draft.selectedCityIds}
-            onChange={(ids) => applyIfDesktop({ ...draft, selectedCityIds: ids })}
+            onChange={(ids) =>
+              applyIfDesktop({
+                ...draft,
+                selectedCityIds: ids,
+                // Selecting a city overrides "My Places" — keep UI and effective state aligned.
+                onlyMySavedPlaces: ids.size > 0 ? false : draft.onlyMySavedPlaces,
+                selectedPlaceId: ids.size > 0 ? null : draft.selectedPlaceId,
+              })
+            }
             onToggleFollow={onToggleFollow}
           />
 
@@ -229,10 +233,17 @@ export default function FilterPanel({
                 ...draft,
                 onlyMySavedPlaces: active,
                 selectedPlaceId: active ? draft.selectedPlaceId : null,
+                // Enabling "My Places" clears city checkboxes so the UI reflects what the feed actually shows.
+                selectedCityIds: active ? new Set() : draft.selectedCityIds,
               })
             }
             onSelectPlace={(placeId) =>
-              applyIfDesktop({ ...draft, selectedPlaceId: placeId, onlyMySavedPlaces: true })
+              applyIfDesktop({
+                ...draft,
+                selectedPlaceId: placeId,
+                onlyMySavedPlaces: true,
+                selectedCityIds: new Set(),
+              })
             }
             onAddAddress={() => {
               onClose();
@@ -338,6 +349,10 @@ function CitiesSection({
   const handleFollowFromTypeahead = (city: PublicCitySearchResult) => {
     if (savedCityIds.has(city.id)) return;
     onToggleFollow(city.id, city.display_name);
+    // Keep the filter draft in sync so the follow shows up in the feed on mobile Apply too.
+    const next = new Set(selected);
+    next.add(city.id);
+    onChange(next);
     setTypeahead("");
     setSuggestions([]);
     setShowSuggestions(false);
@@ -346,13 +361,13 @@ function CitiesSection({
     confirmTimeoutRef.current = setTimeout(() => setJustFollowedName(null), 3500);
   };
 
-  const toggle = (cityId: number) => {
+  // Single control: clicking a city row toggles both follow state and the filter draft.
+  const toggleCity = (cityId: number, cityName?: string) => {
+    const wasInFeed = savedCityIds.has(cityId) || selected.has(cityId);
+    onToggleFollow(cityId, cityName);
     const next = new Set(selected);
-    if (next.has(cityId)) {
-      next.delete(cityId);
-    } else {
-      next.add(cityId);
-    }
+    if (wasInFeed) next.delete(cityId);
+    else next.add(cityId);
     onChange(next);
   };
 
@@ -384,10 +399,8 @@ function CitiesSection({
             <CityRow
               key={c.city_id}
               city={c}
-              checked={selected.has(c.city_id)}
-              onToggle={() => toggle(c.city_id)}
-              isFollowed
-              onToggleFollow={() => onToggleFollow(c.city_id, c.city_name)}
+              inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
+              onToggle={() => toggleCity(c.city_id, c.city_name)}
             />
           ))}
         </div>
@@ -400,10 +413,8 @@ function CitiesSection({
             <CityRow
               key={c.city_id}
               city={c}
-              checked={selected.has(c.city_id)}
-              onToggle={() => toggle(c.city_id)}
-              isFollowed={false}
-              onToggleFollow={() => onToggleFollow(c.city_id, c.city_name)}
+              inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
+              onToggle={() => toggleCity(c.city_id, c.city_name)}
             />
           ))}
         </div>
@@ -471,47 +482,29 @@ function CitiesSection({
 
 function CityRow({
   city,
-  checked,
+  inFeed,
   onToggle,
-  isFollowed,
-  onToggleFollow,
 }: {
   city: CityInfo;
-  checked: boolean;
+  inFeed: boolean;
   onToggle: () => void;
-  isFollowed: boolean;
-  onToggleFollow: () => void;
 }) {
   return (
-    <label className={styles.cityItem}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onToggle}
-        className={styles.srOnly}
-      />
-      <div
-        className={`${styles.cityCheckbox} ${checked ? styles.cityCheckboxChecked : ""}`}
-        aria-hidden="true"
-      >
-        {checked && <span className={styles.cityCheckmark}>&#10003;</span>}
-      </div>
+    <button
+      type="button"
+      className={styles.cityItem}
+      onClick={onToggle}
+    >
       <span className={styles.cityName}>
         {city.city_emoji ? `${city.city_emoji} ` : ""}
         {city.city_name}
       </span>
-      <button
-        type="button"
-        className={`${styles.cityFollowBtn} ${isFollowed ? styles.cityFollowBtnFollowed : ""}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          onToggleFollow();
-        }}
+      <span
+        className={`${styles.cityFollowBtn} ${inFeed ? styles.cityFollowBtnFollowed : ""}`}
       >
-        {isFollowed ? "Following" : "Follow"}
-      </button>
-    </label>
+        {inFeed ? "In feed" : "Add"}
+      </span>
+    </button>
   );
 }
 
