@@ -5,10 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ComposePageContent } from "@/components/compose-page-content"
 import { CampaignsManager } from "@/components/campaigns-manager"
 import { CampaignDialog } from "@/components/campaign-dialog"
+import { ManualComposeContent } from "@/components/manual-compose-content"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Plus, Sparkles, Megaphone, Copy, Check, Loader2, Mail, X } from "lucide-react"
+import { Plus, Sparkles, Megaphone, PenLine, Copy, Check, Loader2, Mail, X } from "lucide-react"
 import { getPublicFeedStory, type FeedStory } from "@/lib/api/feed"
 import { toast } from "sonner"
 import type { ContactWithKeywords, Keyword, Campaign, Template } from "@/lib/types"
@@ -21,8 +22,10 @@ interface CampaignContact {
   status: string
 }
 
+type Tab = "compose" | "manual" | "campaigns"
+
 interface CreateEmailsTabsProps {
-  initialTab: "compose" | "campaigns"
+  initialTab: Tab
   initialContactId: string | null
   initialStoryIds: number[]
   contacts: ContactWithKeywords[]
@@ -33,7 +36,7 @@ interface CreateEmailsTabsProps {
     prospect_ids?: string[]
     queueStats?: { pending_review: number; queued: number; sent: number; failed: number }
   })[]
-  templates: Pick<Template, "id" | "name" | "channel">[]
+  templates: Template[]
   campaignContacts: CampaignContact[]
 }
 
@@ -47,16 +50,20 @@ export function CreateEmailsTabs({
   templates,
   campaignContacts,
 }: CreateEmailsTabsProps) {
-  const [tab, setTab] = useState<"compose" | "campaigns">(initialTab)
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [storyIds, setStoryIds] = useState<number[]>(initialStoryIds)
 
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(v as "compose" | "campaigns")}>
+    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <TabsList>
           <TabsTrigger value="compose" className="gap-2">
             <Sparkles className="w-3.5 h-3.5" />
             AI Compose
+          </TabsTrigger>
+          <TabsTrigger value="manual" className="gap-2">
+            <PenLine className="w-3.5 h-3.5" />
+            Manual
           </TabsTrigger>
           <TabsTrigger value="campaigns" className="gap-2">
             <Megaphone className="w-3.5 h-3.5" />
@@ -85,6 +92,14 @@ export function CreateEmailsTabs({
           contacts={contacts}
           keywords={keywords}
           initialContactId={initialContactId}
+        />
+      </TabsContent>
+
+      <TabsContent value="manual">
+        <ManualComposeContent
+          contacts={contacts}
+          keywords={keywords}
+          templates={templates}
         />
       </TabsContent>
 

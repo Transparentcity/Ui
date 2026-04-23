@@ -85,13 +85,6 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
   }, [getAccessTokenSilently])
 
   const crmCityCtx = useCrmCitySafe()
-  const activeCityId = crmCityCtx?.selectedCity?.id ?? CRM_DEFAULT_CITY_ID
-
-  const { data, isLoading } = useAnomalies({
-    is_anomaly: true,
-    limit: 500,
-    city_id: activeCityId,
-  })
 
   // Contact search/selection
   const [contactSearch, setContactSearch] = useState("")
@@ -230,7 +223,22 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
           save_to_queue: true,
         }),
       })
-      if (!resp.ok) throw new Error("Failed to compose draft")
+      if (!resp.ok) {
+        // Surface the backend error so the user can see what went wrong.
+        let detail = ""
+        try {
+          const body = await resp.json()
+          detail = body?.detail || body?.error || body?.message || ""
+        } catch {
+          try {
+            detail = await resp.text()
+          } catch {
+            // ignore
+          }
+        }
+        const prefix = `Failed to compose draft (${resp.status})`
+        throw new Error(detail ? `${prefix}: ${detail}` : prefix)
+      }
       const data: ComposeResult = await resp.json()
       setDraftSubject(data.subject)
       setDraftBody(data.body)
@@ -240,8 +248,9 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       toast.success("Draft generated")
     } catch (err) {
       console.error("Compose error:", err)
-      toast.error("Failed to generate draft")
-      setGenerationError("Failed to generate draft. Please try again.")
+      const message = err instanceof Error ? err.message : "Failed to generate draft"
+      toast.error(message)
+      setGenerationError(message)
     } finally {
       setIsGenerating(false)
     }

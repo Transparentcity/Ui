@@ -14,7 +14,12 @@ interface CreateEmailsPageProps {
 
 export default async function CreateEmailsPage({ searchParams }: CreateEmailsPageProps) {
   const params = searchParams ? await searchParams : {}
-  const initialTab = params?.tab === "campaigns" ? "campaigns" : "compose"
+  const initialTab =
+    params?.tab === "campaigns"
+      ? "campaigns"
+      : params?.tab === "manual"
+        ? "manual"
+        : "compose"
   const initialContactId = params?.contactId ?? null
   const initialStoryIds = params?.storyIds
     ? params.storyIds
@@ -51,7 +56,10 @@ export default async function CreateEmailsPage({ searchParams }: CreateEmailsPag
         `
         )
         .order("created_at", { ascending: false }),
-      db.from("templates").select("id, name, channel").order("name"),
+      db
+        .from("templates")
+        .select("id, name, channel, subject, body, category")
+        .order("name"),
       db.from("prospects").select("id, name, email, phone, status").eq("status", "active").order("name"),
     ])
 

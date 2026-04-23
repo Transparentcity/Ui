@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -101,6 +101,18 @@ export function MessageReview({ items: allItems, onUpdate }: MessageReviewProps)
   }, [allItems, selectedCity])
 
   const hiddenByCityFilter = allItems.length - items.length
+
+  // When the city filter shrinks the list past currentIndex, snap back to the
+  // last valid item so single-view navigation labels stay honest.
+  useEffect(() => {
+    if (items.length === 0) {
+      if (currentIndex !== 0) setCurrentIndex(0)
+      return
+    }
+    if (currentIndex > items.length - 1) {
+      setCurrentIndex(items.length - 1)
+    }
+  }, [items.length, currentIndex])
 
   const { data: anomalyData, isLoading: anomaliesLoading } = useAnomalies({
     is_anomaly: true,

@@ -983,8 +983,10 @@ describe("ComposePageContent", () => {
     await user.click(screen.getByPlaceholderText(/search contacts/i))
     await user.click(screen.getByText("Jane Smith"))
 
+    // Error message is now surfaced from the thrown error so the user can see
+    // what actually went wrong, rather than a generic fallback.
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith("Failed to generate draft")
+      expect(mockToastError).toHaveBeenCalledWith("LLM timeout")
     })
     vi.restoreAllMocks()
   })
@@ -1049,7 +1051,7 @@ describe("ComposePageContent", () => {
     await user.click(screen.getByText("Jane Smith"))
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to generate draft/)).toBeInTheDocument()
+      expect(screen.getByText(/LLM timeout/)).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument()
     })
     vi.restoreAllMocks()
