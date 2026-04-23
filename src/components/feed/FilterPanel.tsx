@@ -389,7 +389,6 @@ function CitiesSection({
 
   return (
     <div className={styles.section}>
-      <h3 className={styles.sectionTitle}>Cities</h3>
       {followed.length > 0 && (
         <div className={styles.cityGroup}>
           <p className={styles.cityGroupLabel}>Your cities</p>
@@ -398,7 +397,7 @@ function CitiesSection({
               key={c.city_id}
               city={c}
               followed
-              inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
+              inFeed={selected.size === 0 || selected.has(c.city_id)}
               onToggleFollow={() => onToggleFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
@@ -414,7 +413,7 @@ function CitiesSection({
               key={c.city_id}
               city={c}
               followed={false}
-              inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
+              inFeed={selected.size === 0 || selected.has(c.city_id)}
               onToggleFollow={() => onToggleFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />

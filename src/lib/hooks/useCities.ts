@@ -458,18 +458,15 @@ export function useSaveCity() {
       return saveCity(cityId, token);
     },
     onSuccess: async (data, cityId) => {
-      // Invalidate saved cities cache so it refetches
       queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
-      
-      // Track city saved event
+      emitSavedCitiesChanged();
+
       try {
         const { trackCitySaved } = await import("@/lib/analytics");
-        // Get city name from cache if available
         const savedCities = queryClient.getQueryData<SavedCity[]>(cityKeys.saved());
         const city = savedCities?.find((c) => c.id === cityId);
         trackCitySaved(cityId, city?.display_name || city?.city_name || "Unknown");
       } catch (e) {
-        // Analytics tracking failure shouldn't break the app
         console.error("Failed to track city saved event:", e);
       }
     },
@@ -490,8 +487,8 @@ export function useUnsaveCity() {
       return unsaveCity(cityId, token);
     },
     onSuccess: () => {
-      // Invalidate saved cities cache so it refetches
       queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      emitSavedCitiesChanged();
     },
   });
 }
