@@ -132,6 +132,18 @@ export default function FilterPanel({
     }
   }, [open, isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close on Escape (aria-modal dialog should be escapable)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (!isDesktop) onApply(draft);
+      onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, isDesktop, draft, onApply, onClose]);
+
   // On desktop, auto-apply changes
   const applyIfDesktop = useCallback(
     (nextDraft: FilterState) => {
@@ -324,11 +336,6 @@ function CitiesSection({
     other: allCities.filter((c) => !savedCityIds.has(c.city_id)),
   }), [allCities, savedCityIds]);
 
-  const panelIds = useMemo(
-    () => new Set(allCities.map((c) => c.city_id)),
-    [allCities],
-  );
-
   const handleTypeaheadChange = (value: string) => {
     setTypeahead(value);
     setShowSuggestions(true);
@@ -427,7 +434,13 @@ function CitiesSection({
           placeholder="Search for more cities…"
           value={typeahead}
           onChange={(e) => handleTypeaheadChange(e.target.value)}
-          onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+          onFocus={(e) => {
+            if (suggestions.length > 0) setShowSuggestions(true);
+            // Mobile: when the keyboard opens, scroll the input into view inside
+            // the panel so suggestions aren't hidden below the keyboard fold.
+            const input = e.currentTarget;
+            requestAnimationFrame(() => input.scrollIntoView({ block: "nearest" }));
+          }}
           className={styles.citySearchInput}
           autoComplete="off"
         />
@@ -444,7 +457,7 @@ function CitiesSection({
         {showSuggestions && !searching && suggestions.length > 0 && (
           <ul className={styles.cityTypeaheadList}>
             {suggestions.map((c) => {
-              const isFollowed = savedCityIds.has(c.id) || panelIds.has(c.id);
+              const isFollowed = savedCityIds.has(c.id);
               return (
                 <li key={c.id}>
                   <button
