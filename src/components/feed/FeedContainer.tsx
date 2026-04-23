@@ -41,7 +41,6 @@ import FilterPanel, {
   type FilterState,
 } from "./FilterPanel";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
-import { toast } from "sonner";
 import styles from "./feed.module.css";
 
 /** Templates considered "visual" for the first-impression rule. */
@@ -929,25 +928,12 @@ export default function FeedContainer({
     return () => observer.disconnect();
   }, [atEnd, isLoading, isFetching]);
 
-  // ── Toggle follow from filter panel / chip X ──
-  // Feed-membership (saved OR temp-selected) is the single direction signal. Clicking removes
-  // from both when already in feed, adds to both when not.
+  // ── Toggle follow only (no feed change). Used by the filter panel's row checkbox. ──
   const handleToggleFollow = useCallback(
-    (cid: number, cityName?: string) => {
-      const wasFollowed = effectiveSavedCityIds.has(cid);
-      const wasInFeed = wasFollowed || selectedCityIds.has(cid);
-
-      setSelectedCityIds((prev) => {
-        const next = new Set(prev);
-        if (wasInFeed) next.delete(cid);
-        else next.add(cid);
-        return next;
-      });
-
+    (cid: number) => {
       if (!isAuthenticated) return;
-
-      if (wasInFeed) {
-        if (!wasFollowed) return;
+      const wasFollowed = effectiveSavedCityIds.has(cid);
+      if (wasFollowed) {
         unsaveCityMutation.mutate(cid);
         setOptimisticFollowedIds((prev) => {
           if (!prev.has(cid)) return prev;
@@ -973,7 +959,20 @@ export default function FeedContainer({
         });
       }
     },
-    [isAuthenticated, effectiveSavedCityIds, selectedCityIds, saveCityMutation, unsaveCityMutation],
+    [isAuthenticated, effectiveSavedCityIds, saveCityMutation, unsaveCityMutation],
+  );
+
+  // ── Toggle feed membership only (no follow change). Used by the "View in Feed" row button and chip X. ──
+  const handleToggleFeed = useCallback(
+    (cid: number) => {
+      setSelectedCityIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(cid)) next.delete(cid);
+        else next.add(cid);
+        return next;
+      });
+    },
+    [],
   );
 
   // ── Save a city without toggling feed membership (used by the "Browsing X — Follow X" banner). ──
@@ -1192,6 +1191,7 @@ export default function FeedContainer({
               onClose={() => setShowFilterPanel(false)}
               allCities={uniqueCities}
               savedCityIds={effectiveSavedCityIds}
+              isAuthenticated={isAuthenticated}
               filters={{
                 selectedCityIds,
                 selectedTopics,
@@ -1266,7 +1266,7 @@ export default function FeedContainer({
                   key={`city-${cid}`}
                   type="button"
                   className={styles.activePill}
-                  onClick={() => handleToggleFollow(cid, c.city_name)}
+                  onClick={() => handleToggleFeed(cid)}
                 >
                   <span className={styles.activePillLabel}>
                     {c.city_emoji ? `${c.city_emoji} ` : ""}{c.city_name}

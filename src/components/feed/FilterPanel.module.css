@@ -321,19 +321,32 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 4px;
+  padding: 6px 4px;
   border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.1s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   width: 100%;
-  background: none;
-  border: none;
-  text-align: left;
 }
 
-.cityItem:hover {
+.cityFollowCheckbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  min-height: 36px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s ease;
+}
+
+.cityFollowCheckbox:hover {
   background: var(--bg-secondary);
 }
 
@@ -368,17 +381,6 @@
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
   border-color: var(--brand-primary, #ad35fa);
   color: var(--brand-primary, #ad35fa);
-}
-
-.cityFollowedIndicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding: 6px 10px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
 }
 
 .cityCheckbox {
