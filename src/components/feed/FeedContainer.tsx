@@ -1121,6 +1121,17 @@ export default function FeedContainer({
     selectedCityIds.size > 0 ||
     feedOrder !== "published_at";
 
+  // User follows at least one city but has toggled every one off via
+  // "View in Feed". Feed is correctly empty; tell them why and offer a
+  // one-click fix instead of the generic "no stories yet" copy.
+  const feedExplicitlyEmpty =
+    savedCityIds.size > 0 &&
+    selectedCityIds.size === 0 &&
+    selectedTopics.size === 0 &&
+    selectedDistricts.size === 0 &&
+    selectedPlaceId === null &&
+    !onlyMySavedPlacesFeed;
+
   // Count active filters for badge
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -1530,6 +1541,8 @@ export default function FeedContainer({
                 ? "No newsletter stories yet. Check back soon as new data comes in."
                 : onlyMySavedPlacesFeed
                   ? "No stories yet for your saved places. New stories appear as city data updates."
+                : feedExplicitlyEmpty
+                  ? "Your feed is empty. Add a city back in to see stories."
                 : hasActiveFilters
                   ? "No stories match your current filters. Try adjusting or clearing them."
                   : isAdmin
@@ -1538,6 +1551,16 @@ export default function FeedContainer({
                       ? "No stories yet for your cities. New stories appear as city data updates. Check back soon!"
                       : "Follow a city to see stories in your feed."}
             </p>
+            {feedExplicitlyEmpty && (
+              <button
+                type="button"
+                className={styles.browseBtn}
+                style={{ marginTop: 8 }}
+                onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
+              >
+                Add my cities back
+              </button>
+            )}
             {hasActiveFilters && !personalNewsletterOnly && (
               <button
                 type="button"
