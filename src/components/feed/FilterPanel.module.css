@@ -370,6 +370,41 @@
   color: var(--brand-primary, #ad35fa);
 }
 
+.cityFollowedIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.cityCheckbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-primary);
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.cityCheckboxChecked {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.cityFollowedLabel {
+  color: var(--text-secondary);
+}
+
 /* ── Topic chip grid ─────────────────────────────────────────────────────── */
 
 .topicGrid {

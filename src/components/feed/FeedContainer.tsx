@@ -219,6 +219,8 @@ export default function FeedContainer({
   // Optimistic follow state: hides the "Follow X" prompt immediately on click,
   // before the server round-trip and query invalidation complete.
   const [optimisticFollowedIds, setOptimisticFollowedIds] = useState<Set<number>>(new Set());
+  // Optimistic unfollow state: mirrors the above so rows reflect the unsave click before refetch.
+  const [optimisticUnfollowedIds, setOptimisticUnfollowedIds] = useState<Set<number>>(new Set());
 
   // Clear optimistic IDs once the real savedCityIds catches up
   useEffect(() => {
@@ -231,6 +233,26 @@ export default function FeedContainer({
       setOptimisticFollowedIds(stillPending);
     }
   }, [savedCityIds, optimisticFollowedIds]);
+
+  // Drop optimistic unfollow IDs once the server query no longer lists them.
+  useEffect(() => {
+    if (optimisticUnfollowedIds.size === 0) return;
+    const stillPending = new Set<number>();
+    for (const id of optimisticUnfollowedIds) {
+      if (savedCityIds.has(id)) stillPending.add(id);
+    }
+    if (stillPending.size < optimisticUnfollowedIds.size) {
+      setOptimisticUnfollowedIds(stillPending);
+    }
+  }, [savedCityIds, optimisticUnfollowedIds]);
+
+  // Effective saved cities: server state with optimistic follows added and optimistic unfollows removed.
+  const effectiveSavedCityIds = useMemo(() => {
+    const set = new Set(savedCityIds);
+    for (const id of optimisticFollowedIds) set.add(id);
+    for (const id of optimisticUnfollowedIds) set.delete(id);
+    return set;
+  }, [savedCityIds, optimisticFollowedIds, optimisticUnfollowedIds]);
 
   // Persist filters to sessionStorage whenever they change
   useEffect(() => {
@@ -912,7 +934,7 @@ export default function FeedContainer({
   // from both when already in feed, adds to both when not.
   const handleToggleFollow = useCallback(
     (cid: number, cityName?: string) => {
-      const wasFollowed = savedCityIds.has(cid) || optimisticFollowedIds.has(cid);
+      const wasFollowed = effectiveSavedCityIds.has(cid);
       const wasInFeed = wasFollowed || selectedCityIds.has(cid);
 
       setSelectedCityIds((prev) => {
@@ -933,6 +955,7 @@ export default function FeedContainer({
           next.delete(cid);
           return next;
         });
+        setOptimisticUnfollowedIds((prev) => new Set(prev).add(cid));
         setSelectedDistricts((prev) => {
           if (!prev.has(cid)) return prev;
           const next = new Map(prev);
@@ -942,25 +965,26 @@ export default function FeedContainer({
       } else {
         saveCityMutation.mutate(cid);
         setOptimisticFollowedIds((prev) => new Set(prev).add(cid));
-        const name = cityName ?? uniqueCities.find((c) => c.city_id === cid)?.city_name;
-        if (name) toast.success(`${name} added to your feed`);
+        setOptimisticUnfollowedIds((prev) => {
+          if (!prev.has(cid)) return prev;
+          const next = new Set(prev);
+          next.delete(cid);
+          return next;
+        });
       }
     },
-    [isAuthenticated, savedCityIds, selectedCityIds, optimisticFollowedIds, saveCityMutation, unsaveCityMutation, uniqueCities],
+    [isAuthenticated, effectiveSavedCityIds, selectedCityIds, saveCityMutation, unsaveCityMutation],
   );
 
   // ── Save a city without toggling feed membership (used by the "Browsing X — Follow X" banner). ──
   const handleFollowCity = useCallback(
-    (cid: number, cityName?: string) => {
+    (cid: number) => {
       if (!isAuthenticated) return;
-      const wasFollowed = savedCityIds.has(cid) || optimisticFollowedIds.has(cid);
-      if (wasFollowed) return;
+      if (effectiveSavedCityIds.has(cid)) return;
       saveCityMutation.mutate(cid);
       setOptimisticFollowedIds((prev) => new Set(prev).add(cid));
-      const name = cityName ?? uniqueCities.find((c) => c.city_id === cid)?.city_name;
-      if (name) toast.success(`${name} added to your feed`);
     },
-    [isAuthenticated, savedCityIds, optimisticFollowedIds, saveCityMutation, uniqueCities],
+    [isAuthenticated, effectiveSavedCityIds, saveCityMutation],
   );
 
   // ── Apply filters from FilterPanel ──
@@ -1085,10 +1109,10 @@ export default function FeedContainer({
   const unfollowedBrowsedCities = useMemo(() => {
     if (selectedCityIds.size === 0) return [];
     return [...selectedCityIds]
-      .filter((id) => !savedCityIds.has(id) && !optimisticFollowedIds.has(id))
+      .filter((id) => !effectiveSavedCityIds.has(id))
       .map((id) => uniqueCities.find((c) => c.city_id === id))
       .filter(Boolean) as CityInfo[];
-  }, [selectedCityIds, savedCityIds, optimisticFollowedIds, uniqueCities]);
+  }, [selectedCityIds, effectiveSavedCityIds, uniqueCities]);
 
   // ── City discovery prompt (shown for single-city users) ──
   const showCityDiscovery = useMemo(() => {
@@ -1167,7 +1191,7 @@ export default function FeedContainer({
               open={showFilterPanel}
               onClose={() => setShowFilterPanel(false)}
               allCities={uniqueCities}
-              savedCityIds={new Set([...savedCityIds, ...optimisticFollowedIds])}
+              savedCityIds={effectiveSavedCityIds}
               filters={{
                 selectedCityIds,
                 selectedTopics,
@@ -1347,7 +1371,7 @@ export default function FeedContainer({
       )}
 
       {/* ── Follow prompt for unfollowed cities ── */}
-      {unfollowedBrowsedCities.length > 0 && (
+      {isAuthenticated && unfollowedBrowsedCities.length > 0 && (
         <div className={styles.followPrompt}>
           <span className={styles.followPromptText}>
             Browsing {unfollowedBrowsedCities.map((c) => c.city_name).join(", ")} stories
@@ -1356,7 +1380,7 @@ export default function FeedContainer({
             <button
               type="button"
               className={styles.followPromptBtn}
-              onClick={() => handleFollowCity(unfollowedBrowsedCities[0].city_id, unfollowedBrowsedCities[0].city_name)}
+              onClick={() => handleFollowCity(unfollowedBrowsedCities[0].city_id)}
             >
               Follow {unfollowedBrowsedCities[0].city_name}
             </button>
@@ -1364,7 +1388,7 @@ export default function FeedContainer({
             <button
               type="button"
               className={styles.followPromptBtn}
-              onClick={() => unfollowedBrowsedCities.forEach((c) => handleFollowCity(c.city_id, c.city_name))}
+              onClick={() => unfollowedBrowsedCities.forEach((c) => handleFollowCity(c.city_id))}
             >
               Follow all
             </button>

@@ -399,6 +399,7 @@ function CitiesSection({
             <CityRow
               key={c.city_id}
               city={c}
+              followed
               inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
               onToggle={() => toggleCity(c.city_id, c.city_name)}
             />
@@ -413,6 +414,7 @@ function CitiesSection({
             <CityRow
               key={c.city_id}
               city={c}
+              followed={false}
               inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
               onToggle={() => toggleCity(c.city_id, c.city_name)}
             />
@@ -482,13 +484,39 @@ function CitiesSection({
 
 function CityRow({
   city,
+  followed,
   inFeed,
   onToggle,
 }: {
   city: CityInfo;
+  followed: boolean;
   inFeed: boolean;
   onToggle: () => void;
 }) {
+  if (followed) {
+    return (
+      <button
+        type="button"
+        className={styles.cityItem}
+        onClick={onToggle}
+        aria-pressed={inFeed}
+      >
+        <span className={styles.cityName}>
+          {city.city_emoji ? `${city.city_emoji} ` : ""}
+          {city.city_name}
+        </span>
+        <span className={styles.cityFollowedIndicator}>
+          <span
+            className={`${styles.cityCheckbox} ${inFeed ? styles.cityCheckboxChecked : ""}`}
+            aria-hidden="true"
+          >
+            {inFeed ? "✓" : ""}
+          </span>
+          <span className={styles.cityFollowedLabel}>Followed</span>
+        </span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -502,7 +530,7 @@ function CityRow({
       <span
         className={`${styles.cityFollowBtn} ${inFeed ? styles.cityFollowBtnFollowed : ""}`}
       >
-        {inFeed ? "In feed" : "Add"}
+        {inFeed ? "In feed" : "View in Feed"}
       </span>
     </button>
   );
