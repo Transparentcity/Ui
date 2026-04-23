@@ -90,9 +90,11 @@ export default function FilterPanel({
   const panelRef = useRef<HTMLDivElement>(null);
 
   // On desktop, the panel is absolutely positioned below the filter trigger.
-  // A static max-height: 80vh can extend below the viewport when the trigger
-  // is near the top of the page, clipping the bottom of the list off-screen.
-  // Measure the panel's top position and cap max-height to fit the visible area.
+  // A static max-height can extend below the viewport when the trigger is near
+  // the top of the page, clipping the bottom (and making Done/Apply unreachable).
+  // Measure the panel's top and cap max-height to fit the visible area. Never
+  // force a minimum larger than what's actually available — the inner content
+  // scrolls on its own, and forcing extra height just pushes Done off-screen.
   useLayoutEffect(() => {
     if (!open || !isDesktop) return;
     const el = panelRef.current;
@@ -101,7 +103,8 @@ export default function FilterPanel({
     const updateMaxHeight = () => {
       const top = el.getBoundingClientRect().top;
       const available = window.innerHeight - top - 16; // 16px bottom margin
-      el.style.setProperty("--panel-max-h", `${Math.max(available, 200)}px`);
+      const capped = Math.min(Math.max(available, 0), 700);
+      el.style.setProperty("--panel-max-h", `${capped}px`);
     };
 
     updateMaxHeight();
@@ -187,8 +190,11 @@ export default function FilterPanel({
               type="button"
               className={styles.clearFiltersBtn}
               onClick={() => {
+                // Clear filters returns the feed to the followed-default state:
+                // every followed city back "In feed", all other filter pills gone,
+                // follow state untouched.
                 const cleared: FilterState = {
-                  selectedCityIds: new Set(),
+                  selectedCityIds: new Set(savedCityIds),
                   selectedTopics: new Set(),
                   selectedDistricts: new Map(),
                   selectedPlaceId: null,
@@ -368,10 +374,21 @@ function CitiesSection({
     confirmTimeoutRef.current = setTimeout(() => setJustFollowedName(null), 3500);
   };
 
-  // Independent controls: checkbox toggles follow state, button toggles feed membership.
+  // Toggle feed membership for a row (the "In feed" / "View in Feed" button).
   const toggleFeed = (cityId: number) => {
     const next = new Set(selected);
     if (next.has(cityId)) next.delete(cityId);
+    else next.add(cityId);
+    onChange(next);
+  };
+
+  // Checkbox toggles follow state AND keeps the draft feed selection in sync:
+  // following a city auto-adds it to the feed, unfollowing removes it.
+  const handleCheckboxFollow = (cityId: number) => {
+    onToggleFollow(cityId);
+    const wasFollowed = savedCityIds.has(cityId);
+    const next = new Set(selected);
+    if (wasFollowed) next.delete(cityId);
     else next.add(cityId);
     onChange(next);
   };
@@ -405,7 +422,7 @@ function CitiesSection({
               city={c}
               followed
               inFeed={selected.has(c.city_id)}
-              onToggleFollow={() => onToggleFollow(c.city_id)}
+              onToggleFollow={() => handleCheckboxFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
           ))}
@@ -421,7 +438,7 @@ function CitiesSection({
               city={c}
               followed={false}
               inFeed={selected.has(c.city_id)}
-              onToggleFollow={() => onToggleFollow(c.city_id)}
+              onToggleFollow={() => handleCheckboxFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
           ))}

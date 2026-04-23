@@ -24,7 +24,9 @@
   bottom: 0;
   left: 0;
   right: 0;
-  max-height: 75vh;
+  /* Use dvh so iOS Safari's address bar doesn't push the top of the sheet
+     off-screen (vh includes hidden chrome height, dvh reflects what's visible). */
+  max-height: min(75vh, 85dvh);
   background: var(--bg-primary);
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
@@ -53,8 +55,9 @@
     right: 0;
     top: calc(100% + 8px);
     /* --panel-max-h is set at runtime in FilterPanel.tsx to fit the visible
-       viewport below the filter trigger; falls back to 80vh if unset. */
-    max-height: var(--panel-max-h, 80vh);
+       viewport below the filter trigger. Fallback caps at 70vh so the panel
+       stays inside the viewport before the layout effect has run. */
+    max-height: var(--panel-max-h, min(70vh, 600px));
     width: 380px;
     max-width: calc(100vw - 32px);
     border-radius: 12px;

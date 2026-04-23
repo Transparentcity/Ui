@@ -964,6 +964,13 @@ export default function FeedContainer({
           next.delete(cid);
           return next;
         });
+        // Unfollow also removes the city from the feed.
+        setSelectedCityIds((prev) => {
+          if (!prev.has(cid)) return prev;
+          const next = new Set(prev);
+          next.delete(cid);
+          return next;
+        });
       } else {
         saveCityMutation.mutate(cid, { onSettled: clearPending });
         setOptimisticFollowedIds((prev) => new Set(prev).add(cid));
@@ -971,6 +978,13 @@ export default function FeedContainer({
           if (!prev.has(cid)) return prev;
           const next = new Set(prev);
           next.delete(cid);
+          return next;
+        });
+        // Follow auto-adds the city to the feed.
+        setSelectedCityIds((prev) => {
+          if (prev.has(cid)) return prev;
+          const next = new Set(prev);
+          next.add(cid);
           return next;
         });
       }
@@ -1371,7 +1385,7 @@ export default function FeedContainer({
               type="button"
               className={styles.clearAllBtn}
               onClick={() => {
-                setSelectedCityIds(new Set());
+                setSelectedCityIds(new Set(effectiveSavedCityIds));
                 setSelectedTopics(new Set());
                 setSelectedDistricts(new Map());
                 setSelectedPlaceId(null);
@@ -1530,7 +1544,7 @@ export default function FeedContainer({
                 className={styles.compactClear}
                 style={{ marginTop: 8 }}
                 onClick={() => {
-                  setSelectedCityIds(new Set());
+                  setSelectedCityIds(new Set(effectiveSavedCityIds));
                   setSelectedTopics(new Set());
                   setSelectedDistricts(new Map());
                   setSelectedPlaceId(null);
