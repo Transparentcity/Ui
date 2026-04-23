@@ -54,10 +54,11 @@
     left: auto;
     right: 0;
     top: calc(100% + 8px);
-    /* --panel-max-h is set at runtime in FilterPanel.tsx to fit the visible
-       viewport below the filter trigger. Fallback caps at 70vh so the panel
-       stays inside the viewport before the layout effect has run. */
-    max-height: var(--panel-max-h, min(70vh, 600px));
+    /* Use dvh so iOS Safari's address bar doesn't push the bottom of the panel
+       off-screen. The 120px margin leaves headroom for the filter trigger and
+       any surrounding chrome; the 600px cap keeps the panel from stretching
+       absurdly tall on large monitors. */
+    max-height: min(calc(100dvh - 120px), 600px);
     width: 380px;
     max-width: calc(100vw - 32px);
     border-radius: 12px;

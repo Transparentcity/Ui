@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import styles from "./FilterPanel.module.css";
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient";
 
@@ -87,34 +87,6 @@ export default function FilterPanel({
   // Draft state (applied on "Apply" for mobile, immediately on desktop)
   const [draft, setDraft] = useState<FilterState>({ ...filters });
   const isDesktop = useIsDesktop();
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // On desktop, the panel is absolutely positioned below the filter trigger.
-  // A static max-height can extend below the viewport when the trigger is near
-  // the top of the page, clipping the bottom (and making Done/Apply unreachable).
-  // Measure the panel's top and cap max-height to fit the visible area. Never
-  // force a minimum larger than what's actually available — the inner content
-  // scrolls on its own, and forcing extra height just pushes Done off-screen.
-  useLayoutEffect(() => {
-    if (!open || !isDesktop) return;
-    const el = panelRef.current;
-    if (!el) return;
-
-    const updateMaxHeight = () => {
-      const top = el.getBoundingClientRect().top;
-      const available = window.innerHeight - top - 16; // 16px bottom margin
-      const capped = Math.min(Math.max(available, 0), 700);
-      el.style.setProperty("--panel-max-h", `${capped}px`);
-    };
-
-    updateMaxHeight();
-    window.addEventListener("resize", updateMaxHeight);
-    window.addEventListener("scroll", updateMaxHeight, { passive: true });
-    return () => {
-      window.removeEventListener("resize", updateMaxHeight);
-      window.removeEventListener("scroll", updateMaxHeight);
-    };
-  }, [open, isDesktop]);
 
   // Reset draft when panel opens + lock body scroll on mobile
   useEffect(() => {
@@ -170,7 +142,6 @@ export default function FilterPanel({
 
       {/* Panel */}
       <div
-        ref={panelRef}
         className={styles.panel}
         role="dialog"
         aria-modal="true"
