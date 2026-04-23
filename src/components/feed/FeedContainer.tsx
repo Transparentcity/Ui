@@ -907,25 +907,25 @@ export default function FeedContainer({
     return () => observer.disconnect();
   }, [atEnd, isLoading, isFetching]);
 
-  // ── Toggle follow from filter panel ──
-  // Follow state IS feed selection: updates savedCityIds (authenticated) and always keeps
-  // selectedCityIds in sync so the feed reflects the change immediately.
+  // ── Toggle follow from filter panel / chip X ──
+  // Feed-membership (saved OR temp-selected) is the single direction signal. Clicking removes
+  // from both when already in feed, adds to both when not.
   const handleToggleFollow = useCallback(
     (cid: number, cityName?: string) => {
       const wasFollowed = savedCityIds.has(cid) || optimisticFollowedIds.has(cid);
+      const wasInFeed = wasFollowed || selectedCityIds.has(cid);
 
-      // Always sync selectedCityIds so anonymous users can filter, and the feed chips stay accurate.
       setSelectedCityIds((prev) => {
-        const inFeed = wasFollowed || prev.has(cid);
         const next = new Set(prev);
-        if (inFeed) next.delete(cid);
+        if (wasInFeed) next.delete(cid);
         else next.add(cid);
         return next;
       });
 
       if (!isAuthenticated) return;
 
-      if (wasFollowed) {
+      if (wasInFeed) {
+        if (!wasFollowed) return;
         unsaveCityMutation.mutate(cid);
         setOptimisticFollowedIds((prev) => {
           if (!prev.has(cid)) return prev;
@@ -946,7 +946,21 @@ export default function FeedContainer({
         if (name) toast.success(`${name} added to your feed`);
       }
     },
-    [isAuthenticated, savedCityIds, optimisticFollowedIds, saveCityMutation, unsaveCityMutation, uniqueCities],
+    [isAuthenticated, savedCityIds, selectedCityIds, optimisticFollowedIds, saveCityMutation, unsaveCityMutation, uniqueCities],
+  );
+
+  // ── Save a city without toggling feed membership (used by the "Browsing X — Follow X" banner). ──
+  const handleFollowCity = useCallback(
+    (cid: number, cityName?: string) => {
+      if (!isAuthenticated) return;
+      const wasFollowed = savedCityIds.has(cid) || optimisticFollowedIds.has(cid);
+      if (wasFollowed) return;
+      saveCityMutation.mutate(cid);
+      setOptimisticFollowedIds((prev) => new Set(prev).add(cid));
+      const name = cityName ?? uniqueCities.find((c) => c.city_id === cid)?.city_name;
+      if (name) toast.success(`${name} added to your feed`);
+    },
+    [isAuthenticated, savedCityIds, optimisticFollowedIds, saveCityMutation, uniqueCities],
   );
 
   // ── Apply filters from FilterPanel ──
@@ -1342,7 +1356,7 @@ export default function FeedContainer({
             <button
               type="button"
               className={styles.followPromptBtn}
-              onClick={() => handleToggleFollow(unfollowedBrowsedCities[0].city_id)}
+              onClick={() => handleFollowCity(unfollowedBrowsedCities[0].city_id, unfollowedBrowsedCities[0].city_name)}
             >
               Follow {unfollowedBrowsedCities[0].city_name}
             </button>
@@ -1350,7 +1364,7 @@ export default function FeedContainer({
             <button
               type="button"
               className={styles.followPromptBtn}
-              onClick={() => unfollowedBrowsedCities.forEach((c) => handleToggleFollow(c.city_id))}
+              onClick={() => unfollowedBrowsedCities.forEach((c) => handleFollowCity(c.city_id, c.city_name))}
             >
               Follow all
             </button>
