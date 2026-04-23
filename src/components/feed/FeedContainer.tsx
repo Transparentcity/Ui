@@ -1637,6 +1637,25 @@ export default function FeedContainer({
         </>
       )}
 
+      {/* User has stories available but toggled every city out of the feed. */}
+      {!isLoading &&
+        !error &&
+        visibleStories.length === 0 &&
+        stories.length > 0 &&
+        feedExplicitlyEmpty && (
+        <div className={styles.emptyState}>
+          <p>Your feed is empty. Add a city back in to see stories.</p>
+          <button
+            type="button"
+            className={styles.browseBtn}
+            style={{ marginTop: 8 }}
+            onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
+          >
+            Add my cities back
+          </button>
+        </div>
+      )}
+
       {/* Generic client-side filter empty state */}
       {!isLoading &&
         !error &&
