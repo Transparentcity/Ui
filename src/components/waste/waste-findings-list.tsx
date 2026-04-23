@@ -4,6 +4,13 @@ import { useState, useMemo } from "react"
 import type { WasteFinding, WasteDispositionType } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import { WasteSubcategoryGroup } from "./waste-subcategory-group"
+import { normalizeWasteCategory } from "./waste-utils"
+
+export interface CarriedOverCategoryMeta {
+  category: string
+  analysis_timestamp: string | null
+  reason: string
+}
 
 export interface SubGroup {
   label: string
@@ -25,6 +32,7 @@ interface WasteFindingsListProps {
   onSkip?: (finding: WasteFinding) => void
   sortMode?: FindingSortMode
   cityId?: number
+  carriedOverCategories?: CarriedOverCategoryMeta[]
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
@@ -78,8 +86,23 @@ export function WasteFindingsList({
   onSkip,
   sortMode = "severity",
   cityId,
+  carriedOverCategories,
 }: WasteFindingsListProps) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
+
+  // Map normalized category → timestamp so each card can render its fallback source.
+  const carriedOverMap = useMemo(() => {
+    const m = new Map<string, string | null>()
+    for (const c of carriedOverCategories ?? []) {
+      m.set(normalizeWasteCategory(c.category), c.analysis_timestamp)
+    }
+    return m
+  }, [carriedOverCategories])
+
+  const isCarriedOver = (f: WasteFinding) =>
+    carriedOverMap.has(normalizeWasteCategory(f.category))
+  const carriedOverAsOf = (f: WasteFinding) =>
+    carriedOverMap.get(normalizeWasteCategory(f.category)) ?? null
 
   const handleFindingToggle = (id: string) => {
     setExpandedFindingId((prev) => (prev === id ? null : id))
@@ -194,6 +217,8 @@ export function WasteFindingsList({
               onDispose={onDispose}
               onSkip={onSkip}
               cityId={cityId}
+              isCarriedOver={isCarriedOver(finding)}
+              carriedOverAsOf={carriedOverAsOf(finding)}
             />
           </div>
         ))}
@@ -215,6 +240,8 @@ export function WasteFindingsList({
           onDispose={onDispose}
           onSkip={onSkip}
           cityId={cityId}
+          isCarriedOver={isCarriedOver}
+          carriedOverAsOf={carriedOverAsOf}
         />
       ))}
     </div>

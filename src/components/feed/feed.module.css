@@ -516,6 +516,7 @@
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   position: relative;
+  min-width: 0;
   /* NOTE: no overflow:hidden here — it would clip the desktop dropdown menu.
      overflow:hidden is applied only on .cardHiding for the dismiss animation. */
 }
@@ -1587,7 +1588,8 @@
 .detailActor { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 .detailTimestamp { font-size: 13px; font-weight: 400; color: var(--text-tertiary); }
 .detailHeadline { font-size: 24px; font-weight: 700; line-height: 1.3; margin: 0 0 8px; color: var(--text-primary); }
-.detailDate { font-size: 13px; color: var(--text-secondary); margin: 0 0 20px; }
+.detailDate { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
+.detailSourceLine { margin: 0 0 20px; }
 .detailDescription { font-size: 16px; line-height: 1.7; color: var(--text-primary); margin: 0 0 16px; }
 .detailDescription:last-child { margin-bottom: 0; }
 .detailLede { font-size: 17px; line-height: 1.7; color: var(--text-primary); font-weight: 500; margin: 0 0 24px; }

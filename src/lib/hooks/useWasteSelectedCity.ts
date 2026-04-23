@@ -23,7 +23,10 @@ export function useWasteSelectedCity() {
   })
 
   const eligibleCities = useMemo(
-    () => (citiesQuery.data ?? []).filter((c) => (c.datasets_count ?? 0) > 0),
+    () =>
+      (citiesQuery.data ?? []).filter(
+        (c) => (c.datasets_count ?? 0) > 0 && c.is_launched === true,
+      ),
     [citiesQuery.data],
   )
 

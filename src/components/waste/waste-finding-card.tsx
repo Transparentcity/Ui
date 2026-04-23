@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check } from "lucide-react"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check, History, Layers } from "lucide-react"
 import { type WasteFinding, type WasteDispositionType } from "@/lib/apiClient"
 import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql } from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
@@ -124,6 +124,8 @@ interface WasteFindingCardProps {
   onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
   onSkip?: (finding: WasteFinding) => void
   cityId?: number
+  isCarriedOver?: boolean
+  carriedOverAsOf?: string | null
 }
 
 interface PayrollDetailRow {
@@ -557,6 +559,8 @@ export function WasteFindingCard({
   onDispose,
   onSkip,
   cityId,
+  isCarriedOver = false,
+  carriedOverAsOf = null,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
@@ -564,6 +568,16 @@ export function WasteFindingCard({
   const conf = confidenceConfig[confKey] ?? confidenceConfig.medium
   const ConfIcon = conf.icon
   const isConvergence = finding.category?.toLowerCase().includes("convergence")
+  const triangleLegsRaw = finding.convergence_details?.triangle_legs_present
+  const triangleLegsPresent = Array.isArray(triangleLegsRaw)
+    ? triangleLegsRaw.length
+    : typeof triangleLegsRaw === "number"
+      ? triangleLegsRaw
+      : 0
+  const supportingCount = finding.supporting_findings?.length ?? 0
+  const carriedOverTitle = carriedOverAsOf
+    ? `Carried over from an earlier run (${new Date(carriedOverAsOf).toLocaleDateString()}) — latest detector run errored for this category.`
+    : "Carried over from an earlier run — latest detector run errored for this category."
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -807,6 +821,44 @@ export function WasteFindingCard({
           </span>
         )}
 
+        {/* Earlier-run fallback badge: surfaced when detectors timed out and merged data came from a prior run */}
+        {isCarriedOver && (
+          <span
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 uppercase tracking-wide shrink-0"
+            title={carriedOverTitle}
+          >
+            <History className="w-2.5 h-2.5" />
+            Earlier run
+          </span>
+        )}
+
+        {/* Fraud triangle coverage — visible on collapsed row so reviewers see convergence at a glance */}
+        {triangleLegsPresent > 0 && (
+          <span
+            className={cn(
+              "hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide shrink-0 border",
+              triangleLegsPresent >= 3
+                ? "bg-red-50 text-red-700 border-red-200"
+                : "bg-slate-50 text-slate-700 border-slate-200"
+            )}
+            title={`Fraud triangle: ${triangleLegsPresent} of 3 legs present`}
+          >
+            <Triangle className="w-2.5 h-2.5" />
+            {triangleLegsPresent}/3
+          </span>
+        )}
+
+        {/* Supporting findings count — signals this is a consolidated/multi-signal finding */}
+        {supportingCount > 0 && (
+          <span
+            className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wide shrink-0"
+            title={`Consolidated from ${supportingCount} related finding${supportingCount !== 1 ? "s" : ""}`}
+          >
+            <Layers className="w-2.5 h-2.5" />
+            +{supportingCount}
+          </span>
+        )}
+
         {/* Headline (plain-English) or fallback to metric */}
         {finding.headline ? (
           <span className="text-sm text-gray-800 font-medium truncate">
@@ -937,6 +989,33 @@ export function WasteFindingCard({
               {finding.confidence_reason && (
                 <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
               )}
+            </div>
+          )}
+
+          {/* Consolidated / supporting findings list */}
+          {supportingCount > 0 && finding.supporting_findings && (
+            <div className="mb-3 p-2.5 bg-indigo-50/60 border border-indigo-100 rounded-md">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="text-xs font-medium text-indigo-800">
+                  Consolidated from {supportingCount} related finding{supportingCount !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-700 leading-relaxed">
+                Multi-signal cluster — underlying finding IDs:
+                <span className="ml-1 font-mono">
+                  {finding.supporting_findings.slice(0, 8).join(", ")}
+                  {finding.supporting_findings.length > 8 && ` +${finding.supporting_findings.length - 8} more`}
+                </span>
+              </p>
+            </div>
+          )}
+
+          {/* Carried-over banner (expanded detail) */}
+          {isCarriedOver && (
+            <div className="flex items-start gap-2 mb-3 p-2 bg-purple-50 border border-purple-100 rounded-md">
+              <History className="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-purple-700">{carriedOverTitle}</p>
             </div>
           )}
 

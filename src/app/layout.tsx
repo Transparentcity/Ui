@@ -80,6 +80,13 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        {/* Fonts for SourceLine + PublicRecordBanner (v1 source-as-badge). */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500;600&display=swap"
+          rel="stylesheet"
+        />
         {/* Font Awesome via CDN — preloaded then applied to avoid blocking first paint.
             Phase 2: migrate to self-hosted SVGs for full elimination. */}
         <link

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import type { WasteAnalyzeResponse } from "@/lib/apiClient"
+import type { WasteAnalyzeResponse, WasteFinding } from "@/lib/apiClient"
 import {
   formatDollar,
   normalizeWasteCategory,
@@ -11,6 +11,9 @@ import {
   wasteCacheKey,
   wasteBackupKey,
   WASTE_ANALYSIS_CACHE_KEY,
+  categoriesWithErrors,
+  mergePersistedRuns,
+  type PersistedRunBundle,
 } from "./waste-utils"
 
 // ── formatDollar ────────────────────────────────────────────────────────────
@@ -440,5 +443,416 @@ describe("loadCachedAnalysis", () => {
 
     const result = loadCachedAnalysis(57260)
     expect(result).toBeNull()
+  })
+})
+
+// ── categoriesWithErrors ────────────────────────────────────────────────────
+
+describe("categoriesWithErrors", () => {
+  it("returns empty set for null / undefined / empty", () => {
+    expect(categoriesWithErrors(null).size).toBe(0)
+    expect(categoriesWithErrors(undefined).size).toBe(0)
+    expect(categoriesWithErrors([]).size).toBe(0)
+  })
+
+  it("extracts contracts from a timeout message", () => {
+    const result = categoriesWithErrors(["contracts: timed out after 120s"])
+    expect(result.has("contracts")).toBe(true)
+  })
+
+  it("maps the legacy 'vendor' alias to contracts", () => {
+    const result = categoriesWithErrors(["vendor: boom"])
+    expect(result.has("contracts")).toBe(true)
+  })
+
+  it("handles multiple families in one errors array", () => {
+    const result = categoriesWithErrors([
+      "contracts: timed out after 120s",
+      "payroll: SQL error",
+    ])
+    expect(result.has("contracts")).toBe(true)
+    expect(result.has("payroll")).toBe(true)
+  })
+
+  it("ignores the prefetch prefix (applies to all categories, not a detector)", () => {
+    const result = categoriesWithErrors(["prefetch: network down"])
+    expect(result.size).toBe(0)
+  })
+
+  it("ignores malformed messages without a leading 'family:' token", () => {
+    const result = categoriesWithErrors([
+      "some freeform error",
+      "!!!!",
+      "",
+    ])
+    expect(result.size).toBe(0)
+  })
+
+  it.each([
+    ["payroll", "payroll"],
+    ["contracts", "contracts"],
+    ["vendor", "contracts"],
+    ["vendors", "contracts"],
+    ["infrastructure", "infrastructure"],
+    ["services", "infrastructure"],
+    ["influence", "influence"],
+    ["lobbying", "influence"],
+    ["integrity", "integrity"],
+    ["personnel", "integrity"],
+    ["confirmed", "confirmed"],
+    ["convergence", "convergence"],
+  ])(
+    "maps backend family '%s:' to UI category '%s'",
+    (family, expected) => {
+      const result = categoriesWithErrors([`${family}: timed out after 120s`])
+      expect(result.has(expected as never)).toBe(true)
+      expect(result.size).toBe(1)
+    },
+  )
+
+  it("does NOT fall through to 'payroll' for unknown families", () => {
+    // Previously, normalizeWasteCategory's default case returned "payroll" for
+    // anything unrecognized, which would have silently flagged payroll on any
+    // mystery error prefix like "foo: boom".
+    const result = categoriesWithErrors([
+      "foo: boom",
+      "unknown_family: timed out",
+      "detectors: oops",
+    ])
+    expect(result.size).toBe(0)
+  })
+
+  it("recognizes uppercase family prefixes (backend could emit either case)", () => {
+    const result = categoriesWithErrors(["PAYROLL: boom", "Contracts: oops"])
+    expect(result.has("payroll")).toBe(true)
+    expect(result.has("contracts")).toBe(true)
+  })
+})
+
+// ── mergePersistedRuns ──────────────────────────────────────────────────────
+
+function makeFinding(
+  category: string,
+  id: string,
+  severity: WasteFinding["severity"] = "high",
+  department: string | null = "DPW",
+  amount: number | null = 1000,
+): WasteFinding {
+  return {
+    id,
+    category: category as WasteFinding["category"],
+    subcategory: "",
+    severity,
+    entity: "Test",
+    metric: "",
+    metricDetail: "",
+    amount,
+    description: "",
+    tool: "",
+    confidence: "High",
+    confidence_reason: null,
+    confidence_score: 0.9,
+    estimated_dollar_impact: amount,
+    corroboration_count: 1,
+    data_completeness: 1,
+    priority_score: 1,
+    is_partial_data: false,
+    truncated_total: null,
+    caveat: null,
+    narrative: null,
+    headline: null,
+    signal_tier: "primary",
+    finding_report: null,
+    department,
+  }
+}
+
+function makeRun(args: {
+  ts: string
+  errors?: string[]
+  findings?: WasteFinding[]
+  categorySummaries?: Array<{
+    category: string
+    finding_count: number
+    critical_count?: number
+    total_amount?: number
+  }>
+}): PersistedRunBundle {
+  const findings = args.findings ?? []
+  return {
+    analysisTimestamp: args.ts,
+    errors: args.errors ?? [],
+    response: {
+      findings,
+      summary: {
+        total_findings: findings.length,
+        critical_count: findings.filter((f) => f.severity === "critical").length,
+        estimated_exposure: findings.reduce((s, f) => s + (f.amount ?? 0), 0),
+        gross_exposure: findings.reduce((s, f) => s + (f.amount ?? 0), 0),
+        net_exposure: findings.reduce((s, f) => s + (f.amount ?? 0), 0),
+        departments_affected: new Set(findings.map((f) => f.department).filter(Boolean)).size,
+        categories: (args.categorySummaries ?? []).map((c) => ({
+          category: c.category,
+          finding_count: c.finding_count,
+          critical_count: c.critical_count ?? 0,
+          high_count: 0,
+          medium_count: 0,
+          total_amount: c.total_amount ?? 0,
+          records_analyzed: 0,
+        })),
+      },
+      cached: false,
+      analysis_timestamp: args.ts,
+      errors: args.errors ?? [],
+      data_freshness: [],
+    },
+  }
+}
+
+describe("mergePersistedRuns", () => {
+  it("returns null for an empty list", () => {
+    expect(mergePersistedRuns([])).toBeNull()
+  })
+
+  it("returns the latest run unchanged when no errors", () => {
+    const findings = [
+      makeFinding("payroll", "p1"),
+      makeFinding("contracts", "c1"),
+    ]
+    const [latest] = [makeRun({ ts: "2026-04-22", findings })]
+    const merged = mergePersistedRuns([latest])
+    expect(merged).not.toBeNull()
+    expect(merged!.response.findings.map((f) => f.id).sort()).toEqual([
+      "c1",
+      "p1",
+    ])
+    expect(merged!.carriedOver).toEqual([])
+    expect(merged!.response.carried_over_categories).toEqual([])
+  })
+
+  it("carries contracts forward when the latest run timed out on contracts", () => {
+    const latest = makeRun({
+      ts: "2026-04-22",
+      errors: ["contracts: timed out after 120s"],
+      findings: [makeFinding("payroll", "p1")],
+    })
+    const prior = makeRun({
+      ts: "2026-04-20",
+      findings: [
+        makeFinding("payroll", "p0"),
+        makeFinding("contracts", "c-old-1"),
+        makeFinding("contracts", "c-old-2", "critical"),
+      ],
+    })
+    const merged = mergePersistedRuns([latest, prior])
+    expect(merged).not.toBeNull()
+    const ids = merged!.response.findings.map((f) => f.id).sort()
+    // payroll comes from latest, contracts from prior
+    expect(ids).toEqual(["c-old-1", "c-old-2", "p1"])
+    // carried-over surfaces only contracts
+    const carried = merged!.carriedOver.map((c) => c.category)
+    expect(carried).toEqual(["contracts"])
+    expect(merged!.response.carried_over_categories).toEqual([
+      {
+        category: "contracts",
+        analysis_timestamp: "2026-04-20",
+        reason: "carried from earlier run",
+      },
+    ])
+  })
+
+  it("trusts a legitimate zero on the latest run (no error, no findings) instead of falling back", () => {
+    const latest = makeRun({
+      ts: "2026-04-22",
+      findings: [makeFinding("payroll", "p1")],
+      // contracts not errored, latest simply has no contracts findings
+    })
+    const prior = makeRun({
+      ts: "2026-04-20",
+      findings: [makeFinding("contracts", "c-old")],
+    })
+    const merged = mergePersistedRuns([latest, prior])
+    expect(merged!.response.findings.map((f) => f.id)).toEqual(["p1"])
+    expect(merged!.carriedOver).toEqual([])
+  })
+
+  it("returns no findings for a family that errored in every run", () => {
+    const a = makeRun({
+      ts: "2026-04-22",
+      errors: ["contracts: timed out"],
+      findings: [makeFinding("payroll", "p1")],
+    })
+    const b = makeRun({
+      ts: "2026-04-20",
+      errors: ["contracts: boom"],
+      findings: [makeFinding("payroll", "p0")],
+    })
+    const merged = mergePersistedRuns([a, b])
+    const contracts = merged!.response.findings.filter(
+      (f) => normalizeWasteCategory(f.category) === "contracts",
+    )
+    expect(contracts).toEqual([])
+    // Not labeled as carried-over — there was nothing to carry.
+    expect(merged!.carriedOver).toEqual([])
+  })
+
+  it("deduplicates findings by id when multiple runs contribute the same finding", () => {
+    const shared = makeFinding("payroll", "p-shared")
+    const latest = makeRun({
+      ts: "2026-04-22",
+      errors: ["contracts: timed out"],
+      findings: [shared],
+    })
+    const prior = makeRun({
+      ts: "2026-04-20",
+      findings: [shared, makeFinding("contracts", "c1")],
+    })
+    const merged = mergePersistedRuns([latest, prior])
+    const ids = merged!.response.findings.map((f) => f.id).sort()
+    expect(ids).toEqual(["c1", "p-shared"])
+  })
+
+  it("recomputes stat bar totals from merged data (so contracts carry-forward shows in the count)", () => {
+    const latest = makeRun({
+      ts: "2026-04-22",
+      errors: ["contracts: timed out"],
+      findings: [makeFinding("payroll", "p1", "critical", "HR", 500)],
+    })
+    const prior = makeRun({
+      ts: "2026-04-20",
+      findings: [
+        makeFinding("contracts", "c1", "critical", "DPW", 2000),
+        makeFinding("contracts", "c2", "high", "DPW", 1500),
+      ],
+      categorySummaries: [
+        {
+          category: "contracts",
+          finding_count: 2,
+          critical_count: 1,
+          total_amount: 3500,
+        },
+      ],
+    })
+    const merged = mergePersistedRuns([latest, prior])
+    expect(merged!.response.summary.total_findings).toBe(3)
+    expect(merged!.response.summary.critical_count).toBe(2)
+    // departments_affected derived from the *merged* finding set
+    expect(merged!.response.summary.departments_affected).toBe(2)
+    // exposure reflects the per-category summary total (3500 contracts only;
+    // latest run payroll summary was absent from categorySummaries)
+    expect(merged!.response.summary.estimated_exposure).toBe(3500)
+  })
+
+  // Every detector family carries forward correctly when it's the one that
+  // timed out on the latest run.
+  it.each([
+    ["payroll", "payroll"],
+    ["contracts", "contracts"],
+    ["infrastructure", "infrastructure"],
+    ["influence", "influence"],
+    ["integrity", "integrity"],
+    ["confirmed", "confirmed"],
+    ["convergence", "convergence"],
+  ])(
+    "carries '%s' forward from a prior run when the latest timed out on it",
+    (family, uiKey) => {
+      const latest = makeRun({
+        ts: "2026-04-22",
+        errors: [`${family}: timed out after 120s`],
+        findings: [makeFinding("payroll", "unrelated-p1")],
+      })
+      const prior = makeRun({
+        ts: "2026-04-20",
+        findings: [
+          makeFinding(family, `${family}-old-1`),
+          makeFinding(family, `${family}-old-2`, "critical"),
+        ],
+      })
+      const merged = mergePersistedRuns([latest, prior])
+      expect(merged).not.toBeNull()
+      const carryIds = merged!.response.findings
+        .filter((f) => normalizeWasteCategory(f.category) === uiKey)
+        .map((f) => f.id)
+        .sort()
+      expect(carryIds).toEqual([`${family}-old-1`, `${family}-old-2`])
+      const carried = merged!.carriedOver.map((c) => c.category)
+      expect(carried).toEqual([uiKey])
+    },
+  )
+
+  // When multiple detectors timeout together, all of them should carry forward.
+  it("carries multiple detectors forward simultaneously", () => {
+    const latest = makeRun({
+      ts: "2026-04-22",
+      errors: [
+        "contracts: timed out after 120s",
+        "influence: timed out after 120s",
+        "integrity: timed out after 120s",
+      ],
+      findings: [makeFinding("payroll", "p-latest")],
+    })
+    const prior = makeRun({
+      ts: "2026-04-20",
+      findings: [
+        makeFinding("contracts", "c-old"),
+        makeFinding("influence", "inf-old"),
+        makeFinding("integrity", "int-old"),
+        makeFinding("payroll", "p-old"),
+      ],
+    })
+    const merged = mergePersistedRuns([latest, prior])
+    const ids = merged!.response.findings.map((f) => f.id).sort()
+    // Payroll from latest; other three detectors from prior (p-old deduped out).
+    expect(ids).toEqual(["c-old", "inf-old", "int-old", "p-latest"])
+    const carried = merged!.carriedOver.map((c) => c.category).sort()
+    expect(carried).toEqual(["contracts", "influence", "integrity"])
+  })
+
+  // Mixed-timeout scenarios: each detector's carry-over decision is independent.
+  it("evaluates each detector's carry-over decision independently", () => {
+    const latest = makeRun({
+      ts: "2026-04-22",
+      errors: ["contracts: timed out"], // only contracts errored
+      findings: [
+        makeFinding("payroll", "p-latest"),
+        makeFinding("infrastructure", "inf-latest"),
+        // intentionally no 'influence' findings but no error → legit zero
+      ],
+    })
+    const prior = makeRun({
+      ts: "2026-04-20",
+      findings: [
+        makeFinding("contracts", "c-old"),
+        makeFinding("influence", "infl-old"), // should NOT be pulled, latest said "zero"
+        makeFinding("payroll", "p-old"), // should NOT override latest
+      ],
+    })
+    const merged = mergePersistedRuns([latest, prior])
+    const ids = merged!.response.findings.map((f) => f.id).sort()
+    expect(ids).toEqual(["c-old", "inf-latest", "p-latest"])
+    expect(merged!.carriedOver.map((c) => c.category)).toEqual(["contracts"])
+  })
+
+  it("walks past multiple bad runs to the first usable one", () => {
+    const a = makeRun({
+      ts: "2026-04-22",
+      errors: ["contracts: timed out"],
+      findings: [makeFinding("payroll", "p1")],
+    })
+    const b = makeRun({
+      ts: "2026-04-21",
+      errors: ["contracts: boom"],
+      findings: [makeFinding("payroll", "p0")],
+    })
+    const c = makeRun({
+      ts: "2026-04-15",
+      findings: [makeFinding("contracts", "c-old")],
+    })
+    const merged = mergePersistedRuns([a, b, c])
+    const contractsIds = merged!.response.findings
+      .filter((f) => normalizeWasteCategory(f.category) === "contracts")
+      .map((f) => f.id)
+    expect(contractsIds).toEqual(["c-old"])
+    expect(merged!.carriedOver.map((c) => c.category)).toEqual(["contracts"])
   })
 })

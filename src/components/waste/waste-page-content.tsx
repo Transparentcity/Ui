@@ -44,6 +44,29 @@ type SignalTierFilter = "primary" | "all"
 const WASTE_ANALYSIS_ESTIMATED_SECONDS = 900
 const STALE_DATA_WARNING_DAYS = 7
 
+const SEVERITY_FILTERS: SeverityFilter[] = ["all", "critical", "high", "medium"]
+const SIGNAL_TIER_FILTERS: SignalTierFilter[] = ["primary", "all"]
+const SORT_MODES: FindingSortMode[] = ["severity", "amount", "demo"]
+
+function readInitialFilters(): {
+  severity: SeverityFilter
+  signalTier: SignalTierFilter
+  sort: FindingSortMode
+} {
+  if (typeof window === "undefined") {
+    return { severity: "all", signalTier: "primary", sort: "severity" }
+  }
+  const params = new URLSearchParams(window.location.search)
+  const rawSev = params.get("sev") as SeverityFilter | null
+  const rawTier = params.get("tier") as SignalTierFilter | null
+  const rawSort = params.get("sort") as FindingSortMode | null
+  return {
+    severity: rawSev && SEVERITY_FILTERS.includes(rawSev) ? rawSev : "all",
+    signalTier: rawTier && SIGNAL_TIER_FILTERS.includes(rawTier) ? rawTier : "primary",
+    sort: rawSort && SORT_MODES.includes(rawSort) ? rawSort : "severity",
+  }
+}
+
 function formatAge(isoDate: string): string {
   const date = new Date(isoDate)
   const now = new Date()
@@ -144,9 +167,25 @@ function DataSourceDetails({ freshness }: { freshness: WasteDataFreshness[] }) {
 
 export function WastePageContent() {
   const [activeCategory, setActiveCategory] = useState<WasteCategoryKey>("overview")
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
-  const [signalTierFilter, setSignalTierFilter] = useState<SignalTierFilter>("primary")
-  const [sortMode, setSortMode] = useState<FindingSortMode>("severity")
+  const initialFilters = useMemo(() => readInitialFilters(), [])
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>(initialFilters.severity)
+  const [signalTierFilter, setSignalTierFilter] = useState<SignalTierFilter>(initialFilters.signalTier)
+  const [sortMode, setSortMode] = useState<FindingSortMode>(initialFilters.sort)
+
+  // Persist filter state to the URL so reloads and deep-links preserve them.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    if (severityFilter === "all") params.delete("sev")
+    else params.set("sev", severityFilter)
+    if (signalTierFilter === "primary") params.delete("tier")
+    else params.set("tier", signalTierFilter)
+    if (sortMode === "severity") params.delete("sort")
+    else params.set("sort", sortMode)
+    const query = params.toString()
+    const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`
+    window.history.replaceState(null, "", next)
+  }, [severityFilter, signalTierFilter, sortMode])
 
   // Flagged finding IDs (persisted in localStorage)
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
@@ -198,7 +237,9 @@ export function WastePageContent() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   })
 
-  // Load last persisted run from DB — instant data even when live analysis times out
+  // Load last persisted run from DB — instant data even when live analysis times out.
+  // The hook merges across the last few runs so a single timed-out detector
+  // (e.g. contracts hitting the 120s cap on SF) doesn't wipe out a category.
   const { data: persistedData } = useLatestPersistedWasteResult(selectedCityId)
 
   // Only auto-fetch live analysis if we have NO fallback data (cache or persisted).
@@ -282,7 +323,6 @@ export function WastePageContent() {
       const raw = window.location.hash.replace("#", "")
       if (!raw) return
       setActiveCategory(normalizeWasteCategory(raw))
-      setSeverityFilter("all")
     }
 
     applyHashCategory()
@@ -320,13 +360,15 @@ export function WastePageContent() {
     )
   }, [displayData])
 
-  // Reset severity filter when category changes
+  // Filters persist across category switches so users can compare "critical only"
+  // across multiple domains without re-selecting. URL hash still tracks the active
+  // category for backwards-compatible deep links.
   const handleCategoryChange = (cat: string) => {
     const normalized = normalizeWasteCategory(cat)
     setActiveCategory(normalized)
-    setSeverityFilter("all")
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `#${normalized}`)
+      const query = window.location.search
+      window.history.replaceState(null, "", `${window.location.pathname}${query}#${normalized}`)
     }
   }
 
@@ -359,26 +401,34 @@ export function WastePageContent() {
     ) ?? null
   }, [displayData, activeCategory])
 
+  const carriedOverCategories = useMemo(
+    () => displayData?.carried_over_categories ?? [],
+    [displayData]
+  )
+
   const hasDataQualityInfo = useMemo(() => {
     const freshness = displayData?.data_freshness
     const hasFreshnessInfo = (freshness?.length ?? 0) > 0 &&
       (freshness?.some((d) => d.stale || d.is_partial_year) ?? false)
     const hasErrors = (displayData?.errors?.length ?? 0) > 0
-    return hasFreshnessInfo || hasErrors
-  }, [displayData])
+    const hasCarriedOver = carriedOverCategories.length > 0
+    return hasFreshnessInfo || hasErrors || hasCarriedOver
+  }, [displayData, carriedOverCategories])
 
   const dataQualitySummaryLabel = useMemo(() => {
     const staleCount = displayData?.data_freshness?.filter((d) => d.stale).length ?? 0
     const errorCount = displayData?.errors?.length ?? 0
+    const carriedCount = carriedOverCategories.length
     const parts: string[] = []
     if (staleCount > 0) parts.push(`${staleCount} stale dataset${staleCount !== 1 ? "s" : ""}`)
     if (errorCount > 0) parts.push(`${errorCount} detector issue${errorCount !== 1 ? "s" : ""}`)
+    if (carriedCount > 0) parts.push(`${carriedCount} categor${carriedCount !== 1 ? "ies" : "y"} from earlier run`)
     if (parts.length === 0) {
       const partialCount = displayData?.data_freshness?.filter((d) => d.is_partial_year).length ?? 0
       if (partialCount > 0) parts.push(`${partialCount} partial-year dataset${partialCount !== 1 ? "s" : ""}`)
     }
     return parts.length > 0 ? parts.join(", ") : "Data sources"
-  }, [displayData])
+  }, [displayData, carriedOverCategories])
 
   const consolidatedStatus = useMemo(() => {
     if (isManualRefreshing) return null
@@ -577,6 +627,19 @@ export function WastePageContent() {
                         </p>
                         {displayData.errors.map((err, i) => (
                           <p key={i} className="text-xs text-amber-600">{err}</p>
+                        ))}
+                      </div>
+                    )}
+                    {carriedOverCategories.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-purple-700">
+                          {carriedOverCategories.length} categor{carriedOverCategories.length !== 1 ? "ies" : "y"} carried from an earlier run
+                        </p>
+                        {carriedOverCategories.map((c) => (
+                          <p key={c.category} className="text-xs text-purple-600">
+                            {getWasteCategoryLabel(c.category)}
+                            {c.analysis_timestamp ? ` — as of ${formatAge(c.analysis_timestamp)}` : ""}
+                          </p>
                         ))}
                       </div>
                     )}
@@ -887,6 +950,7 @@ export function WastePageContent() {
                   onSkip={handleSkip}
                   sortMode={sortMode}
                   cityId={selectedCityId}
+                  carriedOverCategories={carriedOverCategories}
                 />
               )}
             </>

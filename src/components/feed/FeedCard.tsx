@@ -182,6 +182,7 @@ export default function FeedCard({
 
   const actionBar = (
     <CardActionBar
+      story={story}
       onShare={handleShare}
       onOverflow={showOverflowMenu ? () => setOverflowOpen((o) => !o) : undefined}
       showOverflow={showOverflowMenu}

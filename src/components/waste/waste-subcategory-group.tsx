@@ -63,6 +63,8 @@ interface WasteSubcategoryGroupProps {
   onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
   onSkip?: (finding: WasteFinding) => void
   cityId?: number
+  isCarriedOver?: (f: WasteFinding) => boolean
+  carriedOverAsOf?: (f: WasteFinding) => string | null
 }
 
 export function WasteSubcategoryGroup({
@@ -75,6 +77,8 @@ export function WasteSubcategoryGroup({
   onDispose,
   onSkip,
   cityId,
+  isCarriedOver,
+  carriedOverAsOf,
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [expandedSubGroup, setExpandedSubGroup] = useState<string | null>(null)
@@ -154,6 +158,8 @@ export function WasteSubcategoryGroup({
                           onDispose={onDispose}
                           onSkip={onSkip}
                           cityId={cityId}
+                          isCarriedOver={isCarriedOver?.(finding) ?? false}
+                          carriedOverAsOf={carriedOverAsOf?.(finding) ?? null}
                         />
                       ))}
                     </div>
@@ -173,6 +179,8 @@ export function WasteSubcategoryGroup({
                 onDispose={onDispose}
                 onSkip={onSkip}
                 cityId={cityId}
+                isCarriedOver={isCarriedOver?.(finding) ?? false}
+                carriedOverAsOf={carriedOverAsOf?.(finding) ?? null}
               />
             ))
           )}

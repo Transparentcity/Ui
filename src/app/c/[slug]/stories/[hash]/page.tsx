@@ -26,6 +26,9 @@ import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { slugify } from "@/lib/utils";
 import Breadcrumb from "@/components/Breadcrumb";
+import SourceLine from "@/components/SourceLine";
+import { enrichStory } from "@/lib/feed/mockFeedData";
+import type { FeedStory } from "@/lib/hooks/useFeed";
 
 export const revalidate = 3600;
 
@@ -241,6 +244,12 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             {story.city_emoji} {cityDisplay}
             {story.district && story.district > 0 ? ` · District ${story.district}` : ""}
           </span>
+          <span className="story-meta-sep" aria-hidden="true">·</span>
+          <SourceLine
+            category={enrichStory(story as unknown as FeedStory).actor ?? ""}
+            citySlug={slug}
+            variant="byline"
+          />
         </div>
 
         {/* Hero image */}
@@ -517,11 +526,15 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         /* ── Meta line ──────────────────────────────────────────────── */
         .story-meta {
           display: flex;
-          gap: 16px;
+          align-items: center;
+          gap: 10px 16px;
           flex-wrap: wrap;
           margin-bottom: 24px;
           font-size: 13px;
           color: var(--text-secondary);
+        }
+        .story-meta-sep {
+          color: #9a9a9f;
         }
 
         /* ── Hero image ─────────────────────────────────────────────── */

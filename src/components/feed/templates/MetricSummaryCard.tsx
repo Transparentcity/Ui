@@ -194,7 +194,7 @@ function parseDateUTC(dateStr: string): Date | null {
 }
 
 export default function MetricSummaryCard({ data, children }: { data: MetricCardData; children?: React.ReactNode }) {
-  const { metric, comparison, cityName, cityEmoji, greendirection, portalDomain } = data;
+  const { metric, comparison, cityName, greendirection } = data;
 
   const curr = comparison.current_period_value;
   const prior = comparison.comparison_period_value;
@@ -233,10 +233,6 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
   const cityNameOnly = cityName.split(",")[0].trim();
   const neighborhoodLabel = `${cityNameOnly} · City-wide`;
 
-  // Source attribution line — build the most informative description we can
-  // from the data available, avoiding generic/redundant text like "safety data"
-  const sourceText = buildSourceText(metric, comparison, portalDomain);
-
   return (
     <>
       <CardHeader
@@ -250,11 +246,7 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
 
       <h2 className={feedStyles.cardHeadline}>{headline}</h2>
 
-      {/* Metric hero — tighten bottom margin when no source text follows */}
-      <div
-        className={styles.metricHero}
-        style={sourceText ? undefined : { marginBottom: 0 }}
-      >
+      <div className={styles.metricHero} style={{ marginBottom: 0 }}>
         <div className={styles.metricValueGroup}>
           {curr != null && (
             <span className={styles.metricValue}>
@@ -273,11 +265,6 @@ export default function MetricSummaryCard({ data, children }: { data: MetricCard
           </span>
         )}
       </div>
-
-      {/* Source attribution */}
-      {sourceText && (
-        <p className={feedStyles.cardDescription}>{sourceText}</p>
-      )}
 
       {children}
     </>

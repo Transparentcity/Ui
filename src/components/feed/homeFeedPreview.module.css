@@ -12,6 +12,7 @@
 .previewCard {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   text-decoration: none;
   color: inherit;
   background: var(--bg-primary, #fff);
@@ -42,6 +43,11 @@
 
 .previewCard:hover .previewCta {
   color: var(--brand-primary, #ad35fa);
+}
+
+.previewCardFoot {
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 /* Skeleton loading states */

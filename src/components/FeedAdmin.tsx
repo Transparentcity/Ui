@@ -5,10 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type FeedStory,
   type CityWithFeedStories,
+  type CreateFeedStoryPayload,
   listFeedStories,
   listCitiesWithFeedStories,
   deleteFeedStory,
   deleteFeedStoriesByCity,
+  createFeedStory,
+  updateFeedStory,
 } from "@/lib/api/feed";
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
@@ -100,6 +103,28 @@ export default function FeedAdmin() {
   // Delete state
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Editor modal state (create = editingStory null; edit = existing story)
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorStory, setEditorStory] = useState<FeedStory | null>(null);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [editorForm, setEditorForm] = useState<CreateFeedStoryPayload>({
+    city_id: 1,
+    district: 0,
+    headline: "",
+    description: "",
+    summary: "",
+    story_type: "research",
+    status: "active",
+    visualization_type: null,
+    image_url: "",
+    image_alt: "",
+    cta_label: "",
+    is_featured: false,
+    priority_score: 0.5,
+    story_date: new Date().toISOString().slice(0, 10),
+  });
 
   // Story preview popover
   const [previewStory, setPreviewStory] = useState<FeedStory | null>(null);
@@ -280,6 +305,86 @@ export default function FeedAdmin() {
     setShowExport(false);
   }, [stories, exportCityId, exportTimeRange, cities]);
 
+  // Editor: open for new story
+  const handleOpenCreate = useCallback(() => {
+    setEditorStory(null);
+    setEditorError(null);
+    setEditorForm({
+      city_id: selectedCityId ?? cities[0]?.city_id ?? 1,
+      district: 0,
+      headline: "",
+      description: "",
+      summary: "",
+      story_type: "research",
+      status: "active",
+      visualization_type: null,
+      image_url: "",
+      image_alt: "",
+      cta_label: "",
+      is_featured: false,
+      priority_score: 0.5,
+      story_date: new Date().toISOString().slice(0, 10),
+    });
+    setEditorOpen(true);
+  }, [selectedCityId, cities]);
+
+  // Editor: open for existing story
+  const handleOpenEdit = useCallback((story: FeedStory) => {
+    setEditorStory(story);
+    setEditorError(null);
+    setEditorForm({
+      city_id: story.city_id,
+      district: story.district,
+      headline: story.headline,
+      description: story.description,
+      summary: story.summary || "",
+      story_type: story.story_type,
+      status: (story.status as any) || "active",
+      visualization_type: (story.visualization_type as any) || null,
+      image_url: "",
+      image_alt: "",
+      cta_label: story.cta_label || "",
+      is_featured: story.is_featured,
+      priority_score: story.priority_score,
+      story_date: story.story_date,
+    });
+    setEditorOpen(true);
+  }, []);
+
+  const handleEditorSave = useCallback(async () => {
+    if (!editorForm.headline.trim() || !editorForm.description.trim()) {
+      setEditorError("Headline and description are required");
+      return;
+    }
+    try {
+      setEditorSaving(true);
+      setEditorError(null);
+      const token = await getAccessTokenSilently();
+      const clean: any = { ...editorForm };
+      // Convert empty-string summary/cta_label to null so the DB clears them.
+      for (const k of ["summary", "cta_label"]) {
+        if (clean[k] === "") clean[k] = null;
+      }
+      // Image fields aren't exposed in this form. Don't send them on PATCH —
+      // otherwise the empty defaults would wipe any existing values.
+      for (const k of ["image_url", "image_alt", "image_caption", "article_html"]) {
+        delete clean[k];
+      }
+      if (editorStory) {
+        await updateFeedStory(editorStory.id, clean, token);
+      } else {
+        await createFeedStory(clean, token);
+      }
+      setEditorOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setEditorError(err?.message || "Save failed");
+    } finally {
+      setEditorSaving(false);
+    }
+  }, [editorForm, editorStory, getAccessTokenSilently, loadData]);
+
+  // Open the canonical public story page (same slug as /s/[hash] redirect), not detail_url.
   const handleStoryClick = useCallback((story: FeedStory) => {
     setPreviewStory(story);
   }, []);
@@ -373,6 +478,14 @@ export default function FeedAdmin() {
               </option>
             ))}
           </select>
+
+          <button className={styles.primaryBtn} onClick={handleOpenCreate}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            New Story
+          </button>
 
           <button className={styles.secondaryBtn} onClick={() => setShowExport(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -501,7 +614,21 @@ export default function FeedAdmin() {
                         </span>
                       )}
                     </td>
-                    <td className={styles.td}>
+                    <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                      <button
+                        className={styles.iconBtn}
+                        title="Edit story"
+                        style={{ marginRight: 4 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEdit(story);
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        </svg>
+                      </button>
                       <button
                         className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
                         title="Delete story"
@@ -670,6 +797,194 @@ export default function FeedAdmin() {
                 </svg>
                 Visit story
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editor Modal (create / edit) */}
+      {editorOpen && (
+        <div className={styles.exportOverlay} onClick={() => !editorSaving && setEditorOpen(false)}>
+          <div
+            className={styles.exportPanel}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div className={styles.exportTitle}>
+              {editorStory ? `Edit story #${editorStory.id}` : "New Feed Story"}
+            </div>
+
+            {editorError && (
+              <div className={styles.errorMessage} style={{ marginBottom: 8 }}>
+                {editorError}
+              </div>
+            )}
+
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>City</label>
+              <select
+                className={styles.exportSelect}
+                value={editorForm.city_id}
+                onChange={(e) => setEditorForm((f) => ({ ...f, city_id: Number(e.target.value) }))}
+              >
+                {cities.length === 0 && <option value={1}>San Francisco (1)</option>}
+                {cities.map((c) => (
+                  <option key={c.city_id} value={c.city_id}>
+                    {c.city_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>District (0 = citywide)</label>
+              <input
+                type="number"
+                className={styles.exportSelect}
+                min={0}
+                value={editorForm.district ?? 0}
+                onChange={(e) => setEditorForm((f) => ({ ...f, district: Number(e.target.value) }))}
+              />
+            </div>
+
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>Headline</label>
+              <input
+                type="text"
+                className={styles.exportSelect}
+                value={editorForm.headline}
+                onChange={(e) => setEditorForm((f) => ({ ...f, headline: e.target.value }))}
+              />
+            </div>
+
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>Description</label>
+              <textarea
+                className={styles.exportSelect}
+                rows={4}
+                value={editorForm.description}
+                onChange={(e) => setEditorForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>Summary (optional, one-line)</label>
+              <input
+                type="text"
+                className={styles.exportSelect}
+                value={editorForm.summary ?? ""}
+                onChange={(e) => setEditorForm((f) => ({ ...f, summary: e.target.value }))}
+              />
+            </div>
+
+            <div className={styles.exportField} style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label className={styles.exportLabel}>Story type</label>
+                <select
+                  className={styles.exportSelect}
+                  value={editorForm.story_type ?? "research"}
+                  onChange={(e) => setEditorForm((f) => ({ ...f, story_type: e.target.value }))}
+                >
+                  <option value="research">research</option>
+                  <option value="traction">traction</option>
+                  <option value="context">context</option>
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className={styles.exportLabel}>Status</label>
+                <select
+                  className={styles.exportSelect}
+                  value={editorForm.status ?? "active"}
+                  onChange={(e) => setEditorForm((f) => ({ ...f, status: e.target.value as any }))}
+                >
+                  <option value="draft">draft</option>
+                  <option value="active">active</option>
+                  <option value="archived">archived</option>
+                  <option value="hidden">hidden</option>
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className={styles.exportLabel}>Visualization</label>
+                <select
+                  className={styles.exportSelect}
+                  value={editorForm.visualization_type ?? ""}
+                  onChange={(e) =>
+                    setEditorForm((f) => ({
+                      ...f,
+                      visualization_type: (e.target.value || null) as any,
+                    }))
+                  }
+                >
+                  <option value="">none</option>
+                  <option value="chart">chart</option>
+                  <option value="map">map</option>
+                  <option value="anomaly">anomaly</option>
+                </select>
+              </div>
+            </div>
+
+            <div className={styles.exportField} style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label className={styles.exportLabel}>Story date</label>
+                <input
+                  type="date"
+                  className={styles.exportSelect}
+                  value={editorForm.story_date ?? ""}
+                  onChange={(e) => setEditorForm((f) => ({ ...f, story_date: e.target.value }))}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className={styles.exportLabel}>Priority (0–1)</label>
+                <input
+                  type="number"
+                  step={0.05}
+                  min={0}
+                  max={1}
+                  className={styles.exportSelect}
+                  value={editorForm.priority_score ?? 0.5}
+                  onChange={(e) =>
+                    setEditorForm((f) => ({ ...f, priority_score: Number(e.target.value) }))
+                  }
+                />
+              </div>
+              <div style={{ flex: 1, display: "flex", alignItems: "flex-end", paddingBottom: 6 }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!editorForm.is_featured}
+                    onChange={(e) => setEditorForm((f) => ({ ...f, is_featured: e.target.checked }))}
+                  />
+                  Featured
+                </label>
+              </div>
+            </div>
+
+            <div className={styles.exportField}>
+              <label className={styles.exportLabel}>CTA label (optional)</label>
+              <input
+                type="text"
+                className={styles.exportSelect}
+                placeholder="e.g. Read full report"
+                value={editorForm.cta_label ?? ""}
+                onChange={(e) => setEditorForm((f) => ({ ...f, cta_label: e.target.value }))}
+              />
+            </div>
+
+            <div className={styles.exportActions}>
+              <button
+                className={styles.secondaryBtn}
+                onClick={() => setEditorOpen(false)}
+                disabled={editorSaving}
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.primaryBtn}
+                onClick={handleEditorSave}
+                disabled={editorSaving}
+              >
+                {editorSaving ? "Saving..." : editorStory ? "Save changes" : "Create story"}
+              </button>
             </div>
           </div>
         </div>

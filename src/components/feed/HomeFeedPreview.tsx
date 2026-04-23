@@ -1,13 +1,15 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { listPublicFeedStories } from "@/lib/apiClient";
 import { enrichStory, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
 import CardHeader from "./CardHeader";
 import { type MetricCardData } from "./templates/MetricSummaryCard";
 import MetricFeedCard from "./MetricFeedCard";
+import SourceLine from "@/components/SourceLine";
+import { slugify } from "@/lib/utils";
 import styles from "./feed.module.css";
 import homeStyles from "./homeFeedPreview.module.css";
 
@@ -26,6 +28,7 @@ interface HomeFeedPreviewProps {
  * Falls back to client-side fetch when no initial data is available.
  */
 export default function HomeFeedPreview({ initialStories, metricCards = [] }: HomeFeedPreviewProps) {
+  const router = useRouter();
   const hasInitial = initialStories && initialStories.length > 0;
   const [stories, setStories] = useState<EnrichedFeedStory[]>(hasInitial ? initialStories : []);
   const [loading, setLoading] = useState(!hasInitial);
@@ -87,9 +90,17 @@ export default function HomeFeedPreview({ initialStories, metricCards = [] }: Ho
                 {metricCard && (
                   <MetricFeedCard data={metricCard} onHide={() => {}} hideActions />
                 )}
-                <Link
-                  href={resolveCanonicalUrl(story)}
+                <div
+                  role="link"
+                  tabIndex={0}
                   className={homeStyles.previewCard}
+                  onClick={() => router.push(resolveCanonicalUrl(story))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(resolveCanonicalUrl(story));
+                    }
+                  }}
                 >
                   <CardHeader
                     typeIcon={story.type_icon}
@@ -106,7 +117,15 @@ export default function HomeFeedPreview({ initialStories, metricCards = [] }: Ho
                       {story.cleaned_description}
                     </p>
                   )}
-                </Link>
+                  {story.city_name && (
+                    <div className={homeStyles.previewCardFoot}>
+                      <SourceLine
+                        category={story.actor ?? ""}
+                        citySlug={slugify(story.city_name)}
+                      />
+                    </div>
+                  )}
+                </div>
               </Fragment>
             );
           })}
