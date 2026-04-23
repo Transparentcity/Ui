@@ -930,6 +930,10 @@ export default function FeedContainer({
   }, [atEnd, isLoading, isFetching]);
 
   // ── Toggle follow only (no feed change). Used by the filter panel's row checkbox. ──
+  // Per-city pending guard: rapid clicks on the same checkbox would otherwise
+  // stack duplicate save/unsave mutations before React re-renders with the new
+  // optimistic state, producing flicker and out-of-order server writes.
+  const pendingToggleRef = useRef<Set<number>>(new Set());
   const handleToggleFollow = useCallback(
     (cid: number) => {
       if (!isAuthenticated) {
@@ -941,9 +945,12 @@ export default function FeedContainer({
         });
         return;
       }
+      if (pendingToggleRef.current.has(cid)) return;
+      pendingToggleRef.current.add(cid);
+      const clearPending = () => { pendingToggleRef.current.delete(cid); };
       const wasFollowed = effectiveSavedCityIds.has(cid);
       if (wasFollowed) {
-        unsaveCityMutation.mutate(cid);
+        unsaveCityMutation.mutate(cid, { onSettled: clearPending });
         setOptimisticFollowedIds((prev) => {
           if (!prev.has(cid)) return prev;
           const next = new Set(prev);
@@ -958,7 +965,7 @@ export default function FeedContainer({
           return next;
         });
       } else {
-        saveCityMutation.mutate(cid);
+        saveCityMutation.mutate(cid, { onSettled: clearPending });
         setOptimisticFollowedIds((prev) => new Set(prev).add(cid));
         setOptimisticUnfollowedIds((prev) => {
           if (!prev.has(cid)) return prev;

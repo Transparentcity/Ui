@@ -404,7 +404,7 @@ function CitiesSection({
               key={c.city_id}
               city={c}
               followed
-              inFeed={selected.size === 0 || selected.has(c.city_id)}
+              inFeed={selected.has(c.city_id)}
               onToggleFollow={() => onToggleFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
@@ -420,7 +420,7 @@ function CitiesSection({
               key={c.city_id}
               city={c}
               followed={false}
-              inFeed={selected.size === 0 || selected.has(c.city_id)}
+              inFeed={selected.has(c.city_id)}
               onToggleFollow={() => onToggleFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
