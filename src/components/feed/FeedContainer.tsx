@@ -1656,6 +1656,31 @@ export default function FeedContainer({
         </div>
       )}
 
+      {/* Cities selected but nothing fetched matched — usually means the
+          feed is in a transitional state or no recent stories exist for the
+          selected cities on this page of results. */}
+      {!isLoading &&
+        !error &&
+        visibleStories.length === 0 &&
+        stories.length > 0 &&
+        selectedPlaceId === null &&
+        !onlyMySavedPlacesFeed &&
+        selectedTopics.size === 0 &&
+        selectedDistricts.size === 0 &&
+        selectedCityIds.size > 0 && (
+        <div className={styles.emptyState}>
+          <p>No recent stories for the cities in your feed. Check back soon or add another city.</p>
+          <button
+            type="button"
+            className={styles.compactClear}
+            style={{ marginTop: 8 }}
+            onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
+          >
+            Reset to my cities
+          </button>
+        </div>
+      )}
+
       {/* Generic client-side filter empty state */}
       {!isLoading &&
         !error &&
