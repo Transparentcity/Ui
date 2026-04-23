@@ -81,6 +81,38 @@ vi.mock("@/lib/publicApiClient", () => ({
   ]),
 }))
 
+// Mock the CRM city context so the table sees SF as a launched city without
+// the real provider booting up and firing network requests.
+vi.mock("./crm-city-context", () => ({
+  useCrmCitySafe: () => ({
+    selectedCity: null,
+    cities: [
+      { id: 57260, name: "San Francisco", state: null, emoji: null, slug: "san-francisco" },
+      { id: 5, name: "Oakland", state: null, emoji: null, slug: "oakland" },
+    ],
+    recentCities: [],
+    isLoading: false,
+    error: null,
+    setSelectedCityId: vi.fn(),
+    isPickerOpen: false,
+    setPickerOpen: vi.fn(),
+  }),
+  useCrmCity: () => ({
+    selectedCity: null,
+    cities: [
+      { id: 57260, name: "San Francisco", state: null, emoji: null, slug: "san-francisco" },
+      { id: 5, name: "Oakland", state: null, emoji: null, slug: "oakland" },
+    ],
+    recentCities: [],
+    isLoading: false,
+    error: null,
+    setSelectedCityId: vi.fn(),
+    isPickerOpen: false,
+    setPickerOpen: vi.fn(),
+  }),
+  CrmCityProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
 // ---- Fixtures --------------------------------------------------------------
 
 import type { Keyword } from "@/lib/types"
@@ -682,7 +714,7 @@ describe("ContactsTable", () => {
     expect(screen.getByText(/No contacts yet/)).toBeInTheDocument()
   })
 
-  it("shows 'No contacts found' when search matches nothing", async () => {
+  it("shows empty-state copy when search matches nothing", async () => {
     const user = userEvent.setup()
     render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
 
@@ -690,7 +722,7 @@ describe("ContactsTable", () => {
     await user.type(searchInput, "zzzznonexistent")
 
     await waitFor(() => {
-      expect(screen.getByText(/No contacts found/)).toBeInTheDocument()
+      expect(screen.getByText(/No contacts match your filters/i)).toBeInTheDocument()
     })
   })
 
@@ -701,48 +733,6 @@ describe("ContactsTable", () => {
 
     expect(screen.getByText("Alice Wong")).toBeInTheDocument()
     expect(screen.queryByText("Bob Chen")).not.toBeInTheDocument()
-  })
-
-  // ---------- Clickable city badges (#3) ----------
-
-  it("filters contacts when a city badge is clicked", async () => {
-    const user = userEvent.setup()
-    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
-
-    // Find the San Francisco badge in the city breakdown
-    const badges = screen.getAllByText(/San Francisco: 2/i)
-    expect(badges.length).toBeGreaterThan(0)
-    await user.click(badges[0])
-
-    // Only Alice and Bob should be visible (San Francisco contacts)
-    expect(screen.getByText("Alice Wong")).toBeInTheDocument()
-    expect(screen.getByText("Bob Chen")).toBeInTheDocument()
-    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
-  })
-
-  it("clears city filter when same badge is clicked again", async () => {
-    const user = userEvent.setup()
-    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
-
-    const badges = screen.getAllByText(/San Francisco: 2/i)
-    // Click to filter
-    await user.click(badges[0])
-    expect(screen.queryByText("Carol Martinez")).not.toBeInTheDocument()
-
-    // Click again to clear
-    await user.click(badges[0])
-    expect(screen.getByText("Carol Martinez")).toBeInTheDocument()
-  })
-
-  it("highlights active city badge with ring", async () => {
-    const user = userEvent.setup()
-    render(<ContactsTable contacts={CONTACTS} keywords={KEYWORDS} />)
-
-    const badges = screen.getAllByText(/San Francisco: 2/i)
-    await user.click(badges[0])
-
-    // The badge should have ring-2 ring-purple-500 class
-    expect(badges[0].closest("[class*='ring-2']")).not.toBeNull()
   })
 
   // ---------- Pagination (#6) ----------

@@ -74,11 +74,8 @@ import {
 import { deleteContact, bulkUpdateCity, bulkAddKeywords, bulkUpdateType } from "@/app/actions/contacts"
 import { ContactActivityTimeline } from "./contact-activity-timeline"
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient"
+import { useCrmCitySafe } from "./crm-city-context"
 import { toast } from "sonner"
-
-const PINNED_CITIES: PublicCitySearchResult[] = [
-  { id: 57260, name: "San Francisco", state: "CA", display_name: "San Francisco" },
-]
 
 function getArticleLabel(url: string, title: string | null): string {
   if (title?.trim()) return title
@@ -156,6 +153,9 @@ function getContactTypeColor(type: string) {
 
 export function ContactsTable({ contacts, keywords, initialTypeFilter }: ContactsTableProps) {
   const router = useRouter()
+  const crmCtx = useCrmCitySafe()
+  const selectedCity = crmCtx?.selectedCity ?? null
+  const launchedCities = crmCtx?.cities ?? []
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialTypeFilter ?? "all")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -172,9 +172,19 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [cityFilter, setCityFilter] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 25
+
+  // Cities shown as "quick pick" in the bulk-assign pulldown: the selected city first,
+  // then all other launched cities.
+  const pinnedCities = useMemo<PublicCitySearchResult[]>(() => {
+    return launchedCities.map((c) => ({
+      id: c.id,
+      name: c.name,
+      state: c.state ?? undefined,
+      display_name: c.state ? `${c.name}, ${c.state}` : c.name,
+    }))
+  }, [launchedCities])
 
   // Debounced search for filtering (Phase 4)
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
@@ -194,10 +204,9 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
 
   const filteredContacts = useMemo(() => contacts.filter((contact) => {
     if (typeFilter !== "all" && (contact.contact_type as string) !== typeFilter) return false
-    if (cityFilter) {
-      const contactCity = contact.city_name || (contact.city_id ? `City #${contact.city_id}` : 'No city')
-      if (contactCity !== cityFilter) return false
-    }
+    // Scope to the globally-selected CRM city. Contacts without a city_id are
+    // excluded from city-scoped views so the user has a clean, single-city mailbox.
+    if (selectedCity && contact.city_id !== selectedCity.id) return false
     const search = debouncedSearchQuery.toLowerCase()
     const c = contact as ContactWithKeywords
     return (
@@ -213,7 +222,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
       (c.contact_type && CONTACT_TYPE_LABELS[c.contact_type as string]?.toLowerCase().includes(search)) ||
       c.keywords?.some((k) => k.name.toLowerCase().includes(search))
     )
-  }), [contacts, typeFilter, cityFilter, debouncedSearchQuery])
+  }), [contacts, typeFilter, selectedCity, debouncedSearchQuery])
 
   const sortedContacts = sortKey
     ? [...filteredContacts].sort((a, b) => {
@@ -246,7 +255,13 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
   // Reset page on filter/search/sort changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearchQuery, typeFilter, cityFilter, sortKey, sortDir])
+  }, [debouncedSearchQuery, typeFilter, selectedCity?.id, sortKey, sortDir])
+
+  // Clear any stale bulk selection when the city changes so users don't act on
+  // contacts that are now hidden from the filtered view.
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [selectedCity?.id])
 
   const allSelected = paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))
   const someSelected = selectedIds.size > 0
@@ -356,11 +371,11 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     k.name.toLowerCase().includes(keywordSearch.toLowerCase())
   )
 
-  const cityBreakdown = contacts.reduce<Record<string, number>>((acc, c) => {
-    const key = c.city_name || (c.city_id ? `City #${c.city_id}` : 'No city')
-    acc[key] = (acc[key] || 0) + 1
-    return acc
-  }, {})
+  // Count of contacts in the currently-selected city that have no email.
+  // Surfaced as a quick quality signal on the toolbar.
+  const unreachableInCity = selectedCity
+    ? contacts.filter((c) => c.city_id === selectedCity.id && !c.email).length
+    : 0
 
   const handleExportCsv = useCallback(() => {
     const headers = [
@@ -409,11 +424,14 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`
+    const citySlug = selectedCity
+      ? selectedCity.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+      : "all"
+    a.download = `contacts-${citySlug}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
     toast.success("CSV exported")
-  }, [filteredContacts])
+  }, [filteredContacts, selectedCity])
 
   return (
     <div className="space-y-4">
@@ -444,7 +462,15 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
         </Select>
         <p className="text-sm text-muted-foreground">
           {filteredContacts.length} contact{filteredContacts.length !== 1 ? "s" : ""}
+          {selectedCity && (
+            <span className="ml-1 text-muted-foreground/80">in {selectedCity.name}</span>
+          )}
         </p>
+        {unreachableInCity > 0 && (
+          <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+            {unreachableInCity} missing email
+          </Badge>
+        )}
         <ContactImportDialog keywords={keywords}>
           <Button variant="outline" size="sm" className="gap-1.5">
             <Upload className="w-4 h-4" />
@@ -455,24 +481,6 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
           <Download className="w-4 h-4" />
           Export CSV
         </Button>
-        {/* City breakdown badges */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {Object.entries(cityBreakdown).map(([city, count]) => (
-            <Badge
-              key={city}
-              variant="outline"
-              className={`text-xs cursor-pointer transition-all ${
-                cityFilter === city
-                  ? 'ring-2 ring-purple-500'
-                  : ''
-              } ${city === 'No city' ? 'border-amber-300 text-amber-700 bg-amber-50' : ''}`}
-              onClick={() => setCityFilter(prev => prev === city ? null : city)}
-            >
-              <MapPin className="w-3 h-3 mr-1" />
-              {city}: {count}
-            </Badge>
-          ))}
-        </div>
       </div>
 
       {/* Bulk action bar */}
@@ -494,18 +502,37 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
             </Button>
             {showCityPicker && (
               <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-lg border z-50 p-2">
-                {/* Pinned cities for quick selection */}
-                {PINNED_CITIES.map((city) => (
-                  <button
-                    key={`pinned-${city.id}`}
-                    onClick={() => handleBulkAssignCity(city)}
-                    className="w-full text-left px-3 py-2 text-sm rounded hover:bg-purple-50 transition-colors flex items-center gap-2"
-                  >
-                    <MapPin className="w-3 h-3 text-purple-500 shrink-0" />
-                    <span className="font-medium">{city.name}</span>
-                    {city.state && <span className="text-gray-500">{city.state}</span>}
-                  </button>
-                ))}
+                {/* Launched cities for quick selection */}
+                {pinnedCities.length > 0 && (
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-2 py-1">
+                    Launched cities
+                  </p>
+                )}
+                {pinnedCities.map((city) => {
+                  const selectedContacts = contacts.filter((c) => selectedIds.has(c.id))
+                  const allAlreadyAssigned =
+                    selectedContacts.length > 0 &&
+                    selectedContacts.every((c) => c.city_id === city.id)
+                  return (
+                    <button
+                      key={`pinned-${city.id}`}
+                      onClick={() => !allAlreadyAssigned && handleBulkAssignCity(city)}
+                      disabled={allAlreadyAssigned}
+                      className={`w-full text-left px-3 py-2 text-sm rounded transition-colors flex items-center gap-2 ${
+                        allAlreadyAssigned
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-purple-50"
+                      }`}
+                    >
+                      <MapPin className="w-3 h-3 text-purple-500 shrink-0" />
+                      <span className="font-medium">{city.name}</span>
+                      {city.state && <span className="text-gray-500">{city.state}</span>}
+                      {allAlreadyAssigned && (
+                        <span className="ml-auto text-[10px] text-gray-500">already assigned</span>
+                      )}
+                    </button>
+                  )
+                })}
                 <div className="border-t my-1 pt-1">
                   <Input
                     placeholder="Search other cities..."
@@ -521,7 +548,7 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
                     Searching...
                   </div>
                 )}
-                {cityResults.filter(c => !PINNED_CITIES.some(p => p.id === c.id)).map((city) => (
+                {cityResults.filter(c => !pinnedCities.some(p => p.id === c.id)).map((city) => (
                   <button
                     key={city.id}
                     onClick={() => handleBulkAssignCity(city)}
@@ -677,10 +704,22 @@ export function ContactsTable({ contacts, keywords, initialTypeFilter }: Contact
             <TableBody>
               {paginatedContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
-                    {searchQuery || typeFilter !== "all" || cityFilter
-                      ? "No contacts found"
-                      : "No contacts yet. Add your first contact to get started."}
+                  <TableCell colSpan={9} className="h-40 text-center text-muted-foreground">
+                    {searchQuery || typeFilter !== "all" ? (
+                      "No contacts match your filters."
+                    ) : selectedCity ? (
+                      <div className="space-y-2">
+                        <p>No contacts in {selectedCity.name} yet.</p>
+                        <p className="text-xs">
+                          Add one manually, or import a CSV from the admin tools.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p>No contacts yet.</p>
+                        <p className="text-xs">Add your first contact to get started.</p>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (

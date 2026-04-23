@@ -44,6 +44,7 @@ import { listActiveContactsLite } from "@/app/actions/contacts"
 import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { useCrmCitySafe } from "./crm-city-context"
 import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
 import { isAnomalyIgnored } from "./anomalies-manager"
 
@@ -52,7 +53,7 @@ interface MessageReviewProps {
   onUpdate?: () => void
 }
 
-export function MessageReview({ items, onUpdate }: MessageReviewProps) {
+export function MessageReview({ items: allItems, onUpdate }: MessageReviewProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editingItem, setEditingItem] = useState<SendQueueItem | null>(null)
   const [editSubject, setEditSubject] = useState("")
@@ -86,12 +87,25 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
     status: string
   }
   
-  // Fetch anomalies from Platform API for email regeneration
-  // API max limit is 200 - this provides enough for district + citywide coverage
+  const crmCityCtx = useCrmCitySafe()
+  const selectedCity = crmCityCtx?.selectedCity ?? null
+  const activeCityId = selectedCity?.id ?? CRM_DEFAULT_CITY_ID
+
+  const items = useMemo(() => {
+    if (!selectedCity) return allItems
+    return allItems.filter((item) => {
+      const cityId = item.prospect?.city_id
+      // keep items with no city assignment so they stay visible
+      return cityId == null || cityId === selectedCity.id
+    })
+  }, [allItems, selectedCity])
+
+  const hiddenByCityFilter = allItems.length - items.length
+
   const { data: anomalyData, isLoading: anomaliesLoading } = useAnomalies({
     is_anomaly: true,
     limit: 200,
-    city_id: CRM_DEFAULT_CITY_ID,
+    city_id: activeCityId,
   })
   const anomalies = anomalyData?.results ? mapApiAnomaliesToCrm(anomalyData.results) : []
   
@@ -301,14 +315,18 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
     })
   }
 
-  const currentItem = items[currentIndex]
+  const currentItem = items[Math.min(currentIndex, Math.max(items.length - 1, 0))]
 
   if (items.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <CheckCircle2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No messages pending review</p>
+          <p className="text-muted-foreground">
+            {hiddenByCityFilter > 0
+              ? `No messages in ${selectedCity?.name ?? "the selected city"}. ${hiddenByCityFilter} hidden by city filter.`
+              : "No messages pending review"}
+          </p>
         </CardContent>
       </Card>
     )
@@ -316,6 +334,14 @@ export function MessageReview({ items, onUpdate }: MessageReviewProps) {
 
   return (
     <div className="space-y-4">
+      {hiddenByCityFilter > 0 && selectedCity && (
+        <div className="flex items-center justify-between gap-2 rounded-md bg-purple-50 border border-purple-200 px-3 py-2 text-xs text-purple-800">
+          <span>
+            Showing {items.length} of {allItems.length} drafts for{" "}
+            <span className="font-medium">{selectedCity.name}</span>. {hiddenByCityFilter} hidden.
+          </span>
+        </div>
+      )}
       {/* Header with actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

@@ -23,6 +23,7 @@ import { queueCampaignMessages, regenerateCampaign } from "@/app/actions/send-qu
 import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { useCrmCitySafe } from "./crm-city-context"
 import { toSlimEmailAnomaly, type CrmEmailAnomaly } from "@/lib/crmAnomalyUtils"
 import { isAnomalyIgnored } from "./anomalies-manager"
 
@@ -73,10 +74,13 @@ export function CampaignsManager({ campaigns, templates, contacts }: CampaignsMa
   
   // Fetch anomalies from Platform API for email generation
   // API max limit is 200 - this should provide ~15+ anomalies per district plus citywide
+  const crmCityCtx = useCrmCitySafe()
+  const activeCityId = crmCityCtx?.selectedCity?.id ?? CRM_DEFAULT_CITY_ID
+
   const { data: anomalyData, isLoading: anomaliesLoading, error: anomaliesError } = useAnomalies({
     is_anomaly: true,
     limit: 200,
-    city_id: CRM_DEFAULT_CITY_ID,
+    city_id: activeCityId,
   })
   const anomaliesErrorMessage =
     (anomaliesError as unknown as { message?: string } | null)?.message || null

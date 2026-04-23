@@ -62,25 +62,28 @@ export function useRunAnomalyDetection() {
  * Hook to list anomalies with optional filtering.
  * Cache time: 2 minutes
  */
-export function useAnomalies(options?: { 
-  metric_id?: number; 
-  is_anomaly?: boolean | null; 
-  period_type?: string; 
+export function useAnomalies(options?: {
+  metric_id?: number;
+  is_anomaly?: boolean | null;
+  period_type?: string;
   period_date?: string | null;
   limit?: number;
   city_id?: number;
   district?: number | null;
+  /** Skip the query when false. Defaults to true. */
+  enabled?: boolean;
 }) {
   const { getAccessTokenSilently } = useAuth0();
+  const { enabled = true, ...apiOptions } = options ?? {};
 
   return useQuery({
-    queryKey: anomalyKeys.list(options),
+    queryKey: anomalyKeys.list(apiOptions),
     queryFn: async () => {
       const token = await getAccessTokenSilently();
-      return listAnomalies(token, options);
+      return listAnomalies(token, apiOptions);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    enabled: true,
+    enabled,
   });
 }
 

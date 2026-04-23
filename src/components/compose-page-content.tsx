@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 import { API_BASE, CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 import { ContactDialog } from "./contact-dialog"
+import { useCrmCitySafe } from "./crm-city-context"
 import { useAnomalies } from "@/lib/hooks/useAnomalies"
 import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -83,10 +84,13 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     return headers
   }, [getAccessTokenSilently])
 
+  const crmCityCtx = useCrmCitySafe()
+  const activeCityId = crmCityCtx?.selectedCity?.id ?? CRM_DEFAULT_CITY_ID
+
   const { data, isLoading } = useAnomalies({
     is_anomaly: true,
     limit: 500,
-    city_id: CRM_DEFAULT_CITY_ID,
+    city_id: activeCityId,
   })
 
   // Contact search/selection
@@ -146,6 +150,17 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
       return // No city, can't fetch anomalies
     }
 
+    // If the sidebar city doesn't match the contact's city, switch it so the
+    // chip and any other city-scoped data on the page stay honest.
+    const sidebarCityId = crmCityCtx?.selectedCity?.id
+    if (sidebarCityId && sidebarCityId !== contact.city_id) {
+      const matchingCity = crmCityCtx?.cities.find((c) => c.id === contact.city_id)
+      if (matchingCity) {
+        crmCityCtx?.setSelectedCityId(contact.city_id)
+        toast.info(`Switched to ${matchingCity.name}`)
+      }
+    }
+
     setLoadingAnomalies(true)
     try {
       const headers = await getAuthHeaders()
@@ -169,7 +184,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     } finally {
       setLoadingAnomalies(false)
     }
-  }, [])
+  }, [crmCityCtx])
 
   // Auto-select contact from URL param
   const initialContactHandled = useRef(false)

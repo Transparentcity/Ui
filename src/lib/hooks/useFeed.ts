@@ -74,22 +74,25 @@ export function useFeedStories(options?: {
   user_place_id?: number | null;
   /** All stories tagged to any of the user's saved places (auth only). */
   only_my_saved_places?: boolean;
+  /** Skip the query when false. Defaults to true. */
+  enabled?: boolean;
 }) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { enabled = true, ...apiOptions } = options ?? {};
 
   return useQuery({
-    queryKey: feedKeys.list(options),
+    queryKey: feedKeys.list(apiOptions),
     queryFn: async () => {
       if (isAuthenticated) {
         const token = await getAccessTokenSilently();
-        return listFeedStories(token, options);
+        return listFeedStories(token, apiOptions);
       } else {
         // Use public endpoint if not authenticated
-        return listPublicFeedStories(options);
+        return listPublicFeedStories(apiOptions);
       }
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    enabled: true,
+    enabled,
     // Keep showing previous results while loading more (avoids scroll-to-top flicker)
     placeholderData: keepPreviousData,
   });

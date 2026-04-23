@@ -80,6 +80,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
     <DashboardShell
       title="Contacts"
       description="City staff and media prospects"
+      cityAware
       actions={
         <ContactDialog keywords={keywords as any}>
           <Button>

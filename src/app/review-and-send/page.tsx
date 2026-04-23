@@ -30,6 +30,7 @@ export default async function ReviewAndSendPage() {
     <DashboardShell
       title="Review & Send"
       description={`${pendingCount} pending review, ${sentCount} sent`}
+      cityAware
     >
       <ReviewAndSend items={items as any} />
     </DashboardShell>
