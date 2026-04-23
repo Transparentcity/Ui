@@ -232,7 +232,7 @@ function TimeSeriesChartPageContent() {
     getPublicMetricCompletenessDaily(
       metricIdForCompleteness,
       "day",
-      365,
+      90,
       districtForCompleteness
     )
       .then((res) => {

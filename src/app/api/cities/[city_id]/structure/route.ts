@@ -18,55 +18,61 @@ export async function GET(
     );
   }
 
-  // Try endpoints in order of preference:
-  // 1. Public endpoint (no auth required) - best for map embeds
-  // 2. Main cities endpoint (requires auth)
-  // 3. Template-metrics endpoint (requires auth)
-  const endpoints = [
-    `${BACKEND_API_URL}/api/public/cities/${cityId}/structure`,
-    `${BACKEND_API_URL}/api/cities/${cityId}/structure`,
-    `${BACKEND_API_URL}/api/template-metrics/cities/${cityId}/structure`,
-  ];
+  // Prefer the public structure endpoint (embeds / anonymous). Do not fall back to
+  // /api/cities/... without a Bearer token — that always 401s and looked like "login is broken".
+  const publicUrl = `${BACKEND_API_URL}/api/public/cities/${cityId}/structure`;
+  const authHeader = req.headers.get("authorization");
 
-  let lastError: string = "";
-  let lastStatus: number = 500;
-
-  for (const endpoint of endpoints) {
-    try {
-      const backendRes = await fetch(endpoint, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-      });
-
-
-      if (backendRes.ok) {
-        const data = await backendRes.json();
-        return NextResponse.json(data);
-      }
-
-      // Store the error for fallback
-      lastError = await backendRes.text().catch(() => "");
-      lastStatus = backendRes.status;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[api/cities/structure] Fetch error for ${endpoint}:`, errorMessage);
-      lastError = errorMessage;
-      lastStatus = 500;
+  const tryFetch = async (url: string, withAuth: boolean) => {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+    };
+    if (withAuth && authHeader) {
+      headers.Authorization = authHeader;
     }
+    return fetch(url, { method: "GET", headers, cache: "no-store" });
+  };
+
+  let lastError = "";
+  let lastStatus = 500;
+
+  try {
+    let backendRes = await tryFetch(publicUrl, false);
+    if (backendRes.ok) {
+      return NextResponse.json(await backendRes.json());
+    }
+    lastError = await backendRes.text().catch(() => "");
+    lastStatus = backendRes.status;
+
+    // Only if the browser sent Authorization, try authenticated fallbacks (admin / template).
+    if (authHeader) {
+      const authedUrls = [
+        `${BACKEND_API_URL}/api/cities/${cityId}/structure`,
+        `${BACKEND_API_URL}/api/template-metrics/cities/${cityId}/structure`,
+      ];
+      for (const endpoint of authedUrls) {
+        backendRes = await tryFetch(endpoint, true);
+        if (backendRes.ok) {
+          return NextResponse.json(await backendRes.json());
+        }
+        lastError = await backendRes.text().catch(() => "");
+        lastStatus = backendRes.status;
+      }
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[api/cities/structure] Fetch error for city ${cityId}:`, errorMessage);
+    lastError = errorMessage;
+    lastStatus = 500;
   }
 
-  // All endpoints failed
-  console.error(`[api/cities/structure] All endpoints failed for city ${cityId}`);
+  console.error(`[api/cities/structure] Failed for city ${cityId} (lastStatus=${lastStatus})`);
   return NextResponse.json(
-    { 
-      error: "Failed to fetch city structure", 
+    {
+      error: "Failed to fetch city structure",
       details: lastError,
-      triedEndpoints: endpoints,
-      hint: "Check if the backend server is running and accessible at " + BACKEND_API_URL
+      hint:
+        "Verify NEXT_PUBLIC_API_BASE_URL and that GET /api/public/cities/{id}/structure succeeds on the platform.",
     },
     { status: lastStatus }
   );
