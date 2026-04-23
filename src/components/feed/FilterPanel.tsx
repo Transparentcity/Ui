@@ -44,8 +44,6 @@ interface FilterPanelProps {
   allCities: CityInfo[];
   /** Cities the user follows (saved) */
   savedCityIds: Set<number>;
-  /** Whether the current viewer is signed in (controls follow checkbox) */
-  isAuthenticated: boolean;
   /** Current filter state */
   filters: FilterState;
   /** Apply filter changes */
@@ -79,7 +77,6 @@ export default function FilterPanel({
   onClose,
   allCities,
   savedCityIds,
-  isAuthenticated,
   filters,
   onApply,
   onToggleFollow,
@@ -207,7 +204,6 @@ export default function FilterPanel({
           <CitiesSection
             allCities={allCities}
             savedCityIds={savedCityIds}
-            isAuthenticated={isAuthenticated}
             selected={draft.selectedCityIds}
             onChange={(ids) =>
               applyIfDesktop({
@@ -303,14 +299,12 @@ function useIsDesktop() {
 function CitiesSection({
   allCities,
   savedCityIds,
-  isAuthenticated,
   selected,
   onChange,
   onToggleFollow,
 }: {
   allCities: CityInfo[];
   savedCityIds: Set<number>;
-  isAuthenticated: boolean;
   selected: Set<number>;
   onChange: (ids: Set<number>) => void;
   onToggleFollow: (cityId: number) => void;
@@ -405,7 +399,6 @@ function CitiesSection({
               city={c}
               followed
               inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
-              showFollowCheckbox={isAuthenticated}
               onToggleFollow={() => onToggleFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
@@ -422,7 +415,6 @@ function CitiesSection({
               city={c}
               followed={false}
               inFeed={savedCityIds.has(c.city_id) || selected.has(c.city_id)}
-              showFollowCheckbox={isAuthenticated}
               onToggleFollow={() => onToggleFollow(c.city_id)}
               onToggleFeed={() => toggleFeed(c.city_id)}
             />
@@ -494,38 +486,34 @@ function CityRow({
   city,
   followed,
   inFeed,
-  showFollowCheckbox,
   onToggleFollow,
   onToggleFeed,
 }: {
   city: CityInfo;
   followed: boolean;
   inFeed: boolean;
-  showFollowCheckbox: boolean;
   onToggleFollow: () => void;
   onToggleFeed: () => void;
 }) {
   return (
     <div className={styles.cityItem}>
-      {showFollowCheckbox && (
-        <button
-          type="button"
-          className={styles.cityFollowCheckbox}
-          onClick={onToggleFollow}
-          aria-pressed={followed}
-          aria-label={followed ? `Unfollow ${city.city_name}` : `Follow ${city.city_name}`}
+      <button
+        type="button"
+        className={styles.cityFollowCheckbox}
+        onClick={onToggleFollow}
+        aria-pressed={followed}
+        aria-label={followed ? `Unfollow ${city.city_name}` : `Follow ${city.city_name}`}
+      >
+        <span
+          className={`${styles.cityCheckbox} ${followed ? styles.cityCheckboxChecked : ""}`}
+          aria-hidden="true"
         >
-          <span
-            className={`${styles.cityCheckbox} ${followed ? styles.cityCheckboxChecked : ""}`}
-            aria-hidden="true"
-          >
-            {followed ? "✓" : ""}
-          </span>
-          <span className={styles.cityFollowedLabel}>
-            {followed ? "Followed" : "Follow"}
-          </span>
-        </button>
-      )}
+          {followed ? "✓" : ""}
+        </span>
+        <span className={styles.cityFollowedLabel}>
+          {followed ? "Followed" : "Follow"}
+        </span>
+      </button>
       <span className={styles.cityName}>
         {city.city_emoji ? `${city.city_emoji} ` : ""}
         {city.city_name}

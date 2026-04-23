@@ -41,6 +41,7 @@ import FilterPanel, {
   type FilterState,
 } from "./FilterPanel";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
+import { startSignup } from "@/lib/signup";
 import styles from "./feed.module.css";
 
 /** Templates considered "visual" for the first-impression rule. */
@@ -82,7 +83,7 @@ export default function FeedContainer({
   onPlaceSaved,
   homeCityId,
 }: FeedContainerProps) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, loginWithRedirect } = useAuth0();
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const onboarding = usePlaceOnboarding();
@@ -931,7 +932,15 @@ export default function FeedContainer({
   // ── Toggle follow only (no feed change). Used by the filter panel's row checkbox. ──
   const handleToggleFollow = useCallback(
     (cid: number) => {
-      if (!isAuthenticated) return;
+      if (!isAuthenticated) {
+        const city = uniqueCities.find((c) => c.city_id === cid);
+        void startSignup(loginWithRedirect, "resident", {
+          source_surface: "feed_filter_follow",
+          city_id: cid,
+          city_name: city?.city_name ?? null,
+        });
+        return;
+      }
       const wasFollowed = effectiveSavedCityIds.has(cid);
       if (wasFollowed) {
         unsaveCityMutation.mutate(cid);
@@ -959,7 +968,7 @@ export default function FeedContainer({
         });
       }
     },
-    [isAuthenticated, effectiveSavedCityIds, saveCityMutation, unsaveCityMutation],
+    [isAuthenticated, effectiveSavedCityIds, saveCityMutation, unsaveCityMutation, loginWithRedirect, uniqueCities],
   );
 
   // ── Toggle feed membership only (no follow change). Used by the "View in Feed" row button and chip X. ──
@@ -1191,7 +1200,6 @@ export default function FeedContainer({
               onClose={() => setShowFilterPanel(false)}
               allCities={uniqueCities}
               savedCityIds={effectiveSavedCityIds}
-              isAuthenticated={isAuthenticated}
               filters={{
                 selectedCityIds,
                 selectedTopics,
