@@ -179,8 +179,8 @@ export function ManualComposeContent({
       setSelectedTemplateId(templateId)
       const tpl = emailTemplates.find((t) => t.id === templateId)
       if (!tpl) return
-      setSubject((prev) => (prev.trim() ? prev : tpl.subject ?? ""))
-      setBody((prev) => (prev.trim() ? prev : tpl.body))
+      setSubject(tpl.subject ?? "")
+      setBody(tpl.body)
       toast.success(`Applied template "${tpl.name}"`)
     },
     [emailTemplates],
@@ -444,7 +444,11 @@ export function ManualComposeContent({
 
               {refKind === "story" && !feedQuery.isLoading && cityId && (
                 <>
-                  {stories.length === 0 ? (
+                  {feedQuery.isError ? (
+                    <p className="text-xs text-red-600">
+                      Failed to load stories. Check your connection and try again.
+                    </p>
+                  ) : stories.length === 0 ? (
                     <p className="text-xs text-gray-500">
                       No feed stories for {selectedContact.city_name ?? "this city"} yet.
                     </p>
@@ -485,7 +489,11 @@ export function ManualComposeContent({
 
               {refKind === "anomaly" && !anomaliesQuery.isLoading && cityId && (
                 <>
-                  {anomalies.length === 0 ? (
+                  {anomaliesQuery.isError ? (
+                    <p className="text-xs text-red-600">
+                      Failed to load anomalies. Check your connection and try again.
+                    </p>
+                  ) : anomalies.length === 0 ? (
                     <p className="text-xs text-gray-500">
                       No recent anomalies for {selectedContact.city_name ?? "this city"}.
                     </p>

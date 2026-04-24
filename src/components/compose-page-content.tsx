@@ -28,14 +28,10 @@ import {
   CheckCircle2,
   Mail,
 } from "lucide-react"
-import { API_BASE, CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
+import { API_BASE } from "@/lib/apiBase"
 import { ContactDialog } from "./contact-dialog"
 import { useCrmCitySafe } from "./crm-city-context"
-import { useAnomalies } from "@/lib/hooks/useAnomalies"
-import { mapApiAnomaliesToCrm } from "@/lib/anomalyMapper"
-import { DashboardShell } from "@/components/dashboard-shell"
-import { AIEmailComposer } from "@/components/ai-email-composer"
-import type { ContactWithKeywords, Keyword, Anomaly } from "@/lib/types"
+import type { ContactWithKeywords, Keyword } from "@/lib/types"
 import { toast } from "sonner"
 
 interface AnomalyOption {
@@ -91,6 +87,8 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
   const [selectedContact, setSelectedContact] = useState<ContactWithKeywords | null>(null)
   const [showContactResults, setShowContactResults] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  // Tracks the in-flight anomaly fetch so we can abort it if the contact changes
+  const fetchAbortRef = useRef<AbortController | null>(null)
 
   // Anomaly state
   const [anomalies, setAnomalies] = useState<AnomalyOption[]>([])
@@ -126,9 +124,15 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
 
   // When a contact is selected, fetch anomalies for their city
   const selectContact = useCallback(async (contact: ContactWithKeywords) => {
+    // Cancel any in-flight fetch from a previous contact selection
+    fetchAbortRef.current?.abort()
+    const abortController = new AbortController()
+    fetchAbortRef.current = abortController
+
     setSelectedContact(contact)
     setContactSearch("")
     setShowContactResults(false)
+    setShowAnomalyPicker(false)
     setDraftSubject("")
     setDraftBody("")
     setChartUrl("")
@@ -157,7 +161,10 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     setLoadingAnomalies(true)
     try {
       const headers = await getAuthHeaders()
-      const resp = await fetch(`${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=90&limit=30`, { headers })
+      const resp = await fetch(
+        `${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=90&limit=30`,
+        { headers, signal: abortController.signal },
+      )
       if (!resp.ok) throw new Error("Failed to fetch anomalies")
       const data = await resp.json()
       const fetched: AnomalyOption[] = data.anomalies || []
@@ -171,13 +178,21 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
         await generateDraft(contact, top, "")
       }
     } catch (err) {
+      // Ignore abort errors — they're intentional when switching contacts quickly
+      if (err instanceof Error && err.name === "AbortError") return
       console.error("Fetch anomalies error:", err)
       toast.error("Failed to fetch anomalies")
       setGenerationError("Failed to fetch anomalies. Please try again.")
     } finally {
-      setLoadingAnomalies(false)
+      // Only clear the loading flag if this controller is still the active one
+      if (fetchAbortRef.current === abortController) {
+        setLoadingAnomalies(false)
+      }
     }
   }, [crmCityCtx, getAuthHeaders])
+
+  // Abort any in-flight fetch when the component unmounts
+  useEffect(() => () => { fetchAbortRef.current?.abort() }, [])
 
   // Auto-select contact from URL param
   const initialContactHandled = useRef(false)
@@ -326,6 +341,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                   variant="ghost"
                   size="sm"
                   onClick={() => {
+                    fetchAbortRef.current?.abort()
                     setSelectedContact(null)
                     setDraftSubject("")
                     setDraftBody("")
@@ -334,6 +350,8 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                     setAnomalies([])
                     setRefinement("")
                     setSaved(false)
+                    setGenerationError(null)
+                    setShowAnomalyPicker(false)
                   }}
                   className="text-xs text-gray-500"
                 >
