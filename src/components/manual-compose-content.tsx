@@ -11,7 +11,9 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -91,6 +93,15 @@ export function ManualComposeContent({
 
   const cityId = selectedContact?.city_id ?? null
 
+  // Parse district number from the contact's jurisdiction field (e.g. "D5", "District 11", "6").
+  // District 0 is "citywide" in the data model, so treat it as no district.
+  const contactDistrict = useMemo(() => {
+    const j = selectedContact?.jurisdiction
+    if (!j) return null
+    const num = parseInt(j.replace(/\D/g, ""))
+    return isNaN(num) || num === 0 ? null : num
+  }, [selectedContact?.jurisdiction])
+
   // Fetch feed stories for the contact's city (only when needed).
   const feedQuery = useFeedStories({
     city_id: cityId ?? undefined,
@@ -109,6 +120,26 @@ export function ManualComposeContent({
 
   const selectedStory = stories.find((s) => s.id === selectedStoryId) ?? null
   const selectedAnomaly = anomalies.find((a) => a.id === selectedAnomalyId) ?? null
+
+  // Group stories: contact's district first, then everything else
+  const districtStories = useMemo(
+    () => (contactDistrict ? stories.filter((s) => s.district === contactDistrict) : []),
+    [stories, contactDistrict],
+  )
+  const otherStories = useMemo(
+    () => (contactDistrict ? stories.filter((s) => s.district !== contactDistrict) : stories),
+    [stories, contactDistrict],
+  )
+
+  // Group anomalies: contact's district first, then citywide (district 0 or null)
+  const districtAnomalies = useMemo(
+    () => (contactDistrict ? anomalies.filter((a) => a.district === contactDistrict) : []),
+    [anomalies, contactDistrict],
+  )
+  const otherAnomalies = useMemo(
+    () => (contactDistrict ? anomalies.filter((a) => a.district !== contactDistrict) : anomalies),
+    [anomalies, contactDistrict],
+  )
 
   // Close contact dropdown on outside click.
   useEffect(() => {
@@ -426,11 +457,26 @@ export function ManualComposeContent({
                         <SelectValue placeholder="Pick a feed story..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {stories.map((s) => (
-                          <SelectItem key={s.id} value={String(s.id)}>
-                            <span className="line-clamp-1">{s.headline}</span>
-                          </SelectItem>
-                        ))}
+                        {districtStories.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>District {contactDistrict}</SelectLabel>
+                            {districtStories.map((s) => (
+                              <SelectItem key={s.id} value={String(s.id)}>
+                                <span className="line-clamp-1">{s.headline}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {otherStories.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>City Wide</SelectLabel>
+                            {otherStories.map((s) => (
+                              <SelectItem key={s.id} value={String(s.id)}>
+                                <span className="line-clamp-1">{s.headline}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   )}
@@ -452,22 +498,48 @@ export function ManualComposeContent({
                         <SelectValue placeholder="Pick an anomaly..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {anomalies
-                          .filter((a) => a.id != null)
-                          .map((a) => {
-                            const pct =
-                              a.pct_change != null
-                                ? `${a.pct_change > 0 ? "+" : ""}${Math.round(a.pct_change * 100)}%`
-                                : ""
-                            return (
-                              <SelectItem key={a.id!} value={String(a.id)}>
-                                <span className="line-clamp-1">
-                                  {a.object_name || a.metric_name || "Anomaly"}
-                                  {pct ? ` (${pct})` : ""}
-                                </span>
-                              </SelectItem>
-                            )
-                          })}
+                        {districtAnomalies.filter((a) => a.id != null).length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>District {contactDistrict}</SelectLabel>
+                            {districtAnomalies
+                              .filter((a) => a.id != null)
+                              .map((a) => {
+                                const pct =
+                                  a.pct_change != null
+                                    ? `${a.pct_change > 0 ? "+" : ""}${Math.round(a.pct_change * 100)}%`
+                                    : ""
+                                return (
+                                  <SelectItem key={a.id!} value={String(a.id)}>
+                                    <span className="line-clamp-1">
+                                      {a.object_name || a.metric_name || "Anomaly"}
+                                      {pct ? ` (${pct})` : ""}
+                                    </span>
+                                  </SelectItem>
+                                )
+                              })}
+                          </SelectGroup>
+                        )}
+                        {otherAnomalies.filter((a) => a.id != null).length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>City Wide</SelectLabel>
+                            {otherAnomalies
+                              .filter((a) => a.id != null)
+                              .map((a) => {
+                                const pct =
+                                  a.pct_change != null
+                                    ? `${a.pct_change > 0 ? "+" : ""}${Math.round(a.pct_change * 100)}%`
+                                    : ""
+                                return (
+                                  <SelectItem key={a.id!} value={String(a.id)}>
+                                    <span className="line-clamp-1">
+                                      {a.object_name || a.metric_name || "Anomaly"}
+                                      {pct ? ` (${pct})` : ""}
+                                    </span>
+                                  </SelectItem>
+                                )
+                              })}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   )}

@@ -177,7 +177,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     } finally {
       setLoadingAnomalies(false)
     }
-  }, [crmCityCtx])
+  }, [crmCityCtx, getAuthHeaders])
 
   // Auto-select contact from URL param
   const initialContactHandled = useRef(false)
@@ -254,7 +254,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     } finally {
       setIsGenerating(false)
     }
-  }, [])
+  }, [getAuthHeaders])
 
   // Swap anomaly
   const handleSwapAnomaly = useCallback(async (anomaly: AnomalyOption) => {
@@ -490,11 +490,9 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
         </Card>
       )}
 
-      {/* Draft area */}
-      {(hasDraft || isGenerating) && selectedContact && selectedAnomaly && (
-        <div className="space-y-4">
-          {/* Anomaly bar with swap */}
-          <div className="relative">
+      {/* Anomaly bar — visible as soon as anomalies load, even if compose fails */}
+      {selectedContact && selectedAnomaly && anomalies.length > 0 && !loadingAnomalies && (
+        <div className="relative">
             <button
               onClick={() => setShowAnomalyPicker(!showAnomalyPicker)}
               className={`w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm text-left transition-colors ${
@@ -526,42 +524,73 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
               )}
             </button>
 
-            {showAnomalyPicker && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border z-40 max-h-60 overflow-y-auto">
-                {anomalies.map((a) => {
-                  const isCurrent = a.result_id === selectedAnomaly.result_id
-                  return (
-                    <button
-                      key={a.result_id}
-                      onClick={() => !isCurrent && handleSwapAnomaly(a)}
-                      disabled={isCurrent}
-                      className={`w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
-                        isCurrent
-                          ? "bg-purple-50 text-purple-800"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      {isCurrent ? (
-                        <Check className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                      ) : (
-                        <ArrowRightLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                      )}
-                      <span className="flex-1 truncate">{a.snippet}</span>
-                      {a.district != null && a.district !== 0 && (
-                        <Badge variant="outline" className="text-xs">D{a.district}</Badge>
-                      )}
-                      {(a.district == null || a.district === 0) && (
-                        <Badge variant="outline" className="text-xs">Citywide</Badge>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+            {showAnomalyPicker && (() => {
+              const contactDistrictNum = selectedContact
+                ? (() => {
+                    const j = selectedContact.jurisdiction
+                    if (!j) return null
+                    const n = parseInt(j.replace(/\D/g, ""))
+                    return isNaN(n) || n === 0 ? null : n
+                  })()
+                : null
+              const districtOpts = contactDistrictNum
+                ? anomalies.filter((a) => a.district === contactDistrictNum)
+                : []
+              const otherOpts = contactDistrictNum
+                ? anomalies.filter((a) => a.district !== contactDistrictNum)
+                : anomalies
+              const renderRow = (a: AnomalyOption) => {
+                const isCurrent = a.result_id === selectedAnomaly.result_id
+                return (
+                  <button
+                    key={a.result_id}
+                    onClick={() => !isCurrent && handleSwapAnomaly(a)}
+                    disabled={isCurrent}
+                    className={`w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                      isCurrent ? "bg-purple-50 text-purple-800" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    {isCurrent ? (
+                      <Check className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    ) : (
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                    )}
+                    <span className="flex-1 truncate">{a.snippet}</span>
+                    {a.district != null && a.district !== 0 ? (
+                      <Badge variant="outline" className="text-xs">D{a.district}</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">Citywide</Badge>
+                    )}
+                  </button>
+                )
+              }
+              return (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border z-40 max-h-60 overflow-y-auto">
+                  {districtOpts.length > 0 && (
+                    <>
+                      <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50 border-b">
+                        District {contactDistrictNum}
+                      </div>
+                      {districtOpts.map(renderRow)}
+                    </>
+                  )}
+                  {otherOpts.length > 0 && (
+                    <>
+                      <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-t">
+                        City Wide
+                      </div>
+                      {otherOpts.map(renderRow)}
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+        </div>
+      )}
 
-          {/* The draft */}
-          <Card>
+      {/* Draft card */}
+      {(hasDraft || isGenerating) && selectedContact && selectedAnomaly && (
+        <Card>
             <CardContent className="p-5 space-y-4">
               {isGenerating ? (
                 <div className="flex items-center gap-3 py-8 justify-center text-sm text-gray-500">
@@ -651,7 +680,6 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
               )}
             </CardContent>
           </Card>
-        </div>
       )}
 
       {/* Helpful hint when nothing is selected */}

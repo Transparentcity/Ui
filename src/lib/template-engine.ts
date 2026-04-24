@@ -216,6 +216,7 @@ export function personalizeContent(
   result = result.replace(/\{\{department\}\}/g, contact.department || '')
   result = result.replace(/\{\{jurisdiction\}\}/g, contact.jurisdiction || '')
   result = result.replace(/\{\{email\}\}/g, contact.email || '')
+  result = result.replace(/\{\{city\}\}/g, contact.city_name || '')
   
   // Anomaly variables
   if (anomaly) {
