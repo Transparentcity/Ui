@@ -958,4 +958,31 @@ describe("translateWasteError", () => {
     expect(t.headline).toMatch(/took too long/i)
     expect(t.tone).toBe("warn")
   })
+
+  it("recognises letter-suffixed detector prefixes (D7b, D20i)", () => {
+    // D7b Commodity Price Disparity (vendor) and D20i Behested QPQ (influence)
+    // have a trailing lowercase letter. The old /^D\d+\s/ pattern missed them
+    // and mis-classified them as family failures.
+    const t1 = translateWasteError(
+      "contracts: D7b Commodity Price Disparity timed out after 90s"
+    )
+    expect(t1.headline).toMatch(/one detector didn't finish/i)
+    expect(t1.tone).toBe("info")
+
+    const t2 = translateWasteError("influence: D20i Behested QPQ: boom")
+    expect(t2.headline).toMatch(/one detector didn't finish/i)
+    expect(t2.tone).toBe("info")
+  })
+
+  it("recognises two-letter detector prefixes (RD1..RD4)", () => {
+    // The integrity family uses "RD" (Revolving Door) prefixes. Without the
+    // fix these would fall through to the family-level warn banner.
+    const t = translateWasteError(
+      "integrity: RD1 Revolving Door timed out after 60s"
+    )
+    expect(t.category).toBe("integrity")
+    expect(t.headline).toMatch(/one detector didn't finish/i)
+    expect(t.detail).toMatch(/RD1 Revolving Door/)
+    expect(t.tone).toBe("info")
+  })
 })

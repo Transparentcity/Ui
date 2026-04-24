@@ -505,7 +505,15 @@ export function translateWasteError(raw: string): TranslatedWasteError {
       //     rest = "D1 SSS Duplicates: synthetic failure"
       // Per-detector failures mean the family still produced findings from the
       // other detectors, so the tone is info and the copy says so.
-      const perDetectorPattern = /^D\d+\s/
+      //
+      // Covers the full set of prefix shapes the backend emits:
+      //   "D1 ...", "D20 ..."           (vendor / payroll / infrastructure / influence)
+      //   "D7b ...", "D20i ..."         (letter-suffixed variants)
+      //   "RD1 ...", "RD4 ..."          (integrity / revolving door)
+      //   "NP1 ..." (future non-profit) (reserved)
+      // Cap the uppercase prefix at 2 letters so messages like "Server500"
+      // from an exception don't get mis-classified as a per-detector error.
+      const perDetectorPattern = /^[A-Z]{1,2}\d+[a-z]?\s/
       const isPerDetectorTimeout =
         !!timeoutMatch && perDetectorPattern.test(rest)
       const isPerDetectorError =
