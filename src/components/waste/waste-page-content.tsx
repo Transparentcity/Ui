@@ -35,6 +35,7 @@ import {
   safeSetCache,
   loadCachedAnalysis,
   wasteCacheKey,
+  translateWasteError,
   type WasteCategoryKey,
 } from "./waste-utils"
 
@@ -307,12 +308,15 @@ export function WastePageContent() {
     safeSetCache(wasteCacheKey(selectedCityId), persistedData, selectedCityId)
   }, [persistedData, selectedCityId])
 
-  const handleRefresh = () => {
+  const handleRefresh = (category?: unknown) => {
     // Clear any manually-restored snapshot so it doesn't shadow fresh results
     setRestoredData(null)
-    // Always run all categories so a single-category run doesn't replace
-    // the full persisted dataset (which would make other tabs show 0 findings).
-    startJob()
+    // Per-category retry is safe because useLatestPersistedWasteResult merges
+    // across recent runs — a contracts-only run becomes the newest source for
+    // contracts while other categories fall back to the prior good run.
+    // Existing onClick={handleRefresh} callers pass a MouseEvent; only pass
+    // through when an explicit category string is provided.
+    startJob(typeof category === "string" ? category : undefined)
   }
 
   // Keep category state in sync with hash navigation from the sidebar.
@@ -621,13 +625,52 @@ export function WastePageContent() {
                       <DataSourceDetails freshness={displayData.data_freshness} />
                     )}
                     {displayData?.errors && displayData.errors.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <p className="text-xs font-medium text-amber-700">
                           {displayData.errors.length} detector{displayData.errors.length !== 1 ? "s" : ""} had issues
                         </p>
-                        {displayData.errors.map((err, i) => (
-                          <p key={i} className="text-xs text-amber-600">{err}</p>
-                        ))}
+                        {displayData.errors.map((err, i) => {
+                          const t = translateWasteError(err)
+                          const toneClass =
+                            t.tone === "warn" ? "text-amber-700" : "text-gray-600"
+                          const detailClass =
+                            t.tone === "warn" ? "text-amber-600" : "text-gray-500"
+                          return (
+                            <div key={i} className="flex items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-xs font-medium ${toneClass}`}>
+                                  {t.headline}
+                                </p>
+                                {t.detail && (
+                                  <p className={`text-xs mt-0.5 ${detailClass}`}>
+                                    {t.detail}
+                                  </p>
+                                )}
+                                {t.raw !== t.headline && (
+                                  <details className="mt-0.5">
+                                    <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">
+                                      Raw error
+                                    </summary>
+                                    <p className="text-[10px] text-gray-500 font-mono mt-0.5 break-all">
+                                      {t.raw}
+                                    </p>
+                                  </details>
+                                )}
+                              </div>
+                              {t.apiCategory && !isManualRefreshing && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRefresh(t.apiCategory!)}
+                                  className="shrink-0 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100"
+                                >
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  Retry this
+                                </Button>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                     {carriedOverCategories.length > 0 && (

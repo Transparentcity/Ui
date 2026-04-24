@@ -397,6 +397,166 @@ export function categoriesWithErrors(errors: string[] | null | undefined): Set<W
   return failed
 }
 
+export type TranslatedWasteError = {
+  category: WasteCategoryKey | null
+  apiCategory: string | null
+  headline: string
+  detail: string | null
+  tone: "warn" | "info"
+  raw: string
+}
+
+/**
+ * Turn a raw backend error string into something an operator can read.
+ *
+ * Known patterns we translate:
+ *   - "<family>: timed out after <N>s"   — detector family hung
+ *   - "internal error: The truth value of a DataFrame is ambiguous..."
+ *     (raised from _build_data_freshness when a fetcher returns a tuple of
+ *     DataFrames rather than (df, is_partial). Findings are unaffected.)
+ *   - "prefetch: ..."                    — data fetch failed before detectors ran
+ *   - "confidence scoring: ..."          — post-processing step failed
+ *   - "convergence detector: ..."        — cross-domain meta-detector failed
+ *   - "entity consolidation: ..."        — post-processing step failed
+ *
+ * Unknown strings are surfaced verbatim as `detail` with a generic headline,
+ * so nothing is ever hidden — operators still see the raw string if they
+ * expand the row, but the at-a-glance copy is readable.
+ *
+ * `apiCategory` is the string to pass to startJob() for a retry; null means
+ * the error is not scoped to a single category.
+ */
+export function translateWasteError(raw: string): TranslatedWasteError {
+  const trimmed = raw.trim()
+
+  if (/The truth value of a DataFrame is ambiguous/i.test(trimmed)) {
+    return {
+      category: null,
+      apiCategory: null,
+      headline: "Data source freshness info couldn't be computed",
+      detail:
+        "Findings for this run are still valid — only the dataset metadata panel is affected.",
+      tone: "info",
+      raw: trimmed,
+    }
+  }
+
+  const prefixMatch = /^([a-zA-Z_]+):\s*(.*)$/.exec(trimmed)
+  if (prefixMatch) {
+    const rawFamily = prefixMatch[1].toLowerCase()
+    const rest = prefixMatch[2].trim()
+
+    if (rawFamily === "prefetch") {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Data fetch failed before detectors ran",
+        detail: rest || null,
+        tone: "warn",
+        raw: trimmed,
+      }
+    }
+
+    if (rawFamily === "confidence" || /^confidence\s+scoring/.test(trimmed)) {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Confidence scoring step failed",
+        detail: "Findings are shown without cross-detector corroboration boosts.",
+        tone: "info",
+        raw: trimmed,
+      }
+    }
+
+    if (/^convergence\s+detector/.test(trimmed)) {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Cross-domain meta-detector didn't run",
+        detail: "Per-category findings are unaffected.",
+        tone: "info",
+        raw: trimmed,
+      }
+    }
+
+    if (/^entity\s+consolidation/.test(trimmed)) {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Entity consolidation step failed",
+        detail:
+          "Same-entity findings across detectors may appear as separate rows instead of a single rolled-up finding.",
+        tone: "info",
+        raw: trimmed,
+      }
+    }
+
+    const mapped = KNOWN_ERROR_FAMILIES[rawFamily]
+    if (mapped) {
+      const label = WASTE_CATEGORY_LABELS[mapped] ?? mapped
+      const timeoutMatch = /timed out after (\d+)s/.exec(rest)
+
+      // Distinguish per-detector failure from family-level failure.
+      //   Family-level timeout: "contracts: timed out after 300s"
+      //     rest = "timed out after 300s"  — starts with "timed out"
+      //   Per-detector timeout: "contracts: D20 Debarment Bypass timed out after 90s"
+      //     rest = "D20 Debarment Bypass timed out after 90s"  — detector name prefix
+      //   Per-detector exception: "contracts: D1 SSS Duplicates: synthetic failure"
+      //     rest = "D1 SSS Duplicates: synthetic failure"
+      // Per-detector failures mean the family still produced findings from the
+      // other detectors, so the tone is info and the copy says so.
+      const perDetectorPattern = /^D\d+\s/
+      const isPerDetectorTimeout =
+        !!timeoutMatch && perDetectorPattern.test(rest)
+      const isPerDetectorError =
+        !timeoutMatch && perDetectorPattern.test(rest)
+
+      if (isPerDetectorTimeout || isPerDetectorError) {
+        const detectorName = isPerDetectorTimeout
+          ? rest.replace(/\s+timed out after.*$/, "").trim()
+          : rest.split(":")[0].trim()
+        const detail = isPerDetectorTimeout
+          ? `${detectorName} ran past ${timeoutMatch![1]}s and was skipped. Other detectors in this category ran normally.`
+          : rest
+            ? `${rest} — other detectors in this category ran normally.`
+            : null
+        return {
+          category: mapped,
+          apiCategory: mapped,
+          headline: `${label} — one detector didn't finish`,
+          detail,
+          tone: "info",
+          raw: trimmed,
+        }
+      }
+
+      const headline = timeoutMatch
+        ? `${label} analysis took too long and didn't finish`
+        : `${label} analysis didn't finish`
+      const detail = timeoutMatch
+        ? `The detectors ran past ${timeoutMatch[1]}s. Showing last good results for this category if available.`
+        : rest || null
+      return {
+        category: mapped,
+        apiCategory: mapped,
+        headline,
+        detail,
+        tone: "warn",
+        raw: trimmed,
+      }
+    }
+  }
+
+  return {
+    category: null,
+    apiCategory: null,
+    headline: "Detector issue",
+    detail: trimmed || null,
+    tone: "info",
+    raw: trimmed,
+  }
+}
+
 function emptySummary(): WasteSummaryResponse {
   return {
     total_findings: 0,

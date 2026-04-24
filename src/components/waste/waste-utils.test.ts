@@ -13,6 +13,7 @@ import {
   WASTE_ANALYSIS_CACHE_KEY,
   categoriesWithErrors,
   mergePersistedRuns,
+  translateWasteError,
   type PersistedRunBundle,
 } from "./waste-utils"
 
@@ -854,5 +855,107 @@ describe("mergePersistedRuns", () => {
       .map((f) => f.id)
     expect(contractsIds).toEqual(["c-old"])
     expect(merged!.carriedOver.map((c) => c.category)).toEqual(["contracts"])
+  })
+})
+
+// ── translateWasteError ─────────────────────────────────────────────────────
+
+describe("translateWasteError", () => {
+  it("translates a contracts timeout into a retryable, human-readable message", () => {
+    const t = translateWasteError("contracts: timed out after 300s")
+    expect(t.category).toBe("contracts")
+    expect(t.apiCategory).toBe("contracts")
+    expect(t.headline).toMatch(/Contracts & Procurement/i)
+    expect(t.detail).toMatch(/300s/)
+    expect(t.tone).toBe("warn")
+  })
+
+  it("maps the legacy 'vendor' prefix to the contracts category", () => {
+    const t = translateWasteError("vendor: kaboom")
+    expect(t.category).toBe("contracts")
+    expect(t.apiCategory).toBe("contracts")
+  })
+
+  it("handles the DataFrame truthiness bug with a non-retryable info note", () => {
+    const t = translateWasteError(
+      "internal error: The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all()."
+    )
+    expect(t.category).toBeNull()
+    expect(t.apiCategory).toBeNull()
+    expect(t.headline).toMatch(/freshness/i)
+    expect(t.tone).toBe("info")
+  })
+
+  it("labels prefetch failures as non-retryable at the category level", () => {
+    const t = translateWasteError("prefetch: network down")
+    expect(t.category).toBeNull()
+    expect(t.apiCategory).toBeNull()
+    expect(t.headline).toMatch(/fetch failed/i)
+    expect(t.tone).toBe("warn")
+  })
+
+  it("treats confidence scoring failure as an info-level note", () => {
+    const t = translateWasteError("confidence scoring: worker died")
+    expect(t.category).toBeNull()
+    expect(t.apiCategory).toBeNull()
+    expect(t.tone).toBe("info")
+  })
+
+  it("treats convergence detector failure as an info-level note", () => {
+    const t = translateWasteError("convergence detector: something")
+    expect(t.category).toBeNull()
+    expect(t.tone).toBe("info")
+  })
+
+  it("treats entity consolidation failure as an info-level note", () => {
+    const t = translateWasteError("entity consolidation: boom")
+    expect(t.category).toBeNull()
+    expect(t.tone).toBe("info")
+  })
+
+  it("falls back to showing the raw string as detail for unknown messages", () => {
+    const t = translateWasteError("something nobody has seen before")
+    expect(t.category).toBeNull()
+    expect(t.apiCategory).toBeNull()
+    expect(t.detail).toBe("something nobody has seen before")
+    expect(t.raw).toBe("something nobody has seen before")
+  })
+
+  it("preserves the raw string so operators can still see the backend message", () => {
+    const raw = "payroll: sqlalchemy.exc.OperationalError: (psycopg2...)"
+    const t = translateWasteError(raw)
+    expect(t.raw).toBe(raw)
+  })
+
+  it("treats per-detector timeout as info, noting other detectors ran", () => {
+    const t = translateWasteError(
+      "contracts: D20 Debarment Bypass timed out after 90s"
+    )
+    expect(t.category).toBe("contracts")
+    expect(t.apiCategory).toBe("contracts")
+    expect(t.headline).toMatch(/one detector didn't finish/i)
+    expect(t.detail).toMatch(/D20 Debarment Bypass/)
+    expect(t.detail).toMatch(/90s/)
+    expect(t.detail).toMatch(/other detectors.*ran normally/i)
+    expect(t.tone).toBe("info")
+  })
+
+  it("treats per-detector exception as info with the detector name", () => {
+    const t = translateWasteError(
+      "contracts: D1 SSS Duplicates: synthetic failure"
+    )
+    expect(t.category).toBe("contracts")
+    expect(t.apiCategory).toBe("contracts")
+    expect(t.headline).toMatch(/one detector didn't finish/i)
+    expect(t.detail).toMatch(/D1 SSS Duplicates/)
+    expect(t.detail).toMatch(/synthetic failure/)
+    expect(t.tone).toBe("info")
+  })
+
+  it("family-level timeout still uses the warn tone", () => {
+    // Regression: make sure the per-detector path doesn't swallow family-level errors
+    const t = translateWasteError("contracts: timed out after 300s")
+    expect(t.headline).toMatch(/took too long/i)
+    expect(t.tone).toBe("warn")
   })
 })
