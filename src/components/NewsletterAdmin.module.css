@@ -432,6 +432,122 @@
   margin-top: 0;
 }
 
+.emailPreviewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000003;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.emailPreviewModal {
+  width: min(960px, 100%);
+  max-height: min(92vh, 980px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.32);
+}
+
+.emailPreviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.emailPreviewTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.emailPreviewMeta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.emailPreviewActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.emailPreviewBody {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.14), rgba(148, 163, 184, 0.06));
+}
+
+.emailPreviewFrame {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.emailPreviewContent {
+  padding: 18px;
+}
+
+.emailPreviewEmpty {
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .emailPreviewOverlay {
+    padding: 12px;
+  }
+
+  .emailPreviewHeader {
+    padding: 14px 16px;
+    flex-direction: column;
+  }
+
+  .emailPreviewActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .emailPreviewActions > * {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .emailPreviewBody {
+    padding: 12px;
+  }
+
+  .emailPreviewContent {
+    padding: 12px;
+  }
+}
+
 /* Expandable row detail */
 .expandedRow {
   background: var(--bg-secondary);

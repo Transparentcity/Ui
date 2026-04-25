@@ -99,7 +99,8 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
                 Know what&apos;s actually happening in your city.
               </h1>
               <p className={styles.subhead}>
-                Real stories from your own neighborhood.
+                Your city publishes the data. We turn it into useful updates
+                about your block and neighborhood.
               </p>
 
               <div className={styles.heroCtas}>
@@ -180,9 +181,9 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
         <section className={styles.ctaSection}>
           <div className={styles.container}>
             <div className={styles.ctaContent}>
-              <h2 className={styles.ctaTitle}>Your city publishes the data. We make it useful.</h2>
+              <h2 className={styles.ctaTitle}>Your city publishes the data. We turn it into useful updates.</h2>
               <p className={styles.ctaDescription}>
-                Sign up in 30 seconds. Pick your city. Start reading stories backed by real numbers.
+                Sign up in 30 seconds to see how your city is working for your block and neighborhood.
               </p>
               <div className={styles.ctaButtons}>
                 <button

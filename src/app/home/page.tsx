@@ -1208,37 +1208,23 @@ export default function DashboardPage() {
     hasPreciseLocation: boolean;
     district?: number | null;
     placeId?: number | null;
-    /** User chose to follow the matched city but keep unsupported "real home" on file — refresh prefs from API. */
-    followOnlyKeepUnsupportedHome?: boolean;
   }) => {
     setShowWelcomeModal(false);
     setCurrentView("feed");
     toast.success("Welcome! We’re building your feed now.");
 
-    if (ctx.followOnlyKeepUnsupportedHome) {
-      void (async () => {
-        try {
-          const token = await getAccessTokenSilently();
-          const p = await getUserPreferences(token);
-          setUserPreferences(p);
-        } catch (e) {
-          console.error("Error refreshing preferences after follow-only onboarding:", e);
-        }
-      })();
-    } else {
-      // Eagerly set home_location so FeedContainer gets the correct homeCityId
-      setUserPreferences((prev) => ({
-        ...prev!,
-        extra: {
-          ...prev?.extra,
-          home_location: {
-            city_id: ctx.cityId,
-            coordinates: ctx.homeCoordinates,
-            ...(ctx.district != null ? { district: ctx.district } : {}),
-          },
+    // Eagerly set home_location so FeedContainer gets the correct homeCityId.
+    setUserPreferences((prev) => ({
+      ...prev!,
+      extra: {
+        ...prev?.extra,
+        home_location: {
+          city_id: ctx.cityId,
+          coordinates: ctx.homeCoordinates,
+          ...(ctx.district != null ? { district: ctx.district } : {}),
         },
-      }));
-    }
+      },
+    }));
 
     if (user?.sub) {
       trackOnboardingComplete(user.sub);

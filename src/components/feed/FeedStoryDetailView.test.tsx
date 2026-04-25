@@ -140,8 +140,8 @@ describe("FeedStoryDetailView", () => {
     );
     expect(screen.getByText("Load interactive version")).toBeInTheDocument();
     expect(
-      screen.getByText("Calls are concentrated downtown."),
-    ).toBeInTheDocument();
+      screen.queryByText("Calls are concentrated downtown."),
+    ).not.toBeInTheDocument();
   });
 
   it("renders metric detail view with MetricLink hotlinks when metadata.metrics present", () => {

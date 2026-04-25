@@ -2664,6 +2664,7 @@ export interface CityDetail {
   all_portal_urls?: string[] | null;
   datasets_count: number;
   is_active: boolean;
+  is_launched?: boolean;
   structure_status?: string | null;
   geographic_structures?: Array<{
     id?: number;
@@ -7194,6 +7195,46 @@ export function getProductEventFunnel(
   const qs = params.toString();
   return request<ProductEventFunnel>(
     `/api/admin/product-analytics/funnel${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ============================================================================
+// ONBOARDING STEP FUNNEL
+// ============================================================================
+
+export interface OnboardingFunnelDailyCount {
+  date: string;
+  count: number;
+}
+
+export interface OnboardingFunnelStep {
+  step: string;
+  label: string;
+  total: number;
+  daily: OnboardingFunnelDailyCount[];
+}
+
+export interface OnboardingFunnel {
+  date_from: string;
+  date_to: string;
+  steps: OnboardingFunnelStep[];
+}
+
+export function getOnboardingFunnel(
+  token: string,
+  options?: { days?: number; date_from?: string; date_to?: string; city_id?: number }
+): Promise<OnboardingFunnel> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.append("days", String(options.days));
+  if (options?.date_from) params.append("date_from", options.date_from);
+  if (options?.date_to) params.append("date_to", options.date_to);
+  if (options?.city_id != null) params.append("city_id", String(options.city_id));
+  const qs = params.toString();
+  return request<OnboardingFunnel>(
+    `/api/admin/product-analytics/onboarding-funnel${qs ? `?${qs}` : ""}`,
     "GET",
     undefined,
     token

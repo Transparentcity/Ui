@@ -58,7 +58,7 @@ describe("processVisualizationShortcodes", () => {
     });
     expect(out).toContain('src="/api/feed/public/story-image/abc123"');
     expect(out).toContain('alt="Austin service map"');
-    expect(out).toContain("visualization-static-caption");
+    expect(out).not.toContain("visualization-static-caption");
     expect(out).toContain("viz-deferred-interactive");
     expect(out).toContain('data-deferred-src="/m/AzOP6s-N?embedded=true"');
     expect(out).not.toMatch(/<iframe[^>]*\ssrc="\/m\/AzOP6s-N/);
@@ -80,6 +80,25 @@ describe("processVisualizationShortcodes", () => {
     expect(out).toContain('src="/api/feed/public/story-image/abc123"');
     expect(out).not.toContain("viz-deferred-interactive");
     expect(out).not.toContain("data-deferred-src=");
+  });
+
+  it("can omit static captions when showStaticCaptions is false", () => {
+    const out = processVisualizationShortcodes("[chart:42]", {
+      showDebug: false,
+      showStaticCaptions: false,
+      staticVisualizations: {
+        charts: {
+          "42": {
+            src: "/api/feed/public/story-image/hash123",
+            alt: "Chart preview",
+            caption: "This should not render below the PNG.",
+          },
+        },
+      },
+    });
+    expect(out).toContain('src="/api/feed/public/story-image/hash123"');
+    expect(out).not.toContain("visualization-static-caption");
+    expect(out).not.toContain("This should not render below the PNG.");
   });
 
   it("replaces anomaly shortcodes with iframe embeds", () => {

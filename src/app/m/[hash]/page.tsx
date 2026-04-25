@@ -97,8 +97,20 @@ interface SavedMap {
   created_at: string;
 }
 
-// Single palette for multi-layer map dots and layer panel swatches (keep in sync)
+// Fallback palette for multi-layer maps created before explicit layer colors were stored.
 const MULTI_LAYER_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#9333ea", "#0d9488", "#e11d48", "#0891b2"];
+
+function getMultiLayerColor(layer: any, layerIndex: number): string {
+  const configuredColor =
+    layer?.map_config?.color_palette ??
+    layer?.color_palette ??
+    layer?.map_config?.color ??
+    layer?.color;
+
+  return typeof configuredColor === "string" && configuredColor.trim()
+    ? configuredColor.trim()
+    : MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+}
 
 const CHOROPLETH_FILL_OPACITY = 0.7;
 /** Slightly higher so delta fills read clearly against light Mapbox basemaps. */
@@ -2144,6 +2156,28 @@ export default function PublicMapPage() {
       mapInstanceRef.current = mapInstance;
       lastAppliedBasemapThemeRef.current = theme;
 
+      // Expose a ready signal for headless screenshotting. mapboxgl fires
+      // `idle` whenever the renderer has nothing left to do (no in-flight
+      // tile loads, no animations). For maps whose load handler does async
+      // data fetching (choropleth) the first idle fires *before* the data
+      // is installed, so we gate the flag on a marker the load handler
+      // writes onto the instance once it has finished installing layers.
+      try {
+        const w = window as unknown as {
+          __tcMap?: unknown;
+          __tcMapReady?: boolean;
+        };
+        w.__tcMap = mapInstance;
+        w.__tcMapReady = false;
+        mapInstance.on("idle", () => {
+          if ((mapInstance as { __tcDataLoaded?: boolean }).__tcDataLoaded) {
+            w.__tcMapReady = true;
+          }
+        });
+      } catch {
+        /* SSR / non-browser */
+      }
+
       mapInstance.on("load", async () => {
       const layerMaps = map.map_config?.layer_maps as Array<{ title?: string; location_data?: any[]; map_type?: string }> | undefined;
       const isMultiLayer = map.map_type === "multi_layer" && layerMaps && layerMaps.length > 0;
@@ -2287,7 +2321,7 @@ export default function PublicMapPage() {
             }),
           };
           mapInstance.addSource(sourceId, { type: "geojson", data: geojson });
-          const color = MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+          const color = getMultiLayerColor(layer, layerIndex);
           mapInstance.addLayer({
             id: layerId,
             type: "circle",
@@ -2654,6 +2688,16 @@ export default function PublicMapPage() {
           maxZoom: 15,
         });
       }
+
+      // All layers/sources are installed and the camera has been positioned;
+      // mark the instance so the idle listener registered above can flip
+      // window.__tcMapReady on the *next* idle event (which happens after
+      // any in-flight tile/animation work settles).
+      try {
+        (mapInstance as { __tcDataLoaded?: boolean }).__tcDataLoaded = true;
+      } catch {
+        /* SSR / non-browser */
+      }
       });
     })();
 
@@ -2821,7 +2865,7 @@ export default function PublicMapPage() {
               }),
             };
             mapInstanceRef.current!.addSource(sourceId, { type: "geojson", data: geojson });
-            const color = MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+            const color = getMultiLayerColor(layer, layerIndex);
             mapInstanceRef.current!.addLayer({
               id: layerId,
               type: "circle",
@@ -3228,7 +3272,7 @@ export default function PublicMapPage() {
                   />
                   <span
                     className="multi-layer-panel-swatch"
-                    style={{ backgroundColor: MULTI_LAYER_COLORS[i % MULTI_LAYER_COLORS.length] }}
+                    style={{ backgroundColor: getMultiLayerColor(layer, i) }}
                     aria-hidden
                   />
                   <span>{layer.title || `Layer ${i + 1}`}</span>
@@ -3550,7 +3594,7 @@ export default function PublicMapPage() {
                   />
                   <span
                     className="multi-layer-panel-swatch"
-                    style={{ backgroundColor: MULTI_LAYER_COLORS[i % MULTI_LAYER_COLORS.length] }}
+                    style={{ backgroundColor: getMultiLayerColor(layer, i) }}
                     aria-hidden
                   />
                   <span>{layer.title || `Layer ${i + 1}`}</span>

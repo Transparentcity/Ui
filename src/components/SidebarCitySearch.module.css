@@ -214,6 +214,38 @@
   border-bottom: 1px solid var(--border-primary);
 }
 
+.searchInputBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.searchSubmitBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.searchSubmitBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-secondary);
+}
+
+.searchSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .inputWrap {
   display: flex;
   align-items: center;

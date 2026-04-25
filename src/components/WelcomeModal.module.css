@@ -1081,6 +1081,10 @@
   margin-bottom: 4px;
 }
 
+.emailPersonalizationStep .tagline {
+  text-align: left;
+}
+
 .stepWelcomeSubtitle {
   font-size: 14px;
   color: var(--text-secondary, #6b7280);
@@ -1131,10 +1135,22 @@
   gap: 1px;
 }
 
-.leaderName {
-  font-size: 13px;
-  font-weight: 600;
+.leaderJurisdiction {
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.leaderName {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary, #6b7280);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1234,6 +1250,46 @@
   outline: none;
   border-color: var(--brand-primary, #ad35fa);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.12);
+}
+
+.placeNameHint {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+  margin: 6px 2px 10px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.radiusSliderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.radiusSliderLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.radiusSliderInput {
+  flex: 1;
+  accent-color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  height: 4px;
+}
+
+.radiusSliderValue {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
 }
 
 .presetChips {
@@ -1517,68 +1573,6 @@
   background: rgba(173, 53, 250, 0.1);
 }
 
-/* Prior unsupported city search — choice on supported match */
-.unsupportedHomeNotice {
-  width: 100%;
-  text-align: left;
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--text-secondary, #555);
-  background: var(--bg-secondary, #f4f4f5);
-  border: 1px solid var(--border-primary, #e4e4e7);
-  border-radius: var(--radius-md, 10px);
-  padding: 14px 16px;
-  margin-bottom: 18px;
-}
-
-.unsupportedHomeNotice strong {
-  color: var(--text-primary, #1a1a1a);
-}
-
-.unsupportedHomeChoices {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.unsupportedHomeChoice {
-  width: 100%;
-  padding: 10px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: var(--radius-md, 8px);
-  cursor: pointer;
-  border: 1.5px solid var(--border-primary, #e4e4e7);
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary, #1a1a1a);
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.unsupportedHomeChoice:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  background: rgba(173, 53, 250, 0.04);
-}
-
-.unsupportedHomeChoiceActive {
-  border-color: var(--brand-primary, #ad35fa);
-  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.12);
-}
-
-.unsupportedHomeVisitLink {
-  display: inline-block;
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
-  text-decoration: none;
-}
-
-.unsupportedHomeVisitLink:hover {
-  text-decoration: underline;
-}
-
 /* ── Good news banner ────────────────────────────── */
 .goodNewsBanner {
   display: inline-flex;
@@ -1601,6 +1595,79 @@
 .goodNewsBanner svg {
   flex-shrink: 0;
   color: #059669;
+}
+
+/* ── Place name above map ────────────────────────── */
+.placeNameAboveMap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.placeNameAboveLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.placeNameAboveInput {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 14px;
+  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+}
+
+.placeNameAboveInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.1);
+}
+
+/* ── Place setup card (step 2) ───────────────────── */
+.placeSetupCard {
+  width: 100%;
+  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.placeSetupRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.placeSetupRow:last-of-type {
+  border-bottom: none;
+}
+
+.placeSetupLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary, #9ca3af);
+  min-width: 58px;
+  flex-shrink: 0;
+}
+
+.placeSetupHint {
+  font-size: 10px;
+  color: var(--text-tertiary, #9ca3af);
+  text-align: center;
+  padding: 5px 14px 7px;
+  margin: 0;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
 }
 
 /* ── Address chip (precise location display) ─────── */
@@ -1653,6 +1720,15 @@
   object-fit: cover;
 }
 
+/* ── Tagline ───────────────────────────────────── */
+.tagline {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  text-align: center;
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
 /* ── Leader section label ──────────────────────── */
 .leaderSectionLabel {
   width: 100%;
@@ -1662,6 +1738,180 @@
   letter-spacing: 0.06em;
   color: var(--text-tertiary, #9ca3af);
   margin: 0 0 6px;
+}
+
+/* ── Coverage section header (checkbox + label) ── */
+.coverageSectionHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  cursor: pointer;
+}
+
+.coverageCheckbox {
+  accent-color: var(--brand-primary, #ad35fa);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* ── Coverage section (My place / district / city) */
+.coverageSection {
+  width: 100%;
+  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.coverageRowWrap {
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.coverageRowWrapLast {
+  border-bottom: none;
+}
+
+.coverageRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 6px;
+  min-height: 38px;
+}
+
+.coverageRowLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary, #9ca3af);
+  min-width: 58px;
+  flex-shrink: 0;
+}
+
+.coverageRowDesc {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+  line-height: 1.35;
+  margin: 0 0 8px;
+  padding: 0 12px 0 12px;
+}
+
+.coverageRowContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.coverageRowTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.coverageRowSubtitle {
+  font-size: 11px;
+  color: var(--text-secondary, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.coverageRowInput {
+  flex: 1;
+  padding: 5px 9px;
+  font-size: 13px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+  min-width: 0;
+}
+
+.coverageRowInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.1);
+}
+
+.coverageRowInputSm {
+  width: 110px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #111827);
+}
+
+.coverageRowInputSm:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.1);
+}
+
+.coverageMapFull {
+  width: 100%;
+  line-height: 0;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.coverageMapFull img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.coverageRowIcon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-primary, #ad35fa);
+}
+
+.cityEmoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.districtBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--brand-primary, #ad35fa);
+  background: rgba(173, 53, 250, 0.1);
+  border-radius: 4px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.coverageRowLoading {
+  display: flex;
+  align-items: center;
+}
+
+.coverageRowEmpty {
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
 }
 
 /* ── Leaders loading state ─────────────────────── */

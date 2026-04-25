@@ -27,17 +27,16 @@ import {
 } from "@/lib/apiClient";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
-import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
+import { DEFAULT_PLACE_RADIUS_M, buildStaticMapUrl } from "@/lib/mapUtils";
 import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
 import { slugify } from "@/lib/utils";
 import {
-  parseRequestedUnsupportedHome,
   stripUnsupportedHomeRequest,
 } from "@/lib/onboardingHomeLocation";
-import { recordProductEvent } from "@/lib/productAnalytics";
+import { recordProductEvent, useProductEvent } from "@/lib/productAnalytics";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
 
@@ -53,13 +52,12 @@ interface WelcomeModalProps {
     hasPreciseLocation: boolean;
     district?: number | null;
     placeId?: number | null;
-    followOnlyKeepUnsupportedHome?: boolean;
   }) => void;
   /** Called when the user's city is not found or not yet active. */
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
 }
 
-type Step = "welcome" | "preferences";
+type Step = "welcome" | "place" | "preferences";
 type WelcomeLoadingAction = "search" | "gps" | null;
 
 /** Default saved place label on onboarding step 2 (createPlace only when location is precise). */
@@ -117,6 +115,7 @@ export default function WelcomeModal({
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [hasPreciseLocation, setHasPreciseLocation] = useState(false);
   const [placeLabel, setPlaceLabel] = useState(ONBOARDING_PLACE_LABEL_DEFAULT);
+  const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
   // Leader follow toggles (default: follow both, applied at submit)
   const [mayorFollowed, setMayorFollowed] = useState(true);
@@ -129,15 +128,6 @@ export default function WelcomeModal({
   const [newsletterDescription, setNewsletterDescription] = useState("");
   const newsletterFrequency = "weekly" as const;
   const [showAdvancedNewsletterSettings, setShowAdvancedNewsletterSettings] = useState(false);
-
-  /** Prior onboarding search was an unsupported city; user matched a supported city this session. */
-  const [requestedUnsupportedHome, setRequestedUnsupportedHome] = useState<
-    ReturnType<typeof parseRequestedUnsupportedHome>
-  >(null);
-  /** How "Let's go" writes home vs My Cities when a prior unsupported request exists. */
-  const [onboardingHomeSaveMode, setOnboardingHomeSaveMode] = useState<
-    "primary_city" | "follow_only"
-  >("primary_city");
 
   // Address autocomplete state
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
@@ -161,6 +151,7 @@ export default function WelcomeModal({
       setHomeCoordinates(null);
       setHasPreciseLocation(false);
       setPlaceLabel(ONBOARDING_PLACE_LABEL_DEFAULT);
+      setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setMayorFollowed(true);
       setRepFollowed(true);
       setLeadersLoading(false);
@@ -170,8 +161,6 @@ export default function WelcomeModal({
       setWeeklyNewsletterOptIn(true);
       setNewsletterDescription("");
       setShowAdvancedNewsletterSettings(false);
-      setRequestedUnsupportedHome(null);
-      setOnboardingHomeSaveMode("primary_city");
 
       const loadSavedNewsletterPreferences = async () => {
         try {
@@ -195,22 +184,16 @@ export default function WelcomeModal({
     };
   }, [getAccessTokenSilently, isOpen]);
 
-  const loadUnsupportedHomeRequest = useCallback(async () => {
-    try {
-      const token = await getAccessTokenSilently();
-      const prefs = await getUserPreferences(token);
-      setRequestedUnsupportedHome(
-        parseRequestedUnsupportedHome(prefs.extra as Record<string, unknown> | undefined)
-      );
-    } catch {
-      setRequestedUnsupportedHome(null);
-    }
-  }, [getAccessTokenSilently]);
-
+  // Fire step-view analytics whenever the active step changes
   useEffect(() => {
-    if (!isOpen || step !== "preferences") return;
-    void loadUnsupportedHomeRequest();
-  }, [isOpen, step, loadUnsupportedHomeRequest]);
+    if (!isOpen) return;
+    const eventMap: Record<Step, string> = {
+      welcome: "onboarding_step1_viewed",
+      place: "onboarding_step2_viewed",
+      preferences: "onboarding_step3_viewed",
+    };
+    recordProductEvent(eventMap[step]);
+  }, [isOpen, step]);
 
   // Close address dropdown when clicking outside
   useEffect(() => {
@@ -357,7 +340,7 @@ export default function WelcomeModal({
       console.error("Error fetching city details:", err);
     }
 
-    const isActive = cityDetail?.is_active ?? false;
+    const isActive = cityDetail?.is_launched ?? false;
 
     return {
       cityName: city.name,
@@ -451,7 +434,7 @@ export default function WelcomeModal({
         return;
       }
 
-      const isActive = cityDetail.is_active ?? false;
+      const isActive = cityDetail.is_launched ?? false;
       if (!isActive) {
         if (onCityNotFound) {
           onCityNotFound(
@@ -478,8 +461,31 @@ export default function WelcomeModal({
         isActive: true,
       };
       setLocationResult(partialResult);
-      setStep("preferences");
+      setStep("place");
       setLeadersLoading(true);
+
+      // Analytics: location confirmed
+      recordProductEvent("onboarding_location_confirmed", {
+        city_id: matchedCity.id,
+        city_name: matchedCity.name,
+        is_precise: true,
+      });
+
+      // Pre-save partial location so we capture it if the user bails
+      void (async () => {
+        try {
+          await updateUserPreferences({
+            extra: {
+              home_location: {
+                city_id: matchedCity.id,
+                coordinates,
+              },
+            },
+          }, token);
+        } catch {
+          // non-blocking
+        }
+      })();
 
       // Load leaders + district in the background (don't block the caller's finally block).
       void (async () => {
@@ -538,7 +544,7 @@ export default function WelcomeModal({
       return;
     }
 
-    const isActive = cityDetail.is_active ?? false;
+    const isActive = cityDetail.is_launched ?? false;
     const mayor = pickMayorFromLeaders(leaders);
     const councilMember = pickRepFromLeaders(leaders, finalDistrict);
 
@@ -557,6 +563,11 @@ export default function WelcomeModal({
     setLocationResult(result);
 
     if (result.isActive) {
+      recordProductEvent("onboarding_location_confirmed", {
+        city_id: result.matchedCity?.id,
+        city_name: result.cityName,
+        is_precise: false,
+      });
       setStep("preferences");
     } else if (onCityNotFound) {
       onCityNotFound(
@@ -732,7 +743,7 @@ export default function WelcomeModal({
 
   // Render step indicator
   const renderStepIndicator = () => {
-    const steps = ["welcome", "preferences"];
+    const steps = ["welcome", "place", "preferences"];
     const currentIndex = steps.indexOf(step);
 
     return (
@@ -767,8 +778,8 @@ export default function WelcomeModal({
 
       <h1 className={styles.title}>Discover your place</h1>
       <p className={styles.subtitle}>
-        Transparent.city monitors your city&apos;s data to give you the most timely and personalized view of your
-        city and your place.
+        Transparent.city monitors your city&apos;s public data to give you the most timely and personalized view of your
+        city, block and district.
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -862,21 +873,147 @@ export default function WelcomeModal({
     </div>
   );
 
-  // Render step 2: welcome + leader cards + place + newsletter
+  // Render step 2: Welcome to Transparent City — location confirm, place name, radius
+  const renderPlaceStep = () => {
+    if (!locationResult) return null;
+    const cityDisplayName = locationResult.state
+      ? `${locationResult.cityName}, ${locationResult.state}`
+      : locationResult.cityName;
+    const searchedLabel = locationInput.trim() || (hasPreciseLocation ? "your location" : cityDisplayName);
+    // Dynamic zoom so the circle always fits comfortably in the frame
+    const mapZoom = homeCoordinates
+      ? Math.max(12, Math.floor(15.5 - Math.log2(placeRadius / 100)))
+      : 15;
+
+    // Build grey radius circle URL using light-v11 (matches the rest of the product)
+    const buildRadiusMapUrl = (): string | null => {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (!token || !homeCoordinates) return null;
+      const { lat, lng } = homeCoordinates;
+      const pts = 32;
+      const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 1e-6);
+      const latDeg = placeRadius / 111320;
+      const lngDeg = placeRadius / (111320 * cosLat);
+      const ring: [number, number][] = [];
+      for (let i = 0; i <= pts; i++) {
+        const a = (i / pts) * 2 * Math.PI;
+        ring.push([lng + lngDeg * Math.cos(a), lat + latDeg * Math.sin(a)]);
+      }
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: [[...ring, ring[0]]] },
+            properties: { fill: "#6b7280", "fill-opacity": 0.12, stroke: "#6b7280", "stroke-width": 1.5, "stroke-opacity": 0.45 },
+          },
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [lng, lat] },
+            properties: {},
+          },
+        ],
+      };
+      const encoded = encodeURIComponent(JSON.stringify(geojson));
+      return `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/geojson(${encoded})/${lng},${lat},${mapZoom}/400x180@2x?access_token=${token}`;
+    };
+    const mapUrl = buildRadiusMapUrl();
+
+    return (
+      <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
+        <h2 className={styles.stepTitle}>Welcome to Transparent City</h2>
+
+        <div className={styles.goodNewsBanner}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15" />
+            <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Good news — transparent.city covers {searchedLabel}!
+        </div>
+
+        <p className={styles.tagline}>
+          {locationResult.cityName} publishes the data. We turn it into useful updates for your block and your city.
+          Pick your location and coverage area.
+        </p>
+
+        {/* Name input above the map */}
+        <div className={styles.placeNameAboveMap}>
+          <label className={styles.placeNameAboveLabel} htmlFor="place-step-name">Name your place</label>
+          <input
+            id="place-step-name"
+            type="text"
+            className={styles.placeNameAboveInput}
+            value={placeLabel}
+            onChange={(e) => setPlaceLabel(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+
+        {/* Grey radius circle map — zoom adjusts with slider */}
+        {mapUrl && (
+          <div className={styles.coverageMapFull}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={mapUrl} alt={`Map of ${locationResult.cityName}`} width={400} height={180} />
+          </div>
+        )}
+
+        {/* Distance slider below map */}
+        <div className={styles.placeSetupCard}>
+          <div className={styles.placeSetupRow}>
+            <span className={styles.placeSetupLabel}>Distance</span>
+            <div className={styles.radiusSliderRow}>
+              <input
+                type="range"
+                min={50}
+                max={500}
+                step={50}
+                value={placeRadius}
+                onChange={(e) => setPlaceRadius(Number(e.target.value))}
+                className={styles.radiusSliderInput}
+                aria-label="Place radius in metres"
+              />
+              <span className={styles.radiusSliderValue}>{placeRadius}m</span>
+            </div>
+          </div>
+          <p className={styles.placeSetupHint}>
+            100m ≈ 1 block &nbsp;·&nbsp; 300m ≈ 3 blocks &nbsp;·&nbsp; 500m ≈ 5 blocks
+          </p>
+        </div>
+
+        <p className={styles.placeNameHint}>
+          Tell us how wide an area to search for stories around your location.
+        </p>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        <div className={styles.actions}>
+          <button
+            className={styles.primaryButton}
+            onClick={() => {
+              recordProductEvent("onboarding_place_step_next", {
+                city_id: locationResult.matchedCity?.id,
+                place_label: placeLabel,
+                radius_m: placeRadius,
+              });
+              setStep("preferences");
+            }}
+          >
+            Next
+          </button>
+          <button className={styles.backButton} onClick={() => setStep("welcome")}>
+            Back
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render step 3: Almost done — coverage summary + personalize + let's go
   const renderPreferencesStep = () => {
     if (!locationResult) return null;
     const cityDisplayName = locationResult.state
       ? `${locationResult.cityName}, ${locationResult.state}`
       : locationResult.cityName;
-
-    const priorUnsupportedLabel = requestedUnsupportedHome
-      ? requestedUnsupportedHome.state
-        ? `${requestedUnsupportedHome.city_name}, ${requestedUnsupportedHome.state}`
-        : requestedUnsupportedHome.city_name
-      : null;
-    const matched = locationResult.matchedCity;
-    const matchedLabel = matched?.display_name || matched?.name || cityDisplayName;
-    const matchedSlug = matched?.name ? slugify(matched.name) : "";
 
     const mayor = locationResult.mayor;
     const rep = locationResult.councilMember;
@@ -890,83 +1027,118 @@ export default function WelcomeModal({
     // What the user searched — used in the good-news banner
     const searchedLabel = locationInput.trim() || (hasPreciseLocation ? "your location" : cityDisplayName);
 
-    // Mapbox static map URL for pin preview (only shown when we have precise coordinates)
+    // Simple pin thumbnail for the "My place" row (no radius circle)
     const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    const mapPreviewUrl =
+    const mapThumbUrl =
       hasPreciseLocation && homeCoordinates && mapboxToken
-        ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+ad35fa(${homeCoordinates.lng},${homeCoordinates.lat})/${homeCoordinates.lng},${homeCoordinates.lat},15/380x168@2x?access_token=${mapboxToken}`
+        ? `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/pin-s+ad35fa(${homeCoordinates.lng},${homeCoordinates.lat})/${homeCoordinates.lng},${homeCoordinates.lat},15/400x140@2x?access_token=${mapboxToken}`
         : null;
 
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
-        <h2 className={styles.stepTitle}>Welcome to Transparent.city</h2>
-
-        {/* Good news banner — always shown when city is supported */}
-        <div className={styles.goodNewsBanner}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15" />
-            <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Good news — transparent.city covers {searchedLabel}!
-        </div>
-
-        {/* Value prop */}
-        <p className={styles.locationValueProp}>
-          Know your city like an insider. Each week, we turn {locationResult.cityName}&apos;s public data into a personalized briefing for your location — what&apos;s happening citywide, what your officials are working on, and what&apos;s changing on your block.
+        <h2 className={styles.stepTitle}>Almost done</h2>
+        <p className={styles.tagline}>
+          Your weekly update is sourced entirely from {locationResult.cityName}&apos;s public data. It covers:
         </p>
 
-        {/* Place name field */}
-        {hasPreciseLocation && homeCoordinates && matched ? (
-          <div className={styles.placeNameField}>
-            <label className={styles.placeNameLabel} htmlFor="welcome-onboarding-place-name">
-              Name your place
-            </label>
-            <input
-              id="welcome-onboarding-place-name"
-              type="text"
-              className={styles.placeNameInput}
-              value={placeLabel}
-              onChange={(e) => setPlaceLabel(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-        ) : null}
+        {/* Coverage section — district + city only (place was set in previous step) */}
+        <label className={styles.coverageSectionHeader}>
+          <input
+            type="checkbox"
+            checked={weeklyNewsletterOptIn}
+            onChange={() => {
+              const next = !weeklyNewsletterOptIn;
+              setWeeklyNewsletterOptIn(next);
+              if (!next) setShowDigestNudge(true);
+              else setShowDigestNudge(false);
+            }}
+            className={styles.coverageCheckbox}
+          />
+          <span className={styles.leaderSectionLabel} style={{ margin: 0 }}>Weekly Update</span>
+        </label>
+        <div className={styles.coverageSection}>
 
-        {/* Static map pin preview for precise locations */}
-        {mapPreviewUrl && (
-          <div className={styles.locationMapPreview}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={mapPreviewUrl}
-              alt={`Map showing your location in ${locationResult.cityName}`}
-              width={380}
-              height={168}
-            />
-          </div>
-        )}
-
-        {/* Leader follow cards — or loading indicator while they're being fetched */}
-        {(leadersLoading || mayor || rep) && (
-          <p className={styles.leaderSectionLabel}>
-            Your briefing will include updates about:
-          </p>
-        )}
-        {leadersLoading ? (
-          <div className={styles.leadersLoadingState}>
-            <Loader size="sm" color="purple" />
-            <span>Finding your mayor and representative&hellip;</span>
-          </div>
-        ) : (mayor || rep) ? (
-          <div className={styles.leaderSection}>
-            {mayor && (
-              <div className={styles.leaderCard}>
-                <div className={styles.leaderAvatar} aria-hidden="true">
-                  {leaderInitials(mayor.name)}
+          {/* My place summary row — shown if place was set in step 2 */}
+          {hasPreciseLocation && (
+            <div className={styles.coverageRowWrap}>
+              <div className={styles.coverageRow}>
+                <span className={styles.coverageRowIcon} aria-hidden>
+                  <svg width="12" height="14" viewBox="0 0 12 14" fill="none">
+                    <path d="M6 0C2.686 0 0 2.686 0 6c0 4.5 6 8 6 8s6-3.5 6-8c0-3.314-2.686-6-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" fill="currentColor" />
+                  </svg>
+                </span>
+                <div className={styles.coverageRowContent}>
+                  <span className={styles.coverageRowTitle}>{placeLabel || "My place"}</span>
+                  <span className={styles.coverageRowSubtitle}>{locationInput.trim() || "Your location"} · {placeRadius}m</span>
                 </div>
-                <div className={styles.leaderInfo}>
-                  <span className={styles.leaderName}>{mayor.name}</span>
-                  <span className={styles.leaderTitle}>{mayor.title}</span>
-                  <span className={styles.leaderFollowReason}>Citywide updates</span>
+              </div>
+              <p className={styles.coverageRowDesc}>Public data updates about what is happening near {locationInput.trim() || "your location"}.</p>
+            </div>
+          )}
+
+          {/* My district row — only shown while loading or when district data exists */}
+          {(leadersLoading || rep) && (
+            <div className={styles.coverageRowWrap}>
+              <div className={styles.coverageRow}>
+                <span className={styles.coverageRowIcon} aria-hidden>
+                  {rep?.district
+                    ? <span className={styles.districtBadge}>D{rep.district}</span>
+                    : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity="0.5"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.5"/></svg>
+                  }
+                </span>
+                {leadersLoading ? (
+                  <span className={styles.coverageRowLoading}>
+                    <Loader size="sm" color="purple" />
+                  </span>
+                ) : (
+                  <>
+                    <div className={styles.coverageRowContent}>
+                      <span className={styles.coverageRowTitle}>
+                        {rep!.district ? `District ${rep!.district}` : cityDisplayName}
+                      </span>
+                      <span className={styles.coverageRowSubtitle}>{rep!.title} {rep!.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={repFollowed ? styles.leaderFollowBtnActive : styles.leaderFollowBtnIdle}
+                      onClick={() => setRepFollowed((v) => !v)}
+                      aria-pressed={repFollowed}
+                      aria-label={`${repFollowed ? "Unfollow" : "Follow"} ${rep!.name}`}
+                    >
+                      {repFollowed && checkIcon}
+                      {repFollowed ? "Following" : "Follow"}
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className={styles.coverageRowDesc}>Public data updates about what is happening in your district.</p>
+            </div>
+          )}
+
+          {/* My city row */}
+          <div className={`${styles.coverageRowWrap} ${styles.coverageRowWrapLast}`}>
+            <div className={styles.coverageRow}>
+              <span className={styles.coverageRowIcon} aria-hidden>
+                {locationResult.matchedCity?.emoji
+                  ? <span className={styles.cityEmoji}>{locationResult.matchedCity.emoji}</span>
+                  : <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="5" y="1" width="4" height="13" rx="0.5" fill="currentColor" opacity="0.4"/>
+                      <rect x="1" y="4" width="4" height="10" rx="0.5" fill="currentColor"/>
+                      <rect x="9" y="4" width="4" height="10" rx="0.5" fill="currentColor"/>
+                      <rect x="6" y="4" width="2" height="2" rx="0.3" fill="white"/>
+                      <rect x="6" y="8" width="2" height="2" rx="0.3" fill="white"/>
+                    </svg>
+                }
+              </span>
+            {leadersLoading ? (
+              <span className={styles.coverageRowLoading}>
+                <Loader size="sm" color="purple" />
+              </span>
+            ) : mayor ? (
+              <>
+                <div className={styles.coverageRowContent}>
+                  <span className={styles.coverageRowTitle}>{locationResult.cityName}</span>
+                  <span className={styles.coverageRowSubtitle}>{mayor.title} {mayor.name}</span>
                 </div>
                 <button
                   type="button"
@@ -978,113 +1150,29 @@ export default function WelcomeModal({
                   {mayorFollowed && checkIcon}
                   {mayorFollowed ? "Following" : "Follow"}
                 </button>
-              </div>
+              </>
+            ) : (
+              <span className={styles.coverageRowEmpty}>{locationResult.cityName}</span>
             )}
-            {rep && (
-              <div className={styles.leaderCard}>
-                <div className={styles.leaderAvatar} aria-hidden="true">
-                  {leaderInitials(rep.name)}
-                </div>
-                <div className={styles.leaderInfo}>
-                  <span className={styles.leaderName}>{rep.name}</span>
-                  <span className={styles.leaderTitle}>{rep.title}</span>
-                  <span className={styles.leaderFollowReason}>
-                    {rep.district ? `Updates about District ${rep.district}` : "District updates"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className={repFollowed ? styles.leaderFollowBtnActive : styles.leaderFollowBtnIdle}
-                  onClick={() => setRepFollowed((v) => !v)}
-                  aria-pressed={repFollowed}
-                  aria-label={`${repFollowed ? "Unfollow" : "Follow"} ${rep.name}`}
-                >
-                  {repFollowed && checkIcon}
-                  {repFollowed ? "Following" : "Follow"}
-                </button>
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {requestedUnsupportedHome && matched && priorUnsupportedLabel && (
-          <div className={styles.unsupportedHomeNotice}>
-            <p>
-              You first searched for <strong>{priorUnsupportedLabel}</strong> — we don&apos;t have it yet.
-              You&apos;re finishing setup with <strong>{matchedLabel}</strong>.
-            </p>
-            <div className={styles.unsupportedHomeChoices} role="group" aria-label="Home city choice">
-              <button
-                type="button"
-                className={`${styles.unsupportedHomeChoice} ${
-                  onboardingHomeSaveMode === "primary_city" ? styles.unsupportedHomeChoiceActive : ""
-                }`}
-                onClick={() => setOnboardingHomeSaveMode("primary_city")}
-              >
-                Use {matchedLabel} as my TransparentCity home
-              </button>
-              <button
-                type="button"
-                className={`${styles.unsupportedHomeChoice} ${
-                  onboardingHomeSaveMode === "follow_only" ? styles.unsupportedHomeChoiceActive : ""
-                }`}
-                onClick={() => {
-                  setOnboardingHomeSaveMode("follow_only");
-                  recordProductEvent("onboarding_follow_only_city_selected", {
-                    matched_city_id: matched.id,
-                  });
-                }}
-              >
-                Add to My Cities only (keep &ldquo;{requestedUnsupportedHome.city_name}&rdquo; as the home I asked for)
-              </button>
             </div>
-            {matchedSlug ? (
-              <a
-                className={styles.unsupportedHomeVisitLink}
-                href={`/c/${matchedSlug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Visit {matchedLabel} on the web
-              </a>
-            ) : null}
+            <p className={styles.coverageRowDesc}>Public data updates about what is happening citywide in {locationResult.cityName}.</p>
+          </div>
+
+        </div>
+
+        {showDigestNudge && (
+          <div className={styles.digestNudge}>
+            <span>No problem — you can turn the weekly update on later in Settings.</span>
+            <button
+              type="button"
+              className={styles.digestNudgeDismiss}
+              onClick={() => setShowDigestNudge(false)}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         )}
-
-        {/* Newsletter opt-in */}
-        <div className={styles.emailOptIns}>
-          <label className={styles.emailOptInOption}>
-            <input
-              type="checkbox"
-              checked={weeklyNewsletterOptIn}
-              onChange={() => {
-                const next = !weeklyNewsletterOptIn;
-                setWeeklyNewsletterOptIn(next);
-                if (!next) setShowDigestNudge(true);
-                else setShowDigestNudge(false);
-              }}
-            />
-            <div>
-              <span className={styles.emailOptInTitle}>Personalized weekly update</span>
-              <span className={styles.emailOptInDesc}>
-                One weekly email with highlights for your place and city. Unsubscribe anytime.
-              </span>
-            </div>
-          </label>
-          {showDigestNudge && (
-            <div className={styles.digestNudge}>
-              <span>No problem—you can turn the weekly email on later in Settings.</span>
-              <button
-                type="button"
-                className={styles.digestNudgeDismiss}
-                onClick={() => setShowDigestNudge(false)}
-                aria-label="Dismiss"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
 
         <div className={styles.advancedNewsletterSection}>
           <button
@@ -1093,13 +1181,12 @@ export default function WelcomeModal({
             onClick={() => setShowAdvancedNewsletterSettings((v) => !v)}
             aria-expanded={showAdvancedNewsletterSettings}
           >
-            {showAdvancedNewsletterSettings ? "Hide advanced options" : "Advanced newsletter options (optional)"}
+            {showAdvancedNewsletterSettings ? "Hide personalization options" : "Personalize your weekly update (optional)"}
           </button>
           {showAdvancedNewsletterSettings && (
             <div className={styles.advancedNewsletterPanel}>
               <p className={styles.personalizationIntro}>
-                Want a more personalized weekly update? Share a few things you care about and we&apos;ll use
-                them to tailor what we send.
+                Share a few things you care about and we&apos;ll use them to tailor what we send.
               </p>
               <label className={styles.textInputLabel} htmlFor="welcome-newsletter-personalization">
                 In your own words (optional)
@@ -1107,11 +1194,27 @@ export default function WelcomeModal({
               <textarea
                 id="welcome-newsletter-personalization"
                 className={styles.newsletterDescriptionInput}
-                rows={4}
+                rows={3}
                 value={newsletterDescription}
                 onChange={(e) => setNewsletterDescription(e.target.value)}
-                placeholder="For example: I care most about new restaurants, street safety, transit delays, and anything changing near my place."
+                placeholder="e.g. street safety, transit delays, new restaurants, anything near my block."
               />
+              {hasPreciseLocation && (
+                <div className={styles.radiusSliderRow}>
+                  <span className={styles.radiusSliderLabel}>Place radius</span>
+                  <input
+                    type="range"
+                    min={50}
+                    max={500}
+                    step={50}
+                    value={placeRadius}
+                    onChange={(e) => setPlaceRadius(Number(e.target.value))}
+                    className={styles.radiusSliderInput}
+                    aria-label="Place radius in metres"
+                  />
+                  <span className={styles.radiusSliderValue}>{placeRadius}m</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1135,8 +1238,7 @@ export default function WelcomeModal({
           <button
             className={styles.backButton}
             onClick={() => {
-              setOnboardingHomeSaveMode("primary_city");
-              setStep("welcome");
+              setStep(hasPreciseLocation ? "place" : "welcome");
             }}
           >
             Back
@@ -1162,8 +1264,6 @@ export default function WelcomeModal({
       const cityId = locationResult.matchedCity.id;
       const homeLocationLabelSnapshot = locationInput.trim();
       const homeDistrictSnapshot = locationResult.district ?? null;
-      const saveFollowOnly =
-        !!requestedUnsupportedHome && onboardingHomeSaveMode === "follow_only";
 
       // Create the user's saved place before navigation so My Places can list city → district → place
       // while the feed is selected (place id is passed to the dashboard shell).
@@ -1175,7 +1275,7 @@ export default function WelcomeModal({
             label: placeLabel?.trim() || ONBOARDING_PLACE_LABEL_DEFAULT,
             lat: homeCoordinates.lat,
             lng: homeCoordinates.lng,
-            radius_m: DEFAULT_PLACE_RADIUS_M,
+            radius_m: placeRadius,
           });
           createdPlaceId = place?.id ?? null;
           if (createdPlaceId) {
@@ -1222,7 +1322,7 @@ export default function WelcomeModal({
       startCityLoading(cityDisplayName);
 
       // Navigate to the feed immediately; save remaining preferences in the background
-      handleFinalNavigation(createdPlaceId, saveFollowOnly);
+      handleFinalNavigation(createdPlaceId);
 
       // Background: metric ordering, communication prefs, and welcome email
       void (async () => {
@@ -1236,9 +1336,9 @@ export default function WelcomeModal({
               newsletterFrequency,
             }
           );
-          const extraBase = saveFollowOnly
-            ? { ...currentExtra }
-            : { ...stripUnsupportedHomeRequest(currentExtra as Record<string, unknown>) };
+          const extraBase = stripUnsupportedHomeRequest(
+            currentExtra as Record<string, unknown>
+          );
 
           const preferencesData: any = {
             has_completed_onboarding: true,
@@ -1253,25 +1353,21 @@ export default function WelcomeModal({
             },
           };
 
-          if (saveFollowOnly) {
-            preferencesData.extra.home_location = currentExtra.home_location;
-          } else {
-            // Always persist home_location with city_id so the feed knows the
-            // user's home city on subsequent logins. Include coordinates only
-            // when a precise address was provided; include district/label when known.
-            preferencesData.extra.home_location = {
-              city_id: cityId,
-              ...(homeDistrictSnapshot != null
-                ? { district: homeDistrictSnapshot }
-                : {}),
-              ...(hasPreciseLocation && homeCoordinates
-                ? { coordinates: homeCoordinates }
-                : {}),
-              ...(homeLocationLabelSnapshot
-                ? { location_label: homeLocationLabelSnapshot }
-                : {}),
-            };
-          }
+          // Always persist home_location with city_id so the feed knows the
+          // user's home city on subsequent logins. Include coordinates only
+          // when a precise address was provided; include district/label when known.
+          preferencesData.extra.home_location = {
+            city_id: cityId,
+            ...(homeDistrictSnapshot != null
+              ? { district: homeDistrictSnapshot }
+              : {}),
+            ...(hasPreciseLocation && homeCoordinates
+              ? { coordinates: homeCoordinates }
+              : {}),
+            ...(homeLocationLabelSnapshot
+              ? { location_label: homeLocationLabelSnapshot }
+              : {}),
+          };
 
           // Save preferences with one retry on failure
           try {
@@ -1306,10 +1402,7 @@ export default function WelcomeModal({
   };
 
   // Handle final navigation to city — skip the all-set screen, land directly in feed
-  const handleFinalNavigation = (
-    createdPlaceId: number | null = null,
-    followOnlyKeepUnsupportedHome: boolean = false
-  ) => {
+  const handleFinalNavigation = (createdPlaceId: number | null = null) => {
     if (!locationResult?.matchedCity) return;
 
     const districtToLoad = locationResult.district ?? null;
@@ -1323,7 +1416,6 @@ export default function WelcomeModal({
       hasPreciseLocation,
       district: districtToLoad,
       placeId: createdPlaceId,
-      followOnlyKeepUnsupportedHome,
     });
     onClose();
   };
@@ -1334,6 +1426,7 @@ export default function WelcomeModal({
         {renderStepIndicator()}
 
         {step === "welcome" && renderWelcomeStep()}
+        {step === "place" && renderPlaceStep()}
         {step === "preferences" && renderPreferencesStep()}
       </div>
     </div>
