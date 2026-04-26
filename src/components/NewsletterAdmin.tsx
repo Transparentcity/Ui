@@ -1220,6 +1220,7 @@ function NewsletterDashboardQueue({
   const [workloadOpen, setWorkloadOpen] = useState(true);
   const [workloadFrequency, setWorkloadFrequency] = useState<"weekly" | "monthly">("weekly");
   const [saveNewsletterModelBusy, setSaveNewsletterModelBusy] = useState(false);
+  const previewModalOpen = expandedId !== null || archiveExpandedKey !== null;
 
   const loadAll = useCallback(async () => {
     try {
@@ -1312,6 +1313,30 @@ function NewsletterDashboardQueue({
   useEffect(() => {
     loadWorkload();
   }, [loadWorkload]);
+
+  useEffect(() => {
+    if (!previewModalOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpandedId(null);
+        setPreviewHtml(null);
+        setPreviewPublicUrl(null);
+        setArchiveExpandedKey(null);
+        setArchivePreviewHtml(null);
+        setArchivePreviewPublicUrl(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [previewModalOpen]);
 
   const toggleSelect = (id: number, checked: boolean) => {
     setSelected((prev) => {
@@ -1429,6 +1454,15 @@ function NewsletterDashboardQueue({
     } finally {
       setArchivePreviewLoading(false);
     }
+  };
+
+  const closePreviewModal = () => {
+    setExpandedId(null);
+    setPreviewHtml(null);
+    setPreviewPublicUrl(null);
+    setArchiveExpandedKey(null);
+    setArchivePreviewHtml(null);
+    setArchivePreviewPublicUrl(null);
   };
 
   return (
@@ -1713,41 +1747,6 @@ function NewsletterDashboardQueue({
                         </div>
                       </td>
                     </tr>
-                    {expandedId === row.id && (
-                      <tr className={styles.expandedRow}>
-                        <td colSpan={7} style={{ padding: 0 }}>
-                          {previewLoading ? (
-                            <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
-                              <Loader size="sm" color="dark" />
-                              <span>Loading body…</span>
-                            </div>
-                          ) : previewHtml ? (
-                            <div className={styles.previewPanel}>
-                              {previewPublicUrl ? (
-                                <div style={{ marginBottom: 10, fontSize: 13 }}>
-                                  <a
-                                    href={previewPublicUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ color: "var(--brand-primary)" }}
-                                  >
-                                    Open formatted newsletter permalink
-                                  </a>
-                                </div>
-                              ) : null}
-                              <div
-                                style={{ maxHeight: 360, overflow: "auto" }}
-                                dangerouslySetInnerHTML={{ __html: previewHtml }}
-                              />
-                            </div>
-                          ) : (
-                            <div className={styles.previewPanel}>
-                              <span className={styles.muted}>No body.</span>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
                   </Fragment>
                 ))}
               </tbody>
@@ -1820,39 +1819,6 @@ function NewsletterDashboardQueue({
                                 </div>
                               </td>
                             </tr>
-                            {isExpanded && (
-                              <tr className={styles.expandedRow}>
-                                <td colSpan={6} style={{ padding: 0 }}>
-                                  {archivePreviewLoading ? (
-                                    <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
-                                      <Loader size="sm" color="dark" />
-                                      <span>Loading body…</span>
-                                    </div>
-                                  ) : (
-                                    <div className={styles.previewPanel}>
-                                      {archivePreviewPublicUrl ? (
-                                        <div style={{ marginBottom: 10, fontSize: 13 }}>
-                                          <a
-                                            href={archivePreviewPublicUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ color: "var(--brand-primary)" }}
-                                          >
-                                            Open formatted newsletter permalink
-                                          </a>
-                                        </div>
-                                      ) : null}
-                                      <div
-                                        style={{ maxHeight: 360, overflow: "auto" }}
-                                        dangerouslySetInnerHTML={{
-                                          __html: archivePreviewHtml || "",
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            )}
                           </Fragment>
                         );
                       })}
@@ -1926,39 +1892,6 @@ function NewsletterDashboardQueue({
                             </div>
                           </td>
                         </tr>
-                        {isExpanded && (
-                          <tr className={styles.expandedRow}>
-                            <td colSpan={7} style={{ padding: 0 }}>
-                              {archivePreviewLoading ? (
-                                <div className="tc-loading-state" style={{ padding: 16, gap: 8 }}>
-                                  <Loader size="sm" color="dark" />
-                                  <span>Loading body…</span>
-                                </div>
-                              ) : (
-                                    <div className={styles.previewPanel}>
-                                      {archivePreviewPublicUrl ? (
-                                        <div style={{ marginBottom: 10, fontSize: 13 }}>
-                                          <a
-                                            href={archivePreviewPublicUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ color: "var(--brand-primary)" }}
-                                          >
-                                            Open formatted newsletter permalink
-                                          </a>
-                                        </div>
-                                      ) : null}
-                                      <div
-                                        style={{ maxHeight: 360, overflow: "auto" }}
-                                        dangerouslySetInnerHTML={{
-                                          __html: archivePreviewHtml || "",
-                                        }}
-                                      />
-                                    </div>
-                              )}
-                            </td>
-                          </tr>
-                        )}
                       </Fragment>
                     );
                   })}
@@ -1972,6 +1905,68 @@ function NewsletterDashboardQueue({
           </div>
         )}
       </div>
+      {previewModalOpen && (
+        <div
+          className={styles.emailPreviewOverlay}
+          onClick={closePreviewModal}
+          role="presentation"
+        >
+          <div
+            className={styles.emailPreviewModal}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Newsletter email preview"
+          >
+            <div className={styles.emailPreviewHeader}>
+              <div className={styles.emailPreviewTitle}>Email preview</div>
+              <div className={styles.emailPreviewActions}>
+                {(previewPublicUrl || archivePreviewPublicUrl) && (
+                  <a
+                    href={previewPublicUrl || archivePreviewPublicUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.secondaryBtn}
+                  >
+                    Open permalink
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={closePreviewModal}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className={styles.emailPreviewBody}>
+              {previewLoading || archivePreviewLoading ? (
+                <div className={styles.emailPreviewEmpty}>
+                  <Loader size="sm" color="dark" />
+                  <span>Loading body…</span>
+                </div>
+              ) : (
+                <div className={styles.emailPreviewFrame}>
+                  {previewHtml || archivePreviewHtml ? (
+                    <div className={styles.emailPreviewContent}>
+                      <div
+                        dangerouslySetInnerHTML={{
+                          __html: previewHtml || archivePreviewHtml || "",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className={styles.emailPreviewEmpty}>
+                      <span className={styles.muted}>No body.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -47,6 +47,8 @@ export interface VisualizationShortcodeStoryLike {
 
 export interface VisualizationShortcodeConfig extends EmbedConfig {
   staticVisualizations?: StaticVisualizationConfig;
+  /** Render the text block below a static image replacement. Defaults to true. */
+  showStaticCaptions?: boolean;
   /**
    * When a static image replaces a shortcode, also emit a disclosure that loads
    * the interactive iframe on first open. Set to false for image-only embeds.
@@ -148,7 +150,9 @@ function getStaticVisualizationEmbed(
   const shortcodeEscaped = escapeHtml(shortcode);
   const srcEscaped = escapeHtml(asset.src);
   const altEscaped = escapeHtml(asset.alt?.trim() || `Visualization ${ref}`);
-  const captionEscaped = asset.caption?.trim() ? escapeHtml(asset.caption.trim()) : "";
+  const captionEscaped =
+    visType !== "map" && asset.caption?.trim() ? escapeHtml(asset.caption.trim()) : "";
+  const showStaticCaptions = config.showStaticCaptions !== false;
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
@@ -197,7 +201,7 @@ function getStaticVisualizationEmbed(
           style="width: 100%; height: ${height}; object-fit: cover; display: block; background: #f8f9fa;"
         />
         ${
-          captionEscaped
+          showStaticCaptions && captionEscaped
             ? `<div class="visualization-static-caption">${captionEscaped}</div>`
             : ""
         }

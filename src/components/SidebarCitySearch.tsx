@@ -149,7 +149,7 @@ export default function SidebarCitySearch({
   onCitySelect,
   onGPSLocation,
   onPlaceSaved,
-  placeholder = "Type to search for cities, or enter a ZIP code",
+  placeholder = "Enter your address, zipcode or city",
 }: {
   onCitySelect: (cityId: number, opts?: SidebarCitySelectOptions) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
@@ -682,6 +682,34 @@ export default function SidebarCitySearch({
     }
   };
 
+  const submitSearchFromInput = () => {
+    if (directMatchCity && !queryIsGeo && addressSuggestions.length === 0) {
+      void selectCityFromList(directMatchCity);
+      return;
+    }
+    if (
+      queryIsGeo &&
+      addressSuggestions.length > 0 &&
+      selectedIndex >= 0 &&
+      addressSuggestions[selectedIndex]
+    ) {
+      void handleAddressSuggestionSelect(addressSuggestions[selectedIndex]);
+      return;
+    }
+    if (queryIsGeo) {
+      void handleGeocodeQuery();
+      return;
+    }
+    if (selectedIndex >= 0 && results[selectedIndex]) {
+      void selectCityFromList(results[selectedIndex]);
+    }
+  };
+
+  const searchButtonDisabled =
+    !trimmed ||
+    geoLoading ||
+    (!queryIsGeo && trimmed.length < 2);
+
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       closeModal();
@@ -691,29 +719,17 @@ export default function SidebarCitySearch({
     const listLength = listLengthForKeys;
 
     if (e.key === "Enter") {
-      if (directMatchCity && !queryIsGeo && addressSuggestions.length === 0) {
+      const hadSubmit =
+        (directMatchCity && !queryIsGeo && addressSuggestions.length === 0) ||
+        (queryIsGeo &&
+          addressSuggestions.length > 0 &&
+          selectedIndex >= 0 &&
+          Boolean(addressSuggestions[selectedIndex])) ||
+        queryIsGeo ||
+        (selectedIndex >= 0 && Boolean(results[selectedIndex]));
+      if (hadSubmit) {
         e.preventDefault();
-        void selectCityFromList(directMatchCity);
-        return;
-      }
-      if (
-        queryIsGeo &&
-        addressSuggestions.length > 0 &&
-        selectedIndex >= 0 &&
-        addressSuggestions[selectedIndex]
-      ) {
-        e.preventDefault();
-        void handleAddressSuggestionSelect(addressSuggestions[selectedIndex]);
-        return;
-      }
-      if (queryIsGeo) {
-        e.preventDefault();
-        void handleGeocodeQuery();
-        return;
-      }
-      if (selectedIndex >= 0 && results[selectedIndex]) {
-        e.preventDefault();
-        void selectCityFromList(results[selectedIndex]);
+        submitSearchFromInput();
       }
     }
 
@@ -836,36 +852,46 @@ export default function SidebarCitySearch({
                 <span className={welcomeStyles.locationDividerLine} />
               </div>
 
-              <div className={styles.inputWrap}>
-                <svg
-                  className={styles.leadingIcon}
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
+              <div className={styles.searchInputBlock}>
+                <div className={styles.inputWrap}>
+                  <svg
+                    className={styles.leadingIcon}
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
+                  <input
+                    ref={inputRef}
+                    className={styles.input}
+                    value={query}
+                    placeholder={placeholder}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setQuery(v);
+                      scheduleCitySearch(v);
+                      scheduleAddressSuggest(v);
+                    }}
+                    onKeyDown={handleInputKeyDown}
+                    aria-label="Search cities and addresses"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={styles.searchSubmitBtn}
+                  onClick={() => submitSearchFromInput()}
+                  disabled={searchButtonDisabled}
                 >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-                <input
-                  ref={inputRef}
-                  className={styles.input}
-                  value={query}
-                  placeholder={placeholder}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setQuery(v);
-                    scheduleCitySearch(v);
-                    scheduleAddressSuggest(v);
-                  }}
-                  onKeyDown={handleInputKeyDown}
-                  aria-label="Search cities and addresses"
-                />
+                  Search
+                </button>
               </div>
             </div>
 

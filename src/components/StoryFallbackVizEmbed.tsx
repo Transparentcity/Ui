@@ -8,6 +8,7 @@ type Props = {
   imageUrl: string;
   imageAlt?: string | null;
   imageCaption?: string | null;
+  showImageCaption?: boolean;
   iframeSrc: string;
   iframeTitle?: string;
   iframeHeight?: string;
@@ -21,6 +22,7 @@ export function StoryFallbackVizEmbed({
   imageUrl,
   imageAlt,
   imageCaption,
+  showImageCaption = true,
   iframeSrc,
   iframeTitle = "Visualization",
   iframeHeight = "420px",
@@ -46,7 +48,7 @@ export function StoryFallbackVizEmbed({
               background: "#f8f9fa",
             }}
           />
-          {(imageCaption ?? "").trim() ? (
+          {showImageCaption && (imageCaption ?? "").trim() ? (
             <div className="visualization-static-caption">{imageCaption!.trim()}</div>
           ) : null}
         </div>
