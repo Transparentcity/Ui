@@ -4460,6 +4460,8 @@ export function listPublicFeedStories(
     newsletter_frequency?: string | null;
     limit?: number;
     order_by?: string;
+    all_cities?: boolean;
+    story_type?: string | null;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -4473,6 +4475,8 @@ export function listPublicFeedStories(
   }
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
+  if (options?.all_cities) params.append("all_cities", "true");
+  if (options?.story_type) params.append("story_type", options.story_type);
 
   const query = params.toString();
   const path = `/api/feed/public${query ? `?${query}` : ""}`;
