@@ -1501,18 +1501,40 @@ export default function FeedContainer({
       )}
 
       {/* Error */}
-      {error && (
-        <div className={styles.errorState}>
-          <p>Error loading feed stories.</p>
-          <button
-            type="button"
-            className={styles.retryBtn}
-            onClick={() => runExplicitFeedRefetch()}
-          >
-            Retry
-          </button>
-        </div>
-      )}
+      {error && (() => {
+        const isAuthError =
+          (error as any)?.error === "login_required" ||
+          (error as any)?.error === "consent_required" ||
+          (error as any)?.status === 401 ||
+          /401|unauthorized|login.required/i.test((error as Error)?.message ?? "");
+        return (
+          <div className={styles.errorState}>
+            {isAuthError ? (
+              <>
+                <p>Your session has expired. Please sign in again.</p>
+                <button
+                  type="button"
+                  className={styles.retryBtn}
+                  onClick={() => loginWithRedirect()}
+                >
+                  Sign in
+                </button>
+              </>
+            ) : (
+              <>
+                <p>Error loading feed stories.</p>
+                <button
+                  type="button"
+                  className={styles.retryBtn}
+                  onClick={() => runExplicitFeedRefetch()}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Empty: show preview stories when available, otherwise text fallback */}
       {!isLoading && !error && stories.length === 0 && (
