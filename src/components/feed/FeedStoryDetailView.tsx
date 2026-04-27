@@ -14,7 +14,6 @@ import {
 import { slugify } from "@/lib/utils";
 import { useMetricKey } from "./MetricKeyContext";
 import MetricLink from "./MetricLink";
-import SourceLine from "@/components/SourceLine";
 import styles from "./feed.module.css";
 
 /**
@@ -189,12 +188,6 @@ export function FeedStoryDetailView({
           </>
         )}
       </p>
-
-      {citySlug && story.actor && (
-        <div className={styles.detailSourceLine}>
-          <SourceLine category={story.actor} citySlug={citySlug} />
-        </div>
-      )}
 
       {hasFullArticleHtml ? (
         <>

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import type { MetricCardData } from "./templates/MetricSummaryCard";
 import MetricSummaryCard from "./templates/MetricSummaryCard";
 import CardActionBar from "./CardActionBar";
-import SourceLine from "@/components/SourceLine";
 import styles from "./feed.module.css";
 
 interface MetricFeedCardProps {
@@ -61,23 +60,8 @@ export default function MetricFeedCard({ data, onHide = noop, hideActions = fals
     .filter(Boolean)
     .join(" ");
 
-  const sourceCategory = data.metric.category ?? "";
-  const actionBar = hideActions ? (
-    <div style={{ marginTop: "auto", paddingTop: 12 }}>
-      <SourceLine
-        category={sourceCategory}
-        citySlug={data.slug}
-        metricSlug={data.metric.metric_key}
-      />
-    </div>
-  ) : (
-    <CardActionBar
-      onShare={handleShare}
-      showOverflow={false}
-      sourceCategory={sourceCategory}
-      sourceCitySlug={data.slug}
-      sourceMetricSlug={data.metric.metric_key}
-    />
+  const actionBar = hideActions ? null : (
+    <CardActionBar onShare={handleShare} showOverflow={false} />
   );
 
   return (

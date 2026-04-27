@@ -8,8 +8,6 @@ import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
 import CardHeader from "./CardHeader";
 import { type MetricCardData } from "./templates/MetricSummaryCard";
 import MetricFeedCard from "./MetricFeedCard";
-import SourceLine from "@/components/SourceLine";
-import { slugify } from "@/lib/utils";
 import styles from "./feed.module.css";
 import homeStyles from "./homeFeedPreview.module.css";
 
@@ -116,14 +114,6 @@ export default function HomeFeedPreview({ initialStories, metricCards = [] }: Ho
                     <p className={styles.cardDescription}>
                       {story.cleaned_description}
                     </p>
-                  )}
-                  {story.city_name && (
-                    <div className={homeStyles.previewCardFoot}>
-                      <SourceLine
-                        category={story.actor ?? ""}
-                        citySlug={slugify(story.city_name)}
-                      />
-                    </div>
                   )}
                 </div>
               </Fragment>
