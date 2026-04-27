@@ -6,14 +6,36 @@
  * Server-side (SSR/API routes): uses NEXT_PUBLIC_API_BASE_URL env var
  * Development: http://localhost:8001 (or from env var)
  */
+function computeServerSideApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://api.transparent.city";
+  }
+  return "http://localhost:8001";
+}
+
+/**
+ * Resolve the API origin for HTTP fetches.
+ *
+ * Prefer calling this at fetch time from client code. Do not rely on a stale
+ * snapshot of `API_BASE` in the browser if the module was ever evaluated in a
+ * non-browser context during tooling.
+ */
 export function getApiBaseUrl(): string {
-  // Browser production: always use same-origin /api/* so Next rewrites proxy
-  // requests to the backend and we avoid cross-origin CORS failures.
-  if (typeof window !== "undefined") {
-    if (process.env.NODE_ENV === "production") {
+  // Real browsers only (jsdom in tests counts too).
+  if (globalThis.window?.location) {
+    const hostname = globalThis.location.hostname;
+    const onTransparentCitySite =
+      hostname === "transparent.city" || hostname === "www.transparent.city";
+
+    // Production build, or the live site host: always same-origin /api/* so
+    // Next rewrites proxy to the backend (avoids cross-origin CORS to api.*).
+    if (process.env.NODE_ENV === "production" || onTransparentCitySite) {
       return "";
     }
-    // Browser development: allow explicit API origin override when set.
+
     const fromEnv = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
     if (fromEnv) {
       return fromEnv;
@@ -21,18 +43,7 @@ export function getApiBaseUrl(): string {
     return "";
   }
 
-  // Server-side or dev: use explicit env var if set
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
-  }
-
-  // Fallback for server-side production (SSR, API routes)
-  if (process.env.NODE_ENV === "production") {
-    return "https://api.transparent.city";
-  }
-
-  // Development defaults to localhost
-  return "http://localhost:8001";
+  return computeServerSideApiBase();
 }
 
 // Export the API base URL as a constant

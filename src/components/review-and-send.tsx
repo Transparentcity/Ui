@@ -65,7 +65,7 @@ import {
   sendSingleQueueItem,
   checkSendGridStatus,
 } from "@/app/actions/send-queue"
-import { API_BASE } from "@/lib/apiBase"
+import { getApiBaseUrl } from "@/lib/apiBase"
 import { toast } from "sonner"
 
 type TabKey = "pending" | "sent" | "all"
@@ -359,7 +359,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     setRegeneratingId(draftId)
     try {
       const headers = await getAuthHeaders(true)
-      const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/regenerate`, {
+      const resp = await fetch(`${getApiBaseUrl()}/api/crm/drafts/${draftId}/regenerate`, {
         method: "POST",
         headers,
       })
@@ -395,7 +395,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     setLoadingAnomalies(true)
     try {
       const headers = await getAuthHeaders()
-      const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/applicable-anomalies`, { headers })
+      const resp = await fetch(`${getApiBaseUrl()}/api/crm/drafts/${draftId}/applicable-anomalies`, { headers })
       if (!resp.ok) throw new Error("Failed to fetch anomalies")
       const data = await resp.json()
       setApplicableAnomalies(data.anomalies || [])
@@ -412,7 +412,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     setSwappingAnomalyId(resultId)
     try {
       const headers = await getAuthHeaders(true)
-      const resp = await fetch(`${API_BASE}/api/crm/drafts/${draftId}/swap-anomaly`, {
+      const resp = await fetch(`${getApiBaseUrl()}/api/crm/drafts/${draftId}/swap-anomaly`, {
         method: "POST",
         headers,
         body: JSON.stringify({ anomaly_result_id: resultId }),
@@ -436,7 +436,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     setGenerateResult(null)
     try {
       const headers = await getAuthHeaders(true)
-      const resp = await fetch(`${API_BASE}/api/crm/generate-drafts`, {
+      const resp = await fetch(`${getApiBaseUrl()}/api/crm/generate-drafts`, {
         method: "POST",
         headers,
         body: JSON.stringify({ lookback_days: 7 }),

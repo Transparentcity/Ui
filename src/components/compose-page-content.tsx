@@ -28,7 +28,7 @@ import {
   CheckCircle2,
   Mail,
 } from "lucide-react"
-import { API_BASE } from "@/lib/apiBase"
+import { getApiBaseUrl } from "@/lib/apiBase"
 import { ContactDialog } from "./contact-dialog"
 import { useCrmCitySafe } from "./crm-city-context"
 import type { ContactWithKeywords, Keyword } from "@/lib/types"
@@ -162,7 +162,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     try {
       const headers = await getAuthHeaders()
       const resp = await fetch(
-        `${API_BASE}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=90&limit=30`,
+        `${getApiBaseUrl()}/api/crm/cities/${contact.city_id}/anomalies?lookback_days=90&limit=30`,
         { headers, signal: abortController.signal },
       )
       if (!resp.ok) throw new Error("Failed to fetch anomalies")
@@ -228,7 +228,7 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
     setGenerationError(null)
     try {
       const composeHeaders = await getAuthHeaders(true)
-      const resp = await fetch(`${API_BASE}/api/crm/compose`, {
+      const resp = await fetch(`${getApiBaseUrl()}/api/crm/compose`, {
         method: "POST",
         headers: composeHeaders,
         body: JSON.stringify({
@@ -490,24 +490,6 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
         </Card>
       )}
 
-      {/* Generation error with retry (Phase 2) */}
-      {generationError && !isGenerating && !loadingAnomalies && selectedContact && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-5 text-center space-y-3">
-            <p className="text-sm text-red-700">{generationError}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => selectContact(selectedContact)}
-              className="gap-1.5 text-red-700 border-red-300 hover:bg-red-100"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Anomaly bar — visible as soon as anomalies load, even if compose fails */}
       {selectedContact && selectedAnomaly && anomalies.length > 0 && !loadingAnomalies && (
         <div className="relative">
@@ -603,6 +585,22 @@ export function ComposePageContent({ contacts, keywords, initialContactId }: Com
                 </div>
               )
             })()}
+        </div>
+      )}
+
+      {/* Generation error — below anomaly picker so the story/anomaly UI stays near the contact */}
+      {generationError && !isGenerating && !loadingAnomalies && selectedContact && (
+        <div className="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <p className="text-sm text-red-800 min-w-0">{generationError}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => selectContact(selectedContact)}
+            className="gap-1.5 shrink-0 self-start sm:self-auto text-red-800 border-red-300 hover:bg-red-100"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Retry
+          </Button>
         </div>
       )}
 
