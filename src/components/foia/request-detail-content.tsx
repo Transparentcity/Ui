@@ -40,7 +40,7 @@ import {
   createFoiaTask,
   uploadFoiaFile,
 } from "@/lib/foiaApiClient"
-import { API_BASE } from "@/lib/apiBase"
+import { API_BASE_FOR_ASSETS } from "@/lib/apiBase"
 import {
   FOLLOW_UP_ACTION_OPTIONS,
   FOLLOW_UP_CLASSIFICATION_TO_ACTION,
@@ -2263,7 +2263,7 @@ function AttachmentsTab({
             </div>
             {att.uri && (
               <a
-                href={att.uri.startsWith("/") ? `${API_BASE}${att.uri}` : att.uri}
+                href={att.uri.startsWith("/") ? `${API_BASE_FOR_ASSETS}${att.uri}` : att.uri}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"

@@ -5,7 +5,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { API_BASE } from "@/lib/apiBase";
+import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
 
 import styles from "./ContextMenu.module.css";
 
@@ -61,12 +61,12 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
       e.preventDefault();
       try {
         const token = await getAccessTokenSilently();
-        const docsUrl = `${API_BASE}/admin/docs?token=${encodeURIComponent(token)}`;
+        const docsUrl = `${API_BASE_FOR_ASSETS}/admin/docs?token=${encodeURIComponent(token)}`;
         window.open(docsUrl, "_blank", "noopener,noreferrer");
       } catch (error) {
         console.error("Failed to get access token for API docs:", error);
         // Fallback: try without token (will fail if auth required)
-        window.open(`${API_BASE}/admin/docs`, "_blank", "noopener,noreferrer");
+        window.open(`${API_BASE_FOR_ASSETS}/admin/docs`, "_blank", "noopener,noreferrer");
       }
     };
 
@@ -338,7 +338,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
         {/* API Documentation - Only visible to admins or city leads */}
         {canAccessApiDocs && (
           <a
-            href={`${API_BASE}/admin/docs`}
+            href={`${API_BASE_FOR_ASSETS}/admin/docs`}
             className={styles.item}
             id="api-docs-menu-item"
             role="menuitem"
