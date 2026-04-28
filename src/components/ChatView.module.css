@@ -66,6 +66,27 @@
   border: 1px solid var(--border-primary);
 }
 
+.errorBubble {
+  background: #fef2f2;
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
+.errorTitle {
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  font-size: 14px;
+}
+
+.errorContent {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .assistantName {
   font-weight: 600;
   margin-bottom: var(--space-sm);

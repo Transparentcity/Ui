@@ -34,6 +34,7 @@ interface Message {
     tool_id?: string;
     timestamp?: string;
   }>;
+  isError?: boolean;
 }
 
 interface ChatViewProps {
@@ -757,16 +758,23 @@ export default function ChatView({
             }
           } else if (event.type === "error") {
             console.error("❌ Stream error event:", event);
-            // Handle error gracefully - don't throw, just log
-            // Errors might be sent but stream can continue, so we don't stop processing
-            // If it's a cancellation, log it but continue - the stream will end naturally
-            if (event.content?.includes("cancelled") || event.content?.includes("Stream cancelled")) {
-              // Don't stop - let the stream continue to get any remaining data
-            } else {
-              // For other errors, log but continue - stream might still have data
-              console.warn("⚠️ Stream error (non-fatal, continuing):", event.content);
+            const errorContent = event.content || "Unknown error";
+            const isCancellation =
+              errorContent.includes("cancelled") ||
+              errorContent.includes("Stream cancelled");
+
+            if (!isCancellation) {
+              const errorId = `error-${Date.now()}`;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: errorId,
+                  role: "assistant" as const,
+                  content: errorContent,
+                  isError: true,
+                },
+              ]);
             }
-            // Don't return or throw - continue processing stream events
           } else {
             // Log unhandled event types
           }
@@ -1277,12 +1285,25 @@ export default function ChatView({
             messages
               .filter((msg) => {
                 // Filter out assistant messages with no content and no tool calls
-                if (msg.role === "assistant" && !msg.content && (!msg.tool_calls || msg.tool_calls.length === 0) && (!msg.intermediate_events || msg.intermediate_events.length === 0)) {
+                if (msg.role === "assistant" && !msg.isError && !msg.content && (!msg.tool_calls || msg.tool_calls.length === 0) && (!msg.intermediate_events || msg.intermediate_events.length === 0)) {
                   return false;
                 }
                 return true;
               })
               .map((msg) => {
+                if (msg.isError) {
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`${styles.chatMessage} ${styles.assistantMessage}`}
+                    >
+                      <div className={styles.errorBubble}>
+                        <div className={styles.errorTitle}>Something went wrong</div>
+                        <div className={styles.errorContent}>{msg.content}</div>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div
                     key={msg.id}
