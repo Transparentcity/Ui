@@ -2871,6 +2871,36 @@ export function followRepresentative(
   return request(`/api/newsletter/follow`, "POST", { city_id: cityId, district }, token);
 }
 
+export function subscribeNewsletter(
+  cityId: number,
+  district: string,
+  frequency: "weekly" | "monthly",
+  email: string,
+  token: string
+): Promise<{ subscribed: boolean; city_id: number; district: string; frequency: string; email: string }> {
+  return request(
+    `/api/newsletter/subscribe`,
+    "POST",
+    { city_id: cityId, district, frequency, email },
+    token
+  );
+}
+
+export function unsubscribeNewsletter(
+  cityId: number,
+  district: string,
+  frequency: "weekly" | "monthly",
+  email: string,
+  token: string
+): Promise<{ subscribed: boolean; city_id: number; district: string; frequency: string; email: string }> {
+  return request(
+    `/api/newsletter/unsubscribe`,
+    "POST",
+    { city_id: cityId, district, frequency, email },
+    token
+  );
+}
+
 export function unfollowRepresentative(
   cityId: number,
   district: string,
@@ -4461,8 +4491,6 @@ export function listPublicFeedStories(
     newsletter_frequency?: string | null;
     limit?: number;
     order_by?: string;
-    all_cities?: boolean;
-    story_type?: string | null;
   }
 ): Promise<FeedStoriesResponse> {
   const params = new URLSearchParams();
@@ -4476,8 +4504,6 @@ export function listPublicFeedStories(
   }
   if (options?.limit) params.append("limit", options.limit.toString());
   if (options?.order_by) params.append("order_by", options.order_by);
-  if (options?.all_cities) params.append("all_cities", "true");
-  if (options?.story_type) params.append("story_type", options.story_type);
 
   const query = params.toString();
   const path = `/api/feed/public${query ? `?${query}` : ""}`;
@@ -4753,6 +4779,7 @@ export interface NewsletterPendingListItem {
   draft_type: string | null;
   created_at: string | null;
   sent_at: string | null;
+  archived_at: string | null;
   send_error: string | null;
   /** Public permalink for shared newsletter drafts when an edition exists. */
   public_url?: string | null;
@@ -4786,7 +4813,7 @@ export function listNewsletterPending(
 export function getNewsletterPendingDetail(
   pendingId: number,
   token: string
-): Promise<NewsletterPendingListItem & { body_html: string; unsubscribe_url: string | null }> {
+): Promise<NewsletterPendingListItem & { body_html: string; email_html?: string; unsubscribe_url: string | null }> {
   return request(
     `/api/admin/newsletter-pending/${pendingId}`,
     "GET",
@@ -4812,6 +4839,13 @@ export function deleteNewsletterPendingBatch(
   token: string
 ): Promise<{ deleted: number }> {
   return request(`/api/admin/newsletter-pending/delete`, "POST", { ids }, token);
+}
+
+export function archiveNewsletterPendingBatch(
+  ids: number[],
+  token: string
+): Promise<{ archived: number }> {
+  return request(`/api/admin/newsletter-pending/archive`, "POST", { ids }, token);
 }
 
 /** One row from the newsletter_sends audit log (every email the system has dispatched). */
@@ -5964,12 +5998,28 @@ export interface WasteSummaryResponse {
   suppressed_below_confidence?: number;
 }
 
+/**
+ * Structured per-detector error returned by the backend waste analyze
+ * endpoint. New UIs should prefer this over the legacy freeform `errors`
+ * string list since `error_type`, `family`, and `retryable` come from the
+ * source instead of being regex-inferred from a message.
+ */
+export interface WasteDetectorError {
+  family: string | null;
+  detector: string | null;
+  error_type: string;
+  stage: string;
+  message: string;
+  retryable: boolean;
+}
+
 export interface WasteAnalyzeResponse {
   findings: WasteFinding[];
   summary: WasteSummaryResponse;
   cached: boolean;
   analysis_timestamp: string | null;
   errors: string[];
+  detector_errors?: WasteDetectorError[];
   data_freshness: WasteDataFreshness[];
   /**
    * Client-only field: when findings are merged across multiple persisted

@@ -22,6 +22,7 @@ import {
   getNewsletterPendingDetail,
   sendNewsletterPendingBatch,
   deleteNewsletterPendingBatch,
+  archiveNewsletterPendingBatch,
   runScheduleJob,
   getNewsletterGenerationPreview,
   getAvailableModels,
@@ -1195,6 +1196,7 @@ function NewsletterDashboardQueue({
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
   const [archive, setArchive] = useState<NewsletterPendingListItem[]>([]);
   const [directSends, setDirectSends] = useState<NewsletterSendItem[]>([]);
+  const [pendingOpen, setPendingOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -1408,6 +1410,28 @@ function NewsletterDashboardQueue({
     }
   };
 
+  const handleArchiveSelected = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) {
+      toast.error("Select at least one newsletter.");
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const r = await archiveNewsletterPendingBatch(ids, token);
+      toast.success(`Archived ${r.archived} draft(s) as unsent.`);
+      setExpandedId(null);
+      setPreviewHtml(null);
+      setPreviewPublicUrl(null);
+      await loadAll();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Archive failed");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const handlePreview = async (id: number) => {
     if (expandedId === id) {
       setExpandedId(null);
@@ -1422,7 +1446,7 @@ function NewsletterDashboardQueue({
     try {
       const token = await getAccessTokenSilently();
       const d = await getNewsletterPendingDetail(id, token);
-      setPreviewHtml(d.body_html);
+      setPreviewHtml(d.email_html || d.body_html);
       setPreviewPublicUrl(d.public_url || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Preview failed");
@@ -1447,7 +1471,7 @@ function NewsletterDashboardQueue({
     try {
       const token = await getAccessTokenSilently();
       const d = await getNewsletterPendingDetail(pendingId, token);
-      setArchivePreviewHtml(d.body_html || "(empty)");
+      setArchivePreviewHtml(d.email_html || d.body_html || "(empty)");
       setArchivePreviewPublicUrl(d.public_url || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Preview failed");
@@ -1493,6 +1517,14 @@ function NewsletterDashboardQueue({
             disabled={actionBusy || selected.size === 0}
           >
             {actionBusy ? "…" : "Send selected"}
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={handleArchiveSelected}
+            disabled={actionBusy || selected.size === 0}
+          >
+            Archive selected as unsent
           </button>
           <button
             type="button"
@@ -1670,11 +1702,19 @@ function NewsletterDashboardQueue({
       </div>
 
       <div className={styles.tableContainer}>
-        <div className={styles.tableHeader}>
-          <span className={styles.tableTitle}>Pending review</span>
-          <span className={styles.tableCount}>({pending.length})</span>
+        <div
+          className={styles.tableHeader}
+          style={{ cursor: "pointer", userSelect: "none" }}
+          onClick={() => setPendingOpen((o) => !o)}
+        >
+          <span className={styles.tableTitle}>
+            {pendingOpen ? "\u25BC" : "\u25B6"} Pending review
+          </span>
+          <span className={styles.tableCount}>
+            {loading ? "(loading...)" : `(${pending.length})`}
+          </span>
         </div>
-        {loading ? (
+        {pendingOpen && (loading ? (
           <div
             style={{
               padding: 24,
@@ -1752,7 +1792,7 @@ function NewsletterDashboardQueue({
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </div>
 
       <div style={{ marginTop: 12, marginBottom: 16 }}>
@@ -1766,17 +1806,17 @@ function NewsletterDashboardQueue({
         </button>
         {archiveOpen && (
           <div style={{ marginTop: 8 }}>
-            {/* ── Admin-queue sends ─────────────────────────────────── */}
+            {/* ── Admin queue archive ───────────────────────────────── */}
             {archive.length > 0 && (
               <>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
-                  Sent via admin queue ({archive.length})
+                  Admin queue archive ({archive.length})
                 </div>
                 <div className={styles.tableWrapper} style={{ marginBottom: 12 }}>
                   <table className={styles.table}>
                     <thead>
                       <tr>
-                        <th className={styles.th}>Sent</th>
+                        <th className={styles.th}>Status</th>
                         <th className={styles.th}>Recipient</th>
                         <th className={styles.th}>Scope</th>
                         <th className={styles.th}>Subject</th>
@@ -1792,7 +1832,9 @@ function NewsletterDashboardQueue({
                           <Fragment key={`a-${row.id}`}>
                             <tr>
                               <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-                                {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
+                                {row.sent_at
+                                  ? `Sent ${formatDate(row.sent_at)}`
+                                  : `Unsent${row.archived_at ? `, archived ${formatDate(row.archived_at)}` : ""}`}
                               </td>
                               <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
                               <td className={styles.td} style={{ fontSize: 12 }}>
@@ -1900,7 +1942,7 @@ function NewsletterDashboardQueue({
             </div>
 
             {archive.length === 0 && directSends.length === 0 && (
-              <div className={styles.emptyState}>No sent items in archive yet.</div>
+              <div className={styles.emptyState}>No items in archive yet.</div>
             )}
           </div>
         )}

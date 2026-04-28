@@ -71,27 +71,27 @@ export default function MetricDetailContent({
     setCompletenessDaily(null);
     setCompletenessStats(null);
     setCompletenessLoading(false);
-  }, [metric.id, selectedDistrict]);
+  }, [metric.id]);
   useEffect(() => {
     if (completenessDaily) return;
     setCompletenessLoading(true);
-    getPublicMetricCompletenessDaily(metric.id, "day", 90, selectedDistrict)
+    getPublicMetricCompletenessDaily(metric.id, "day", 90, null)
       .then(setCompletenessDaily)
       .catch((err) => {
         console.warn("Failed to load completeness daily data:", err);
         setCompletenessDaily(null);
       })
       .finally(() => setCompletenessLoading(false));
-  }, [metric.id, selectedDistrict, completenessDaily]);
+  }, [metric.id, completenessDaily]);
   useEffect(() => {
     if (completenessStats) return;
-    getPublicMetricCompletenessStats(metric.id, selectedDistrict)
+    getPublicMetricCompletenessStats(metric.id, null)
       .then(setCompletenessStats)
       .catch((err) => {
         console.warn("Failed to load completeness stats:", err);
         setCompletenessStats(null);
       });
-  }, [metric.id, selectedDistrict, completenessStats]);
+  }, [metric.id, completenessStats]);
   useEffect(() => {
     if (!metric.city_id) return;
     let mounted = true;
@@ -429,59 +429,32 @@ export default function MetricDetailContent({
         </section>
       )}
 
-      {/* District Comparison - only show if metric has map_query configured */}
-      {metric.map_query && (
-        (selectedDistrict === null || selectedDistrict === 0) ? (
-          <section className="metric-section">
-            <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
-            {isStale ? (
-              <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
-            ) : comparison?.current_period_start && comparison?.current_period_end ? (
-              <p className="metric-section-subtitle">
-                {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
-              </p>
-            ) : null}
-            <MetricMapEmbed
-              metricId={metric.id}
-              selectedPeriod={selectedPeriod}
-              height={isMobile ? 280 : 400}
-              showLink={true}
-              showPeriodSelector={false}
-              district={null}
-              metricName={metric.metric_name}
-              itemNoun={metric.item_noun}
-              dateRange={{
-                start: comparison?.current_period_start || null,
-                end: comparison?.current_period_end || null,
-              }}
-            />
-          </section>
-        ) : (
-          <section className="metric-section">
-            <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} happening in District {selectedDistrict}?</h2>
-            {isStale ? (
-              <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
-            ) : comparison?.current_period_start && comparison?.current_period_end ? (
-              <p className="metric-section-subtitle">
-                {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
-              </p>
-            ) : null}
-            <MetricMapEmbed
-              metricId={metric.id}
-              selectedPeriod={selectedPeriod}
-              height={isMobile ? 280 : 400}
-              showLink={true}
-              showPeriodSelector={false}
-              district={selectedDistrict}
-              metricName={metric.metric_name}
-              itemNoun={metric.item_noun}
-              dateRange={{
-                start: comparison?.current_period_start || null,
-                end: comparison?.current_period_end || null,
-              }}
-            />
-          </section>
-        )
+      {/* District Comparison - district pages use the comparison cards and charts, not a district-only map. */}
+      {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+        <section className="metric-section">
+          <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
+          {isStale ? (
+            <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
+          ) : comparison?.current_period_start && comparison?.current_period_end ? (
+            <p className="metric-section-subtitle">
+              {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
+            </p>
+          ) : null}
+          <MetricMapEmbed
+            metricId={metric.id}
+            selectedPeriod={selectedPeriod}
+            height={isMobile ? 280 : 400}
+            showLink={true}
+            showPeriodSelector={false}
+            district={null}
+            metricName={metric.metric_name}
+            itemNoun={metric.item_noun}
+            dateRange={{
+              start: comparison?.current_period_start || null,
+              end: comparison?.current_period_end || null,
+            }}
+          />
+        </section>
       )}
 
       {/* Delta Map - change by district (citywide view only) */}
@@ -658,7 +631,7 @@ export default function MetricDetailContent({
                       <br />
                       <span style={{ color: "var(--text-secondary)" }}>
                         {metric.last_execution_at
-                          ? `Last checked ${new Date(metric.last_execution_at).toLocaleDateString("en-US", {
+                          ? `${selectedDistrict !== null && selectedDistrict > 0 ? "Citywide freshness: " : ""}Last checked ${new Date(metric.last_execution_at).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric"

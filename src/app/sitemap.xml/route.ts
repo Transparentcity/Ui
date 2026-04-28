@@ -205,11 +205,11 @@ export async function GET(): Promise<Response> {
 
   const districtEntries: SitemapEntry[] = districts.flatMap((district) => {
     const citySlug = launchedCitySlugFromApiCitySlug(cities, district.city_slug);
-    if (!citySlug) return [];
+    if (!citySlug || !hasText(district.representative_slug)) return [];
 
     return [
       {
-        loc: `${origin}/c/${citySlug}/district/${district.district}`,
+        loc: `${origin}/c/${citySlug}/district/${district.district}/${district.representative_slug}`,
         changefreq: "weekly",
         priority: 0.7,
       },

@@ -441,6 +441,8 @@ export type PublicCityDistrictSitemapItem = {
   /** Name-derived URL segment; matches `slug` on `/api/public/cities/sitemap`. */
   city_slug: string;
   district: number;
+  representative_name?: string | null;
+  representative_slug?: string | null;
 };
 
 export function listPublicCityDistrictsForSitemap(): Promise<PublicCityDistrictSitemapItem[]> {

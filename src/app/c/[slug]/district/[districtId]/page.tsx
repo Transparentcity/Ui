@@ -70,8 +70,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const supervisorSlug = supervisorName ? supervisorToSlug(supervisorName) : null;
-  const canonicalBase = `/c/${slug}/district/${d}`;
-  const canonical = supervisorSlug ? `${canonicalBase}/${supervisorSlug}` : canonicalBase;
+  const canonical = supervisorSlug ? `/c/${slug}/district/${d}/${supervisorSlug}` : null;
 
   const title = supervisorName
     ? `${supervisorName} \u2013 District ${d} \u2013 ${cityName}`
@@ -96,8 +95,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     keywords,
-    alternates: { canonical },
-    openGraph: { title, description, url: canonical },
+    ...(canonical ? { alternates: { canonical } } : {}),
+    openGraph: { title, description, ...(canonical ? { url: canonical } : {}) },
     twitter: { card: "summary", title, description },
   };
 }

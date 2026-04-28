@@ -22,6 +22,8 @@ import {
   runPlaceMetricsAndAnomaliesAsJob,
   followRepresentative,
   unfollowRepresentative,
+  subscribeNewsletter,
+  unsubscribeNewsletter,
   type CityDetail,
   type CityLeader,
 } from "@/lib/apiClient";
@@ -1380,6 +1382,17 @@ export default function WelcomeModal({
             } catch (retryErr) {
               console.error("Preferences save failed after retry:", retryErr);
             }
+          }
+
+          try {
+            const newsletterEmail = user?.email || "";
+            if (weeklyNewsletterOptIn) {
+              await subscribeNewsletter(cityId, "0", newsletterFrequency, newsletterEmail, token);
+            } else {
+              await unsubscribeNewsletter(cityId, "0", newsletterFrequency, newsletterEmail, token);
+            }
+          } catch (subscriptionErr) {
+            console.error("Newsletter subscription sync failed:", subscriptionErr);
           }
 
           // Send welcome email with stories from their city

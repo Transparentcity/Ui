@@ -908,17 +908,6 @@ export default function PublicMapPage() {
   const getMapDisplayCount = (m: SavedMap | null): { count: number; itemNoun: string } | null => {
     if (!m) return null;
     const itemNoun = (m.map_config?.item_noun as string) || "items";
-    const locRows = m.location_data;
-    if (
-      (m.map_type === "choropleth" || m.map_type === "delta") &&
-      Array.isArray(locRows) &&
-      locRows.length > 0
-    ) {
-      return {
-        count: locRows.length,
-        itemNoun: (m.map_config?.choropleth_area_noun as string) || "districts",
-      };
-    }
     if (m.map_type === "multi_layer") {
       const layerMaps = m.map_config?.layer_maps as Array<{ location_data?: any[] }> | undefined;
       if (Array.isArray(layerMaps) && layerMaps.length > 0) {
@@ -940,6 +929,22 @@ export default function PublicMapPage() {
           if (total > 0) return { count: total, itemNoun };
         }
       }
+    }
+    const locRows = m.location_data;
+    if (
+      (m.map_type === "choropleth" || m.map_type === "delta") &&
+      Array.isArray(locRows) &&
+      locRows.length > 0
+    ) {
+      const total = locRows.reduce(
+        (sum, row) => sum + (Number(row?.value ?? row?.count ?? 0) || 0),
+        0
+      );
+      if (total > 0) return { count: total, itemNoun };
+      return {
+        count: locRows.length,
+        itemNoun: (m.map_config?.choropleth_area_noun as string) || "districts",
+      };
     }
     const loc = m.location_data;
     if (Array.isArray(loc) && loc.length > 0) return { count: loc.length, itemNoun };

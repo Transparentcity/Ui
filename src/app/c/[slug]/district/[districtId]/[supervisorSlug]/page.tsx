@@ -60,8 +60,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
   }
 
-  // Canonical = this URL (self-referential since this IS the preferred URL)
-  const canonical = `/c/${slug}/district/${d}/${supervisorSlug}`;
+  const canonicalSupervisorSlug = supervisorName
+    ? supervisorToSlug(supervisorName)
+    : supervisorSlug;
+  const canonical = `/c/${slug}/district/${d}/${canonicalSupervisorSlug}`;
 
   const title = supervisorName
     ? `${supervisorName} \u2013 District ${d} \u2013 ${cityName}`
