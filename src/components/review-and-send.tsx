@@ -441,19 +441,76 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
         headers,
         body: JSON.stringify({ lookback_days: 7 }),
       })
-      if (!resp.ok) throw new Error("Generate drafts failed")
+
+      // Specific error messages by status code, the backend returns 502 for
+      // setup issues (bad Supabase URL/key) and 503 for transient outages.
+      // The body has a `detail` field with specifics.
+      if (!resp.ok) {
+        let detail = ""
+        try {
+          const body = await resp.json()
+          detail = body?.detail || body?.error || ""
+        } catch {
+          detail = await resp.text().catch(() => "")
+        }
+        if (resp.status === 502) {
+          setGenerateResult(
+            `Setup error: ${detail || "CRM is not configured correctly. Check Supabase credentials."}`
+          )
+        } else if (resp.status === 503) {
+          setGenerateResult(
+            `Service temporarily unavailable. Please retry in a moment. ${detail ? `(${detail})` : ""}`
+          )
+        } else if (resp.status === 401 || resp.status === 403) {
+          setGenerateResult("You're not authorized. Try signing in again.")
+        } else {
+          setGenerateResult(
+            `Generate drafts failed (HTTP ${resp.status}). ${detail || "Check the console for details."}`
+          )
+        }
+        return
+      }
+
       const data = await resp.json()
+      const counts: Record<string, number> = data.draft_status_counts || {}
+      const fallbackCount = Object.entries(counts)
+        .filter(([k]) => k.startsWith("template_fallback_"))
+        .reduce((sum, [, v]) => sum + (v as number), 0)
+      // Surface per-city failures even when overall request returned 200
+      const cityErrors = (data.city_results || []).filter(
+        (cr: { error_type?: string }) => cr.error_type
+      )
+
       if (data.drafts_created > 0) {
-        setGenerateResult(`Created ${data.drafts_created} draft(s) from ${data.anomalies_found} anomalies across ${data.cities_processed} city/cities.`)
+        const fallbackNote =
+          fallbackCount > 0
+            ? ` (${fallbackCount} used template fallback because the AI service was unavailable)`
+            : ""
+        const cityErrNote =
+          cityErrors.length > 0
+            ? ` ${cityErrors.length} city/cities had errors, see below.`
+            : ""
+        setGenerateResult(
+          `Created ${data.drafts_created} draft(s) from ${data.anomalies_found} anomalies across ${data.cities_processed} city/cities.${fallbackNote}${cityErrNote}`
+        )
         router.refresh()
+      } else if (cityErrors.length > 0) {
+        const first = cityErrors[0]
+        setGenerateResult(
+          `No drafts created. City ${first.city_id}: ${first.error_message || first.error_type}`
+        )
       } else if (data.error) {
         setGenerateResult(data.error)
       } else {
-        setGenerateResult("No new matches found. Try adjusting lookback or adding more contacts.")
+        setGenerateResult(
+          "No new matches found. Try adjusting lookback or adding more contacts."
+        )
       }
     } catch (err) {
       console.error("Generate drafts error:", err)
-      setGenerateResult("Failed to generate drafts. Check the console for details.")
+      setGenerateResult(
+        "Failed to reach the server. Check your connection and try again."
+      )
     } finally {
       setIsGenerating(false)
     }
@@ -838,7 +895,7 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                     </div>
                   </div>
 
-                  {/* Subject line */}
+                  {/* Subject line + draft-status badge */}
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-gray-500 shrink-0" />
                     <Tooltip>
@@ -851,6 +908,25 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                         <p className="max-w-sm">{item.personalized_subject || "(No subject)"}</p>
                       </TooltipContent>
                     </Tooltip>
+                    {/* Surface drafts where the LLM was unavailable. We don't
+                        block sending, the user just gets a heads-up that this
+                        copy is the deterministic template, not Adam's voice. */}
+                    {item.draft_status && item.draft_status !== "llm_generated" && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                            Template
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs text-xs">
+                            This draft used the fallback template because the AI
+                            generator was unavailable ({item.draft_status.replace("template_fallback_", "")}).
+                            Review carefully before sending.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
 
                   {/* Body preview / expanded */}

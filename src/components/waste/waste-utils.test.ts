@@ -12,8 +12,10 @@ import {
   wasteBackupKey,
   WASTE_ANALYSIS_CACHE_KEY,
   categoriesWithErrors,
+  categoriesWithStructuredErrors,
   mergePersistedRuns,
   translateWasteError,
+  translateStructuredError,
   type PersistedRunBundle,
 } from "./waste-utils"
 
@@ -984,5 +986,185 @@ describe("translateWasteError", () => {
     expect(t.headline).toMatch(/one detector didn't finish/i)
     expect(t.detail).toMatch(/RD1 Revolving Door/)
     expect(t.tone).toBe("info")
+  })
+})
+
+// ── translateStructuredError ───────────────────────────────────────────────
+
+describe("translateStructuredError", () => {
+  // The structured path is strictly better than the regex one: error_type,
+  // family, and retryable come from the source instead of being inferred
+  // from the message string. These tests pin the mapping so a backend
+  // change can't silently change the UI copy.
+  it("maps a family timeout to a category-scoped warn", () => {
+    const t = translateStructuredError({
+      family: "contracts",
+      detector: null,
+      error_type: "timeout",
+      stage: "detectors",
+      message: "timed out after 90s",
+      retryable: true,
+    })
+    expect(t.headline).toMatch(/took too long/i)
+    expect(t.category).toBe("contracts")
+    expect(t.tone).toBe("warn")
+  })
+
+  it("maps a family error to a category-scoped warn", () => {
+    const t = translateStructuredError({
+      family: "payroll",
+      detector: null,
+      error_type: "family_error",
+      stage: "detectors",
+      message: "synthetic failure",
+      retryable: false,
+    })
+    expect(t.headline).toMatch(/didn't finish/i)
+    expect(t.category).toBe("payroll")
+    expect(t.tone).toBe("warn")
+  })
+
+  it("maps no_data to an info-toned 'No data available' headline", () => {
+    const t = translateStructuredError({
+      family: "infrastructure",
+      detector: null,
+      error_type: "no_data",
+      stage: "detectors",
+      message: "no 311 cases for the period",
+      retryable: false,
+    })
+    expect(t.headline).toMatch(/no data available/i)
+    expect(t.category).toBe("infrastructure")
+    expect(t.tone).toBe("info")
+  })
+
+  it("maps data_fetch_partial to a dataset-named warn", () => {
+    const t = translateStructuredError({
+      family: null,
+      detector: "vendor_payments",
+      error_type: "data_fetch_partial",
+      stage: "prefetch",
+      message: "vendor_payments fetch failed: 503",
+      retryable: true,
+    })
+    expect(t.headline).toMatch(/couldn't fetch vendor_payments/i)
+    expect(t.tone).toBe("warn")
+    // No family scoping for prefetch errors
+    expect(t.category).toBeNull()
+  })
+
+  it("maps prefetch full failure to 'Data fetch failed'", () => {
+    const t = translateStructuredError({
+      family: null,
+      detector: null,
+      error_type: "data_fetch",
+      stage: "prefetch",
+      message: "prefetch failed: ConnectionError",
+      retryable: true,
+    })
+    expect(t.headline).toMatch(/data fetch failed/i)
+    expect(t.tone).toBe("warn")
+    expect(t.category).toBeNull()
+  })
+
+  it("maps a convergence post-processing failure to an info banner", () => {
+    const t = translateStructuredError({
+      family: null,
+      detector: null,
+      error_type: "post_processing",
+      stage: "post",
+      message: "convergence detector: boom",
+      retryable: false,
+    })
+    expect(t.headline).toMatch(/cross-domain meta-detector didn't run/i)
+    expect(t.tone).toBe("info")
+  })
+
+  it("maps invalid_category to a clear setup-error headline", () => {
+    const t = translateStructuredError({
+      family: null,
+      detector: null,
+      error_type: "invalid_category",
+      stage: "orchestrator",
+      message: "Unknown category: bogus",
+      retryable: false,
+    })
+    expect(t.headline).toMatch(/unknown analysis category/i)
+    expect(t.tone).toBe("warn")
+  })
+})
+
+// ── categoriesWithStructuredErrors ─────────────────────────────────────────
+
+describe("categoriesWithStructuredErrors", () => {
+  it("returns failed family categories from a detector_errors list", () => {
+    const failed = categoriesWithStructuredErrors([
+      { family: "contracts", error_type: "timeout", stage: "detectors" },
+      { family: null, error_type: "data_fetch", stage: "prefetch" },
+      { family: "payroll", error_type: "family_error", stage: "detectors" },
+    ])
+    expect(failed.has("contracts")).toBe(true)
+    expect(failed.has("payroll")).toBe(true)
+    // prefetch errors aren't tied to a single family
+    expect(failed.size).toBe(2)
+  })
+
+  it("returns an empty set for null/undefined input", () => {
+    expect(categoriesWithStructuredErrors(null).size).toBe(0)
+    expect(categoriesWithStructuredErrors(undefined).size).toBe(0)
+  })
+
+  it("does NOT mark a family as failed when only one detector inside it failed", () => {
+    // The family ran fine and produced findings from its other detectors.
+    // Carrying over an older run for that family would replace good new
+    // findings with stale data.
+    const failed = categoriesWithStructuredErrors([
+      {
+        family: "contracts",
+        detector: "D7b Commodity Price Disparity",
+        error_type: "family_error",
+        stage: "detectors",
+      },
+    ])
+    expect(failed.has("contracts")).toBe(false)
+    expect(failed.size).toBe(0)
+  })
+
+  it("marks a family as failed when the family-level wrapper failed (no detector set)", () => {
+    const failed = categoriesWithStructuredErrors([
+      {
+        family: "contracts",
+        detector: null,
+        error_type: "timeout",
+        stage: "detectors",
+      },
+    ])
+    expect(failed.has("contracts")).toBe(true)
+  })
+})
+
+describe("categoriesWithErrors with per-detector strings", () => {
+  // Same correctness check on the legacy-string path: per-detector
+  // failures should NOT trigger the carry-over merge.
+  it("ignores per-detector error strings (D7b, RD1, etc.)", () => {
+    const failed = categoriesWithErrors([
+      "contracts: D7b Commodity Price Disparity: boom",
+      "integrity: RD1 Revolving Door timed out after 60s",
+    ])
+    expect(failed.size).toBe(0)
+  })
+
+  it("still flags whole-family timeouts", () => {
+    const failed = categoriesWithErrors([
+      "contracts: timed out after 120s",
+    ])
+    expect(failed.has("contracts")).toBe(true)
+  })
+
+  it("flags an unprefixed family-level error", () => {
+    const failed = categoriesWithErrors([
+      "payroll: KeyError 'employee_identifier'",
+    ])
+    expect(failed.has("payroll")).toBe(true)
   })
 })

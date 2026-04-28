@@ -36,7 +36,9 @@ import {
   loadCachedAnalysis,
   wasteCacheKey,
   translateWasteError,
+  translateStructuredError,
   type WasteCategoryKey,
+  type TranslatedWasteError,
 } from "./waste-utils"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
@@ -624,53 +626,72 @@ export function WastePageContent() {
                     {displayData?.data_freshness && displayData.data_freshness.length > 0 && (
                       <DataSourceDetails freshness={displayData.data_freshness} />
                     )}
-                    {displayData?.errors && displayData.errors.length > 0 && (
+                    {((displayData?.detector_errors && displayData.detector_errors.length > 0) ||
+                      (displayData?.errors && displayData.errors.length > 0)) && (
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-amber-700">
-                          {displayData.errors.length} detector{displayData.errors.length !== 1 ? "s" : ""} had issues
-                        </p>
-                        {displayData.errors.map((err, i) => {
-                          const t = translateWasteError(err)
-                          const toneClass =
-                            t.tone === "warn" ? "text-amber-700" : "text-gray-600"
-                          const detailClass =
-                            t.tone === "warn" ? "text-amber-600" : "text-gray-500"
+                        {(() => {
+                          // Prefer structured detector_errors when the backend
+                          // returned them; fall back to the legacy string list.
+                          // Both sources are translated into the same
+                          // TranslatedWasteError shape so the rendering below
+                          // doesn't change.
+                          const structured = displayData?.detector_errors ?? []
+                          const translated: TranslatedWasteError[] =
+                            structured.length > 0
+                              ? structured.map((de) => translateStructuredError(de))
+                              : (displayData?.errors ?? []).map((err) =>
+                                  translateWasteError(err),
+                                )
                           return (
-                            <div key={i} className="flex items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-xs font-medium ${toneClass}`}>
-                                  {t.headline}
-                                </p>
-                                {t.detail && (
-                                  <p className={`text-xs mt-0.5 ${detailClass}`}>
-                                    {t.detail}
-                                  </p>
-                                )}
-                                {t.raw !== t.headline && (
-                                  <details className="mt-0.5">
-                                    <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">
-                                      Raw error
-                                    </summary>
-                                    <p className="text-[10px] text-gray-500 font-mono mt-0.5 break-all">
-                                      {t.raw}
-                                    </p>
-                                  </details>
-                                )}
-                              </div>
-                              {t.apiCategory && !isManualRefreshing && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleRefresh(t.apiCategory!)}
-                                  className="shrink-0 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100"
-                                >
-                                  <RefreshCw className="w-3 h-3 mr-1" />
-                                  Retry this
-                                </Button>
-                              )}
-                            </div>
+                            <>
+                              <p className="text-xs font-medium text-amber-700">
+                                {translated.length} detector
+                                {translated.length !== 1 ? "s" : ""} had issues
+                              </p>
+                              {translated.map((t, i) => {
+                                const toneClass =
+                                  t.tone === "warn" ? "text-amber-700" : "text-gray-600"
+                                const detailClass =
+                                  t.tone === "warn" ? "text-amber-600" : "text-gray-500"
+                                return (
+                                  <div key={i} className="flex items-start gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-xs font-medium ${toneClass}`}>
+                                        {t.headline}
+                                      </p>
+                                      {t.detail && (
+                                        <p className={`text-xs mt-0.5 ${detailClass}`}>
+                                          {t.detail}
+                                        </p>
+                                      )}
+                                      {t.raw !== t.headline && (
+                                        <details className="mt-0.5">
+                                          <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">
+                                            Raw error
+                                          </summary>
+                                          <p className="text-[10px] text-gray-500 font-mono mt-0.5 break-all">
+                                            {t.raw}
+                                          </p>
+                                        </details>
+                                      )}
+                                    </div>
+                                    {t.apiCategory && !isManualRefreshing && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRefresh(t.apiCategory!)}
+                                        className="shrink-0 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100"
+                                      >
+                                        <RefreshCw className="w-3 h-3 mr-1" />
+                                        Retry this
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </>
                           )
-                        })}
+                        })()}
                       </div>
                     )}
                     {carriedOverCategories.length > 0 && (
