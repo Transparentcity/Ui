@@ -58,6 +58,8 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip"
 import type { SendQueueItem, Contact } from "@/lib/types"
+import type { FeedStory } from "@/lib/api/feed"
+import { listPublicFeedStories } from "@/lib/apiClient"
 import {
   updateQueueItemContent,
   updateQueueItemStatus,
@@ -69,6 +71,57 @@ import { getApiBaseUrl } from "@/lib/apiBase"
 import { toast } from "sonner"
 
 type TabKey = "pending" | "sent" | "all"
+
+const TC_BASE_URL = "https://transparent.city"
+
+function citySlugFromName(name: string | null | undefined): string | null {
+  if (!name) return null
+  return name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null
+}
+
+function storyUrl(story: FeedStory | null | undefined, fallback: string): string {
+  if (!story) return fallback
+  const path = story.canonical_path
+  if (path) return path.startsWith("http") ? path : `${TC_BASE_URL}${path}`
+  return story.public_url ?? fallback
+}
+
+function storySnippet(story: FeedStory | null | undefined, cityUrl: string): string {
+  if (!story) return cityUrl
+  return [story.headline, story.description, storyUrl(story, cityUrl)]
+    .filter(Boolean)
+    .join("\n")
+}
+
+// Replace placeholder tokens like [FIRST NAME], [ANOMALY 1], [STORY], etc.
+// with story content for the contact's district (or citywide fallback).
+function substitutePlaceholders(
+  text: string | null | undefined,
+  contact: Contact | undefined,
+  stories: FeedStory[],
+): string {
+  if (!text) return text ?? ""
+  const slug = citySlugFromName(contact?.city_name)
+  const cityUrl = slug ? `${TC_BASE_URL}/c/${slug}` : TC_BASE_URL
+  const firstName = contact?.name?.split(/\s+/)[0] ?? ""
+
+  const districtNum = parseInt((contact?.jurisdiction || "").replace(/\D/g, ""))
+  const districtStory = !isNaN(districtNum) && districtNum > 0
+    ? stories.find((s) => s.district === districtNum)
+    : undefined
+  const citywideStory = stories.find((s) => s.district === 0 || s.district == null)
+  const primary = districtStory ?? citywideStory ?? stories[0]
+  const secondary =
+    citywideStory && citywideStory !== primary
+      ? citywideStory
+      : stories.find((s) => s !== primary)
+
+  return text
+    .replace(/\[FIRST\s*NAME\]/gi, firstName || "[FIRST NAME]")
+    .replace(/\[(?:anomaly|anomoly|story)\s*2[^\]]*citywide[^\]]*\]/gi, storySnippet(secondary, cityUrl))
+    .replace(/\[(?:anomaly|anomoly|story)\s*2\b[^\]]*\]/gi, storySnippet(secondary, cityUrl))
+    .replace(/\[(?:anomaly|anomoly|story)(?:\s*1)?\b[^\]]*\]/gi, storySnippet(primary, cityUrl))
+}
 
 interface ApplicableAnomaly {
   result_id: number
@@ -124,6 +177,50 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     checkSendGridStatus().then(({ configured }) => setSendGridReady(configured))
   }, [])
 
+  // Stories per city: used to substitute [ANOMALY]/[STORY]/[FIRST NAME]
+  // placeholders in draft bodies with the actual headline + link.
+  const [storiesByCity, setStoriesByCity] = useState<Record<number, FeedStory[]>>({})
+  useEffect(() => {
+    const cityIds = Array.from(
+      new Set(
+        items
+          .map((i) => i.prospect?.city_id)
+          .filter((x): x is number => typeof x === "number"),
+      ),
+    )
+    cityIds.forEach((cityId) => {
+      setStoriesByCity((prev) => {
+        if (prev[cityId]) return prev
+        listPublicFeedStories({ city_id: cityId, limit: 20, order_by: "published_at" })
+          .then((resp) => {
+            setStoriesByCity((p) => ({ ...p, [cityId]: resp.stories ?? [] }))
+          })
+          .catch(() => {
+            setStoriesByCity((p) => ({ ...p, [cityId]: [] }))
+          })
+        return { ...prev, [cityId]: [] }
+      })
+    })
+  }, [items])
+
+  const renderItemBody = useCallback(
+    (item: SendQueueItem & { prospect?: Contact }) => {
+      const cityId = item.prospect?.city_id ?? null
+      const stories = (cityId != null && storiesByCity[cityId]) || []
+      return substitutePlaceholders(item.personalized_body, item.prospect, stories)
+    },
+    [storiesByCity],
+  )
+
+  const renderItemSubject = useCallback(
+    (item: SendQueueItem & { prospect?: Contact }) => {
+      const cityId = item.prospect?.city_id ?? null
+      const stories = (cityId != null && storiesByCity[cityId]) || []
+      return substitutePlaceholders(item.personalized_subject, item.prospect, stories)
+    },
+    [storiesByCity],
+  )
+
   // Confirm dialog state (replaces window.confirm)
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string
@@ -174,9 +271,9 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   }
 
   // Copy full email
-  const copyFullEmail = async (item: SendQueueItem) => {
+  const copyFullEmail = async (item: SendQueueItem & { prospect?: Contact }) => {
     try {
-      const text = `Subject: ${item.personalized_subject || ""}\n\n${item.personalized_body || ""}`
+      const text = `Subject: ${renderItemSubject(item) || ""}\n\n${renderItemBody(item) || ""}`
       await navigator.clipboard.writeText(text)
       setCopiedId(item.id)
       setCopiedField("full")
@@ -901,11 +998,11 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <p className="font-medium text-gray-900 truncate">
-                          {item.personalized_subject || "(No subject)"}
+                          {renderItemSubject(item) || "(No subject)"}
                         </p>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-sm">{item.personalized_subject || "(No subject)"}</p>
+                        <p className="max-w-sm">{renderItemSubject(item) || "(No subject)"}</p>
                       </TooltipContent>
                     </Tooltip>
                     {/* Surface drafts where the LLM was unavailable. We don't
@@ -936,11 +1033,11 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                   >
                     {isExpanded ? (
                       <div className="text-sm text-gray-700 whitespace-pre-wrap p-3 bg-gray-50 rounded-lg border border-gray-100">
-                        {item.personalized_body}
+                        {renderItemBody(item)}
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500 line-clamp-2">
-                        {item.personalized_body}
+                        {renderItemBody(item)}
                       </p>
                     )}
                   </div>

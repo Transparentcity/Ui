@@ -29,7 +29,6 @@ import {
   Check,
   ArrowRight,
   FileText,
-  ExternalLink,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -186,40 +185,57 @@ export function ManualComposeContent({
     [emailTemplates],
   )
 
-  const insertReference = useCallback(() => {
-    const baseUrl =
-      (typeof window !== "undefined" && window.location.origin) || "https://transparent.city"
-    let snippet = ""
+  const referenceSnippet = useMemo(() => {
+    const baseUrl = "https://transparent.city"
+    const slug = selectedContact?.city_name
+      ? selectedContact.city_name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
+      : null
+    const cityUrl = slug ? `${baseUrl}/c/${slug}` : baseUrl
+
     if (refKind === "story" && selectedStory) {
       const path = selectedStory.canonical_path ?? null
       const url = path
-        ? path.startsWith("http")
-          ? path
-          : `${baseUrl}${path}`
-        : selectedStory.public_url ?? ""
-      snippet = [selectedStory.headline, selectedStory.description, url]
+        ? path.startsWith("http") ? path : `${baseUrl}${path}`
+        : selectedStory.public_url ?? cityUrl
+      return [selectedStory.headline, selectedStory.description, url]
         .filter(Boolean)
         .join("\n")
-    } else if (refKind === "anomaly" && selectedAnomaly) {
+    }
+    if (refKind === "anomaly" && selectedAnomaly) {
       const name = selectedAnomaly.object_name || selectedAnomaly.metric_name || "anomaly"
       const pct =
         selectedAnomaly.pct_change != null
           ? `${selectedAnomaly.pct_change > 0 ? "+" : ""}${Math.round(selectedAnomaly.pct_change * 100)}%`
           : null
-      snippet = [
+      return [
         `${name}${pct ? ` (${pct})` : ""}`,
         selectedAnomaly.period_type ? `Period: ${selectedAnomaly.period_type}` : null,
+        cityUrl,
       ]
         .filter(Boolean)
         .join("\n")
     }
-    if (!snippet) {
-      toast.error("Pick a story or anomaly first")
-      return
-    }
-    setBody((prev) => (prev.trim() ? `${prev}\n\n${snippet}` : snippet))
-    toast.success("Reference inserted")
-  }, [refKind, selectedStory, selectedAnomaly])
+    return ""
+  }, [refKind, selectedStory, selectedAnomaly, selectedContact?.city_name])
+
+  // Track the last auto-inserted snippet so we can replace it when the
+  // selection changes (rather than stacking duplicates in the body).
+  const lastInsertedRef = useRef<string>("")
+
+  useEffect(() => {
+    setBody((prev) => {
+      const previous = lastInsertedRef.current
+      let next = prev
+      if (previous && next.includes(previous)) {
+        next = next.replace(previous, "").replace(/\n{3,}/g, "\n\n").trimEnd()
+      }
+      if (referenceSnippet) {
+        next = next.trim() ? `${next}\n\n${referenceSnippet}` : referenceSnippet
+      }
+      lastInsertedRef.current = referenceSnippet
+      return next
+    })
+  }, [referenceSnippet])
 
   const handleCopy = async () => {
     try {
@@ -554,64 +570,14 @@ export function ManualComposeContent({
                 </>
               )}
 
-              {(selectedStory || selectedAnomaly) && (
-                <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
-                  <div className="min-w-0 flex-1 text-sm">
-                    {selectedStory && (
-                      <>
-                        <p className="font-medium text-gray-900 truncate">
-                          {selectedStory.headline}
-                        </p>
-                        {selectedStory.description && (
-                          <p className="text-xs text-gray-600 line-clamp-2 mt-0.5">
-                            {selectedStory.description}
-                          </p>
-                        )}
-                        {selectedStory.canonical_path && (
-                          <a
-                            href={selectedStory.canonical_path}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 mt-1"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            Preview
-                          </a>
-                        )}
-                      </>
-                    )}
-                    {selectedAnomaly && (
-                      <>
-                        <p className="font-medium text-gray-900 truncate">
-                          {selectedAnomaly.object_name ||
-                            selectedAnomaly.metric_name ||
-                            "Anomaly"}
-                        </p>
-                        <p className="text-xs text-gray-600 mt-0.5">
-                          {selectedAnomaly.pct_change != null && (
-                            <span>
-                              {selectedAnomaly.pct_change > 0 ? "+" : ""}
-                              {Math.round(selectedAnomaly.pct_change * 100)}%
-                            </span>
-                          )}
-                          {selectedAnomaly.period_type && (
-                            <span className="ml-2 text-gray-500">
-                              · {selectedAnomaly.period_type}
-                            </span>
-                          )}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={insertReference}
-                    className="gap-1 shrink-0 text-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Insert into body
-                  </Button>
+              {referenceSnippet && (
+                <div className="space-y-2 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <Label className="text-[11px] text-gray-500 uppercase tracking-wide">
+                    Inserted into email body
+                  </Label>
+                  <pre className="text-xs text-gray-800 whitespace-pre-wrap font-sans bg-white border border-gray-200 rounded p-2">
+                    {referenceSnippet}
+                  </pre>
                 </div>
               )}
             </CardContent>
