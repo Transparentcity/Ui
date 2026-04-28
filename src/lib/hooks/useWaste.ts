@@ -127,6 +127,11 @@ export function useActiveWasteJob(cityId: number | null) {
   } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isStartingRef = useRef(false)
+  // True only when the current job was started by the user in this session.
+  // Jobs we attached to on mount (e.g. a weekly cron run) should not be
+  // auto-retried by the UI - that turns a zombie row in the DB into an
+  // accidental "every page load kicks off a new analysis" loop.
+  const userStartedJobRef = useRef(false)
   const retryCountRef = useRef(0)
   const lastProgressSnapshotRef = useRef<{ progress: number; statusMessage: string; updatedAt: number }>({
     progress: 0, statusMessage: "", updatedAt: Date.now(),
@@ -186,8 +191,10 @@ export function useActiveWasteJob(cityId: number | null) {
             startedAt: job.started_at ?? null,
             jobId,
           })
-          // Auto-retry if under the limit
-          if (retryCountRef.current < MAX_AUTO_RETRIES && cityId && startNewJobRef.current) {
+          // Auto-retry only if the user started this job in this session.
+          // Otherwise, attaching to a zombie job in the DB on page load would
+          // trigger a fresh run on every visit.
+          if (userStartedJobRef.current && retryCountRef.current < MAX_AUTO_RETRIES && cityId && startNewJobRef.current) {
             retryCountRef.current += 1
             setRetryCount(retryCountRef.current)
             setActiveJob({
@@ -222,6 +229,7 @@ export function useActiveWasteJob(cityId: number | null) {
           job.status === "cancelled"
         ) {
           shouldContinue = false
+          userStartedJobRef.current = false
           // Refresh analysis data now that the job is done
           if (job.status === "completed") {
             retryCountRef.current = 0
@@ -277,7 +285,14 @@ export function useActiveWasteJob(cityId: number | null) {
         const result = await listJobs(token, 5, "running", undefined, "waste_analysis_run")
         const running = result.jobs?.[0]
         if (cancelled) return
-        if (running) {
+        // A job older than ~35 min that's still "running"/"pending" is almost
+        // certainly a zombie row from a crashed prior run. Don't attach - it
+        // would just show "Analyzing..." forever (or, worse, get auto-retried).
+        const ZOMBIE_AGE_MS = 35 * 60 * 1000
+        const isZombie = (job: { created_at: string }) =>
+          Date.now() - new Date(job.created_at).getTime() > ZOMBIE_AGE_MS
+        if (running && !isZombie(running)) {
+          userStartedJobRef.current = false
           setActiveJob(running)
           startPollingRef.current(running.job_id)
         } else {
@@ -285,7 +300,8 @@ export function useActiveWasteJob(cityId: number | null) {
           const pending = await listJobs(token, 5, "pending", undefined, "waste_analysis_run")
           if (cancelled) return
           const pendingJob = pending.jobs?.[0]
-          if (pendingJob) {
+          if (pendingJob && !isZombie(pendingJob)) {
+            userStartedJobRef.current = false
             setActiveJob(pendingJob)
             startPollingRef.current(pendingJob.job_id)
           }
@@ -316,6 +332,7 @@ export function useActiveWasteJob(cityId: number | null) {
         return
       }
       isStartingRef.current = true
+      userStartedJobRef.current = true
       setIsStarting(true)
       setStartError(null)
 
@@ -411,6 +428,7 @@ export function useActiveWasteJob(cityId: number | null) {
     }
     setActiveJob(null)
     retryCountRef.current = 0
+    userStartedJobRef.current = false
     setRetryCount(0)
     setLastDiagnostics(null)
     setStartError(null)
