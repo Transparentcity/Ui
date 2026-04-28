@@ -1057,9 +1057,72 @@ describe("ReviewAndSend", () => {
     await user.click(screen.getByRole("button", { name: /generate drafts/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/failed to generate drafts/i)).toBeInTheDocument()
+      expect(screen.getByText(/failed to reach the server/i)).toBeInTheDocument()
     })
     consoleSpy.mockRestore()
+  })
+
+  it("shows setup-error message on 502 from generate-drafts", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => ({ detail: "Supabase POST prospects failed with 401" }),
+      text: async () => "",
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/setup error/i)).toBeInTheDocument()
+      expect(screen.getByText(/Supabase POST prospects/)).toBeInTheDocument()
+    })
+  })
+
+  it("shows transient-retry message on 503 from generate-drafts", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ detail: "Supabase down after 3 attempts" }),
+      text: async () => "",
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/service temporarily unavailable/i)
+      ).toBeInTheDocument()
+    })
+  })
+
+  it("notes template-fallback count when AI service was degraded", async () => {
+    const user = userEvent.setup()
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "completed",
+        anomalies_found: 5,
+        matches_found: 3,
+        drafts_created: 3,
+        cities_processed: 1,
+        city_results: [],
+        draft_status_counts: {
+          llm_generated: 1,
+          template_fallback_transient: 2,
+        },
+      }),
+    })
+
+    render(<ReviewAndSend items={[]} />)
+    await user.click(screen.getByRole("button", { name: /generate drafts/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/2 used template fallback/i)).toBeInTheDocument()
+    })
   })
 
   it("shows loading state and progress card while generating", async () => {

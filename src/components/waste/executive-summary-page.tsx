@@ -9,6 +9,7 @@ import {
 import { useWasteCity } from "./WasteCityContext"
 import type { WasteEntityScore, WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
+import { WasteReportBuilder } from "./waste-report-builder"
 import { TCScoreBadge, scoreTier, TIER_STYLES } from "./tc-score-badge"
 import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
 import { cn } from "@/lib/utils"
@@ -409,9 +410,14 @@ export function ExecutiveSummaryPage() {
 
   return (
     <WasteShell
-      title="Backtrace"
-      description="Department risk briefings for leadership review"
+      title="Reports"
+      description="Department risk briefings and downloadable audit reports"
     >
+      {/* Report builder — surfaces CSV/JSON/Excel downloads with filters */}
+      <div className="mb-6">
+        <WasteReportBuilder />
+      </div>
+
       {/* Summary bar */}
       <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
         <div className="flex items-center gap-3 mb-3">

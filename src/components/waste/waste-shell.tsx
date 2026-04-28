@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth0 } from "@auth0/auth0-react"
@@ -8,50 +8,84 @@ import {
   ShieldAlert,
   LayoutGrid,
   Activity,
-  Search,
-  Code2,
-  SlidersHorizontal,
+  FolderOpen,
+  FileText,
   ArrowLeft,
   LogIn,
   MapPin,
-  FileText,
-  Settings,
-  Eye,
+  Settings as SettingsIcon,
+  Sparkles,
+  PanelRightOpen,
+  Code2,
+  SlidersHorizontal,
+  BookOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteCityPicker } from "./waste-city-picker"
 import { useLatestWasteRun } from "@/lib/hooks/useWaste"
-import { WasteViewModeProvider, useWasteViewMode } from "./WasteViewModeContext"
+import {
+  WasteSeymourProvider,
+  useWasteSeymour,
+} from "./waste-seymour-context"
+import { WasteSeymourRail } from "./waste-seymour-rail"
 
 type TabItem = {
   key: string
   name: string
   href: string
   icon: React.ComponentType<{ className?: string }>
+  /** Routes that should highlight this tab (in addition to href). */
+  matchPrefixes?: string[]
 }
 
-// Auditor-facing tabs — clean, focused
-const AUDITOR_TABS: TabItem[] = [
-  { key: "workspace", name: "Findings", href: "/waste", icon: LayoutGrid },
-  { key: "investigations", name: "Dashboard", href: "/waste/dashboard", icon: Activity },
+// Four functional top-level tabs, plus the gear menu for admin tools.
+const TOP_TABS: TabItem[] = [
+  {
+    key: "overview",
+    name: "Overview",
+    href: "/waste/dashboard",
+    icon: Activity,
+  },
+  {
+    key: "findings",
+    name: "Findings",
+    href: "/waste",
+    icon: LayoutGrid,
+    matchPrefixes: ["/waste/forensics", "/waste/scores"],
+  },
+  {
+    key: "cases",
+    name: "Cases",
+    href: "/waste/queue",
+    icon: FolderOpen,
+    matchPrefixes: ["/waste/queue", "/waste/investigations"],
+  },
+  {
+    key: "reports",
+    name: "Reports",
+    href: "/waste/executive",
+    icon: FileText,
+    matchPrefixes: ["/waste/executive", "/waste/methodology"],
+  },
+]
+
+const GEAR_LINKS: TabItem[] = [
   { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
+  {
+    key: "thresholds",
+    name: "Thresholds",
+    href: "/waste/settings/thresholds",
+    icon: SlidersHorizontal,
+  },
+  {
+    key: "methodology",
+    name: "Methodology",
+    href: "/waste/methodology",
+    icon: BookOpen,
+  },
 ]
-
-// Admin-only tabs — shown in admin mode
-const ADMIN_EXTRA_TABS: TabItem[] = [
-  { key: "backtrace", name: "Forensics", href: "/waste/forensics", icon: Search },
-  { key: "executive", name: "Backtrace", href: "/waste/executive", icon: FileText },
-  { key: "thresholds", name: "Thresholds", href: "/waste/settings/thresholds", icon: SlidersHorizontal },
-]
-
-const FOLDED_ROUTES: Record<string, string[]> = {
-  investigations: ["/waste/dashboard", "/waste/queue", "/waste/investigations", "/waste/scores"],
-  backtrace: ["/waste/forensics"],
-  executive: ["/waste/executive"],
-  thresholds: ["/waste/settings/thresholds", "/waste/methodology"],
-}
 
 interface WasteShellProps {
   children: React.ReactNode
@@ -66,9 +100,9 @@ interface WasteShellProps {
 
 export function WasteShell(props: WasteShellProps) {
   return (
-    <WasteViewModeProvider>
+    <WasteSeymourProvider>
       <WasteShellInner {...props} />
-    </WasteViewModeProvider>
+    </WasteSeymourProvider>
   )
 }
 
@@ -79,14 +113,33 @@ function WasteShellInner({
   actions,
 }: WasteShellProps) {
   const pathname = usePathname()
-  const { isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0()
-  const { selectedCityId, eligibleCities, isLoading: citiesLoading, isFetching, setSelectedCityId, selectedCityName } = useWasteCity()
-  const { data: latestRun, isLoading: latestRunLoading } = useLatestWasteRun(selectedCityId)
-  const { viewMode, toggle: toggleViewMode } = useWasteViewMode()
+  const { isAuthenticated, isLoading: authLoading, loginWithRedirect } =
+    useAuth0()
+  const {
+    selectedCityId,
+    eligibleCities,
+    isLoading: citiesLoading,
+    isFetching,
+    setSelectedCityId,
+    selectedCityName,
+  } = useWasteCity()
+  const { data: latestRun, isLoading: latestRunLoading } =
+    useLatestWasteRun(selectedCityId)
+  const { open: seymourOpen, toggle: toggleSeymour } = useWasteSeymour()
 
-  const visibleTabs = viewMode === "admin"
-    ? [...AUDITOR_TABS, ...ADMIN_EXTRA_TABS]
-    : AUDITOR_TABS
+  const [gearOpen, setGearOpen] = useState(false)
+  const gearRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!gearOpen) return
+    function onClick(e: MouseEvent) {
+      if (gearRef.current && !gearRef.current.contains(e.target as Node)) {
+        setGearOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", onClick)
+    return () => document.removeEventListener("mousedown", onClick)
+  }, [gearOpen])
 
   const lastPullLabel = (() => {
     if (!latestRun) return null
@@ -99,8 +152,16 @@ function WasteShellInner({
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
     const diffDays = Math.floor(diffMs / 86_400_000)
-    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    if (diffDays === 0) return `Today, ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
+    const dateStr = d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+    if (diffDays === 0)
+      return `Today, ${d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      })}`
     if (diffDays === 1) return `Yesterday`
     if (diffDays < 7) return `${diffDays}d ago (${dateStr})`
     return dateStr
@@ -138,19 +199,22 @@ function WasteShellInner({
   }
 
   const isTabActive = (tab: TabItem) => {
-    if (tab.href === "/waste") return pathname === "/waste"
-    const routes = FOLDED_ROUTES[tab.key]
-    if (routes) {
-      return routes.some(
-        (r) => pathname === r || pathname.startsWith(`${r}/`)
+    if (tab.href === "/waste") {
+      // Findings tab is active on root + forensics/scores routes
+      if (pathname === "/waste") return true
+      return (tab.matchPrefixes ?? []).some(
+        (p) => pathname === p || pathname.startsWith(`${p}/`),
       )
     }
-    return pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+    if (pathname === tab.href || pathname.startsWith(`${tab.href}/`)) return true
+    return (tab.matchPrefixes ?? []).some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    )
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Top bar: branding + city indicator + back link */}
+      {/* Top bar */}
       <header className="bg-white border-b border-gray-200">
         <div className="flex items-center justify-between px-4 lg:px-6 py-2.5">
           <div className="flex items-center gap-3">
@@ -183,10 +247,15 @@ function WasteShellInner({
             <span className="text-sm font-medium text-gray-500 hidden sm:inline">
               Waste Detection
             </span>
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200"
+              title="This module is currently admin-only."
+            >
+              Admin
+            </span>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* City selector + indicator */}
             <div className="flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
               <WasteCityPicker
@@ -197,7 +266,10 @@ function WasteShellInner({
                 onChange={setSelectedCityId}
               />
               {lastPullLabel ? (
-                <span className="text-[11px] text-gray-500 whitespace-nowrap" title="Most recent data pull">
+                <span
+                  className="text-[11px] text-gray-500 whitespace-nowrap"
+                  title="Most recent data pull"
+                >
                   Data: {lastPullLabel}
                 </span>
               ) : latestRun === null && !latestRunLoading ? (
@@ -205,36 +277,6 @@ function WasteShellInner({
                   No data yet
                 </span>
               ) : null}
-            </div>
-
-            {/* View mode indicator + toggle */}
-            <div className="flex items-center gap-1">
-              <span
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 rounded-l-md text-xs font-medium border border-r-0",
-                  viewMode === "admin"
-                    ? "bg-purple-50 text-purple-700 border-purple-200"
-                    : "bg-blue-50 text-blue-700 border-blue-200"
-                )}
-              >
-                {viewMode === "admin" ? (
-                  <><Settings className="w-3.5 h-3.5" /> Admin</>
-                ) : (
-                  <><Eye className="w-3.5 h-3.5" /> Auditor</>
-                )}
-              </span>
-              <button
-                onClick={toggleViewMode}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 rounded-r-md text-xs font-medium transition-colors border",
-                  viewMode === "admin"
-                    ? "bg-white text-gray-500 border-purple-200 hover:bg-purple-50 hover:text-purple-600"
-                    : "bg-white text-gray-500 border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-                )}
-                title={viewMode === "admin" ? "Switch to Auditor view" : "Switch to Admin view"}
-              >
-                {viewMode === "admin" ? "Auditor" : "Admin"} →
-              </button>
             </div>
 
             <Link
@@ -249,25 +291,82 @@ function WasteShellInner({
 
         {/* Tab bar */}
         <nav className="flex items-center gap-0 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
-          {visibleTabs.map((tab) => {
-            const Icon = tab.icon
-            const active = isTabActive(tab)
-            return (
-              <Link
-                key={tab.key}
-                href={tab.href}
+          <div className="flex items-center gap-0 flex-1">
+            {TOP_TABS.map((tab) => {
+              const Icon = tab.icon
+              const active = isTabActive(tab)
+              return (
+                <Link
+                  key={tab.key}
+                  href={tab.href}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap no-underline border-b-2 transition-colors",
+                    active
+                      ? "text-purple-600 border-purple-600"
+                      : "text-gray-500 border-transparent hover:text-gray-900 hover:border-gray-300",
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.name}
+                </Link>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center gap-1 pl-2">
+            <button
+              onClick={toggleSeymour}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors",
+                seymourOpen
+                  ? "bg-purple-50 text-purple-700 border-purple-200"
+                  : "bg-white text-gray-500 border-gray-200 hover:text-purple-700 hover:border-purple-200",
+              )}
+              title={seymourOpen ? "Hide Seymour" : "Ask Seymour"}
+            >
+              {seymourOpen ? (
+                <Sparkles className="w-3.5 h-3.5" />
+              ) : (
+                <PanelRightOpen className="w-3.5 h-3.5" />
+              )}
+              Seymour
+            </button>
+
+            <div className="relative" ref={gearRef}>
+              <button
+                onClick={() => setGearOpen((v) => !v)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap no-underline border-b-2 transition-colors",
-                  active
-                    ? "text-purple-600 border-purple-600"
-                    : "text-gray-500 border-transparent hover:text-gray-900 hover:border-gray-300"
+                  "p-1.5 rounded text-gray-500 hover:text-gray-900 border border-transparent",
+                  gearOpen && "bg-gray-100 border-gray-200",
                 )}
+                title="Admin tools"
+                aria-label="Admin tools"
               >
-                <Icon className="w-4 h-4" />
-                {tab.name}
-              </Link>
-            )
-          })}
+                <SettingsIcon className="w-4 h-4" />
+              </button>
+              {gearOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    Admin tools
+                  </p>
+                  {GEAR_LINKS.map((g) => {
+                    const Icon = g.icon
+                    return (
+                      <Link
+                        key={g.key}
+                        href={g.href}
+                        onClick={() => setGearOpen(false)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 no-underline"
+                      >
+                        <Icon className="w-3.5 h-3.5 text-gray-400" />
+                        {g.name}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </nav>
       </header>
 
@@ -290,10 +389,17 @@ function WasteShellInner({
         {actions && <div className="flex items-center gap-3">{actions}</div>}
       </div>
 
-      {/* Content */}
-      <main id="main-content" className="flex-1 p-3 lg:p-5 overflow-y-auto">{children}</main>
+      {/* Content + persistent Seymour rail */}
+      <div className="flex-1 flex min-h-0">
+        <main
+          id="main-content"
+          className="flex-1 p-3 lg:p-5 overflow-y-auto"
+        >
+          {children}
+        </main>
+        <WasteSeymourRail />
+      </div>
 
-      {/* Footer */}
       <footer className="px-4 lg:px-6 py-3 border-t border-gray-200 bg-white">
         <p className="text-xs text-gray-500 text-center">
           Analyzing: {selectedCityName} &middot; Anomalies &ne; confirmed fraud

@@ -78,12 +78,35 @@ export interface WasteSummaryResponse {
   categories: WasteCategorySummary[];
 }
 
+/**
+ * Structured per-detector error returned by the backend. New code should
+ * read `detector_errors` rather than parsing `errors` strings via regex.
+ *
+ * `error_type` values match the backend `DetectorError` model:
+ * timeout | no_data | data_fetch | data_fetch_partial | family_error |
+ * post_processing | invalid_category | internal
+ *
+ * `stage` values: prefetch | detectors | post | orchestrator
+ *
+ * `retryable` indicates whether re-running the analysis is likely to help
+ * (timeouts, network issues) versus a config/data bug that needs a human.
+ */
+export interface WasteDetectorError {
+  family: string | null;
+  detector: string | null;
+  error_type: string;
+  stage: string;
+  message: string;
+  retryable: boolean;
+}
+
 export interface WasteAnalyzeResponse {
   findings: WasteFinding[];
   summary: WasteSummaryResponse;
   cached: boolean;
   analysis_timestamp: string | null;
   errors: string[];
+  detector_errors?: WasteDetectorError[];
   data_freshness: WasteDataFreshness[];
   run_id?: number | null;
   persisted?: boolean;

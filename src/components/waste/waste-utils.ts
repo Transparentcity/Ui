@@ -374,8 +374,14 @@ const KNOWN_ERROR_FAMILIES: Record<string, WasteCategoryKey> = {
 
 /**
  * Parse the error message list from a run, identifying which category families
- * had failures (timeouts or exceptions). The backend emits messages like
- * `"contracts: timed out after 120s"` or `"vendor: <exception>"`.
+ * had family-level failures (timeouts or whole-family exceptions). The backend
+ * emits messages like `"contracts: timed out after 120s"` or
+ * `"vendor: <exception>"`.
+ *
+ * Per-detector failures (e.g. `"contracts: D7b Commodity Price Disparity:
+ * boom"`) are intentionally NOT counted here. The family ran fine and
+ * produced findings from its other detectors, so we should keep the new
+ * findings rather than carrying over an entire older run for that family.
  *
  * Only whitelisted family prefixes are recognized. The `prefetch:` prefix is
  * skipped because prefetch failures apply to every detector and are surfaced
@@ -385,6 +391,10 @@ const KNOWN_ERROR_FAMILIES: Record<string, WasteCategoryKey> = {
 export function categoriesWithErrors(errors: string[] | null | undefined): Set<WasteCategoryKey> {
   const failed = new Set<WasteCategoryKey>()
   if (!errors) return failed
+  // Same per-detector pattern as translateWasteError: a 1-2 letter prefix
+  // followed by a digit (D1, D7b, D20i, RD1, NP1). When present after the
+  // family colon, treat the error as per-detector and skip.
+  const perDetectorAfterFamily = /^[a-zA-Z_]+:\s*[A-Z]{1,2}\d+[a-z]?\s/
   for (const msg of errors) {
     const match = /^([a-zA-Z_]+):/.exec(msg)
     if (!match) continue
@@ -392,6 +402,7 @@ export function categoriesWithErrors(errors: string[] | null | undefined): Set<W
     if (raw === "prefetch") continue
     const mapped = KNOWN_ERROR_FAMILIES[raw]
     if (!mapped) continue
+    if (perDetectorAfterFamily.test(msg)) continue
     failed.add(mapped)
   }
   return failed
@@ -563,6 +574,182 @@ export function translateWasteError(raw: string): TranslatedWasteError {
     tone: "info",
     raw: trimmed,
   }
+}
+
+/**
+ * Convert a structured DetectorError from the backend into the same shape
+ * used by translateWasteError, but without parsing strings via regex.
+ *
+ * Prefer this over translateWasteError when the backend response includes
+ * `detector_errors` (newer responses do). It's strictly better: the
+ * `error_type`, `family`, and `retryable` flags come from the source instead
+ * of being heuristically inferred from the message string.
+ */
+export function translateStructuredError(de: {
+  family: string | null
+  detector: string | null
+  error_type: string
+  stage: string
+  message: string
+  retryable: boolean
+}): TranslatedWasteError {
+  const raw = de.family ? `${de.family}: ${de.message}` : de.message
+  const familyKey = de.family ? KNOWN_ERROR_FAMILIES[de.family.toLowerCase()] : null
+  const familyLabel =
+    familyKey && WASTE_CATEGORY_LABELS[familyKey] ? WASTE_CATEGORY_LABELS[familyKey] : de.family
+
+  // Stage-level errors that aren't tied to a single family
+  if (de.stage === "post") {
+    if (de.message.includes("confidence scoring")) {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Confidence scoring step failed",
+        detail: "Findings are shown without cross-detector corroboration boosts.",
+        tone: "info",
+        raw,
+      }
+    }
+    if (de.message.includes("convergence")) {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Cross-domain meta-detector didn't run",
+        detail: "Per-category findings are unaffected.",
+        tone: "info",
+        raw,
+      }
+    }
+    if (de.message.includes("entity consolidation")) {
+      return {
+        category: null,
+        apiCategory: null,
+        headline: "Entity consolidation step failed",
+        detail:
+          "Same-entity findings across detectors may appear as separate rows instead of a single rolled-up finding.",
+        tone: "info",
+        raw,
+      }
+    }
+  }
+
+  if (de.error_type === "data_fetch_partial") {
+    const datasetName = de.detector ?? "a dataset"
+    return {
+      category: null,
+      apiCategory: null,
+      headline: `Couldn't fetch ${datasetName}`,
+      detail: de.retryable
+        ? "Looks transient — a retry will likely fix this. Findings depending on this dataset may be missing."
+        : "Findings that depend on this dataset may be missing. Check source configuration.",
+      tone: "warn",
+      raw,
+    }
+  }
+
+  if (de.error_type === "data_fetch") {
+    return {
+      category: null,
+      apiCategory: null,
+      headline: "Data fetch failed before detectors ran",
+      detail: de.message,
+      tone: "warn",
+      raw,
+    }
+  }
+
+  if (de.error_type === "timeout" && familyKey) {
+    return {
+      category: familyKey,
+      apiCategory: familyKey,
+      headline: `${familyLabel} analysis took too long and didn't finish`,
+      detail: `The detectors ${de.message}. Showing last good results for this category if available.`,
+      tone: "warn",
+      raw,
+    }
+  }
+
+  if (de.error_type === "family_error" && familyKey) {
+    return {
+      category: familyKey,
+      apiCategory: familyKey,
+      headline: `${familyLabel} analysis didn't finish`,
+      detail: de.message,
+      tone: "warn",
+      raw,
+    }
+  }
+
+  if (de.error_type === "no_data" && familyKey) {
+    return {
+      category: familyKey,
+      apiCategory: familyKey,
+      headline: `No data available for ${familyLabel}`,
+      detail: de.message,
+      tone: "info",
+      raw,
+    }
+  }
+
+  if (de.error_type === "invalid_category") {
+    return {
+      category: null,
+      apiCategory: null,
+      headline: "Unknown analysis category requested",
+      detail: de.message,
+      tone: "warn",
+      raw,
+    }
+  }
+
+  // Fallback: still better than guessing from the string
+  return {
+    category: familyKey,
+    apiCategory: familyKey,
+    headline: familyLabel
+      ? `${familyLabel} analysis issue`
+      : "Detector issue",
+    detail: de.message || null,
+    tone: de.retryable ? "warn" : "info",
+    raw,
+  }
+}
+
+/**
+ * Compute the set of failed categories from a structured error list. The
+ * structured equivalent of `categoriesWithErrors`. Returns an empty set when
+ * `detector_errors` is null/undefined so the caller can fall back to
+ * `categoriesWithErrors(errors)`.
+ *
+ * Per-detector failures (where `detector` is set) are intentionally NOT
+ * counted: the family ran and produced findings from its other detectors,
+ * carrying over an older run would replace good new findings with stale
+ * data.
+ */
+export function categoriesWithStructuredErrors(
+  detectorErrors:
+    | Array<{
+        family: string | null
+        detector?: string | null
+        error_type: string
+        stage: string
+      }>
+    | null
+    | undefined,
+): Set<WasteCategoryKey> {
+  const failed = new Set<WasteCategoryKey>()
+  if (!detectorErrors) return failed
+  for (const de of detectorErrors) {
+    if (!de.family) continue
+    // prefetch errors apply broadly, not to a single family
+    if (de.stage === "prefetch") continue
+    // Per-detector failure, family still produced findings, don't carry over.
+    if (de.detector) continue
+    const mapped = KNOWN_ERROR_FAMILIES[de.family.toLowerCase()]
+    if (!mapped) continue
+    failed.add(mapped)
+  }
+  return failed
 }
 
 function emptySummary(): WasteSummaryResponse {

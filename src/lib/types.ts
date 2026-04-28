@@ -235,6 +235,27 @@ export interface SubjectVariation {
   created_at: string
 }
 
+/**
+ * How a draft's body was generated. Persisted on each send_queue row so
+ * the Review & Send UI can flag fallback rows for closer review.
+ *
+ * - llm_generated: LLM produced parseable JSON cleanly
+ * - template_fallback_*: one of several failure modes that fell back to
+ *   the deterministic template (auth/config issue, transient network or
+ *   rate-limit, timeout, parse failure, empty body, or uncategorized)
+ *
+ * Defaults to "llm_generated" for rows persisted before migration 012,
+ * so existing drafts don't retroactively look suspect.
+ */
+export type DraftStatus =
+  | 'llm_generated'
+  | 'template_fallback_config'
+  | 'template_fallback_transient'
+  | 'template_fallback_timeout'
+  | 'template_fallback_parse'
+  | 'template_fallback_empty'
+  | 'template_fallback_error'
+
 export interface SendQueueItem {
   id: string
   campaign_id: string | null
@@ -253,6 +274,7 @@ export interface SendQueueItem {
   sent_at: string | null
   error_message: string | null
   created_at: string
+  draft_status?: DraftStatus
   prospect?: Contact
 }
 
