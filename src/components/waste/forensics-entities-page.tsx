@@ -47,8 +47,8 @@ export function ForensicsEntitiesPage() {
 
   return (
     <WasteShell
-      title="Backtrace"
-      description="Historical analysis and investigation workspace"
+      title="Findings"
+      description="Browse and investigate detected anomalies"
     >
       <ForensicsShell title="Entity Risk Scores">
         {/* Filters */}

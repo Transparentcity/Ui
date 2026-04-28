@@ -12,6 +12,7 @@ import {
   parseContractDriftContractId,
   procurementVendorNameFromEntity,
 } from "./waste-utils"
+import { expandDetectorCodesInline, formatDetector } from "./detector-info"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
@@ -134,6 +135,12 @@ interface WasteFindingCardProps {
   cityId?: number
   isCarriedOver?: boolean
   carriedOverAsOf?: string | null
+  /**
+   * Optional pool of findings used to resolve `supporting_findings` IDs on
+   * consolidated/multi-signal cards so we can show each detector by name
+   * along with the metric value that tripped it.
+   */
+  allFindings?: WasteFinding[]
 }
 
 interface PayrollDetailRow {
@@ -446,6 +453,105 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
   return null
 }
 
+/**
+ * Renders the per-detector breakdown for a consolidated/multi-signal finding.
+ * Shows each triggering detector's full name and the metric value that
+ * tripped it (i.e. what threshold was hit).
+ */
+function DetectorsTriggeredPanel({
+  parent,
+  supportingIds,
+  allFindings,
+}: {
+  parent: WasteFinding
+  supportingIds: string[]
+  allFindings?: WasteFinding[]
+}) {
+  // Resolve children from the parent dataset when available.
+  const idSet = new Set(supportingIds)
+  const children = (allFindings ?? []).filter((f) => idSet.has(f.id))
+
+  // De-dupe by detector tool, keeping the most informative child per detector.
+  const byDetector = new Map<string, WasteFinding>()
+  for (const c of children) {
+    const key = (c.tool ?? "Unknown").trim()
+    const prev = byDetector.get(key)
+    if (!prev || (c.priority_score ?? 0) > (prev.priority_score ?? 0)) {
+      byDetector.set(key, c)
+    }
+  }
+  const detectorRows = Array.from(byDetector.values())
+
+  // Fallback: parse codes out of the parent's metricDetail when we couldn't
+  // resolve the children (e.g. card rendered outside the full list context).
+  const fallbackCodes = (() => {
+    if (detectorRows.length > 0) return null
+    const m = (parent.metricDetail ?? "").match(/\(([^)]+)\)/)
+    if (!m) return null
+    return m[1].split(",").map((s) => s.trim()).filter(Boolean)
+  })()
+
+  return (
+    <div className="mb-3 p-3 bg-indigo-50/60 border border-indigo-100 rounded-md">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Layers className="w-3.5 h-3.5 text-indigo-600" />
+        <span className="text-xs font-semibold text-indigo-900">
+          Detectors triggered ({detectorRows.length || supportingIds.length})
+        </span>
+      </div>
+
+      {detectorRows.length > 0 ? (
+        <ul className="space-y-1.5">
+          {detectorRows.map((c) => {
+            const detail = [c.metric, c.metricDetail]
+              .filter(Boolean)
+              .join(" ")
+              .trim()
+            return (
+              <li key={c.id} className="text-[11px] leading-snug">
+                <span className="font-medium text-indigo-900">
+                  {c.tool || "Detector"}
+                </span>
+                {detail && (
+                  <span className="text-indigo-700"> — {detail}</span>
+                )}
+                {c.amount != null && c.amount > 0 && (
+                  <span className="ml-1 text-indigo-700 tabular-nums">
+                    ({formatDollar(c.amount)})
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      ) : fallbackCodes && fallbackCodes.length > 0 ? (
+        <ul className="space-y-1">
+          {fallbackCodes.map((code) => {
+            const expanded = formatDetector(code, parent.category)
+            return (
+              <li
+                key={code}
+                className="text-[11px] leading-snug text-indigo-900"
+              >
+                <span className="font-medium">{expanded}</span>
+              </li>
+            )
+          })}
+          <li className="text-[11px] text-indigo-500 mt-1">
+            Open the parent finding from the list view to see each
+            detector&rsquo;s metric value.
+          </li>
+        </ul>
+      ) : (
+        <p className="text-[11px] text-indigo-700 leading-relaxed font-mono">
+          {supportingIds.slice(0, 8).join(", ")}
+          {supportingIds.length > 8 && ` +${supportingIds.length - 8} more`}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function ConvergenceDetail({ finding }: { finding: WasteFinding }) {
   const cd = finding.convergence_details
   if (!cd) return null
@@ -579,6 +685,7 @@ export function WasteFindingCard({
   cityId,
   isCarriedOver = false,
   carriedOverAsOf = null,
+  allFindings,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
@@ -892,10 +999,11 @@ export function WasteFindingCard({
           </span>
         )}
 
-        {/* Headline (plain-English) or fallback to metric */}
+        {/* Headline (plain-English) or fallback to metric. Consolidated
+            metricDetail strings like "(D1, D7, NP4)" get expanded inline. */}
         {finding.headline ? (
           <span className="text-sm text-gray-800 font-medium truncate">
-            {finding.headline}
+            {expandDetectorCodesInline(finding.headline, finding.category)}
           </span>
         ) : (
           <>
@@ -903,7 +1011,10 @@ export function WasteFindingCard({
               {finding.metric}
             </span>
             <span className="text-sm text-gray-600 truncate">
-              {finding.metricDetail}
+              {expandDetectorCodesInline(
+                finding.metricDetail ?? "",
+                finding.category,
+              )}
             </span>
           </>
         )}
@@ -969,11 +1080,14 @@ export function WasteFindingCard({
             <div className="mb-3">
               {finding.headline && (
                 <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
-                  {finding.headline}
+                  {expandDetectorCodesInline(finding.headline, finding.category)}
                 </p>
               )}
               <p className="text-sm text-gray-700 leading-relaxed">
-                {finding.description}
+                {expandDetectorCodesInline(
+                  finding.description ?? "",
+                  finding.category,
+                )}
               </p>
             </div>
           )}
@@ -1027,21 +1141,11 @@ export function WasteFindingCard({
 
           {/* Consolidated / supporting findings list */}
           {supportingCount > 0 && finding.supporting_findings && (
-            <div className="mb-3 p-2.5 bg-indigo-50/60 border border-indigo-100 rounded-md">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="text-xs font-medium text-indigo-800">
-                  Consolidated from {supportingCount} related finding{supportingCount !== 1 ? "s" : ""}
-                </span>
-              </div>
-              <p className="text-[11px] text-indigo-700 leading-relaxed">
-                Multi-signal cluster — underlying finding IDs:
-                <span className="ml-1 font-mono">
-                  {finding.supporting_findings.slice(0, 8).join(", ")}
-                  {finding.supporting_findings.length > 8 && ` +${finding.supporting_findings.length - 8} more`}
-                </span>
-              </p>
-            </div>
+            <DetectorsTriggeredPanel
+              parent={finding}
+              supportingIds={finding.supporting_findings}
+              allFindings={allFindings}
+            />
           )}
 
           {/* Carried-over banner (expanded detail) */}

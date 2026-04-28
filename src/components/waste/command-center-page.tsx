@@ -104,7 +104,7 @@ const MODE_CARDS = [
     cta: "Open",
   },
   {
-    title: "Backtrace",
+    title: "Findings",
     subtitle: "Investigate historical patterns and tune detectors",
     description:
       "Retrospective analysis across prior fiscal years to uncover patterns, validate detectors, and build documented cases.",

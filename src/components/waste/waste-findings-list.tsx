@@ -219,6 +219,7 @@ export function WasteFindingsList({
               cityId={cityId}
               isCarriedOver={isCarriedOver(finding)}
               carriedOverAsOf={carriedOverAsOf(finding)}
+              allFindings={findings}
             />
           </div>
         ))}
@@ -242,6 +243,7 @@ export function WasteFindingsList({
           cityId={cityId}
           isCarriedOver={isCarriedOver}
           carriedOverAsOf={carriedOverAsOf}
+          allFindings={findings}
         />
       ))}
     </div>
