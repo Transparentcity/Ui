@@ -8,6 +8,7 @@ import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
 import { WasteSeverityFilter } from "./waste-severity-filter"
+import { WasteSeymourAskBar } from "./waste-seymour-ask-bar"
 import {
   WasteSeymourPanel,
   type WasteSeymourRequest,
@@ -67,10 +68,23 @@ export function ForensicsFindingsPage() {
 
   return (
     <WasteShell
-      title="Backtrace"
-      description="Historical analysis and investigation workspace"
+      title="Findings"
+      description="Detected anomalies across all categories"
     >
       <ForensicsShell title="All Findings">
+        <WasteSeymourAskBar
+          className="mb-3"
+          context={{
+            label: `Findings list — ${activeChips.length ? activeChips.join(", ") : "all"} (${filtered.length} of ${allFindings.length})`,
+            details: {
+              severity: severityFilter,
+              category: categoryFilter || null,
+              entitySearch: entitySearch || null,
+              total: allFindings.length,
+              filtered: filtered.length,
+            },
+          }}
+        />
         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
           <div className="flex items-center gap-2 flex-wrap">
             <WasteSeverityFilter
