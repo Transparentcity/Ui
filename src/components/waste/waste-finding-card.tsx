@@ -932,8 +932,16 @@ export function WasteFindingCard({
 
         {/* Amount */}
         {finding.amount != null && finding.amount > 0 && (
-          <span className="text-sm font-medium text-gray-700 whitespace-nowrap hidden md:inline">
+          <span className="text-sm font-medium text-gray-700 whitespace-nowrap hidden md:inline-flex items-center gap-1">
             {formatDollar(finding.amount)}
+            {finding.capApplied != null && finding.capApplied > 0 && (
+              <span
+                className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded"
+                title={`Section totals use a $${(finding.capApplied / 1e6).toFixed(0)}M cap; this finding's real exposure is ${formatDollar(finding.amount)}.`}
+              >
+                capped
+              </span>
+            )}
           </span>
         )}
 
@@ -1049,6 +1057,18 @@ export function WasteFindingCard({
             <div className="flex items-start gap-2 mb-3 p-2 bg-purple-50 border border-purple-100 rounded-md">
               <History className="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" />
               <p className="text-xs text-purple-700">{carriedOverTitle}</p>
+            </div>
+          )}
+
+          {/* Cap notice — explains why section totals differ from the
+              real exposure shown on this card. Backend no longer buries
+              the cap in finding.caveat; it's a structured field now. */}
+          {finding.capApplied != null && finding.capApplied > 0 && finding.amount != null && finding.amount > finding.capApplied && (
+            <div className="flex items-start gap-2 mb-3 p-2 bg-amber-50 border border-amber-100 rounded-md">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                This finding's real exposure is <strong>{formatDollar(finding.amount)}</strong>. Section totals use a ${(finding.capApplied / 1e6).toFixed(0)}M per-finding cap so one wide-net finding can't dominate the rollup.
+              </p>
             </div>
           )}
 

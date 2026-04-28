@@ -13,6 +13,13 @@ export interface WasteFinding {
   metric: string;
   metricDetail: string;
   amount: number | null;
+  // Cap-aware amount used by section/category rollups. Equals ``amount`` for
+  // uncapped findings; equals the cap when the post-detection cap fires.
+  amountForAggregate?: number | null;
+  // Cap value (e.g. 50_000_000) when the post-detection cap fired on this
+  // finding. Null when the finding was not capped. Drives the "capped in
+  // section total" badge.
+  capApplied?: number | null;
   description: string;
   tool: string;
   confidence: "High" | "Medium" | "Low" | null;
