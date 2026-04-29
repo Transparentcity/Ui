@@ -14,6 +14,8 @@ import {
 } from "@/lib/apiClient";
 import {
   getPublicMetricCompletenessDaily,
+  getPublicMetric,
+  getPublicCityDetail,
   type DailyCompletenessResponse,
 } from "@/lib/publicApiClient";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
@@ -143,6 +145,7 @@ function TimeSeriesChartPageContent() {
   const [completenessDaily, setCompletenessDaily] =
     useState<DailyCompletenessResponse | null>(null);
   const [completenessLoading, setCompletenessLoading] = useState(false);
+  const [resolvedCityName, setResolvedCityName] = useState<string | null>(null);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [canonicalSeoPath, setCanonicalSeoPath] = useState<string | null>(null);
@@ -254,6 +257,41 @@ function TimeSeriesChartPageContent() {
     chartId,
     periodParam,
   ]);
+
+  useEffect(() => {
+    const meta = timeSeries?.metadata;
+    if (!meta) {
+      setResolvedCityName(null);
+      return;
+    }
+    if (meta.city_name && meta.city_name.trim()) {
+      setResolvedCityName(null);
+      return;
+    }
+    const ot = (meta.object_type || "").toLowerCase();
+    if (ot !== "dashboard_metric" && ot !== "metric") return;
+    const oid = meta.object_id;
+    const metricId =
+      typeof oid === "number" ? oid : oid != null ? parseInt(String(oid), 10) : NaN;
+    if (!Number.isFinite(metricId)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const m = await getPublicMetric(metricId);
+        const cityId = m.city_id;
+        if (cityId == null) return;
+        const city = await getPublicCityDetail(cityId, { includeMetrics: false });
+        if (!cancelled && city?.name) setResolvedCityName(city.name);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [timeSeries]);
+
+  const displayCityName = timeSeries?.metadata?.city_name || resolvedCityName || null;
 
   const staleness_days = useMemo(() => {
     if (effectiveDisplayPeriod !== "ytd") return undefined;
@@ -461,14 +499,14 @@ function TimeSeriesChartPageContent() {
         timeSeries.metadata.object_name ||
         timeSeries.metadata.field_name ||
         "Time Series";
-      const cityName = timeSeries.metadata.city_name;
-      let pageTitle = cityName ? `${cityName} — ${metricName}` : metricName;
+      const cityName = timeSeries.metadata.city_name || resolvedCityName;
+      let pageTitle = cityName ? `${metricName} in ${cityName}` : metricName;
       pageTitle += " | TransparentCity";
       document.title = pageTitle;
     } else {
       document.title = "Time Series Chart | TransparentCity";
     }
-  }, [timeSeries]);
+  }, [timeSeries, resolvedCityName]);
 
   const aggregated = useMemo(() => {
     if (!timeSeries?.data) return [];
@@ -578,8 +616,8 @@ function TimeSeriesChartPageContent() {
               <span className="brand-city">.city</span>
             </span>
           </a>
-          {metadata.city_name && (
-            <span className="embedded-city-name">{metadata.city_name}</span>
+          {displayCityName && (
+            <span className="embedded-city-name">{displayCityName}</span>
           )}
           <a
             href={fullViewHref}
@@ -637,8 +675,8 @@ function TimeSeriesChartPageContent() {
             <span className="brand-city">.city</span>
           </span>
         </a>
-        {metadata.city_name && (
-          <div className="header-city-name">{metadata.city_name}</div>
+        {displayCityName && (
+          <div className="header-city-name">{displayCityName}</div>
         )}
         <div className="header-right">
           <button
@@ -661,11 +699,11 @@ function TimeSeriesChartPageContent() {
         <div className="time-series-info">
           <div className="time-series-title-section">
             <h1 className="time-series-title">{metricName}</h1>
-            {(metadata.city_name || (hasMultipleGroups && metadata.group_field)) && (
+            {(displayCityName || (hasMultipleGroups && metadata.group_field)) && (
               <div className="time-series-subtitle">
-                {metadata.city_name && (
+                {displayCityName && (
                   <>
-                    <span className="time-series-city">{metadata.city_name}</span>
+                    <span className="time-series-city">{displayCityName}</span>
                     {metadata.district !== undefined && metadata.district !== 0 && (
                       <>
                         <span className="time-series-separator">&bull;</span>
@@ -682,7 +720,7 @@ function TimeSeriesChartPageContent() {
                 )}
                 {hasMultipleGroups && metadata.group_field && (
                   <>
-                    {metadata.city_name && <span className="time-series-separator">&bull;</span>}
+                    {displayCityName && <span className="time-series-separator">&bull;</span>}
                     <span className="time-series-group-field">by {metadata.group_field}</span>
                   </>
                 )}
