@@ -34,26 +34,26 @@ describe("formatDollar", () => {
     expect(formatDollar(0)).toBe("$0")
   })
 
-  it("formats small amounts without suffix", () => {
+  it("formats small amounts with comma separators", () => {
     expect(formatDollar(500)).toBe("$500")
   })
 
-  it("formats thousands with K suffix", () => {
-    expect(formatDollar(1000)).toBe("$1K")
-    expect(formatDollar(5000)).toBe("$5K")
-    expect(formatDollar(50000)).toBe("$50K")
-    expect(formatDollar(999999)).toBe("$1000K")
+  it("formats thousands as full numbers with commas", () => {
+    expect(formatDollar(1000)).toBe("$1,000")
+    expect(formatDollar(5000)).toBe("$5,000")
+    expect(formatDollar(50000)).toBe("$50,000")
+    expect(formatDollar(999999)).toBe("$999,999")
   })
 
-  it("formats millions with M suffix and one decimal", () => {
-    expect(formatDollar(1000000)).toBe("$1.0M")
-    expect(formatDollar(2300000)).toBe("$2.3M")
-    expect(formatDollar(15750000)).toBe("$15.8M")
+  it("formats millions as full numbers with commas", () => {
+    expect(formatDollar(1000000)).toBe("$1,000,000")
+    expect(formatDollar(2300000)).toBe("$2,300,000")
+    expect(formatDollar(15750000)).toBe("$15,750,000")
   })
 
   it("uses absolute value for negative amounts", () => {
-    expect(formatDollar(-2300000)).toBe("$2.3M")
-    expect(formatDollar(-5000)).toBe("$5K")
+    expect(formatDollar(-2300000)).toBe("$2,300,000")
+    expect(formatDollar(-5000)).toBe("$5,000")
     expect(formatDollar(-500)).toBe("$500")
   })
 })

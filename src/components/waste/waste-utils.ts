@@ -169,9 +169,7 @@ function withCommas(value: number, fractionDigits: number): string {
 export function formatDollar(amount: number | null | undefined): string {
   if (amount == null) return ""
   const abs = Math.abs(amount)
-  if (abs >= 1_000_000) return `$${withCommas(abs / 1_000_000, 1)}M`
-  if (abs >= 1_000) return `$${withCommas(abs / 1_000, 0)}K`
-  return `$${abs.toLocaleString()}`
+  return `$${withCommas(Math.round(abs), 0)}`
 }
 
 // ── localStorage cache helper ───────────────────────────────────────────────

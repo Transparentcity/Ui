@@ -61,7 +61,7 @@ describe("WasteStatBar", () => {
         isLoading={false}
       />
     )
-    expect(screen.getByText("$2.8M")).toBeInTheDocument()
+    expect(screen.getByText("$2,800,000")).toBeInTheDocument()
   })
 
   it("shows 'de-duplicated from $X gross' subtext when both values present", () => {
@@ -71,7 +71,7 @@ describe("WasteStatBar", () => {
         isLoading={false}
       />
     )
-    expect(screen.getByText("de-duplicated from $4.2M gross")).toBeInTheDocument()
+    expect(screen.getByText("de-duplicated from $4,200,000 gross")).toBeInTheDocument()
   })
 
   it("shows 'in questionable patterns' when gross_exposure is null", () => {
@@ -91,7 +91,7 @@ describe("WasteStatBar", () => {
         isLoading={false}
       />
     )
-    expect(screen.getByText("$3.5M")).toBeInTheDocument()
+    expect(screen.getByText("$3,500,000")).toBeInTheDocument()
   })
 
   it("shows $0 when exposure is null/undefined", () => {
