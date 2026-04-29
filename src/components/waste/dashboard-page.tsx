@@ -618,19 +618,19 @@ export function DashboardPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Total Findings</p>
           <p className="text-2xl font-bold text-gray-900 tabular-nums">
-            {analysisData?.summary?.total_findings ?? "--"}
+            {analysisData?.summary?.total_findings?.toLocaleString() ?? "--"}
           </p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <p className="text-xs text-gray-500">High-Risk Entities</p>
           <p className="text-2xl font-bold text-red-600 tabular-nums">
-            {highRiskQ.isLoading ? "--" : highRiskCount}
+            {highRiskQ.isLoading ? "--" : highRiskCount.toLocaleString()}
           </p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <p className="text-xs text-gray-500">Open Queue</p>
           <p className="text-2xl font-bold text-yellow-600 tabular-nums">
-            {queueQ.isLoading ? "--" : (queueQ.data?.total ?? 0)}
+            {queueQ.isLoading ? "--" : (queueQ.data?.total ?? 0).toLocaleString()}
           </p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -638,7 +638,7 @@ export function DashboardPage() {
           <p className="text-2xl font-bold text-blue-600 tabular-nums">
             {investigationsQ.isLoading
               ? "--"
-              : (investigationsQ.data?.total ?? 0)}
+              : (investigationsQ.data?.total ?? 0).toLocaleString()}
           </p>
         </div>
       </div>

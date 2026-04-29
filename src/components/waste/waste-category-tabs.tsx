@@ -99,12 +99,12 @@ export function WasteCategoryTabs({
                 <>
                   <div className="flex items-baseline gap-3">
                     <span className="text-4xl font-bold text-gray-900">
-                      {noData ? "—" : findingCount}
+                      {noData ? "—" : findingCount.toLocaleString()}
                     </span>
                     <span className="text-sm text-gray-500">findings</span>
                     {criticalCount > 0 && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                        {criticalCount} critical
+                        {criticalCount.toLocaleString()} critical
                       </span>
                     )}
                   </div>
@@ -144,10 +144,10 @@ export function WasteCategoryTabs({
         >
           <MoreHorizontal className="w-4 h-4 text-gray-500" />
           <span className="font-medium text-gray-700">Other Signals</span>
-          <span className="text-gray-900 font-bold">{noData ? "—" : otherFindingCount}</span>
+          <span className="text-gray-900 font-bold">{noData ? "—" : otherFindingCount.toLocaleString()}</span>
           {otherCriticalCount > 0 && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">
-              {otherCriticalCount} crit
+              {otherCriticalCount.toLocaleString()} crit
             </span>
           )}
           {otherAmount > 0 && (
@@ -176,7 +176,7 @@ export function WasteCategoryTabs({
               >
                 {cat.icon}
                 <span>{getWasteCategoryLabel(cat.key)}</span>
-                <span className="font-bold text-gray-900">{count}</span>
+                <span className="font-bold text-gray-900">{count.toLocaleString()}</span>
               </button>
             )
           })}

@@ -441,13 +441,13 @@ export function ForensicsOverviewPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-xs text-gray-500">High + Critical</p>
             <p className="text-2xl font-bold text-red-600 tabular-nums">
-              {isLoading ? "--" : criticalCount}
+              {isLoading ? "--" : criticalCount.toLocaleString()}
             </p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-xs text-gray-500">Unique Entities</p>
             <p className="text-2xl font-bold text-gray-900 tabular-nums">
-              {isLoading ? "--" : uniqueEntities}
+              {isLoading ? "--" : uniqueEntities.toLocaleString()}
             </p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">

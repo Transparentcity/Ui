@@ -72,14 +72,14 @@ export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
       <StatItem
         label="Total Findings"
-        value={noData ? "—" : (summary.total_findings ?? 0)}
+        value={noData ? "—" : (summary.total_findings ?? 0).toLocaleString()}
         subtext="across all categories"
         icon={<Search className="w-5 h-5 text-gray-500" />}
         accentColor="#6366f1"
       />
       <StatItem
         label="Critical"
-        value={noData ? "—" : (summary.critical_count ?? 0)}
+        value={noData ? "—" : (summary.critical_count ?? 0).toLocaleString()}
         subtext="require immediate review"
         icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
         accentColor="#ef4444"
@@ -97,7 +97,7 @@ export function WasteStatBar({ summary, isLoading }: WasteStatBarProps) {
       />
       <StatItem
         label="Depts Affected"
-        value={noData ? "—" : (summary.departments_affected ?? 0)}
+        value={noData ? "—" : (summary.departments_affected ?? 0).toLocaleString()}
         subtext="with 1+ findings"
         icon={<Building2 className="w-5 h-5 text-purple-500" />}
         accentColor="#8b5cf6"

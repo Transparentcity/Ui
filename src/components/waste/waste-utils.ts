@@ -159,11 +159,18 @@ export function isConfirmedFinding(finding: WasteFinding): boolean {
 
 // ── Dollar formatting ───────────────────────────────────────────────────────
 
+function withCommas(value: number, fractionDigits: number): string {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+}
+
 export function formatDollar(amount: number | null | undefined): string {
   if (amount == null) return ""
   const abs = Math.abs(amount)
-  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`
+  if (abs >= 1_000_000) return `$${withCommas(abs / 1_000_000, 1)}M`
+  if (abs >= 1_000) return `$${withCommas(abs / 1_000, 0)}K`
   return `$${abs.toLocaleString()}`
 }
 
