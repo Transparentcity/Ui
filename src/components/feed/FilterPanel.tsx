@@ -87,6 +87,62 @@ export default function FilterPanel({
   // Draft state (applied on "Apply" for mobile, immediately on desktop)
   const [draft, setDraft] = useState<FilterState>({ ...filters });
   const isDesktop = useIsDesktop();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [flipUp, setFlipUp] = useState(false);
+
+  // Close the panel if the viewport crosses the mobile/desktop breakpoint while open —
+  // the layout switches abruptly (sheet vs dropdown) and any in-progress draft would look misplaced.
+  const initialIsDesktopRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!open) { initialIsDesktopRef.current = null; return; }
+    if (initialIsDesktopRef.current === null) {
+      initialIsDesktopRef.current = isDesktop;
+      return;
+    }
+    if (initialIsDesktopRef.current !== isDesktop) {
+      onClose();
+    }
+  }, [open, isDesktop, onClose]);
+
+  // Decide whether to flip the dropdown above the trigger when there isn't enough room below.
+  useEffect(() => {
+    if (!open || !isDesktop) return;
+    const measure = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const trigger = el.parentElement;
+      if (!trigger) return;
+      const triggerRect = trigger.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - triggerRect.bottom;
+      const panelHeight = el.offsetHeight || 600;
+      // Flip if there's not enough room below but plenty above
+      setFlipUp(spaceBelow < panelHeight + 16 && triggerRect.top > spaceBelow);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      setFlipUp(false);
+    };
+  }, [open, isDesktop]);
+
+  // Desktop: close on click outside (the backdrop is pointer-events:none on desktop
+  // so the refresh button stays clickable while the panel is open).
+  useEffect(() => {
+    if (!open || !isDesktop) return;
+    const handler = (e: MouseEvent) => {
+      const el = panelRef.current;
+      if (!el) return;
+      const target = e.target as Node;
+      // Ignore clicks inside the panel or on its trigger button
+      if (el.contains(target)) return;
+      const trigger = el.parentElement?.querySelector('button[aria-label="Open filters"]');
+      if (trigger && trigger.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, isDesktop, onClose]);
 
   // Reset draft when panel opens + lock body scroll on mobile
   useEffect(() => {
@@ -142,7 +198,8 @@ export default function FilterPanel({
 
       {/* Panel */}
       <div
-        className={styles.panel}
+        ref={panelRef}
+        className={`${styles.panel} ${flipUp ? styles.panelFlipUp : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Feed filters"

@@ -1225,27 +1225,6 @@ export default function FeedContainer({
                 <span className={styles.filterBadge}>{activeFilterCount}</span>
               )}
             </button>
-
-            {/* FilterPanel (positioned relative to icon on desktop) */}
-            <FilterPanel
-              open={showFilterPanel}
-              onClose={() => setShowFilterPanel(false)}
-              allCities={uniqueCities}
-              savedCityIds={effectiveSavedCityIds}
-              filters={{
-                selectedCityIds,
-                selectedTopics,
-                selectedDistricts,
-                selectedPlaceId,
-                onlyMySavedPlaces: onlyMySavedPlacesFeed,
-                feedOrder,
-              }}
-              onApply={handleApplyFilters}
-              onToggleFollow={handleToggleFollow}
-              userPlaces={userPlaces}
-              districtsPerCity={districtsPerCity}
-              onAddAddress={() => setShowLocationModal(true)}
-            />
           </div>
 
           <button
@@ -1273,6 +1252,27 @@ export default function FeedContainer({
               </span>
             )}
           </button>
+
+          {/* FilterPanel — anchored to feedHeaderRight so it spans the full header chrome */}
+          <FilterPanel
+            open={showFilterPanel}
+            onClose={() => setShowFilterPanel(false)}
+            allCities={uniqueCities}
+            savedCityIds={effectiveSavedCityIds}
+            filters={{
+              selectedCityIds,
+              selectedTopics,
+              selectedDistricts,
+              selectedPlaceId,
+              onlyMySavedPlaces: onlyMySavedPlacesFeed,
+              feedOrder,
+            }}
+            onApply={handleApplyFilters}
+            onToggleFollow={handleToggleFollow}
+            userPlaces={userPlaces}
+            districtsPerCity={districtsPerCity}
+            onAddAddress={() => setShowLocationModal(true)}
+          />
         </div>
       </div>
 
