@@ -1,10 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check, History, Layers } from "lucide-react"
 import { type WasteFinding, type WasteDispositionType } from "@/lib/apiClient"
-import { formatDollar, escapeSoqlLike as escapeSoqlLikeShared, escapeSoql, isConfirmedFinding } from "./waste-utils"
+import {
+  formatDollar,
+  escapeSoqlLike as escapeSoqlLikeShared,
+  escapeSoql,
+  isConfirmedFinding,
+  parseContractDriftContractId,
+  procurementVendorNameFromEntity,
+} from "./waste-utils"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
@@ -332,10 +339,20 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
 
   // CONTRACTS (vendor/procurement)
   if (cat.includes("contract") || cat.includes("vendor")) {
-    const select = "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year"
-    const vendorName = escapeSoql(finding.entity || "")
-    
     const vendorOrder = "fiscal_year DESC,vouchers_paid DESC"
+
+    if (sub === "Contract Drift") {
+      const contractIdRaw = parseContractDriftContractId(finding.description ?? "")
+      if (!contractIdRaw) return null
+      const contractId = escapeSoql(contractIdRaw)
+      const select =
+        "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year,contract_number"
+      const where = `contract_number = '${contractId}'`
+      return `${VENDOR}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(vendorOrder)}&$limit=${DETAILS_LIMIT}`
+    }
+
+    const select = "vendor,department,vouchers_paid,voucher,purchase_order,fiscal_year"
+    const vendorName = escapeSoql(procurementVendorNameFromEntity(finding.entity || ""))
 
     if (sub === "Duplicate Payments" && finding.amount) {
       let whereClause = `vendor = '${vendorName}'`
@@ -583,6 +600,14 @@ export function WasteFindingCard({
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [detailsRows, setDetailsRows] = useState<AnyDetailRow[] | null>(null)
+  const [detailsProvenEmpty, setDetailsProvenEmpty] = useState(false)
+
+  useEffect(() => {
+    setDetailsProvenEmpty(false)
+    setDetailsRows(null)
+    setDetailsError(null)
+    setIsDetailsOpen(false)
+  }, [finding.id])
 
   const handleAskSeymour = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -590,7 +615,7 @@ export function WasteFindingCard({
   }
 
   const detailsUrl = buildSocrataDetailsUrl(finding, cityId)
-  const canShowDetails = Boolean(detailsUrl)
+  const canShowDetails = Boolean(detailsUrl) && !detailsProvenEmpty
 
   const loadDetails = async () => {
     if (!detailsUrl || isDetailsLoading) return
@@ -615,6 +640,10 @@ export function WasteFindingCard({
         })
       }
       setDetailsRows(rows)
+      if (rows.length === 0) {
+        setDetailsProvenEmpty(true)
+        setIsDetailsOpen(false)
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to load details."

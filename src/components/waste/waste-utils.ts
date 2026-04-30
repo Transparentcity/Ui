@@ -336,6 +336,27 @@ export function escapeSoqlLike(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "''")
 }
 
+/**
+ * Entity strings are often `Prime contractor — contract title` (em dash).
+ * Vendor SoQL filters must use the contractor segment only.
+ */
+export function procurementVendorNameFromEntity(entity: string): string {
+  const e = (entity ?? "").trim()
+  if (!e) return ""
+  const em = e.split(/\s+—\s+/)
+  if (em.length >= 2) return em[0].trim()
+  const en = e.split(/\s+–\s+/)
+  if (en.length >= 2) return en[0].trim()
+  return e
+}
+
+/** D10 description format: Contract '…' (ID: 1000036059) has exceeded … */
+export function parseContractDriftContractId(description: string): string | null {
+  const m = description.match(/\(ID:\s*([^)]+)\)/)
+  const id = m?.[1]?.trim()
+  return id && id.length > 0 ? id : null
+}
+
 // ── Multi-run merge ─────────────────────────────────────────────────────────
 
 export interface PersistedRunBundle {

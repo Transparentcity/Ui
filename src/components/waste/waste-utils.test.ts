@@ -5,6 +5,8 @@ import {
   normalizeWasteCategory,
   escapeSoql,
   escapeSoqlLike,
+  parseContractDriftContractId,
+  procurementVendorNameFromEntity,
   escapeHtml,
   safeSetCache,
   loadCachedAnalysis,
@@ -206,6 +208,32 @@ describe("escapeSoqlLike", () => {
 
   it("preserves underscore wildcard (unlike escapeSoql)", () => {
     expect(escapeSoqlLike("dept_name")).toBe("dept_name")
+  })
+})
+
+describe("procurementVendorNameFromEntity", () => {
+  it("returns segment before em dash", () => {
+    expect(
+      procurementVendorNameFromEntity("ACME LP — Park Renovation Phase 2"),
+    ).toBe("ACME LP")
+  })
+
+  it("returns full string when no dash title", () => {
+    expect(procurementVendorNameFromEntity("Solo Vendor Inc")).toBe("Solo Vendor Inc")
+  })
+})
+
+describe("parseContractDriftContractId", () => {
+  it("parses contract id from D10 description", () => {
+    expect(
+      parseContractDriftContractId(
+        "Contract 'PW India Basin Shrn Prk' (ID: 1000036059) has exceeded its agreed amount.",
+      ),
+    ).toBe("1000036059")
+  })
+
+  it("returns null when id missing", () => {
+    expect(parseContractDriftContractId("No id here")).toBeNull()
   })
 })
 
