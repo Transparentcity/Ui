@@ -97,6 +97,105 @@ interface SavedMap {
   created_at: string;
 }
 
+function MapSourceInformation({
+  sourceInfo,
+  expanded,
+  onToggle,
+}: {
+  sourceInfo: SavedMapSourceInfo;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section className="map-source-section" aria-label="Source information">
+      <button
+        type="button"
+        className="map-source-toggle"
+        aria-expanded={expanded}
+        aria-controls="map-source-details"
+        onClick={onToggle}
+      >
+        <span>Source information</span>
+        <span className="map-source-toggle-icon" aria-hidden="true">
+          {expanded ? "−" : "+"}
+        </span>
+      </button>
+
+      {expanded && (
+        <div id="map-source-details" className="map-source-details">
+          <div className="map-source-intro">
+            <p>
+              Transparent.city turns official public records into clear,
+              source-linked maps so residents, advocates, and local leaders can
+              work from the same facts.
+            </p>
+            <p>
+              This map is built from the government dataset linked below. We
+              keep the underlying source visible, document the fetch URL and
+              query when available, and link back to the original record so you
+              can verify everything yourself.
+            </p>
+          </div>
+
+          <div className="map-source-grid">
+            {(sourceInfo.dataset_name || sourceInfo.dataset_id) && (
+              <div className="map-source-row">
+                <span className="map-source-label">Dataset</span>
+                <span className="map-source-value">
+                  {sourceInfo.dataset_url ? (
+                    <a
+                      href={sourceInfo.dataset_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="map-source-link"
+                    >
+                      {sourceInfo.dataset_name || sourceInfo.dataset_id}
+                    </a>
+                  ) : (
+                    sourceInfo.dataset_name || sourceInfo.dataset_id
+                  )}
+                </span>
+              </div>
+            )}
+
+            {sourceInfo.dataset_id && sourceInfo.dataset_name && (
+              <div className="map-source-row">
+                <span className="map-source-label">Dataset ID</span>
+                <span className="map-source-value">
+                  <code>{sourceInfo.dataset_id}</code>
+                </span>
+              </div>
+            )}
+
+            {sourceInfo.query_url && (
+              <div className="map-source-row">
+                <span className="map-source-label">Fetch URL</span>
+                <span className="map-source-value">
+                  <a
+                    href={sourceInfo.query_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="map-source-link"
+                  >
+                    {sourceInfo.query_url}
+                  </a>
+                </span>
+              </div>
+            )}
+          </div>
+
+          {sourceInfo.query_text && (
+            <>
+              <div className="map-source-query-label">Query</div>
+              <pre className="map-source-query">{sourceInfo.query_text}</pre>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // Fallback palette for multi-layer maps created before explicit layer colors were stored.
 const MULTI_LAYER_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#9333ea", "#0d9488", "#e11d48", "#0891b2"];
 
@@ -3112,6 +3211,13 @@ export default function PublicMapPage() {
             </div>
           )}
         </div>
+        {sourceInfo && (
+          <MapSourceInformation
+            sourceInfo={sourceInfo}
+            expanded={isSourceInfoExpanded}
+            onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
+          />
+        )}
       </div>
     );
   }
@@ -3766,92 +3872,11 @@ export default function PublicMapPage() {
             )}
 
           {sourceInfo && (
-            <section className="map-source-section" aria-label="Source information">
-              <button
-                type="button"
-                className="map-source-toggle"
-                aria-expanded={isSourceInfoExpanded}
-                aria-controls="map-source-details"
-                onClick={() => setIsSourceInfoExpanded((expanded) => !expanded)}
-              >
-                <span>Source information</span>
-                <span className="map-source-toggle-icon" aria-hidden="true">
-                  {isSourceInfoExpanded ? "−" : "+"}
-                </span>
-              </button>
-
-              {isSourceInfoExpanded && (
-                <div id="map-source-details" className="map-source-details">
-                  <div className="map-source-intro">
-                    <p>
-                      Transparent.city turns official public records into clear,
-                      source-linked maps so residents, advocates, and local
-                      leaders can work from the same facts.
-                    </p>
-                    <p>
-                      This map is built from the government dataset linked below.
-                      We keep the underlying source visible, document the fetch
-                      URL and query when available, and link back to the original
-                      record so you can verify everything yourself.
-                    </p>
-                  </div>
-
-                  <div className="map-source-grid">
-                    {(sourceInfo.dataset_name || sourceInfo.dataset_id) && (
-                      <div className="map-source-row">
-                        <span className="map-source-label">Dataset</span>
-                        <span className="map-source-value">
-                          {sourceInfo.dataset_url ? (
-                            <a
-                              href={sourceInfo.dataset_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="map-source-link"
-                            >
-                              {sourceInfo.dataset_name || sourceInfo.dataset_id}
-                            </a>
-                          ) : (
-                            sourceInfo.dataset_name || sourceInfo.dataset_id
-                          )}
-                        </span>
-                      </div>
-                    )}
-
-                    {sourceInfo.dataset_id && sourceInfo.dataset_name && (
-                      <div className="map-source-row">
-                        <span className="map-source-label">Dataset ID</span>
-                        <span className="map-source-value">
-                          <code>{sourceInfo.dataset_id}</code>
-                        </span>
-                      </div>
-                    )}
-
-                    {sourceInfo.query_url && (
-                      <div className="map-source-row">
-                        <span className="map-source-label">Fetch URL</span>
-                        <span className="map-source-value">
-                          <a
-                            href={sourceInfo.query_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="map-source-link"
-                          >
-                            {sourceInfo.query_url}
-                          </a>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {sourceInfo.query_text && (
-                    <>
-                      <div className="map-source-query-label">Query</div>
-                      <pre className="map-source-query">{sourceInfo.query_text}</pre>
-                    </>
-                  )}
-                </div>
-              )}
-            </section>
+            <MapSourceInformation
+              sourceInfo={sourceInfo}
+              expanded={isSourceInfoExpanded}
+              onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
+            />
           )}
 
           {!isAuthenticated && (

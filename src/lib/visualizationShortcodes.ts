@@ -28,7 +28,14 @@ export interface StaticVisualizationAsset {
   src: string;
   alt?: string | null;
   caption?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  sourceLabel?: string | null;
+  sourceUrl?: string | null;
+  sourceDescription?: string | null;
 }
+
+export type VisualizationEmbedChrome = Omit<StaticVisualizationAsset, "src">;
 
 export interface StaticVisualizationConfig {
   charts?: Record<string, StaticVisualizationAsset>;
@@ -36,8 +43,15 @@ export interface StaticVisualizationConfig {
   anomalies?: Record<string, StaticVisualizationAsset>;
 }
 
+export interface VisualizationEmbedChromeConfig {
+  charts?: Record<string, VisualizationEmbedChrome>;
+  maps?: Record<string, VisualizationEmbedChrome>;
+  anomalies?: Record<string, VisualizationEmbedChrome>;
+}
+
 export interface VisualizationShortcodeStoryLike {
   article_html?: string | null;
+  detail_url?: string | null;
   image_url?: string | null;
   image_alt?: string | null;
   image_caption?: string | null;
@@ -47,6 +61,7 @@ export interface VisualizationShortcodeStoryLike {
 
 export interface VisualizationShortcodeConfig extends EmbedConfig {
   staticVisualizations?: StaticVisualizationConfig;
+  embedChrome?: VisualizationEmbedChromeConfig;
   /** Render the text block below a static image replacement. Defaults to true. */
   showStaticCaptions?: boolean;
   /**
@@ -86,6 +101,74 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function nestedRecord(
+  record: Record<string, unknown> | null | undefined,
+  key: string,
+): Record<string, unknown> | null {
+  const value = record?.[key];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getSourceUrlFromPrimaryVisualization(
+  pv: Record<string, unknown> | null,
+): string | null {
+  const sourceInfo = nestedRecord(pv, "source_info");
+  const metadata = nestedRecord(pv, "metadata");
+  return firstString(
+    pv?.source_url,
+    pv?.dataset_url,
+    pv?.data_url,
+    sourceInfo?.dataset_url,
+    sourceInfo?.query_url,
+    metadata?.source_url,
+    metadata?.dataset_url,
+  );
+}
+
+function getSourceLabelFromPrimaryVisualization(
+  pv: Record<string, unknown> | null,
+): string | null {
+  const sourceInfo = nestedRecord(pv, "source_info");
+  const metadata = nestedRecord(pv, "metadata");
+  return firstString(
+    pv?.source_label,
+    pv?.source_name,
+    pv?.dataset_name,
+    pv?.dataset_title,
+    sourceInfo?.dataset_name,
+    sourceInfo?.dataset_id,
+    metadata?.source_label,
+    metadata?.dataset_name,
+    metadata?.dataset_title,
+  );
+}
+
+function getExternalSourceUrl(url: string | null | undefined): string | null {
+  const value = url?.trim();
+  if (!value) return null;
+  try {
+    const parsed = new URL(value, "https://transparent.city");
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (!parsed.protocol.startsWith("http") || host === "transparent.city") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 const VALID_CHART_PERIODS = new Set(["day", "week", "month", "year", "ytd"]);
 
 function shouldDeferInteractiveForStatic(config: VisualizationShortcodeConfig): boolean {
@@ -122,6 +205,82 @@ function getStaticVisualizationAsset(
   return sources?.[ref] ?? null;
 }
 
+function getVisualizationEmbedChrome(
+  visType: "chart" | "map" | "anomaly",
+  ref: string,
+  config: VisualizationShortcodeConfig,
+): VisualizationEmbedChrome | null {
+  const sources =
+    visType === "chart"
+      ? config.embedChrome?.charts
+      : visType === "map"
+        ? config.embedChrome?.maps
+        : config.embedChrome?.anomalies;
+  return sources?.[ref] ?? null;
+}
+
+function getEmbedCopyHtml(chrome: VisualizationEmbedChrome | null): string {
+  if (!chrome) return "";
+  const title = chrome.title?.trim() || chrome.alt?.trim() || "";
+  const titleHtml = title
+    ? `<div class="viz-embed-title">${escapeHtml(title)}</div>`
+    : "";
+  return titleHtml
+    ? `<div class="viz-embed-copy">${titleHtml}</div>`
+    : "";
+}
+
+function getEmbedCaptionHtml(chrome: VisualizationEmbedChrome | null): string {
+  if (!chrome) return "";
+  const caption = chrome.subtitle?.trim() || chrome.caption?.trim() || "";
+  return caption
+    ? `<div class="viz-embed-caption">${escapeHtml(caption)}</div>`
+    : "";
+}
+
+function getEmbedFooterHtml(captionHtml: string, sourceHtml: string): string {
+  return captionHtml || sourceHtml
+    ? `<div class="viz-embed-footer">${captionHtml}${sourceHtml}</div>`
+    : "";
+}
+
+function getEmbedSourceHtml(
+  chrome: VisualizationEmbedChrome | null,
+  sourceRef?: {
+    mapHash?: string;
+    chartId?: string | number;
+    anomalyId?: string | number;
+  },
+): string {
+  const sourceUrl = chrome?.sourceUrl?.trim() || "";
+  const sourceMapHash = sourceRef?.mapHash?.trim() || "";
+  const sourceChartId =
+    sourceRef?.chartId != null ? String(sourceRef.chartId).trim() : "";
+  const sourceAnomalyId =
+    sourceRef?.anomalyId != null ? String(sourceRef.anomalyId).trim() : "";
+  if (!sourceUrl && !sourceMapHash && !sourceChartId && !sourceAnomalyId) return "";
+  const sourceLabel = chrome?.sourceLabel?.trim() || "Source";
+  const sourceDescription =
+    chrome?.sourceDescription?.trim() ||
+    "Open the original public data source.";
+  return `
+      <div class="viz-embed-source-row">
+        <button
+          type="button"
+          class="viz-embed-source-button"
+          data-viz-source-label="${escapeHtml(sourceLabel)}"
+          data-viz-source-url="${escapeHtml(sourceUrl)}"
+          data-viz-source-map-hash="${escapeHtml(sourceMapHash)}"
+          data-viz-source-chart-id="${escapeHtml(sourceChartId)}"
+          data-viz-source-anomaly-id="${escapeHtml(sourceAnomalyId)}"
+          data-viz-source-description="${escapeHtml(sourceDescription)}"
+        >
+          Source
+        </button>
+      </div>
+    `.trim();
+}
+
 function getStaticVisualizationEmbed(
   visType: "chart" | "map" | "anomaly",
   ref: string,
@@ -150,9 +309,17 @@ function getStaticVisualizationEmbed(
   const shortcodeEscaped = escapeHtml(shortcode);
   const srcEscaped = escapeHtml(asset.src);
   const altEscaped = escapeHtml(asset.alt?.trim() || `Visualization ${ref}`);
-  const captionEscaped =
-    visType !== "map" && asset.caption?.trim() ? escapeHtml(asset.caption.trim()) : "";
-  const showStaticCaptions = config.showStaticCaptions !== false;
+  const copyHtml = getEmbedCopyHtml(asset);
+  const captionHtml = getEmbedCaptionHtml(asset);
+  const sourceHtml = getEmbedSourceHtml(
+    asset,
+    {
+      mapHash: visType === "map" ? ref : undefined,
+      chartId: visType === "chart" ? ref : undefined,
+      anomalyId: visType === "anomaly" ? ref : undefined,
+    },
+  );
+  const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
@@ -192,6 +359,7 @@ function getStaticVisualizationEmbed(
     <div class="${cfg.className} ${visType}-embed visualization-static-embed${
       deferInteractive ? " viz-has-deferred-interactive" : ""
     }" ${attrName}="${escapeHtml(ref)}" data-shortcode="${shortcodeEscaped}">
+      ${copyHtml}
       <div class="viz-static-stack">
         <img
           src="${srcEscaped}"
@@ -200,12 +368,8 @@ function getStaticVisualizationEmbed(
           class="visualization-static-image"
           style="width: 100%; height: ${height}; object-fit: cover; display: block; background: #f8f9fa;"
         />
-        ${
-          showStaticCaptions && captionEscaped
-            ? `<div class="visualization-static-caption">${captionEscaped}</div>`
-            : ""
-        }
       </div>
+      ${footerHtml}
       ${interactiveBlock}
       ${debugHtml}
     </div>
@@ -226,12 +390,22 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
   const url = `${chartInteractiveBaseUrl(chartId, validPeriod)}${themeQuery}`;
+  const chrome = getVisualizationEmbedChrome(
+    "chart",
+    String(chartId),
+    config as VisualizationShortcodeConfig,
+  );
+  const copyHtml = getEmbedCopyHtml(chrome);
+  const captionHtml = getEmbedCaptionHtml(chrome);
+  const sourceHtml = getEmbedSourceHtml(chrome, { chartId });
+  const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   return `
     <div class="${cfg.className} chart-embed" data-chart-id="${chartId}"${validPeriod ? ` data-period="${validPeriod}"` : ""} data-shortcode="${shortcodeEscaped}">
+      ${copyHtml}
       <iframe
         src="${url}"
         width="${cfg.width}"
@@ -241,6 +415,7 @@ export function getChartEmbed(chartId: string | number, config: EmbedConfig = {}
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Chart ${chartId}"
       ></iframe>
+      ${footerHtml}
       ${debugHtml}
     </div>
   `.trim();
@@ -257,12 +432,22 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
   const url = `${mapInteractiveBaseUrl(shortHash)}${themeQuery}`;
+  const chrome = getVisualizationEmbedChrome(
+    "map",
+    shortHash,
+    config as VisualizationShortcodeConfig,
+  );
+  const copyHtml = getEmbedCopyHtml(chrome);
+  const captionHtml = getEmbedCaptionHtml(chrome);
+  const sourceHtml = getEmbedSourceHtml(chrome, { mapHash: shortHash });
+  const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   return `
     <div class="${cfg.className} map-embed" data-map-hash="${shortHash}" data-shortcode="${shortcodeEscaped}">
+      ${copyHtml}
       <iframe 
         src="${url}" 
         width="${cfg.width}" 
@@ -272,6 +457,7 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Map ${shortHash}"
       ></iframe>
+      ${footerHtml}
       ${debugHtml}
     </div>
   `.trim();
@@ -288,12 +474,22 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
   const shortcodeEscaped = escapeHtml(shortcode);
   const themeQuery = getEmbedThemeQuery();
   const url = `${anomalyInteractiveBaseUrl(resultId)}${themeQuery}`;
+  const chrome = getVisualizationEmbedChrome(
+    "anomaly",
+    String(resultId),
+    config as VisualizationShortcodeConfig,
+  );
+  const copyHtml = getEmbedCopyHtml(chrome);
+  const captionHtml = getEmbedCaptionHtml(chrome);
+  const sourceHtml = getEmbedSourceHtml(chrome, { anomalyId: resultId });
+  const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   
   const debugHtml = cfg.showDebug
     ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   return `
     <div class="${cfg.className} anomaly-embed" data-anomaly-id="${resultId}" data-shortcode="${shortcodeEscaped}">
+      ${copyHtml}
       <iframe 
         src="${url}" 
         width="${cfg.width}" 
@@ -303,6 +499,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
         style="border: none; border-radius: 8px; background: #f8f9fa;"
         title="Anomaly ${resultId}"
       ></iframe>
+      ${footerHtml}
       ${debugHtml}
     </div>
   `.trim();
@@ -426,24 +623,54 @@ export function buildPrimaryVisualizationShortcodeConfig(
     src: imageUrl,
     alt: story.image_alt,
     caption: story.image_caption,
+    title: firstString(
+      pv.title,
+      pv.name,
+      pv.label,
+      story.image_alt,
+    ),
+    subtitle: story.image_caption,
+    sourceLabel: getSourceLabelFromPrimaryVisualization(pv),
+    sourceUrl:
+      getSourceUrlFromPrimaryVisualization(pv) ||
+      getExternalSourceUrl(story.detail_url),
+  };
+  const chrome: VisualizationEmbedChrome = {
+    alt: asset.alt,
+    caption: asset.caption,
+    title: asset.title,
+    subtitle: asset.subtitle,
+    sourceLabel: asset.sourceLabel,
+    sourceUrl: asset.sourceUrl,
+    sourceDescription: asset.sourceDescription,
   };
 
   if (visType === "chart" && pv.id != null) {
-    return { staticVisualizations: { charts: { [String(pv.id)]: asset } } };
+    return {
+      staticVisualizations: { charts: { [String(pv.id)]: asset } },
+      embedChrome: { charts: { [String(pv.id)]: chrome } },
+    };
   }
 
   if ((visType === "anomaly" || visType === "anomaly_chart") && pv.id != null) {
     return {
       staticVisualizations: { anomalies: { [String(pv.id)]: asset } },
+      embedChrome: { anomalies: { [String(pv.id)]: chrome } },
     };
   }
 
   if (visType === "map" && typeof pv.short_hash === "string" && pv.short_hash) {
-    return { staticVisualizations: { maps: { [pv.short_hash]: asset } } };
+    return {
+      staticVisualizations: { maps: { [pv.short_hash]: asset } },
+      embedChrome: { maps: { [pv.short_hash]: chrome } },
+    };
   }
 
   if (visType === "map" && pv.id != null) {
-    return { staticVisualizations: { maps: { [String(pv.id)]: asset } } };
+    return {
+      staticVisualizations: { maps: { [String(pv.id)]: asset } },
+      embedChrome: { maps: { [String(pv.id)]: chrome } },
+    };
   }
 
   return {};

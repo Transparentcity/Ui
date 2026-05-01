@@ -387,6 +387,81 @@ export default function DashboardPage() {
     router.replace(nextUrl);
   }, [router, isAuthenticated, isLoading]);
 
+  // Pending intent picked up before handleOpenSettings is in scope (see effect
+  // below).  Resolved in a later effect once handleOpenSettings + loadUserSettings
+  // are defined, so we don't have to dance around hoisting order.
+  const [pendingNewsletterIntent, setPendingNewsletterIntent] = useState<{
+    openSettings: boolean;
+    openAddPlace: boolean;
+  } | null>(null);
+
+  // Pending in-app navigation intent from email/external deep links:
+  // ``?city_id=…[&district=…|&place_id=…]``. We capture it here and resolve
+  // it once the city/place handlers are in scope (and ``allUserPlaces`` has
+  // loaded for the place case) so the click lands on the same view the left
+  // nav would open — not the public ``/c/{slug}`` page.
+  const [pendingNavIntent, setPendingNavIntent] = useState<{
+    cityId: number;
+    district: number | null;
+    placeId: number | null;
+  } | null>(null);
+
+  // Newsletter email deep links: open the Settings panel scrolled to the
+  // Newsletter section (?email_prefs=1) or pop the home location modal
+  // (?add_place=1). Both intents come from the personalized newsletter
+  // header so a reader can tune their issue with one click.
+  //
+  // The same effect also consumes the in-app navigation deep links from the
+  // newsletter masthead's "favicon" links (Home / District / City):
+  //   ?city_id=<n>                 → handleCityClick(n)
+  //   ?city_id=<n>&district=<d>    → district handler
+  //   ?city_id=<n>&place_id=<p>    → handlePlaceClick(n, p)
+  // These mirror the left-nav handlers exactly so the masthead links land
+  // the reader on the auth-gated dashboard view, not the public /c/{slug}
+  // page (which would log them out conceptually).
+  useEffect(() => {
+    if (typeof window === "undefined" || !isAuthenticated || isLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const wantsEmailPrefs = params.get("email_prefs") === "1";
+    const wantsAddPlace = params.get("add_place") === "1";
+
+    const cityIdRaw = params.get("city_id");
+    const cityId = cityIdRaw ? parseInt(cityIdRaw, 10) : NaN;
+    const districtRaw = params.get("district");
+    const district = districtRaw ? parseInt(districtRaw, 10) : NaN;
+    const placeIdRaw = params.get("place_id");
+    const placeId = placeIdRaw ? parseInt(placeIdRaw, 10) : NaN;
+    const wantsNav = Number.isFinite(cityId);
+
+    if (!wantsEmailPrefs && !wantsAddPlace && !wantsNav) return;
+
+    if (wantsEmailPrefs || wantsAddPlace) {
+      setPendingNewsletterIntent({
+        openSettings: wantsEmailPrefs,
+        openAddPlace: wantsAddPlace,
+      });
+    }
+
+    if (wantsNav) {
+      setPendingNavIntent({
+        cityId,
+        district: Number.isFinite(district) ? district : null,
+        placeId: Number.isFinite(placeId) ? placeId : null,
+      });
+    }
+
+    params.delete("email_prefs");
+    params.delete("add_place");
+    params.delete("city_id");
+    params.delete("district");
+    params.delete("place_id");
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery
+      ? `${window.location.pathname}?${nextQuery}`
+      : window.location.pathname;
+    router.replace(nextUrl);
+  }, [router, isAuthenticated, isLoading]);
+
   // Track dashboard view when authenticated
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
@@ -882,6 +957,42 @@ export default function DashboardPage() {
     [allUserPlaces]
   );
 
+  // Resolve pendingNavIntent (set by the email/external deep-link effect
+  // above) by invoking the same handlers the left nav uses. The place case
+  // waits for ``allUserPlaces`` to load so handlePlaceClick can pull GPS
+  // from the place record on first paint; for cities and districts we can
+  // fire immediately. We always clear the intent so it doesn't fire twice.
+  useEffect(() => {
+    if (!pendingNavIntent) return;
+    const { cityId, district, placeId } = pendingNavIntent;
+    if (placeId != null) {
+      const place = allUserPlaces.find((p) => p.id === placeId);
+      if (!place && allUserPlaces.length === 0) {
+        // Places not loaded yet — wait for the next render cycle. (If the
+        // user genuinely doesn't own the place, the lookup will resolve to
+        // undefined and handlePlaceClick still drops the user on the city
+        // view, which is the right fallback.)
+        return;
+      }
+      handlePlaceClick(cityId, placeId, place);
+    } else if (district != null) {
+      setActiveCityId(cityId);
+      setInitialDistrict(district);
+      setInitialPlaceId(null);
+      setInitialPlaceGps(null);
+      setInitialSection(null);
+      setCitySelection({ district, placeId: null });
+      setCurrentView("city");
+      setCurrentSessionId(null);
+      setIsCurrentSessionJobSession(false);
+      setCurrentResearchId(null);
+      setGpsLocation(null);
+    } else {
+      handleCityClick(cityId);
+    }
+    setPendingNavIntent(null);
+  }, [pendingNavIntent, allUserPlaces, handlePlaceClick]);
+
   const refreshAllUserPlaces = useCallback(
     (expectedIdentityScopeKey: string = identityScopeKey) => {
       return getAccessTokenSilently()
@@ -1012,6 +1123,36 @@ export default function DashboardPage() {
       setLoadingPreferences(false);
     }
   };
+
+  // Drain the pending newsletter intent set by the email-deep-link effect
+  // above. We can't call handleOpenSettings from that earlier effect because
+  // it isn't in scope yet; this resolver runs on every render and fires once
+  // an intent appears.
+  useEffect(() => {
+    if (!pendingNewsletterIntent) return;
+    const { openSettings, openAddPlace } = pendingNewsletterIntent;
+
+    if (openSettings) {
+      void handleOpenSettings();
+      // Two RAFs let the settings panel mount + lay out before we scroll.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const target = document.getElementById("settings-newsletter-section");
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      });
+    }
+    if (openAddPlace) {
+      setShowEditHomeLocationModal(true);
+    }
+
+    setPendingNewsletterIntent(null);
+    // handleOpenSettings is intentionally omitted to avoid re-firing every
+    // re-render; the intent flag is the source of truth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNewsletterIntent]);
 
   /**
    * Nudge until the user has a street-level home in prefs, a linked block, or a saved
@@ -1819,7 +1960,7 @@ export default function DashboardPage() {
                   </section>
 
                   {/* Communication preferences */}
-                  <section className={styles.settingsSection}>
+                  <section className={styles.settingsSection} id="settings-newsletter-section">
                     <h3 className={styles.settingsSectionTitle}>{isAdmin ? "Communication preferences" : "Newsletter"}</h3>
                     <div className={styles.settingsSectionCard}>
                       {isAdmin && (

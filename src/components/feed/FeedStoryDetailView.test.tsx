@@ -90,9 +90,10 @@ describe("FeedStoryDetailView", () => {
       screen.getByText("Transit performance improved this month."),
     ).toBeInTheDocument();
     expect(screen.getByTitle("Chart 123")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
   });
 
-  it("renders the interactive map in detail views by default", () => {
+  it("renders the interactive map with compact chrome in detail views by default", () => {
     render(
       <FeedStoryDetailView
         story={makeStory({
@@ -109,8 +110,12 @@ describe("FeedStoryDetailView", () => {
       />,
     );
 
-    expect(screen.getByTitle("Map AzOP6s-N")).toBeInTheDocument();
     expect(screen.queryByAltText("Austin service map")).toBeNull();
+    expect(screen.getByText("Austin service map")).toBeInTheDocument();
+    expect(screen.getByText("Calls are concentrated downtown.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(screen.getByTitle("Map AzOP6s-N")).toBeInTheDocument();
+    expect(screen.queryByText("Load interactive version")).not.toBeInTheDocument();
   });
 
   it("renders the saved static image when explicitly configured", () => {
@@ -141,7 +146,7 @@ describe("FeedStoryDetailView", () => {
     expect(screen.getByText("Load interactive version")).toBeInTheDocument();
     expect(
       screen.queryByText("Calls are concentrated downtown."),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
   });
 
   it("renders metric detail view with MetricLink hotlinks when metadata.metrics present", () => {

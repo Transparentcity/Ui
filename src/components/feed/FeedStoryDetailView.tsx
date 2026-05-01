@@ -144,16 +144,21 @@ export function FeedStoryDetailView({
   const district = story.district > 0 ? story.district : null;
   /** Long-form HTML from create_feed_story — use this as the modal body, not summary + HTML. */
   const hasFullArticleHtml = Boolean(articleHtml);
+  const primaryVisualizationConfig = buildPrimaryVisualizationShortcodeConfig({
+    detail_url: story.detail_url,
+    image_url: story.image_url_resolved ?? story.image_url ?? null,
+    image_alt: story.image_alt_resolved,
+    image_caption: story.image_caption_resolved,
+    visualization_type: story.visualization_type,
+    primary_visualization:
+      story.primary_visualization as Record<string, unknown> | null,
+  });
   const inlinePrimaryVisualizationConfig = preferStaticPrimaryVisualizationInArticle
-    ? buildPrimaryVisualizationShortcodeConfig({
-        image_url: story.image_url_resolved ?? story.image_url ?? null,
-        image_alt: story.image_alt_resolved,
-        image_caption: story.image_caption_resolved,
-        visualization_type: story.visualization_type,
-        primary_visualization:
-          story.primary_visualization as Record<string, unknown> | null,
-      })
-    : {};
+    ? primaryVisualizationConfig
+    : {
+        ...primaryVisualizationConfig,
+        staticVisualizations: undefined,
+      };
 
   const pv = story.primary_visualization;
   const vizType = (story.visualization_type ?? pv?.type ?? "").toLowerCase();

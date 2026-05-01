@@ -26,6 +26,8 @@ describe("processVisualizationShortcodes", () => {
     });
     expect(out).toContain('src="/t/42?embedded=true"');
     expect(out).toContain('data-chart-id="42"');
+    expect(out).toContain("viz-embed-source-button");
+    expect(out).toContain('data-viz-source-chart-id="42"');
   });
 
   it("replaces map shortcodes with iframe embeds", () => {
@@ -34,6 +36,32 @@ describe("processVisualizationShortcodes", () => {
     });
     expect(out).toContain('src="/m/AzOP6s-N?embedded=true"');
     expect(out).toContain('data-map-hash="AzOP6s-N"');
+  });
+
+  it("adds compact chrome to interactive embeds when metadata is provided", () => {
+    const out = processVisualizationShortcodes("[map:AzOP6s-N]", {
+      showDebug: false,
+      embedChrome: {
+        maps: {
+          "AzOP6s-N": {
+            title: "Mission District Homicides",
+            subtitle: "16th & South Van Ness Area",
+            sourceLabel: "SFPD open data",
+            sourceUrl: "https://data.sfgov.org/d/wg3w-h783",
+          },
+        },
+      },
+    });
+
+    expect(out).toContain('src="/m/AzOP6s-N?embedded=true"');
+    expect(out).toContain("viz-embed-title");
+    expect(out).toContain("Mission District Homicides");
+    expect(out).toContain("viz-embed-caption");
+    expect(out).toContain("16th &amp; South Van Ness Area");
+    expect(out).toContain("viz-embed-source-button");
+    expect(out).toContain("Source");
+    expect(out).not.toContain("Source information");
+    expect(out).toContain("https://data.sfgov.org/d/wg3w-h783");
   });
 
   it("handles map hashes with underscores", () => {
@@ -52,12 +80,19 @@ describe("processVisualizationShortcodes", () => {
             src: "/api/feed/public/story-image/abc123",
             alt: "Austin service map",
             caption: "Calls are concentrated downtown.",
+            sourceLabel: "Austin Open Data",
+            sourceUrl: "https://data.austintexas.gov/d/abc1-2345",
           },
         },
       },
     });
     expect(out).toContain('src="/api/feed/public/story-image/abc123"');
     expect(out).toContain('alt="Austin service map"');
+    expect(out).toContain("viz-embed-title");
+    expect(out).toContain("Austin service map");
+    expect(out).toContain("Calls are concentrated downtown.");
+    expect(out).toContain("viz-embed-source-button");
+    expect(out).toContain("https://data.austintexas.gov/d/abc1-2345");
     expect(out).not.toContain("visualization-static-caption");
     expect(out).toContain("viz-deferred-interactive");
     expect(out).toContain('data-deferred-src="/m/AzOP6s-N?embedded=true"');
@@ -98,7 +133,7 @@ describe("processVisualizationShortcodes", () => {
     });
     expect(out).toContain('src="/api/feed/public/story-image/hash123"');
     expect(out).not.toContain("visualization-static-caption");
-    expect(out).not.toContain("This should not render below the PNG.");
+    expect(out).toContain("This should not render below the PNG.");
   });
 
   it("replaces anomaly shortcodes with iframe embeds", () => {
@@ -107,6 +142,8 @@ describe("processVisualizationShortcodes", () => {
     });
     expect(out).toContain('src="/a/99?embedded=true"');
     expect(out).toContain('data-anomaly-id="99"');
+    expect(out).toContain("viz-embed-source-button");
+    expect(out).toContain('data-viz-source-anomaly-id="99"');
   });
 
   it("handles multiple shortcodes of different types", () => {
@@ -247,13 +284,45 @@ describe("primary visualization helpers", () => {
       image_alt: "Austin map",
       image_caption: "Caption",
       visualization_type: "map",
-      primary_visualization: { short_hash: "AzOP6s-N", type: "map" },
+      primary_visualization: {
+        short_hash: "AzOP6s-N",
+        type: "map",
+        source_info: {
+          dataset_name: "Austin 311 Requests",
+          dataset_url: "https://data.austintexas.gov/d/abc1-2345",
+        },
+      },
     });
 
-    expect(config.staticVisualizations?.maps?.["AzOP6s-N"]).toEqual({
+    expect(config.staticVisualizations?.maps?.["AzOP6s-N"]).toMatchObject({
       src: "/api/feed/public/story-image/hash123",
       alt: "Austin map",
       caption: "Caption",
+      title: "Austin map",
+      subtitle: "Caption",
+      sourceLabel: "Austin 311 Requests",
+      sourceUrl: "https://data.austintexas.gov/d/abc1-2345",
+    });
+    expect(config.embedChrome?.maps?.["AzOP6s-N"]).toMatchObject({
+      title: "Austin map",
+      subtitle: "Caption",
+      sourceLabel: "Austin 311 Requests",
+      sourceUrl: "https://data.austintexas.gov/d/abc1-2345",
+    });
+  });
+
+  it("uses an offsite detail_url as source fallback", () => {
+    const config = buildPrimaryVisualizationShortcodeConfig({
+      image_url: "/api/feed/public/story-image/hash123",
+      image_alt: "Austin map",
+      image_caption: "Caption",
+      detail_url: "https://data.austintexas.gov/d/abc1-2345",
+      visualization_type: "map",
+      primary_visualization: { short_hash: "AzOP6s-N", type: "map" },
+    });
+
+    expect(config.staticVisualizations?.maps?.["AzOP6s-N"]).toMatchObject({
+      sourceUrl: "https://data.austintexas.gov/d/abc1-2345",
     });
   });
 

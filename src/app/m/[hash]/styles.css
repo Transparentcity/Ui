@@ -975,6 +975,48 @@
   min-height: 0;
 }
 
+.public-map-page.embedded .map-source-section {
+  flex-shrink: 0;
+  margin: 0;
+  border-right: none;
+  border-bottom: none;
+  border-left: none;
+  border-radius: 0;
+}
+
+.public-map-page.embedded .map-source-toggle {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.public-map-page.embedded .map-source-details {
+  max-height: min(38vh, 240px);
+  overflow: auto;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.public-map-page.embedded .map-source-intro {
+  margin: 0.75rem 0;
+  gap: 0.5rem;
+}
+
+.public-map-page.embedded .map-source-intro p,
+.public-map-page.embedded .map-source-value {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.public-map-page.embedded .map-source-row {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.public-map-page.embedded .map-source-query {
+  max-height: 96px;
+  overflow: auto;
+  font-size: 0.72rem;
+}
+
 /* Ensure Mapbox fills the container in embedded mode */
 .public-map-page.embedded .embedded-map .mapboxgl-map,
 .public-map-page.embedded .embedded-map canvas.mapboxgl-canvas {

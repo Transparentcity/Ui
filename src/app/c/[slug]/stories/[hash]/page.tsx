@@ -174,6 +174,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
     !!story.article_html &&
     articleUsesPrimaryVisualizationShortcode(story.article_html, story);
   const shortcodeConfig = buildPrimaryVisualizationShortcodeConfig(story);
+  const interactiveShortcodeConfig = {
+    ...shortcodeConfig,
+    staticVisualizations: undefined,
+  };
 
   const pvRecord = story.primary_visualization as Record<string, unknown> | null;
   const fallbackVizType = (story.visualization_type ?? "").toLowerCase();
@@ -269,7 +273,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           <VisualizationDeferredInteractiveContainer
             className="story-article-body"
             html={processVisualizationShortcodes(story.article_html, {
-              ...shortcodeConfig,
+              ...interactiveShortcodeConfig,
               showDebug: false,
               showStaticCaptions: false,
               chartHeight: "480px",
@@ -649,6 +653,36 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           border: 1px solid var(--border-primary);
           background: var(--bg-subtle);
         }
+        .story-article-body .viz-embed-copy {
+          padding: 12px 14px 10px;
+          background: var(--bg-primary);
+        }
+        .story-article-body .viz-embed-title {
+          font-size: 0.95rem;
+          line-height: 1.35;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+        .story-article-body .viz-embed-subtitle {
+          font-size: 0.8rem;
+          line-height: 1.35;
+          color: var(--text-secondary);
+        }
+        .story-article-body .viz-embed-caption {
+          flex: 1 1 auto;
+          min-width: 0;
+          font-size: 0.78rem;
+          line-height: 1.4;
+          color: var(--text-secondary);
+        }
+        .story-article-body .viz-embed-footer {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 7px 10px 8px 12px;
+          background: var(--bg-primary);
+        }
         .story-article-body .visualization-embed iframe {
           display: block;
           border: none;
@@ -665,6 +699,152 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
           color: var(--text-secondary);
           border-top: 1px solid var(--border-primary);
           background: var(--bg-secondary);
+        }
+        .story-article-body .viz-embed-source-row {
+          display: flex;
+          justify-content: flex-end;
+          flex: 0 0 auto;
+          margin-left: auto;
+        }
+        .story-article-body .viz-embed-source-button {
+          appearance: none;
+          border: 0;
+          background: transparent;
+          color: var(--text-muted, #9ca3af);
+          cursor: pointer;
+          font-size: 0.72rem;
+          font-weight: 500;
+          padding: 2px 4px;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .story-article-body .viz-embed-source-button:hover {
+          color: var(--brand-primary);
+        }
+        .viz-source-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1100;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(17, 24, 39, 0.5);
+        }
+        .viz-source-modal {
+          position: relative;
+          width: min(420px, 100%);
+          padding: 22px;
+          border-radius: 14px;
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
+        }
+        .viz-source-modal-close {
+          position: absolute;
+          top: 10px;
+          right: 12px;
+          border: 0;
+          background: transparent;
+          color: var(--text-secondary);
+          cursor: pointer;
+          font-size: 1.3rem;
+          line-height: 1;
+        }
+        .viz-source-modal-eyebrow {
+          margin: 0 0 4px;
+          color: var(--brand-primary);
+          font-size: 0.72rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .viz-source-modal h2 {
+          margin: 0 24px 8px 0;
+          font-size: 1.05rem;
+          line-height: 1.35;
+        }
+        .viz-source-modal p {
+          margin: 0 0 14px;
+          color: var(--text-secondary);
+          font-size: 0.9rem;
+          line-height: 1.5;
+        }
+        .viz-source-modal-primary-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 0 16px;
+          padding: 9px 12px;
+          border-radius: 8px;
+          background: var(--brand-primary);
+          color: #fff;
+          font-size: 0.9rem;
+          font-weight: 700;
+          text-decoration: none;
+        }
+        .viz-source-modal-primary-link:hover {
+          background: var(--brand-primary-hover);
+        }
+        .viz-source-modal-details {
+          display: grid;
+          gap: 10px;
+          padding-top: 12px;
+          border-top: 1px solid var(--border-primary);
+        }
+        .viz-source-modal-row {
+          display: grid;
+          grid-template-columns: 104px minmax(0, 1fr);
+          gap: 10px;
+          align-items: start;
+          font-size: 0.85rem;
+          line-height: 1.45;
+        }
+        .viz-source-modal-row span,
+        .viz-source-modal-query span {
+          color: var(--text-tertiary, #6b7280);
+          font-size: 0.72rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+        .viz-source-modal-row a,
+        .viz-source-modal-row strong,
+        .viz-source-modal-row code {
+          min-width: 0;
+          color: var(--text-primary);
+          font-size: 0.85rem;
+          font-weight: 600;
+          word-break: break-word;
+        }
+        .viz-source-modal-row a {
+          color: var(--brand-primary);
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .viz-source-modal-query {
+          display: grid;
+          gap: 6px;
+        }
+        .viz-source-modal-query pre {
+          max-height: 140px;
+          overflow: auto;
+          margin: 0;
+          padding: 10px;
+          border-radius: 8px;
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
+          font-size: 0.76rem;
+          line-height: 1.45;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .viz-source-modal-link {
+          display: inline-flex;
+          color: var(--brand-primary);
+          font-size: 0.9rem;
+          font-weight: 700;
+          text-decoration: none;
         }
         @media (max-width: 640px) {
           .story-article-body .visualization-embed {
