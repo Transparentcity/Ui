@@ -244,12 +244,6 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             {story.city_emoji} {cityDisplay}
             {story.district && story.district > 0 ? ` · District ${story.district}` : ""}
           </span>
-          <span className="story-meta-sep" aria-hidden="true">·</span>
-          <SourceLine
-            category={enrichStory(story as unknown as FeedStory).actor ?? ""}
-            citySlug={slug}
-            variant="byline"
-          />
         </div>
 
         {/* Hero image */}
