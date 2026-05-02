@@ -200,14 +200,17 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
   }
 
   const heroImageSrc = (story.image_url ?? "").trim();
+  const isGeneratedSocialCard = heroImageSrc.startsWith("/api/feed/public/story-image/");
 
   const fallbackImageWithDeferredInteractive =
     !story.article_html &&
     !!primaryFallbackIframeSrc &&
-    !!heroImageSrc;
+    !!heroImageSrc &&
+    !isGeneratedSocialCard;
 
   const showHeroImage =
     !!heroImageSrc &&
+    !isGeneratedSocialCard &&
     !renderPrimaryInline &&
     !fallbackImageWithDeferredInteractive;
 
