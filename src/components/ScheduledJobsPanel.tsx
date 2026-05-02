@@ -683,6 +683,9 @@ export default function ScheduledJobsPanel({
                 <div key={job.id} className={styles.compactRow}>
                   <div className={styles.rowLine1}>
                     <div className={styles.rowMain}>
+                      <span className={styles.rowId} title={`Job ID ${job.id}`}>
+                        #{job.id}
+                      </span>
                       <span className={styles.rowName} title={job.name}>
                         {job.name}
                       </span>
