@@ -10,20 +10,53 @@
 /* Slim role indicator strip – lives inside main content only (never covers sidebar/logo) */
 .governmentBanner {
   flex-shrink: 0;
-  background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: linear-gradient(90deg, rgba(173, 53, 250, 0.1), rgba(173, 53, 250, 0.04));
   color: var(--brand-primary, #ad35fa);
-  padding: 6px 16px;
-  font-size: 13px;
+  padding: 7px 16px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   text-align: center;
-  border-bottom: 1px solid var(--brand-primary-light, rgba(173, 53, 250, 0.2));
+  border-bottom: 1px solid rgba(173, 53, 250, 0.25);
+}
+
+.governmentBanner::before,
+.governmentBanner::after {
+  content: "";
+  flex: 1 1 0;
+  max-width: 120px;
+  border-top: 1px dashed currentColor;
+  opacity: 0.35;
+}
+
+.governmentBannerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.governmentBannerIcon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
 }
 
 .governmentBannerAdmin {
-  background: rgba(239, 68, 68, 0.08);
-  color: #dc2626;
-  border-bottom-color: rgba(239, 68, 68, 0.2);
+  background: linear-gradient(90deg, rgba(91, 33, 182, 0.12), rgba(91, 33, 182, 0.05));
+  color: #5b21b6;
+  border-bottom-color: rgba(91, 33, 182, 0.3);
+}
+
+@media (max-width: 480px) {
+  .governmentBanner::before,
+  .governmentBanner::after {
+    display: none;
+  }
 }
 
 /* One-shot post–search-cities follow confirmation */

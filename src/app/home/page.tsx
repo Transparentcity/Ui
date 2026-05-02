@@ -1634,12 +1634,25 @@ export default function DashboardPage() {
         )}
         {isAdmin && (
           <div className={`${styles.governmentBanner} ${styles.governmentBannerAdmin}`} role="banner">
-            Admin View
+            <span className={styles.governmentBannerLabel}>
+              <svg className={styles.governmentBannerIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              Admin View
+            </span>
           </div>
         )}
         {!isAdmin && hasGovernmentBanner && (
           <div className={styles.governmentBanner} role="banner">
-            Government View
+            <span className={styles.governmentBannerLabel}>
+              <svg className={styles.governmentBannerIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 21h18" />
+                <path d="M5 21V8l7-4 7 4v13" />
+                <path d="M9 21v-6h6v6" />
+              </svg>
+              Government View
+            </span>
           </div>
         )}
         {searchFollowBanner &&
