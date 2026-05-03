@@ -243,34 +243,6 @@ describe("ReviewAndSend", () => {
     expect(mockRefresh).toHaveBeenCalled()
   })
 
-  // ---------- Regenerate ----------
-
-  it("calls regenerate endpoint with auth headers when Regenerate is clicked", async () => {
-    const user = userEvent.setup()
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: "q-1", status: "regenerated", subject: "New subject", body: "New body" }),
-    })
-
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    const regenBtn = screen.getByRole("button", { name: /regenerate/i })
-    await user.click(regenBtn)
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/crm/drafts/q-1/regenerate"),
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
-          }),
-        }),
-      )
-    })
-    expect(mockRefresh).toHaveBeenCalled()
-  })
-
   // ---------- Anomaly picker ----------
 
   it("fetches and displays applicable anomalies when Anomalies is clicked", async () => {
@@ -525,66 +497,9 @@ describe("ReviewAndSend", () => {
     })
   })
 
-  it("can regenerate from the edit dialog", async () => {
-    const user = userEvent.setup()
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    await user.click(screen.getByRole("button", { name: /edit/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText("Edit Message")).toBeInTheDocument()
-    })
-
-    // Find the Regenerate button inside the dialog
-    const regenBtns = screen.getAllByRole("button", { name: /regenerate/i })
-    await user.click(regenBtns[regenBtns.length - 1])
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/crm/drafts/q-1/regenerate"),
-        expect.objectContaining({ method: "POST" }),
-      )
-    })
-  })
-
   // ===================================================================
   // EDGE CASE: API failure scenarios
   // ===================================================================
-
-  it("handles regenerate API failure gracefully and shows error toast", async () => {
-    const user = userEvent.setup()
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
-    mockFetch.mockRejectedValueOnce(new Error("Server down"))
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    await user.click(screen.getByRole("button", { name: /regenerate/i }))
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /regenerate/i })).not.toBeDisabled()
-    })
-    // Should show error via toast
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith("Regenerate failed. Please try again.")
-    })
-    consoleSpy.mockRestore()
-  })
-
-  it("shows specific toast when regenerate fails due to missing anomaly data", async () => {
-    const user = userEvent.setup()
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ detail: "Draft is missing anomaly or prospect data, cannot regenerate" }),
-    })
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    await user.click(screen.getByRole("button", { name: /regenerate/i }))
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("older draft"))
-    })
-  })
 
   it("handles anomaly fetch failure gracefully", async () => {
     const user = userEvent.setup()
@@ -1360,20 +1275,6 @@ describe("ReviewAndSend", () => {
     })
   })
 
-  it("shows error toast on regenerate failure", async () => {
-    const user = userEvent.setup()
-    vi.spyOn(console, "error").mockImplementation(() => {})
-    mockFetch.mockRejectedValueOnce(new Error("Server down"))
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-
-    await user.click(screen.getByRole("button", { name: /regenerate/i }))
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith("Regenerate failed. Please try again.")
-    })
-    vi.restoreAllMocks()
-  })
-
   // ===================================================================
   // Keyboard shortcut (Ctrl+Enter to save in edit dialog)
   // ===================================================================
@@ -1575,18 +1476,4 @@ describe("ReviewAndSend", () => {
     vi.restoreAllMocks()
   })
 
-  it("shows success toast on regenerate", async () => {
-    const user = userEvent.setup()
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ subject: "New subject", body: "New body" }),
-    })
-
-    render(<ReviewAndSend items={[PENDING_ITEM]} />)
-    await user.click(screen.getByRole("button", { name: /regenerate/i }))
-
-    await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith("Draft regenerated")
-    })
-  })
 })

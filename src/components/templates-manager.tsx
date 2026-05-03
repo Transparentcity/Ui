@@ -11,10 +11,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Mail, MessageSquare, Pencil, Trash2, Copy, Shuffle, Wand2 } from "lucide-react"
+import { Search, MoreHorizontal, Mail, MessageSquare, Pencil, Trash2, Copy, Shuffle, Wand2, Send } from "lucide-react"
 import type { Template, TemplateWithVariations } from "@/lib/types"
 import { deleteTemplate, duplicateTemplate } from "@/app/actions/templates"
 import { TemplateDialog } from "./template-dialog"
+import { QuickShareDialog } from "./quick-share-dialog"
 import { DynamicTemplateEditor } from "./dynamic-template-editor"
 import { toneProfiles } from "@/app/data/tone-profiles"
 import { sampleContact } from "@/app/data/sample-contact"
@@ -77,6 +78,14 @@ export function TemplatesManager({ templates }: TemplatesManagerProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {template.channel === 'email' && (
+                <QuickShareDialog templates={templates} initialTemplateId={template.id}>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <Send className="w-4 h-4 mr-2" />
+                    Quick Share
+                  </DropdownMenuItem>
+                </QuickShareDialog>
+              )}
               <TemplateDialog template={template}>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <Pencil className="w-4 h-4 mr-2" />

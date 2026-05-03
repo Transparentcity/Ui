@@ -47,7 +47,6 @@ import {
 } from "lucide-react"
 import type { Contact, Keyword, Anomaly } from "@/lib/types"
 import { queueGeneratedEmails } from "@/app/actions/ai-emails"
-import { PRESS_RELEASE_ARCHETYPES, ARCHETYPE_CATEGORIES, type PressReleaseArchetype } from "@/lib/press-release-archetypes"
 
 interface ContactWithKeywords extends Contact {
   prospect_keywords?: Array<{
@@ -84,9 +83,7 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
   const [sampleEmail, setSampleEmail] = useState("")
   const [voiceNotes, setVoiceNotes] = useState("")
   const [includeAnomalies, setIncludeAnomalies] = useState(true)
-  const [emailMode, setEmailMode] = useState<"correspondence" | "press_release">("correspondence")
-  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>("")
-  
+
   // Selection state
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [keywordFilter, setKeywordFilter] = useState<string>("all")
@@ -105,13 +102,8 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
   const [previewEmail, setPreviewEmail] = useState<GeneratedEmail | null>(null)
   const [isQueueing, setIsQueueing] = useState(false)
 
-  // Filter contacts — in press release mode, default to media contacts
   const filteredContacts = useMemo(() => {
     return contacts.filter(contact => {
-      // In press release mode, only show media contacts by default
-      if (emailMode === "press_release" && (contact as any).contact_type && (contact as any).contact_type !== "media") {
-        return false
-      }
       const matchesKeyword = keywordFilter === "all" ||
         contact.prospect_keywords?.some(ck => ck.keyword_id === keywordFilter)
       const matchesPriority = priorityFilter === "all" ||
@@ -120,7 +112,7 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
         (priorityFilter === "low" && contact.priority < 2)
       return matchesKeyword && matchesPriority
     })
-  }, [contacts, keywordFilter, priorityFilter, emailMode])
+  }, [contacts, keywordFilter, priorityFilter])
 
   // Get contact by ID
   const getContact = (id: string) => contacts.find(c => c.id === id)
@@ -221,8 +213,6 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
           voiceNotes,
           includeAnomalies,
           anomalies: includeAnomalies ? anomalies : undefined,
-          mode: emailMode,
-          archetypeId: emailMode === "press_release" && selectedArchetypeId ? selectedArchetypeId : undefined,
         }),
       })
 
@@ -322,8 +312,6 @@ export function AIEmailComposer({ contacts, anomalies, keywords }: AIEmailCompos
           voiceNotes,
           includeAnomalies,
           anomalies: includeAnomalies ? anomalies : undefined,
-          mode: emailMode,
-          archetypeId: emailMode === "press_release" && selectedArchetypeId ? selectedArchetypeId : undefined,
         }),
       })
 
@@ -451,71 +439,6 @@ Transparent City`}
                   />
                 </div>
                 
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium">Email Mode</Label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEmailMode("correspondence")}
-                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                        emailMode === "correspondence"
-                          ? "bg-purple-600 text-white border-purple-600"
-                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      Government Correspondence
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEmailMode("press_release")}
-                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                        emailMode === "press_release"
-                          ? "bg-purple-600 text-white border-purple-600"
-                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      Press Release
-                    </button>
-                  </div>
-                </div>
-
-                {emailMode === "press_release" && (
-                  <div className="space-y-1">
-                    <Label className="text-sm font-medium">Story Archetype (Optional)</Label>
-                    <Select value={selectedArchetypeId} onValueChange={setSelectedArchetypeId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select an archetype to guide the angle..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">None (use anomalies only)</SelectItem>
-                        {ARCHETYPE_CATEGORIES.map((cat) => {
-                          const archetypesInCat = PRESS_RELEASE_ARCHETYPES.filter(
-                            (a) => a.category === cat.key
-                          )
-                          if (archetypesInCat.length === 0) return null
-                          return archetypesInCat.map((arch) => (
-                            <SelectItem key={arch.id} value={arch.id}>
-                              <span className="font-medium">{arch.name}</span>
-                              <span className="text-muted-foreground ml-2 text-xs">({arch.id})</span>
-                            </SelectItem>
-                          ))
-                        })}
-                      </SelectContent>
-                    </Select>
-                    {selectedArchetypeId && (() => {
-                      const arch = PRESS_RELEASE_ARCHETYPES.find(a => a.id === selectedArchetypeId)
-                      return arch ? (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {arch.description}
-                          {arch.exampleHeadline && (
-                            <span className="block mt-1 italic">Example: &ldquo;{arch.exampleHeadline}&rdquo;</span>
-                          )}
-                        </p>
-                      ) : null
-                    })()}
-                  </div>
-                )}
-
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="include-anomalies"

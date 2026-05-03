@@ -24,12 +24,12 @@ import { cn } from "@/lib/utils"
 import { useCrmCity } from "./crm-city-context"
 
 const navigation = [
-  { name: "Create Emails", href: "/create-emails", icon: Wand2, highlight: true },
+  { name: "Templates", href: "/templates", icon: FileText, highlight: true },
+  { name: "Create Emails", href: "/create-emails", icon: Wand2 },
   { name: "Review & Send", href: "/review-and-send", icon: ClipboardCheck },
   { name: "Send Queue", href: "/send-queue", icon: Send },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Content", href: "/anomalies", icon: Newspaper },
-  { name: "Templates", href: "/templates", icon: FileText },
   { name: "Keywords", href: "/keywords", icon: Tags },
   { name: "Responses", href: "/responses", icon: MessageSquare },
   { name: "Follow-ups", href: "/followups", icon: ListChecks },

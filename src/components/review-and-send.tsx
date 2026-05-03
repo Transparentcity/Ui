@@ -42,14 +42,12 @@ import {
   Trash2,
   BarChart3,
   MapPin,
-  RefreshCw,
   ChevronDown,
   ChevronUp,
   ArrowRightLeft,
   CheckSquare,
   Square,
   Search,
-  AlertTriangle,
 } from "lucide-react"
 import {
   Tooltip,
@@ -64,64 +62,12 @@ import {
   updateQueueItemContent,
   updateQueueItemStatus,
   deleteQueueItems,
-  sendSingleQueueItem,
-  checkSendGridStatus,
 } from "@/app/actions/send-queue"
 import { getApiBaseUrl } from "@/lib/apiBase"
+import { substitutePlaceholders } from "@/lib/template-substitute"
 import { toast } from "sonner"
 
 type TabKey = "pending" | "sent" | "all"
-
-const TC_BASE_URL = "https://transparent.city"
-
-function citySlugFromName(name: string | null | undefined): string | null {
-  if (!name) return null
-  return name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null
-}
-
-function storyUrl(story: FeedStory | null | undefined, fallback: string): string {
-  if (!story) return fallback
-  const path = story.canonical_path
-  if (path) return path.startsWith("http") ? path : `${TC_BASE_URL}${path}`
-  return story.public_url ?? fallback
-}
-
-function storySnippet(story: FeedStory | null | undefined, cityUrl: string): string {
-  if (!story) return cityUrl
-  return [story.headline, story.description, storyUrl(story, cityUrl)]
-    .filter(Boolean)
-    .join("\n")
-}
-
-// Replace placeholder tokens like [FIRST NAME], [ANOMALY 1], [STORY], etc.
-// with story content for the contact's district (or citywide fallback).
-function substitutePlaceholders(
-  text: string | null | undefined,
-  contact: Contact | undefined,
-  stories: FeedStory[],
-): string {
-  if (!text) return text ?? ""
-  const slug = citySlugFromName(contact?.city_name)
-  const cityUrl = slug ? `${TC_BASE_URL}/c/${slug}` : TC_BASE_URL
-  const firstName = contact?.name?.split(/\s+/)[0] ?? ""
-
-  const districtNum = parseInt((contact?.jurisdiction || "").replace(/\D/g, ""))
-  const districtStory = !isNaN(districtNum) && districtNum > 0
-    ? stories.find((s) => s.district === districtNum)
-    : undefined
-  const citywideStory = stories.find((s) => s.district === 0 || s.district == null)
-  const primary = districtStory ?? citywideStory ?? stories[0]
-  const secondary =
-    citywideStory && citywideStory !== primary
-      ? citywideStory
-      : stories.find((s) => s !== primary)
-
-  return text
-    .replace(/\[FIRST\s*NAME\]/gi, firstName || "[FIRST NAME]")
-    .replace(/\[(?:anomaly|anomoly|story)\s*2[^\]]*citywide[^\]]*\]/gi, storySnippet(secondary, cityUrl))
-    .replace(/\[(?:anomaly|anomoly|story)\s*2\b[^\]]*\]/gi, storySnippet(secondary, cityUrl))
-    .replace(/\[(?:anomaly|anomoly|story)(?:\s*1)?\b[^\]]*\]/gi, storySnippet(primary, cityUrl))
-}
 
 interface ApplicableAnomaly {
   result_id: number
@@ -150,9 +96,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [copiedField, setCopiedField] = useState<"subject" | "body" | "full" | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
-  // Regenerate state
-  const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
-
   // Anomaly picker state
   const [anomalyPickerDraftId, setAnomalyPickerDraftId] = useState<string | null>(null)
   const [applicableAnomalies, setApplicableAnomalies] = useState<ApplicableAnomaly[]>([])
@@ -170,12 +113,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   const [markingSentId, setMarkingSentId] = useState<string | null>(null)
   const [discardingId, setDiscardingId] = useState<string | null>(null)
   const [bulkAction, setBulkAction] = useState<"sent" | "discard" | null>(null)
-
-  // SendGrid configuration status
-  const [sendGridReady, setSendGridReady] = useState<boolean | null>(null)
-  useEffect(() => {
-    checkSendGridStatus().then(({ configured }) => setSendGridReady(configured))
-  }, [])
 
   // Stories per city: used to substitute [ANOMALY]/[STORY]/[FIRST NAME]
   // placeholders in draft bodies with the actual headline + link.
@@ -361,72 +298,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
     })
   }
 
-  // Send via SendGrid
-  const [sendingId, setSendingId] = useState<string | null>(null)
-
-  const sendViaEmail = (id: string) => {
-    setConfirmDialog({
-      title: "Send this email?",
-      description: "This will send the email to the contact via SendGrid. This action cannot be undone.",
-      actionLabel: "Send Email",
-      variant: "default",
-      action: () => {
-        setSendingId(id)
-        startTransition(async () => {
-          try {
-            const item = items.find(i => i.id === id)
-            if (item?.status === "pending_review") {
-              await updateQueueItemStatus(id, "queued")
-            }
-            const result = await sendSingleQueueItem(id)
-            if (result.success) {
-              toast.success("Email sent successfully")
-            } else {
-              toast.error(result.error || "Failed to send email")
-            }
-            setSendingId(null)
-            router.refresh()
-          } catch (err) {
-            toast.error("Failed to send email")
-            setSendingId(null)
-          }
-        })
-      },
-    })
-  }
-
-  const sendViaEmailFromDialog = () => {
-    if (!editingItem) return
-    setConfirmDialog({
-      title: "Send this email?",
-      description: "This will send the email to the contact via SendGrid. This action cannot be undone.",
-      actionLabel: "Send Email",
-      variant: "default",
-      action: () => {
-        setSendingId(editingItem.id)
-        startTransition(async () => {
-          try {
-            if (editingItem.status === "pending_review") {
-              await updateQueueItemStatus(editingItem.id, "queued")
-            }
-            const result = await sendSingleQueueItem(editingItem.id)
-            if (result.success) {
-              toast.success("Email sent successfully")
-            } else {
-              toast.error(result.error || "Failed to send email")
-            }
-            setSendingId(null)
-            setEditingItem(null)
-            router.refresh()
-          } catch (err) {
-            toast.error("Failed to send email")
-            setSendingId(null)
-          }
-        })
-      },
-    })
-  }
-
   // Discard
   const discardItem = (id: string) => {
     setConfirmDialog({
@@ -450,35 +321,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
       },
     })
   }
-
-  // Regenerate draft text (keep same anomaly, new LLM variation)
-  const regenerateDraft = useCallback(async (draftId: string) => {
-    setRegeneratingId(draftId)
-    try {
-      const headers = await getAuthHeaders(true)
-      const resp = await fetch(`${getApiBaseUrl()}/api/crm/drafts/${draftId}/regenerate`, {
-        method: "POST",
-        headers,
-      })
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}))
-        const detail = data.detail || ""
-        if (detail.includes("missing anomaly") || resp.status === 400) {
-          toast.error("Can't regenerate — this older draft doesn't have anomaly data linked. Use AI Compose to create a new draft for this contact.")
-        } else {
-          toast.error("Regenerate failed. Please try again.")
-        }
-        return
-      }
-      toast.success("Draft regenerated")
-      router.refresh()
-    } catch (err) {
-      console.error("Regenerate error:", err)
-      toast.error("Regenerate failed. Please try again.")
-    } finally {
-      setRegeneratingId(null)
-    }
-  }, [router, getAuthHeaders])
 
   // Fetch applicable anomalies for a draft
   const fetchApplicableAnomalies = useCallback(async (draftId: string) => {
@@ -712,15 +554,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
   return (
     <TooltipProvider>
     <div className="space-y-4">
-      {/* SendGrid not configured banner */}
-      {sendGridReady === false && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>
-            <strong>Email sending not configured.</strong> Add SENDGRID_API_KEY and SENDGRID_FROM_EMAIL to .env.local (same values as the backend .env) to enable the Send Email button.
-          </span>
-        </div>
-      )}
       {/* Tabs + Generate button */}
       <div className="flex items-center justify-between border-b border-gray-200 pb-0">
         <div className="flex items-center gap-1">
@@ -907,7 +740,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           const isExpanded = expandedIds.has(item.id)
           const isSent = item.status === "sent"
           const isCopied = copiedId === item.id && copiedField === "full"
-          const isRegenerating = regeneratingId === item.id
           const isAnomalyPickerOpen = anomalyPickerDraftId === item.id
 
           return (
@@ -1143,37 +975,21 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                         Edit
                       </Button>
                       {!isSent && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => regenerateDraft(item.id)}
-                            disabled={isRegenerating}
-                            className="gap-1.5 text-xs"
-                          >
-                            {isRegenerating ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            )}
-                            {isRegenerating ? "Regenerating..." : "Regenerate"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchApplicableAnomalies(item.id)}
-                            disabled={loadingAnomalies && anomalyPickerDraftId === item.id}
-                            className={`gap-1.5 text-xs ${isAnomalyPickerOpen ? 'bg-purple-50 border-purple-200' : ''}`}
-                          >
-                            <BarChart3 className="w-3.5 h-3.5" />
-                            Anomalies
-                            {isAnomalyPickerOpen ? (
-                              <ChevronUp className="w-3 h-3" />
-                            ) : (
-                              <ChevronDown className="w-3 h-3" />
-                            )}
-                          </Button>
-                        </>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchApplicableAnomalies(item.id)}
+                          disabled={loadingAnomalies && anomalyPickerDraftId === item.id}
+                          className={`gap-1.5 text-xs ${isAnomalyPickerOpen ? 'bg-purple-50 border-purple-200' : ''}`}
+                        >
+                          <BarChart3 className="w-3.5 h-3.5" />
+                          Anomalies
+                          {isAnomalyPickerOpen ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          )}
+                        </Button>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1192,20 +1008,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                               <Trash2 className="w-3.5 h-3.5" />
                             )}
                             {discardingId === item.id ? "Discarding..." : "Discard"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => sendViaEmail(item.id)}
-                            disabled={isPending || sendingId === item.id || sendGridReady === false}
-                            title={sendGridReady === false ? "SendGrid not configured" : undefined}
-                            className="gap-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
-                          >
-                            {sendingId === item.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Mail className="w-3.5 h-3.5" />
-                            )}
-                            {sendingId === item.id ? "Sending..." : "Send Email"}
                           </Button>
                           <Button
                             size="sm"
@@ -1341,21 +1143,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <div className="flex items-center gap-2 sm:mr-auto">
-              {editingItem && editingItem.status !== "sent" && (
-                <Button
-                  onClick={sendViaEmailFromDialog}
-                  disabled={isPending || sendingId === editingItem?.id || sendGridReady === false}
-                  title={sendGridReady === false ? "SendGrid not configured" : undefined}
-                  className="gap-2 bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
-                >
-                  {sendingId === editingItem?.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Mail className="w-4 h-4" />
-                  )}
-                  Send Email
-                </Button>
-              )}
               <Button
                 variant="outline"
                 onClick={markAsSentFromDialog}
@@ -1365,22 +1152,6 @@ export function ReviewAndSend({ items }: ReviewAndSendProps) {
                 <CheckCircle2 className="w-4 h-4" />
                 Mark Sent
               </Button>
-              {editingItem && editingItem.status !== "sent" && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (editingItem) {
-                      regenerateDraft(editingItem.id)
-                      setEditingItem(null)
-                    }
-                  }}
-                  disabled={regeneratingId === editingItem?.id}
-                  className="gap-2 text-purple-600 border-purple-300 hover:bg-purple-50"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Regenerate
-                </Button>
-              )}
             </div>
             <Button variant="outline" onClick={() => setEditingItem(null)}>
               Cancel
