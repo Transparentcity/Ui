@@ -43,10 +43,15 @@ function getCanonicalCitySlug(city: Awaited<
 
 /** Pre-render launched city pages at build time for instant CDN delivery. */
 export async function generateStaticParams() {
-  const cities = await listPublicCitiesForSitemap();
-  return cities
-    .filter((c) => c.is_launched)
-    .map((c) => ({ slug: getCanonicalCitySlug(c) }));
+  try {
+    const cities = await listPublicCitiesForSitemap();
+    return cities
+      .filter((c) => c.is_launched)
+      .map((c) => ({ slug: getCanonicalCitySlug(c) }));
+  } catch {
+    // Backend down or misconfigured at build time (CI, preview); city pages still render on-demand.
+    return [];
+  }
 }
 
 type PageProps = {
