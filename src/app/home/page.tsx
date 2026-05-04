@@ -128,17 +128,38 @@ const isNarrowScreen = (): boolean => {
 };
 
 /** Post–search-cities auto-follow copy; dismissible banner on city dashboard. */
-function buildSearchFollowOnboardingBannerMessage(
-  cityDisplayName: string | undefined,
-  district: number | null | undefined
-): string {
+function SearchFollowOnboardingBannerText({
+  cityDisplayName,
+  district,
+  onAddDetailedLocation,
+}: {
+  cityDisplayName?: string;
+  district?: number | null;
+  onAddDetailedLocation: () => void;
+}) {
   const label = cityDisplayName?.trim() || "your city";
-  const detailHint =
-    "Add your detailed location for an even more detailed breakdown of things happening in your area.";
-  if (district != null && district !== 0) {
-    return `You are following both ${label} and District ${district} in My places. ${detailHint}`;
-  }
-  return `You are following ${label} citywide in My places. ${detailHint}`;
+  const hasDistrict = district != null && district !== 0;
+  return (
+    <>
+      {hasDistrict ? (
+        <>
+          You are following both {label} and District {district} in My places.{" "}
+        </>
+      ) : (
+        <>
+          You are following {label} citywide in My places.{" "}
+        </>
+      )}
+      <button
+        type="button"
+        className={styles.feedPersonalizeBannerLink}
+        onClick={onAddDetailedLocation}
+      >
+        Add your detailed location
+      </button>{" "}
+      for an even more detailed breakdown of things happening in your area.
+    </>
+  );
 }
 
 export default function DashboardPage() {
@@ -190,8 +211,9 @@ export default function DashboardPage() {
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
   /** One-shot banner after search-cities auto-follow (dismiss clears until next qualifying navigation). */
   const [searchFollowBanner, setSearchFollowBanner] = useState<{
-    message: string;
     cityId: number;
+    cityDisplayName?: string;
+    district?: number | null;
   } | null>(null);
   const onboardingRepNotifyRef = useRef<((name: string, title?: string) => void) | null>(null);
   const onboardingBackgroundWorkRef = useRef<{ start: () => void; complete: () => void } | null>(null);
@@ -1614,7 +1636,8 @@ export default function DashboardPage() {
           if (opts?.searchOnboardingAutoFollow) {
             setSearchFollowBanner({
               cityId,
-              message: buildSearchFollowOnboardingBannerMessage(opts.cityDisplayName, opts.district),
+              cityDisplayName: opts.cityDisplayName,
+              district: opts.district,
             });
           }
           // Preserve GPS location - it will only be cleared when user manually
@@ -1659,7 +1682,13 @@ export default function DashboardPage() {
           currentView === "city" &&
           activeCityId === searchFollowBanner.cityId && (
             <div className={styles.searchFollowBanner} role="status">
-              <p className={styles.searchFollowBannerText}>{searchFollowBanner.message}</p>
+              <p className={styles.searchFollowBannerText}>
+                <SearchFollowOnboardingBannerText
+                  cityDisplayName={searchFollowBanner.cityDisplayName}
+                  district={searchFollowBanner.district}
+                  onAddDetailedLocation={() => setShowEditHomeLocationModal(true)}
+                />
+              </p>
               <button
                 type="button"
                 className={styles.searchFollowBannerDismiss}

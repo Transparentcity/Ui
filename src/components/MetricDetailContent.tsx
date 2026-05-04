@@ -13,8 +13,7 @@ import {
   type PublicCityDetail,
 } from "@/lib/publicApiClient";
 import MetricMapEmbed from "./MetricMapEmbed";
-import DistrictComparisonTable from "./DistrictComparisonTable";
-import DeltaMapView from "./DeltaMapView";
+import MetricDistrictChangeSection from "./MetricDistrictChangeSection";
 import CategoryBreakdown from "./CategoryBreakdown";
 import { API_BASE } from "@/lib/apiBase";
 import Loader from "./Loader";
@@ -457,61 +456,20 @@ export default function MetricDetailContent({
         </section>
       )}
 
-      {/* Delta Map - change by district (citywide view only) */}
-      {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (() => {
-        const comparisonPeriodLabel = {
-          ytd: "last year",
-          mtd: "last month",
-          mtd_prior_year: "same month last year",
-        }[selectedPeriod] || "the previous period";
-        
-        const comparisonSubtitleLabel = {
-          ytd: "same period last year",
-          mtd: "last month",
-          mtd_prior_year: "same month last year",
-        }[selectedPeriod] || "the previous period";
-        
-        return (
-          <section className="metric-section">
-            <h2 className="metric-section-title">How has {metric.metric_name.toLowerCase()} changed from {comparisonPeriodLabel}?</h2>
-            {isStale ? (
-              <p className="metric-section-subtitle">Prior year to date comparison (no current-year data)</p>
-            ) : comparison?.current_period_start && comparison?.current_period_end ? (
-              <p className="metric-section-subtitle">
-                Comparing {formatDateRange(comparison.current_period_start, comparison.current_period_end)} to {comparisonSubtitleLabel}
-              </p>
-            ) : null}
-            <DeltaMapView
-              metricId={metric.id}
-              comparisonType={selectedPeriod}
-              greenDirection={metric.greendirection as "up" | "down" | null}
-              height={isMobile ? 260 : 350}
-              showLink={true}
-              currentPeriodEnd={comparison?.current_period_end ?? undefined}
-              dateRange={{
-                start: comparison?.current_period_start || null,
-                end: comparison?.current_period_end || null,
-              }}
-              comparisonDateRange={{
-                start: comparison?.comparison_period_start || null,
-                end: comparison?.comparison_period_end || null,
-              }}
-            />
-            <DistrictComparisonTable
-              metricId={metric.id}
-              comparisonType={selectedPeriod}
-              greenDirection={metric.greendirection as "up" | "down" | null}
-              itemNoun={metric.item_noun}
-              metricName={metric.metric_name}
-              cityName={resolvedCityName}
-              currentPeriodEnd={comparison?.current_period_end ?? undefined}
-              currentPeriodStart={comparison?.current_period_start ?? undefined}
-              citywideCurrent={comparison?.current_period_value ?? null}
-              citywideComparison={comparison?.comparison_period_value ?? null}
-            />
-          </section>
-        );
-      })()}
+      {/* District change map + table — omitted when district/shape data is not available */}
+      {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+        <MetricDistrictChangeSection
+          metricId={metric.id}
+          metricName={metric.metric_name}
+          cityName={resolvedCityName}
+          itemNoun={metric.item_noun}
+          greenDirection={metric.greendirection as "up" | "down" | null}
+          selectedPeriod={selectedPeriod}
+          isStale={isStale}
+          comparison={comparison}
+          deltaMapHeight={isMobile ? 260 : 350}
+        />
+      )}
 
       {/* Category Breakdown */}
       {metric.category_fields && metric.category_fields.length > 0 && (

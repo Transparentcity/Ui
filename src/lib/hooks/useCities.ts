@@ -245,8 +245,14 @@ export function useRepresentativeFollows(
   });
 }
 
+type RepresentativeFollowMutationCtx = {
+  prevCounts?: Record<string, number>;
+  prevFollows?: Record<string, boolean>;
+};
+
 /**
- * Hook to follow a city+district. Optimistically +1 count; invalidates my-follows on success.
+ * Hook to follow a city+district. Optimistically +1 count and mark district followed;
+ * invalidates my-follows on success.
  * We do NOT invalidate representativeFollowerCounts on success so the optimistic +1 is not
  * overwritten by a refetch that can return 0 (e.g. if migration 037 is not yet applied or
  * backend has not yet reflected the new follow). The count will correct on next natural refetch.
@@ -261,18 +267,26 @@ export function useFollowRepresentative(cityId: number | null) {
       const token = await getAccessTokenSilently();
       return followRepresentative(cityId, district, token);
     },
-    onMutate: async (district) => {
-      if (!cityId) return;
+    onMutate: async (district): Promise<RepresentativeFollowMutationCtx> => {
+      if (!cityId) return {};
       await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollowerCounts(cityId) });
-      const prev = queryClient.getQueryData<Record<string, number>>(
+      await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+      const prevCounts = queryClient.getQueryData<Record<string, number>>(
         cityKeys.representativeFollowerCounts(cityId)
+      );
+      const prevFollows = queryClient.getQueryData<Record<string, boolean>>(
+        cityKeys.representativeFollows(cityId)
       );
       const d = String(district || "0");
       queryClient.setQueryData<Record<string, number>>(
         cityKeys.representativeFollowerCounts(cityId),
         (old) => ({ ...old, [d]: (old?.[d] ?? 0) + 1 })
       );
-      return { prev };
+      queryClient.setQueryData<Record<string, boolean>>(
+        cityKeys.representativeFollows(cityId),
+        (old) => ({ ...(old ?? {}), [d]: true })
+      );
+      return { prevCounts, prevFollows };
     },
     onSuccess: (_data, _district) => {
       if (!cityId) return;
@@ -281,11 +295,28 @@ export function useFollowRepresentative(cityId: number | null) {
       queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
       emitSavedCitiesChanged();
     },
-    onError: (_err, _district, ctx) => {
-      if (cityId && ctx?.prev != null) {
+    onError: (_err, district, ctx: RepresentativeFollowMutationCtx | undefined) => {
+      if (!cityId || !ctx) return;
+      if (ctx.prevCounts != null) {
         queryClient.setQueryData(
           cityKeys.representativeFollowerCounts(cityId),
-          ctx.prev
+          ctx.prevCounts
+        );
+      }
+      const d = String(district || "0");
+      if (ctx.prevFollows !== undefined) {
+        queryClient.setQueryData(
+          cityKeys.representativeFollows(cityId),
+          ctx.prevFollows
+        );
+      } else {
+        queryClient.setQueryData<Record<string, boolean>>(
+          cityKeys.representativeFollows(cityId),
+          (old) => {
+            const next = { ...(old ?? {}) };
+            delete next[d];
+            return next;
+          }
         );
       }
     },
@@ -293,7 +324,8 @@ export function useFollowRepresentative(cityId: number | null) {
 }
 
 /**
- * Hook to unfollow a city+district. Optimistically -1 count; invalidates my-follows on success.
+ * Hook to unfollow a city+district. Optimistically -1 count and clear district from follows;
+ * invalidates my-follows on success.
  * We do NOT invalidate representativeFollowerCounts on success so the optimistic -1 is not
  * overwritten by a refetch; the count will correct on next natural refetch.
  */
@@ -307,11 +339,15 @@ export function useUnfollowRepresentative(cityId: number | null) {
       const token = await getAccessTokenSilently();
       return unfollowRepresentative(cityId, district, token);
     },
-    onMutate: async (district) => {
-      if (!cityId) return;
+    onMutate: async (district): Promise<RepresentativeFollowMutationCtx> => {
+      if (!cityId) return {};
       await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollowerCounts(cityId) });
-      const prev = queryClient.getQueryData<Record<string, number>>(
+      await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+      const prevCounts = queryClient.getQueryData<Record<string, number>>(
         cityKeys.representativeFollowerCounts(cityId)
+      );
+      const prevFollows = queryClient.getQueryData<Record<string, boolean>>(
+        cityKeys.representativeFollows(cityId)
       );
       const d = String(district || "0");
       queryClient.setQueryData<Record<string, number>>(
@@ -322,7 +358,15 @@ export function useUnfollowRepresentative(cityId: number | null) {
           return next;
         }
       );
-      return { prev };
+      queryClient.setQueryData<Record<string, boolean>>(
+        cityKeys.representativeFollows(cityId),
+        (old) => {
+          const next = { ...(old ?? {}) };
+          delete next[d];
+          return next;
+        }
+      );
+      return { prevCounts, prevFollows };
     },
     onSuccess: (_data, _district) => {
       if (!cityId) return;
@@ -331,11 +375,24 @@ export function useUnfollowRepresentative(cityId: number | null) {
       queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
       emitSavedCitiesChanged();
     },
-    onError: (_err, _district, ctx) => {
-      if (cityId && ctx?.prev != null) {
+    onError: (_err, district, ctx: RepresentativeFollowMutationCtx | undefined) => {
+      if (!cityId || !ctx) return;
+      if (ctx.prevCounts != null) {
         queryClient.setQueryData(
           cityKeys.representativeFollowerCounts(cityId),
-          ctx.prev
+          ctx.prevCounts
+        );
+      }
+      const d = String(district || "0");
+      if (ctx.prevFollows !== undefined) {
+        queryClient.setQueryData(
+          cityKeys.representativeFollows(cityId),
+          ctx.prevFollows
+        );
+      } else {
+        queryClient.setQueryData<Record<string, boolean>>(
+          cityKeys.representativeFollows(cityId),
+          (old) => ({ ...(old ?? {}), [d]: true })
         );
       }
     },

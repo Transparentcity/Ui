@@ -3,6 +3,8 @@
  * Used for onboarding, sidebar city search, and official selector place save.
  */
 export const DEFAULT_PLACE_RADIUS_M = 300;
+/** Max radius (m) for neighborhood / saved-place sliders in onboarding and map save flows. */
+export const MAX_PLACE_RADIUS_M = 700;
 export const DEFAULT_MAP_ZOOM = 13;
 
 /** Zoom levels for initial map view by scope (no data loaded yet). */

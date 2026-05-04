@@ -26,7 +26,6 @@ import PublicNavBar from "@/components/PublicNavBar";
 import DashboardSwitch from "./DashboardSwitch";
 import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import HeroDistrictSelector from "./HeroDistrictSelector";
-import CityMapPreview from "./CityMapPreview";
 import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import FeaturedStoriesSkeleton from "./FeaturedStoriesSkeleton";
 import CitySignupCTA from "./CitySignupCTA";
@@ -393,15 +392,6 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
           />
         )}
       </div>
-
-      {/* Section 4: Map Preview */}
-      {maps.length > 0 && hasContent && (
-        <CityMapPreview
-          cityName={city?.name ?? slug}
-          slug={slug}
-          maps={maps}
-        />
-      )}
 
       {/* Section 7: Explainer + Bottom CTA — only shown to logged-out users */}
       <LoggedOutOnly>

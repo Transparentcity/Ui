@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { buildStaticMapUrl, DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
+import {
+  buildStaticMapUrl,
+  DEFAULT_PLACE_RADIUS_M,
+  MAX_PLACE_RADIUS_M,
+} from "@/lib/mapUtils";
 import styles from "./LocationMapSave.module.css";
 
 export interface LocationMapSaveProps {
@@ -211,7 +215,7 @@ export default function LocationMapSave({
           <input
             type="range"
             min={10}
-            max={500}
+            max={MAX_PLACE_RADIUS_M}
             step={10}
             value={radiusM}
             onChange={(e) => setRadiusM(Number(e.target.value))}

@@ -11,7 +11,7 @@ import {
   normalizeChoroplethDistrictKey,
   type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
-import { isJunkWgs84LngLat } from "@/lib/mapCoordinateSanity";
+import { normalizePointData } from "@/lib/mapPointNormalize";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
 import "./ProgressiveMapView.css";
@@ -25,11 +25,18 @@ interface ProgressiveMapViewProps {
   comparisonLocationData?: Array<Record<string, any>>;
   /** Match app theme: dark uses mapbox dark-v11 and a darker choropleth ramp */
   mapBasemapTheme?: ChoroplethBasemapTheme;
+  /**
+   * When set (e.g. metric detail embed), hides the layer panel and locks the map to one mode.
+   * Format: `"points"` or `"choro:<shape_layer_instance_id>"` from `formatMetricMapViewSpecKey`.
+   */
+  lockedViewKey?: string | null;
 }
 
 interface ShapeLayer {
   shape_layer_instance_id: number;
   identifier_field: string;
+  /** Metric column used to join rows to shapes (when different from identifier_field). */
+  data_field?: string;
   shape_identifier_field?: string;
   display_name: string;
   layer_key?: string;
@@ -219,73 +226,6 @@ async function getCachedShapeGeometry(instanceId: number): Promise<any> {
   });
 }
 
-/**
- * Normalize point data to ensure lat/lon fields exist.
- * Handles various coordinate formats:
- * - Direct lat/lon fields
- * - GeoJSON Point format (intersection_point, point, location, geometry)
- * - Separate latitude/longitude fields
- */
-function normalizePointData(points: Array<Record<string, any>>): Array<{ lat: number; lon: number; [key: string]: any }> {
-  const toNum = (v: unknown): number | null => {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string" && v.trim() !== "") {
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : null;
-    }
-    return null;
-  };
-
-  return points
-    .map((p: any) => {
-      let lat: number | null = null;
-      let lon: number | null = null;
-
-      const latDirect = toNum(p.lat);
-      const lonDirect = toNum(p.lon ?? p.lng);
-      if (latDirect != null && lonDirect != null) {
-        lat = latDirect;
-        lon = lonDirect;
-      }
-
-      if (lat == null || lon == null) {
-        const geoJsonFields = ["intersection_point", "point", "location", "geometry", "geom"];
-        for (const field of geoJsonFields) {
-          const geoPoint = p[field];
-          if (geoPoint && geoPoint.type === "Point" && Array.isArray(geoPoint.coordinates)) {
-            const lngN = toNum(geoPoint.coordinates[0]);
-            const latN = toNum(geoPoint.coordinates[1]);
-            if (latN != null && lngN != null) {
-              lat = latN;
-              lon = lngN;
-              break;
-            }
-          }
-        }
-      }
-
-      if (lat == null || lon == null) {
-        const la = toNum(p.latitude);
-        const lo = toNum(p.longitude);
-        if (la != null && lo != null) {
-          lat = la;
-          lon = lo;
-        }
-      }
-
-      if (lat == null || lon == null) {
-        return null;
-      }
-
-      if (isJunkWgs84LngLat(lon, lat)) {
-        return null;
-      }
-
-      return { ...p, lat, lon };
-    })
-    .filter((p): p is { lat: number; lon: number; [key: string]: any } => p !== null);
-}
-
 type AggregatedPointFeature = {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
@@ -392,6 +332,7 @@ export default function ProgressiveMapView({
   onError,
   comparisonLocationData,
   mapBasemapTheme = "light",
+  lockedViewKey = null,
 }: ProgressiveMapViewProps) {
   const [selectedShapeLayer, setSelectedShapeLayer] = useState<string | null>(null);
   const [points, setPoints] = useState<Array<{ lat: number; lon: number; [key: string]: any }> | null>(null);
@@ -423,6 +364,7 @@ export default function ProgressiveMapView({
         .map((v) => ({
           shape_layer_instance_id: v.shape_layer_instance_id!,
           identifier_field: v.identifier_field!,
+          data_field: (v as { data_field?: string }).data_field,
           display_name: v.display_name ?? String(v.shape_layer_instance_id),
           is_city_district: v.is_city_district,
         }));
@@ -436,6 +378,17 @@ export default function ProgressiveMapView({
   // the old branch only read shapeLayersFromConfig, so we fell through to "many points => show dots".
   const initialViewRef = useRef(false);
   useEffect(() => {
+    if (lockedViewKey) {
+      initialViewRef.current = true;
+      if (lockedViewKey === "points") {
+        setShowPoints(true);
+        setSelectedShapeLayer(null);
+      } else if (lockedViewKey.startsWith("choro:")) {
+        setShowPoints(false);
+        setSelectedShapeLayer(lockedViewKey.slice("choro:".length));
+      }
+      return;
+    }
     if (initialViewRef.current) return;
     initialViewRef.current = true;
     const fewPoints = locationDataCount <= 1000;
@@ -529,6 +482,7 @@ export default function ProgressiveMapView({
       setSelectedShapeLayer(null);
     }
   }, [
+    lockedViewKey,
     defaultView,
     shapeLayersFromConfig,
     locationDataCount,
@@ -682,7 +636,7 @@ export default function ProgressiveMapView({
   // Render map - only initialize once
   useEffect(() => {
     if (!mapboxLoaded || !mapContainerRef.current) return;
-    
+
     // Don't re-initialize if map already exists
     if (mapInstanceRef.current) {
       return;
@@ -700,12 +654,23 @@ export default function ProgressiveMapView({
       return;
     }
 
-    const container = mapContainerRef.current;
-    if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
-      return;
-    }
-
     let cancelled = false;
+    let layoutAttempts = 0;
+    const MAX_LAYOUT_ATTEMPTS = 40;
+
+    const startInit = () => {
+      const container = mapContainerRef.current;
+      if (!container || cancelled) {
+        return;
+      }
+      if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+        layoutAttempts += 1;
+        if (layoutAttempts >= MAX_LAYOUT_ATTEMPTS) {
+          return;
+        }
+        requestAnimationFrame(startInit);
+        return;
+      }
 
     (async () => {
       try {
@@ -769,12 +734,12 @@ export default function ProgressiveMapView({
           }
         }
 
-        if (cancelled || !mapContainerRef.current || mapInstanceRef.current) {
+        if (cancelled || mapInstanceRef.current) {
           return;
         }
 
         const map = new mapboxgl.Map({
-          container: mapContainerRef.current,
+          container,
           style:
             mapBasemapTheme === "dark"
               ? "mapbox://styles/mapbox/dark-v11"
@@ -828,6 +793,9 @@ export default function ProgressiveMapView({
         );
       }
     })();
+    };
+
+    startInit();
 
     return () => {
       cancelled = true;
@@ -895,6 +863,8 @@ export default function ProgressiveMapView({
     points,
     effectiveAggregations,
     mapBasemapTheme,
+    initialShapeLayers,
+    shapeLayersFromConfig,
   ]);
 
   // Update points display when showPoints or selectedDistrictId changes
@@ -1005,9 +975,17 @@ export default function ProgressiveMapView({
 
   const loadChoroplethMap = async (mapInstance: any, shapeLayerId: string) => {
     try {
+      const findShapeLayerMeta = (id: string): ShapeLayer | undefined => {
+        const sid = String(id);
+        return (
+          initialShapeLayers.find((sl) => String(sl.shape_layer_instance_id) === sid) ||
+          shapeLayersFromConfig?.find((sl) => String(sl.shape_layer_instance_id) === sid)
+        );
+      };
+
       const aggSource = effectiveAggregations;
-      
-      // Try to find aggregation - it might be keyed by shape_layer_instance_id as string or number
+
+      // Try to find aggregation - keyed by shape_layer_instance_id as string
       let aggregation = aggSource[shapeLayerId] as Aggregation | undefined;
       if (!aggregation) {
         const shapeLayerIdNum = Number(shapeLayerId);
@@ -1015,43 +993,47 @@ export default function ProgressiveMapView({
           aggregation = aggSource[String(shapeLayerIdNum)] as Aggregation | undefined;
         }
       }
-      if (!aggregation && Object.keys(aggSource).length > 0) {
-        const firstKey = Object.keys(aggSource)[0];
-        aggregation = aggSource[firstKey] as Aggregation | undefined;
-      }
-      
+
+      const shapeMetaEarly = findShapeLayerMeta(shapeLayerId);
+      const joinFieldForCompute =
+        shapeMetaEarly?.data_field?.trim() || shapeMetaEarly?.identifier_field;
+
       // If aggregation doesn't exist for this shape layer, try to compute it from points or location_data
       if (!aggregation) {
-        const shapeLayer = availableShapeLayers.find(
-          (sl) => String(sl.shape_layer_instance_id) === shapeLayerId
-        );
-        
-        if (shapeLayer) {
-          // Try to compute from points first
+        if (shapeMetaEarly && joinFieldForCompute) {
           if (points && points.length > 0) {
-            aggregation = computeAggregationForShapeLayer(points, shapeLayer.identifier_field);
-          } 
-          // Fall back to location_data if points aren't available
-          else if (mapData.location_data && Array.isArray(mapData.location_data) && mapData.location_data.length > 0) {
+            aggregation = computeAggregationForShapeLayer(points, joinFieldForCompute);
+          } else if (
+            mapData.location_data &&
+            Array.isArray(mapData.location_data) &&
+            mapData.location_data.length > 0
+          ) {
             const validLocationData = normalizePointData(mapData.location_data);
             if (validLocationData.length > 0) {
-              aggregation = computeAggregationForShapeLayer(validLocationData, shapeLayer.identifier_field);
+              aggregation = computeAggregationForShapeLayer(
+                validLocationData,
+                joinFieldForCompute
+              );
             }
           }
         }
       }
-      
+
       if (!aggregation) {
         console.warn(`[ProgressiveMapView] No aggregation available for shape layer ${shapeLayerId}`);
-        console.warn(`[ProgressiveMapView] Points available: ${points?.length || 0}, location_data available: ${mapData.location_data?.length || 0}`);
+        console.warn(
+          `[ProgressiveMapView] Points available: ${points?.length || 0}, location_data available: ${mapData.location_data?.length || 0}`
+        );
         return;
       }
-      
 
-      const shapeLayer = availableShapeLayers.find(
-        (sl) => String(sl.shape_layer_instance_id) === shapeLayerId
-      );
-      if (!shapeLayer) return;
+      const shapeLayer = findShapeLayerMeta(shapeLayerId);
+      if (!shapeLayer) {
+        console.warn(
+          `[ProgressiveMapView] No shape layer metadata for id ${shapeLayerId} (initialShapeLayers=${initialShapeLayers.length})`
+        );
+        return;
+      }
 
       const shapeLayerInstanceId = shapeLayer.shape_layer_instance_id;
       const identifierField = shapeLayer.identifier_field;
@@ -1713,51 +1695,53 @@ export default function ProgressiveMapView({
   return (
     <div className="progressive-map-view" style={{ position: "relative" }}>
       <div className="map-container-wrapper" style={{ position: "relative" }}>
-        <MapLayerPanel
-          availableShapeLayers={availableShapeLayers}
-          availableViews={availableViews.length > 0 ? availableViews : undefined}
-          selectedShapeLayer={selectedShapeLayer}
-          loadingViewId={loadingLazyView && selectedShapeLayer ? selectedShapeLayer : null}
-          reverseToggleArrowDirection
-          onShapeLayerSelect={(shapeLayerId) => {
-            // Set the shape layer (empty string clears it)
-            setSelectedShapeLayer(shapeLayerId || null);
-            setSelectedDistrictId(null); // Reset district selection when switching shape layers
-            // Hide points when selecting a shape layer
-            if (shapeLayerId && showPoints) {
-              setShowPoints(false);
-            }
-          }}
-          showDots={showPoints}
-          onToggleDots={() => {
-            const newShowPoints = !showPoints;
-            setShowPoints(newShowPoints);
-            
-            // When showing points, clear shape layer selection and remove choropleth
-            if (newShowPoints && selectedShapeLayer) {
-              setSelectedShapeLayer(null);
-              setSelectedDistrictId(null);
-              
-              // Remove choropleth layers
-              if (mapInstanceRef.current) {
-                try {
-                  if (mapInstanceRef.current.getLayer("choropleth-fill")) {
-                    mapInstanceRef.current.removeLayer("choropleth-fill");
+        {!lockedViewKey && (
+          <MapLayerPanel
+            availableShapeLayers={availableShapeLayers}
+            availableViews={availableViews.length > 0 ? availableViews : undefined}
+            selectedShapeLayer={selectedShapeLayer}
+            loadingViewId={loadingLazyView && selectedShapeLayer ? selectedShapeLayer : null}
+            reverseToggleArrowDirection
+            onShapeLayerSelect={(shapeLayerId) => {
+              // Set the shape layer (empty string clears it)
+              setSelectedShapeLayer(shapeLayerId || null);
+              setSelectedDistrictId(null); // Reset district selection when switching shape layers
+              // Hide points when selecting a shape layer
+              if (shapeLayerId && showPoints) {
+                setShowPoints(false);
+              }
+            }}
+            showDots={showPoints}
+            onToggleDots={() => {
+              const newShowPoints = !showPoints;
+              setShowPoints(newShowPoints);
+
+              // When showing points, clear shape layer selection and remove choropleth
+              if (newShowPoints && selectedShapeLayer) {
+                setSelectedShapeLayer(null);
+                setSelectedDistrictId(null);
+
+                // Remove choropleth layers
+                if (mapInstanceRef.current) {
+                  try {
+                    if (mapInstanceRef.current.getLayer("choropleth-fill")) {
+                      mapInstanceRef.current.removeLayer("choropleth-fill");
+                    }
+                    if (mapInstanceRef.current.getLayer("choropleth-outline")) {
+                      mapInstanceRef.current.removeLayer("choropleth-outline");
+                    }
+                    if (mapInstanceRef.current.getSource("choropleth-shapes")) {
+                      mapInstanceRef.current.removeSource("choropleth-shapes");
+                    }
+                  } catch {
+                    // ignore cleanup errors
                   }
-                  if (mapInstanceRef.current.getLayer("choropleth-outline")) {
-                    mapInstanceRef.current.removeLayer("choropleth-outline");
-                  }
-                  if (mapInstanceRef.current.getSource("choropleth-shapes")) {
-                    mapInstanceRef.current.removeSource("choropleth-shapes");
-                  }
-                } catch {
-                  // ignore cleanup errors
                 }
               }
-            }
-          }}
-          canShowDots={canShowDots}
-        />
+            }}
+            canShowDots={canShowDots}
+          />
+        )}
 
         {(loadingPoints || loadingLazyView) && (
           <div className="points-loading">

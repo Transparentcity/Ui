@@ -29,7 +29,11 @@ import {
 } from "@/lib/apiClient";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
-import { DEFAULT_PLACE_RADIUS_M, buildStaticMapUrl } from "@/lib/mapUtils";
+import {
+  DEFAULT_PLACE_RADIUS_M,
+  MAX_PLACE_RADIUS_M,
+  buildStaticMapUrl,
+} from "@/lib/mapUtils";
 import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
@@ -967,7 +971,7 @@ export default function WelcomeModal({
               <input
                 type="range"
                 min={50}
-                max={500}
+                max={MAX_PLACE_RADIUS_M}
                 step={50}
                 value={placeRadius}
                 onChange={(e) => setPlaceRadius(Number(e.target.value))}
@@ -978,7 +982,7 @@ export default function WelcomeModal({
             </div>
           </div>
           <p className={styles.placeSetupHint}>
-            100m ≈ 1 block &nbsp;·&nbsp; 300m ≈ 3 blocks &nbsp;·&nbsp; 500m ≈ 5 blocks
+            100m ≈ 1 block &nbsp;·&nbsp; 300m ≈ 3 blocks &nbsp;·&nbsp; 700m ≈ 7 blocks
           </p>
         </div>
 
@@ -1207,7 +1211,7 @@ export default function WelcomeModal({
                   <input
                     type="range"
                     min={50}
-                    max={500}
+                    max={MAX_PLACE_RADIUS_M}
                     step={50}
                     value={placeRadius}
                     onChange={(e) => setPlaceRadius(Number(e.target.value))}

@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import type { SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
 import Loader from "./Loader";
+import {
+  computeMetricMapEmbedViewSpecs,
+  formatMetricMapViewSpecKey,
+} from "@/lib/metricMapEmbedViews";
 import "./MetricMapEmbed.css";
 
 interface MetricMapEmbedProps {
@@ -250,6 +254,11 @@ export default function MetricMapEmbed({
 
   const caption = buildCaption();
 
+  const embedViewSpecs = useMemo(
+    () => (mapData ? computeMetricMapEmbedViewSpecs(mapData) : null),
+    [mapData]
+  );
+
   // If no date range provided, show message
   if (!dateRange?.start || !dateRange?.end) {
     return (
@@ -305,15 +314,22 @@ export default function MetricMapEmbed({
           ))}
         </div>
       )}
-      {mapData ? (
-        <ProgressiveMapView
-          mapData={mapData}
-          mapHash="" // No hash for preview mode - points are already in mapData
-          height={height}
-          onError={setError}
-          comparisonLocationData={comparisonLocationData || undefined}
-          mapBasemapTheme={mapBasemapTheme}
-        />
+      {mapData && embedViewSpecs ? (
+        <>
+          {embedViewSpecs.primary.kind === "choropleth" && (
+            <div className="metric-map-primary-shape-label">{embedViewSpecs.primary.label}</div>
+          )}
+          <ProgressiveMapView
+            key={`metric-map-primary-${metricId}-${selectedPeriod}-${dateRange?.start ?? ""}-${dateRange?.end ?? ""}-${formatMetricMapViewSpecKey(embedViewSpecs.primary)}`}
+            mapData={mapData}
+            mapHash="" // No hash for preview mode - points are already in mapData
+            height={height}
+            onError={setError}
+            comparisonLocationData={comparisonLocationData || undefined}
+            mapBasemapTheme={mapBasemapTheme}
+            lockedViewKey={formatMetricMapViewSpecKey(embedViewSpecs.primary)}
+          />
+        </>
       ) : (
         <div className="map-container-wrapper">
           <div className="map-container" style={{ height }} />

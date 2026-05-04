@@ -1513,15 +1513,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     ];
   }, []);
 
-  useEffect(() => {
-    if (selectedPlaceId == null) return;
-    if (hasUserAdjustedComparisonRef.current) return;
-    if (currentPeriodType === "this_year" && comparisonPeriodType === "last_year") {
-      setCurrentPeriodType("this_month");
-      setComparisonPeriodType("last_month");
-    }
-  }, [selectedPlaceId, currentPeriodType, comparisonPeriodType]);
-
   if (!metrics || metrics.length === 0) {
     return (
       <div className="dashboard-section">

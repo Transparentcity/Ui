@@ -34,6 +34,8 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
+  const heroLaunchedCities = launchedCities.filter((c) => c.is_launched === true);
+
   // First-party landing event for the home page
   useProductEvent("home_page_view");
 
@@ -112,10 +114,10 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
                   Get the Free Weekly
                 </button>
 
-                {launchedCities.length > 0 && (
+                {heroLaunchedCities.length > 0 && (
                   <div className={styles.heroExplore}>
                     <span className={styles.heroExploreLabel}>or explore:</span>
-                    {launchedCities.map((c) => (
+                    {heroLaunchedCities.map((c) => (
                       <Link
                         key={c.id}
                         href={`/c/${slugify(c.name)}`}

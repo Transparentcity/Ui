@@ -104,6 +104,13 @@ interface DeltaMapViewProps {
   showLink?: boolean;
   /** Anchor district API rows to the same period end as the headline comparison (optional). */
   currentPeriodEnd?: string | null;
+  /**
+   * When set, skips network fetch (caller already loaded district rows + shapefile).
+   */
+  prefetched?: {
+    districtComparisons: PublicDistrictComparisonsResponse;
+    shapefile: PublicShapefileResponse;
+  };
 }
 
 export default function DeltaMapView({
@@ -117,6 +124,7 @@ export default function DeltaMapView({
   comparisonDateRange,
   showLink = true,
   currentPeriodEnd,
+  prefetched,
 }: DeltaMapViewProps) {
   const { theme } = useTheme();
   const basemapTheme: DeltaBasemapTheme = theme === "dark" ? "dark" : "light";
@@ -125,10 +133,14 @@ export default function DeltaMapView({
   const initialCenter: [number, number] = cityCenter ?? [-98.5795, 39.8283];
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!prefetched);
   const [error, setError] = useState<string | null>(null);
-  const [districtData, setDistrictData] = useState<PublicDistrictComparisonsResponse | null>(null);
-  const [shapeData, setShapeData] = useState<PublicShapefileResponse | null>(null);
+  const [districtData, setDistrictData] = useState<PublicDistrictComparisonsResponse | null>(
+    prefetched?.districtComparisons ?? null
+  );
+  const [shapeData, setShapeData] = useState<PublicShapefileResponse | null>(
+    prefetched?.shapefile ?? null
+  );
   const [savingMap, setSavingMap] = useState(false);
 
   const canShowLink =
@@ -158,8 +170,18 @@ export default function DeltaMapView({
     }
   }, [canShowLink, metricId, dateRange, comparisonDateRange, comparisonType]);
 
-  // Fetch data
+  // Fetch data (skipped when prefetched bundle is supplied)
   useEffect(() => {
+    if (prefetched?.districtComparisons && prefetched?.shapefile) {
+      queueMicrotask(() => {
+        setDistrictData(prefetched.districtComparisons);
+        setShapeData(prefetched.shapefile);
+        setLoading(false);
+        setError(null);
+      });
+      return;
+    }
+
     let mounted = true;
     setLoading(true);
     setError(null);
@@ -193,7 +215,7 @@ export default function DeltaMapView({
     return () => {
       mounted = false;
     };
-  }, [metricId, comparisonType, currentPeriodEnd]);
+  }, [metricId, comparisonType, currentPeriodEnd, prefetched]);
 
   // Build feature collection with change data
   const geoJsonWithData = useMemo(() => {
@@ -415,16 +437,6 @@ export default function DeltaMapView({
     };
   }, [geoJsonWithData, initialCenter, cityZoom, greenDirection, basemapTheme]);
 
-  // Labels for period comparison
-  const periodLabel = useMemo(() => {
-    const labels: Record<string, string> = {
-      ytd: "last year",
-      mtd: "last month",
-      mtd_prior_year: "same period last year",
-    };
-    return labels[comparisonType] || "the previous period";
-  }, [comparisonType]);
-
   if (loading) {
     return (
       <div className="delta-map-container loading" style={{ height }}>
@@ -436,28 +448,18 @@ export default function DeltaMapView({
 
   if (error) {
     console.error("[DeltaMapView] Error loading data:", error);
-    return (
-      <div className="delta-map-container error" style={{ height }}>
-        <p>Unable to load change map: {error}</p>
-      </div>
-    );
+    return null;
   }
 
   if (!districtData || districtData.districts.length === 0) {
-    return (
-      <div
-        className="delta-map-container"
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: basemapTheme === "dark" ? "#94a3b8" : "#666",
-        }}
-      >
-        <p>District comparison data not available for this metric.</p>
-      </div>
-    );
+    return null;
+  }
+
+  if (!shapeData?.geometry || shapeData.geometry.type !== "FeatureCollection") {
+    return null;
+  }
+  if (!Array.isArray(shapeData.geometry.features) || shapeData.geometry.features.length === 0) {
+    return null;
   }
 
   return (

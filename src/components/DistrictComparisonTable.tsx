@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   getPublicMetricDistrictComparisons,
   type PublicDistrictComparisonsResponse,
-  type PublicDistrictComparison,
 } from "@/lib/publicApiClient";
 import Loader from "./Loader";
 import "./DistrictComparisonTable.css";
@@ -25,6 +24,8 @@ interface DistrictComparisonTableProps {
    *  associated with more than one supervisor district. */
   citywideCurrent?: number | null;
   citywideComparison?: number | null;
+  /** When set, skips fetch (caller already loaded district comparisons). */
+  prefetchedDistricts?: PublicDistrictComparisonsResponse;
 }
 
 type SortField = "district" | "current" | "previous" | "change";
@@ -40,39 +41,54 @@ export default function DistrictComparisonTable({
   currentPeriodEnd,
   citywideCurrent,
   citywideComparison,
+  prefetchedDistricts,
 }: DistrictComparisonTableProps) {
-  const [data, setData] = useState<PublicDistrictComparisonsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<PublicDistrictComparisonsResponse | null>(
+    prefetchedDistricts ?? null
+  );
+  const [loading, setLoading] = useState(!prefetchedDistricts);
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("district");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    setError(null);
-
-    getPublicMetricDistrictComparisons(metricId, comparisonType, currentPeriodEnd)
-      .then((res) => {
-        if (mounted) {
-          setData(res);
-        }
-      })
-      .catch((err) => {
-        if (mounted) {
-          setError(err instanceof Error ? err.message : "Failed to load district data");
-        }
-      })
-      .finally(() => {
-        if (mounted) {
-          setLoading(false);
-        }
+    if (prefetchedDistricts) {
+      queueMicrotask(() => {
+        setData(prefetchedDistricts);
+        setLoading(false);
+        setError(null);
       });
+      return;
+    }
+
+    let mounted = true;
+    queueMicrotask(() => {
+      if (!mounted) return;
+      setLoading(true);
+      setError(null);
+
+      getPublicMetricDistrictComparisons(metricId, comparisonType, currentPeriodEnd)
+        .then((res) => {
+          if (mounted) {
+            setData(res);
+          }
+        })
+        .catch((err) => {
+          if (mounted) {
+            setError(err instanceof Error ? err.message : "Failed to load district data");
+          }
+        })
+        .finally(() => {
+          if (mounted) {
+            setLoading(false);
+          }
+        });
+    });
 
     return () => {
       mounted = false;
     };
-  }, [metricId, comparisonType, currentPeriodEnd]);
+  }, [metricId, comparisonType, currentPeriodEnd, prefetchedDistricts]);
 
   const sortedDistricts = useMemo(() => {
     if (!data?.districts) return [];
@@ -223,11 +239,7 @@ export default function DistrictComparisonTable({
 
   if (error) {
     console.error("[DistrictComparisonTable] Error loading data:", error);
-    return (
-      <div className="district-comparison-table-container error">
-        <p>Unable to load district comparison data: {error}</p>
-      </div>
-    );
+    return null;
   }
 
   if (!data || data.districts.length === 0) {

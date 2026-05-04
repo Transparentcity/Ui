@@ -113,6 +113,8 @@ export default function NewsletterLandingClient({
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
 
+  const heroLaunchedCities = launchedCities.filter((c) => c.is_launched === true);
+
   useProductEvent("newsletter_landing_page_view");
 
   const handleSignup = async () => {
@@ -178,10 +180,10 @@ export default function NewsletterLandingClient({
                 >
                   Get the free weekly briefing
                 </button>
-                {launchedCities.length > 0 && (
+                {heroLaunchedCities.length > 0 && (
                   <div className={styles.heroExplore}>
                     <span className={styles.heroExploreLabel}>or browse:</span>
-                    {launchedCities.map((c) => (
+                    {heroLaunchedCities.map((c) => (
                       <Link
                         key={c.id}
                         href={`/c/${slugify(c.name)}`}
@@ -426,12 +428,12 @@ export default function NewsletterLandingClient({
                   >
                     Track your district
                   </button>
-                  {launchedCities.length > 0 && (
+                  {heroLaunchedCities.length > 0 && (
                     <Link
-                      href={`/c/${slugify(launchedCities[0].name)}`}
+                      href={`/c/${slugify(heroLaunchedCities[0].name)}`}
                       className={styles.accountabilitySecondaryLink}
                     >
-                      Browse {launchedCities[0].name} data →
+                      Browse {heroLaunchedCities[0].name} data →
                     </Link>
                   )}
                 </div>
