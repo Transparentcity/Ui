@@ -5930,6 +5930,8 @@ export interface WasteFinding {
   metric: string;
   metricDetail: string;
   amount: number | null;
+  amountForAggregate?: number | null;
+  capApplied?: number | null;
   description: string;
   tool: string;
   confidence: "High" | "Medium" | "Low";

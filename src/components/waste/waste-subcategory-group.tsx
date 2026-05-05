@@ -28,11 +28,19 @@ function stripRoadmapLabel(text: string): string {
 function severityCounts(items: WasteFinding[]) {
   const critCount = items.filter((f) => f.severity?.toLowerCase() === "critical").length
   const highCount = items.filter((f) => f.severity?.toLowerCase() === "high").length
-  const totalAmount = items.reduce((sum, f) => sum + (f.amount ?? 0), 0)
-  return { critCount, highCount, totalAmount }
+  // Sum cap-aware amounts so a single capped finding cannot drag the
+  // section total up to its uncapped real exposure. Falls back to
+  // ``amount`` when the backend hasn't populated ``amountForAggregate``
+  // (older payloads, persisted snapshots).
+  const totalAmount = items.reduce(
+    (sum, f) => sum + (f.amountForAggregate ?? f.amount ?? 0),
+    0,
+  )
+  const hasCapped = items.some((f) => (f.capApplied ?? 0) > 0)
+  return { critCount, highCount, totalAmount, hasCapped }
 }
 
-function SeverityBadges({ critCount, highCount, totalAmount }: { critCount: number; highCount: number; totalAmount: number }) {
+function SeverityBadges({ critCount, highCount, totalAmount, hasCapped }: { critCount: number; highCount: number; totalAmount: number; hasCapped?: boolean }) {
   return (
     <div className="flex items-center gap-1.5 ml-auto">
       {critCount > 0 && (
@@ -46,8 +54,16 @@ function SeverityBadges({ critCount, highCount, totalAmount }: { critCount: numb
         </span>
       )}
       {totalAmount > 0 && (
-        <span className="text-sm font-medium text-gray-600">
+        <span className="text-sm font-medium text-gray-600 inline-flex items-center gap-1">
           {formatDollar(totalAmount)}
+          {hasCapped && (
+            <span
+              className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded"
+              title="One or more findings exceed the per-finding cap; section total reflects the capped values."
+            >
+              capped
+            </span>
+          )}
         </span>
       )}
     </div>
@@ -84,7 +100,7 @@ export function WasteSubcategoryGroup({
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [expandedSubGroup, setExpandedSubGroup] = useState<string | null>(null)
 
-  const { critCount, highCount, totalAmount } = severityCounts(findings)
+  const { critCount, highCount, totalAmount, hasCapped } = severityCounts(findings)
 
   return (
     <div className="mb-4">
@@ -117,7 +133,7 @@ export function WasteSubcategoryGroup({
         <span className="text-xs text-gray-500">
           {findings.length} finding{findings.length !== 1 ? "s" : ""}
         </span>
-        <SeverityBadges critCount={critCount} highCount={highCount} totalAmount={totalAmount} />
+        <SeverityBadges critCount={critCount} highCount={highCount} totalAmount={totalAmount} hasCapped={hasCapped} />
       </button>
 
       {/* Content when expanded */}
@@ -148,6 +164,7 @@ export function WasteSubcategoryGroup({
                       critCount={sgStats.critCount}
                       highCount={sgStats.highCount}
                       totalAmount={sgStats.totalAmount}
+                      hasCapped={sgStats.hasCapped}
                     />
                   </button>
                   {isSubOpen && (
