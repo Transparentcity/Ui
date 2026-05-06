@@ -8,7 +8,7 @@ You're testing Transparent City as a **real person encountering this product for
 - Does anything look wrong, feel off, or seem confusing?
 - Would you trust this product? Would you come back?
 
-**Website:** https://transparentcity.co
+**Website:** https://transparent.city
 **Time estimate:** 5-6 hours total (heavy emphasis on physical mobile testing)
 **Turnaround:** 24 hours from start
 
@@ -48,9 +48,9 @@ In your proposal, list every physical device you own with its OS version.
 
 | City | URL | Notes |
 |------|-----|-------|
-| **San Francisco** | transparentcity.co/c/san-francisco | Most data, our flagship |
-| **Austin** | transparentcity.co/c/austin | Mid-tier data |
-| **Memphis** | transparentcity.co/c/memphis | Newer city, sparser data |
+| **San Francisco** | transparent.city/c/san-francisco | Most data, our flagship |
+| **Austin** | transparent.city/c/austin | Mid-tier data |
+| **Chicago** | transparent.city/c/chicago | Launched city, varied data coverage |
 
 ### Severity ratings
 - **P0 Critical** -- You can't complete the task, or something is clearly broken/wrong
@@ -62,7 +62,7 @@ In your proposal, list every physical device you own with its OS version.
 
 ## Part 1: First Impressions (10 min)
 
-Go to **transparentcity.co** as if you've never seen it before.
+Go to **transparent.city** as if you've never seen it before.
 
 1. **What is this product?** Can you tell what Transparent City does within 5 seconds? Write down your first impression.
 2. **Trust check.** Does the landing page look professional and trustworthy? Anything that undermines credibility?
@@ -162,7 +162,7 @@ Screenshot every issue. Note which device and browser for each screenshot.
 Test on **every browser you have installed** on your iPhone (Safari, Chrome, etc.). Note which browser for each finding.
 
 ### 6A. First Contact on iPhone
-1. Open transparentcity.co in Safari. What's your first impression? Does it feel like a native-quality experience?
+1. Open transparent.city in Safari. What's your first impression? Does it feel like a native-quality experience?
 2. Does the page respect the notch/Dynamic Island? Is there proper spacing at the top and bottom? (The app now uses `viewport-fit: cover` with safe area insets.)
 3. Is the bottom navigation bar visible and does it clear the home indicator (swipe bar)?
 
@@ -206,7 +206,7 @@ If you have an iPhone SE, 11, 12, or any phone with a smaller screen:
 Same depth as iPhone testing, but note the differences. Android has its own quirks (back gesture, different safe areas, Samsung Internet, varying screen sizes).
 
 ### 7A. First Contact on Android
-1. Open transparentcity.co in Chrome. First impression?
+1. Open transparent.city in Chrome. First impression?
 2. Does it respect the system navigation bar (gesture or 3-button)?
 3. Is the bottom navigation bar visible and not overlapping system controls?
 
@@ -244,6 +244,66 @@ After testing on all your devices, write up:
 3. **Small screen vs large screen.** Did anything break on smaller phones?
 4. **Performance.** Which device/browser felt slowest? Was the map usable everywhere?
 5. **Gestures and affordances.** Did interactions (tap, swipe, pinch) feel natural on both platforms? Anything that worked on one but not the other?
+
+---
+
+## Part 8.5: Story content checks
+
+This section asks you to read stories on the city pages and judge them as a normal reader would. The questions are designed to surface issues automation cannot catch.
+
+For each city you test, pull up the city dashboard at https://transparent.city/c/{city-slug} and find the "Recent stories" feed. Read at least 5 stories and answer the questions below in your findings sheet.
+
+### Headlines and bodies
+
+1. Pick 5 stories at random. For each one, ask: does the number in the headline match the number in the body? If the headline says "up 76%" or "47 burglaries" or "3x last year," can you find that exact number explained in the story?
+   - **P1** if a headline number is missing from the body or contradicts a body number.
+   - **P2** if the numbers technically match but the framing makes you do mental math to see it.
+
+2. Read 3 stories that compare time periods (this year vs last year, this month vs last month). Are the time periods being compared the same length?
+   - **P1** if the headline says "in April" but the body shows the data is only through April 19.
+   - **P1** if the headline says "all of last year" but the comparison is only the same period of last year.
+   - **P2** if it is technically right but feels misleading on first read.
+
+3. Read 3 stories that name a percentage change (up X%, down X%). Find the absolute numbers behind the percentage. Are they big enough to mean something?
+   - **P2** if a "75% increase" is based on going from 4 to 7 events. Small absolute numbers should be the headline, not the percentage.
+
+### Cause and effect
+
+4. Read 2 or 3 stories where the headline mentions two things ("the wharf makeover" and "trespasser calls", or "construction" and "rats"). Does the story tell you whether one caused the other? Or does it just put two facts next to each other and leave you to assume?
+   - **P1** if the story claims causation without evidence (a study, a city report, a quote).
+   - **P2** if the story implies it without claiming it (the "may be pushing" or "is reshaping" pattern).
+
+### Neighborhoods
+
+5. Find any story that lists "the top neighborhoods" for a metric. Add up the percentages or counts shown. Does the total exceed 100% of the citywide figure?
+   - **P0** if a story claims "three neighborhoods hold half" but the actual percentages add up to more than the citywide total. This is a known regression and should never reach production.
+
+6. Read any story that names a single neighborhood by name (e.g., "the Mission" or "Cathedral Hill"). Look for whether the story also references a district number (District 9, District 2). Does the geographic label match the data unit?
+   - **P2** if the story says "the Mission Had X" but the data is District 9 (which contains the Mission plus three other neighborhoods).
+
+### Tickets vs complaints
+
+7. Read any "Fix It, Already" series story. Look for the word "ticket" or "tickets." Does it refer to actual parking citations or noise citations issued by the city? Or is it really referring to 311 service requests filed by residents?
+   - **P1** if the story uses "ticket" for something residents filed. A ticket is an enforcement action issued by the city. A 311 request is a complaint, not a ticket.
+
+### Trust and tone
+
+8. Read 5 stories. After reading each one, ask yourself: would you trust this site to tell you what is happening in your city? Or does it feel like the system is trying to make a point?
+   - **P2** for any story that feels like it is editorializing or telling you what to conclude.
+   - **P1** for any story that uses words like "alarming," "troubling," "concerning," "encouraging," "impressive" without citing the supporting number.
+
+9. Read 3 stories you would not have heard about otherwise (something hyper-local, something about a specific block, something about a single building). Did the story teach you something? Or did it just describe a number?
+   - **P3** for any story that reads like a chart caption with no point.
+
+### Empty stories
+
+10. Click into any story whose headline mentions a specific address or specific count (for example, "111 Buena Vista Ave: 47 Parking Tickets" or "2962 19th Ave: 8 Damaged Tree Tickets"). Does the story body actually exist, or is it a template with placeholder text?
+    - **P0** for any story whose body is empty, contains only metric labels, or is fewer than 3 sentences of real prose.
+
+### Map titles (privacy)
+
+11. On the city dashboard, scroll to "Recent maps" or "Interactive Maps." Read the map titles. Do any contain personal-sounding labels like "My Block," "My Place," "Home," or what looks like a real first name?
+    - **P0** if any map title shown to you (a non-logged-in visitor) contains a personalization label. This is a privacy issue and should be reported immediately.
 
 ---
 

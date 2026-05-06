@@ -41,6 +41,24 @@ Before testing user flows, verify the infrastructure is working.
 - [ ] Note: Next.js `redirect()` returns **307** by default, not 308. If 308 is desired for SEO (permanent redirect, link equity transfer), the code in `src/app/s/[hash]/page.tsx` needs to use `permanentRedirect()` instead.
 - [ ] Verify the redirect destination page loads (200)
 
+### 0.4a Map title PII scan (highest-risk pre-flight)
+
+The May 2026 audit found personalization tokens ("My Block", "My Place", "Home", user first names) leaking into public map titles surfaced on `/c/{city-slug}` and into HTML `<title>` tags at `/m/{id}`. These are search-engine indexable. Run this BEFORE any other phase; if any FAIL line prints, halt the runbook and escalate.
+
+```bash
+# Map title PII scan, all launched cities
+for city in $(curl -s https://transparent.city/api/public/cities/sitemap \
+  | jq -r '.[] | select(.is_launched==true) | .slug'); do
+  curl -s "https://transparent.city/c/$city" \
+    | grep -oE '"My Block[^"]*"|"My Place[^"]*"|"Home[^"]*"|"[A-Z][a-z]+'"'"'s (Block|Place|Neighborhood|Home)[^"]*"' \
+    && echo "FAIL: PII in map titles for $city"
+done
+
+# HTML <title> tag scan, sampled map URLs from each city
+# Pull the first 10 map URLs from each city dashboard, fetch each, check <title>
+# Reference: Charter 5.5 audit, May 2026, found 8+ exposed map titles on /c/san-francisco
+```
+
 ### 0.5 Domain redirects
 - [ ] `curl -sI https://transparentcity.com` -- verify it redirects to `https://transparent.city`
 - [ ] `curl -sI https://www.transparentcity.com` -- same check
@@ -467,6 +485,55 @@ Verify the frontend correctly filters bad backend data.
 - [ ] OTC/milestone headlines capped at 65 chars at word boundary
 - [ ] General headlines capped at **70 chars** (`MAX_HEADLINE_LENGTH` in `headlineCleanup.ts`) **(reduced from previous value in commit 055f093)** **[REG]**
 
+### 7.4 Charter Section 5.5 mechanical checks
+
+These are mechanical pre-publish checks that enforce the Seymour Voice Charter Section 5.5. Each step references a script in `scripts/qa/` in the **platform repo** (`~/Documents/Coding/TransparentCITY`), not this Ui repo. Run from the platform repo with the platform venv active:
+
+```bash
+cd ~/Documents/Coding/TransparentCITY
+source venv/bin/activate
+```
+
+Then in order; each script exits 1 on any violation, 0 if clean.
+
+```bash
+# Pull last 30 days of feed stories
+python ~/Documents/Coding/TransparentCITY/scripts/qa/pull_feed_stories.py --days 30 --output /tmp/qa_stories.csv
+
+# Charter 5.5.1: metric-verb lock
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_metric_verb_lock.py /tmp/qa_stories.csv
+# Expected: 0 violations. April 14 audit found 31. Charter rule was added afterward.
+
+# Charter 5.5.2: headline-body number reconciliation
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_number_reconciliation.py /tmp/qa_stories.csv
+# Expected: 0 violations. April 14 audit found 10. The "Robotaxi 11 all of last year" pattern is the canonical regression.
+
+# Charter 5.5.3: cross-story consistency on shared metrics
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_cross_story_consistency.py /tmp/qa_stories.csv --window 14
+# Expected: 0 contradictions on same metric/window. April 14 audit found 10+.
+# Canonical regression: 3 SF drug crime stories on April 14 with conflicting Mission trends.
+# Note: this check returns candidates for human review, not definitive violations.
+
+# Charter 5.5.4: neighborhood polygon overlap
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_polygon_overlap.py /tmp/qa_stories.csv
+# Expected: no top-N claims where sum/citywide > 1.05.
+# Canonical regression: "Drug Crime Records Are Up 32%. Three Neighborhoods Hold Half the Count." (banned by name in charter)
+
+# Charter 5.5.7: single-source automated complaint streams
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_single_source_complaints.py --window 30
+# Expected: any flagged category is either reframed in the story or suppressed.
+# Canonical regression: O'Hare 108,930 complaints from one airport portal address, May 3 Chicago.
+# Note: this script queries the 311 datasets directly, not the CSV.
+
+# Duplicate detection
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_duplicates.py /tmp/qa_stories.csv --window-days 7
+# Expected: 0 duplicates. April 14 audit found 25 groups (Bell St ran 7 times).
+
+# Empty body detection
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_empty_bodies.py /tmp/qa_stories.csv --min-words 50
+# Expected: 0 empty or template-only bodies.
+```
+
 ---
 
 ## Phase 8: Error States
@@ -579,6 +646,20 @@ Pick 3 stories from different cities and read them fully (not just the card, the
 
 > **Why this phase matters:** Every other phase tests whether the product is *functional*. This one tests whether it's *useful*. A product can pass every technical check and still fail its users if the data is confusing, the stories are boring, or the maps don't reveal anything interesting. If a tester can't complete these missions, real users won't either.
 
+### 10.7 Charter Section 8.1 quality gate (resident sample)
+
+- [ ] Pull 5 stories per city from the public feed view (unauthenticated)
+- [ ] For each story, run the Charter Section 8.1 quality gate manually:
+  - Metric-verb lock holds
+  - Every headline number appears in body
+  - No top-N claim where sum exceeds citywide
+  - Time comparisons are like-for-like
+  - No causal framing without a cited source
+  - Single-source streams are reframed
+  - Small-sample percentages converted to absolute counts
+  - Geographic labels match data units
+- [ ] Flag any story where the gate fails. The gate is also in `/docs/SEYMOUR_VOICE_CHARTER.md` Section 8.1.
+
 ---
 
 ## Phase 11: Deeper Technical Checks
@@ -637,6 +718,26 @@ These are areas the first QA pass didn't cover deeply. Worth a second look.
 - [ ] Check that story body text doesn't contain raw markdown or HTML entities
 - [ ] Verify metric descriptions are human-readable (not internal field names)
 - [ ] Check that "traction" stories (positive/good-news) render with appropriate framing (not alarming colors/icons)
+
+### 11.9 Story URL slug audit
+- [ ] Confirm that the CSV `link` column captures the canonical story URL, not the outbound CTA destination.
+- [ ] *May 2026 audit gap:* many flagged stories required CMS lookup because the CSV link pointed to the external citation. Fix: ensure feed export includes a separate `story_url` column with the `/s/{slug}` canonical URL.
+
+### 11.10 Charter compliance smoke test after any prompt edit
+- [ ] Generate 5 stories per affected story type using the updated prompt (in `src/transparentcity/agents/seymour/prompts/modular_prompts.py`, or wherever the affected story type's prompt lives).
+- [ ] Run the full Phase 7.4 data-quality checks on the output.
+- [ ] If failure rate exceeds 0%, the prompt needs iteration before it ships.
+
+---
+
+## Open findings (May 2026)
+
+| Finding | Status | Reference |
+|---|---|---|
+| Map title PII leak on /c/{city} pages | Open, eng ticket needed | Phase 0.4a |
+| Polygon overlap at data layer | Open, eng ticket needed | Phase 7.4 (`check_polygon_overlap.py`) |
+| Publish pipeline dedup | Open, eng ticket needed | Phase 7.4 (`check_duplicates.py`) |
+| `feed_producer` prompt charter compliance | Verify after deploy | Phase 11.10 |
 
 ---
 

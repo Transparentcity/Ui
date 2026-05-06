@@ -40,6 +40,12 @@ With 25 cities launching April 15, this checklist covers every public-facing ent
 - [ ] SEO: dynamic OG image, meta tags, JSON-LD
 - [ ] ISR: page revalidates within expected window (1 hr)
 
+### Privacy and PII
+
+- [ ] Map titles surfaced in the public "Recent maps" list at `/c/{city-slug}` do not contain personalization tokens ("My Block", "My Place", "Home", any user first name). **[REG]**
+- [ ] HTML `<title>` tags served unauthenticated at `/m/{id}` do not contain personalization tokens. These are search-engine indexable. **[REG]**
+- [ ] The "Recent maps" list shown to non-logged-in viewers is either scoped to the viewer's own maps or shows depersonalized labels. **[REG]**
+
 ## 3. District Dashboard (`/c/[slug]/district/[districtId]`)
 
 - [ ] Page loads with district-specific data
@@ -415,6 +421,32 @@ These are frontend checks for bad backend data that has caused visible bugs:
 - [ ] Category icons use `getCategoryMeta()` lookup, not hardcoded **[REG]**
 - [ ] "Controller" recognized as alias for "Spending" category **[REG]**
 - [ ] Metric source text: portal domain > date range > empty (no "safety data") **[REG]**
+
+### Charter Section 5.5 accuracy (story content)
+
+- [ ] Headlines do not use event-language verbs ("flooded", "tagged", "robbed", "burglarized", "arrested") when the source dataset is complaints, requests, reports, or records. (Charter 5.5.1) **[REG]**
+- [ ] Headlines do not use the word "ticket" or "tickets" when the source is 311 service requests filed by residents. 311 records are complaints. (Charter 5.5.1) **[REG]**
+- [ ] Every number in a story headline appears in the body, or is derivable from a body number within 1 percentage point or 2% of an absolute count. (Charter 5.5.2) **[REG]**
+- [ ] Headlines that say "all of last year" reference a full prior calendar year figure in the body, not a same-period figure. (Charter 5.5.2) **[REG]**
+- [ ] Numbers cited for the same metric and overlapping time window are identical across all stories in the same city published in the prior 14 days. (Charter 5.5.3) **[REG]**
+- [ ] Within a single newsletter, the same metric is not cited two different ways. (Charter 5.5.3) **[REG]**
+- [ ] Top-N neighborhood claims sum to less than 105% of citywide for the same metric and window. The headline phrase "three neighborhoods hold half the count" is banned by name when sums exceed citywide. (Charter 5.5.4) **[REG]**
+- [ ] Year-over-year comparisons compare like windows to like windows. "Last year" in a headline means the same year-to-date window of the prior year, not the full prior calendar year. (Charter 5.5.5) **[REG]**
+- [ ] One-month figures are not compared to multi-month averages and framed as YoY. (Charter 5.5.5) **[REG]**
+- [ ] Partial windows are labeled "through April 19" or "in early April," not "in April." (Charter 5.5.5) **[REG]**
+- [ ] Headlines and ledes do not imply causation by juxtaposition. Two adjacent facts ("X is happening. Y is up.") require a cited source from the last 90 days or an explicit "correlation is not causation" sentence in the body. (Charter 5.5.6) **[REG]**
+- [ ] Categories where one address generates 90% or more of complaints are reframed as single-source automated streams or suppressed from sentiment-style coverage. (Charter 5.5.7) **[REG]**
+- [ ] Percentage changes on bases under 10 events use absolute counts in the headline, not percentages. (Charter 5.5.8) **[REG]**
+- [ ] Geographic labels in headlines match the data unit. "District 9" is not labeled "the Mission" without naming the district in the body. (Charter 5.5.9) **[REG]**
+- [ ] Stories on the same headline + first 100 characters of body are not duplicated within a 7-day window per city. (Publish pipeline dedup) **[REG]**
+- [ ] Story bodies contain at least 50 words of actual prose. No empty templates, no metric ID labels rendered as content. (Render quality) **[REG]**
+- [ ] Pre-publish quality gate from Charter Section 8.1 was run before `create_feed_story`. Failures were corrected or the story was dropped. **[REG]**
+
+## 24a. Publish pipeline
+
+- [ ] `create_feed_story` rejects any story whose headline + first 100 characters of body match an existing story for the same city in the prior 7 days. **[REG]**
+- [ ] Polygon hierarchy is applied at ingest. Each incident is assigned to one canonical neighborhood. Top-N neighborhood claims drawn from the deduplicated table. **[REG]**
+- [ ] Single-source complaint streams (one address generating 90%+ of category volume) are flagged at ingest and suppressed from sentiment-coded story types. **[REG]**
 
 ## 25. Error States
 
