@@ -3704,7 +3704,13 @@ export interface AdminUserNewsletterOverview {
   email: string | null;
   name: string | null;
   communication_preferences: Record<string, unknown>;
+  /** Self-service text from profile / communication_preferences. */
   newsletter_description: string;
+  /**
+   * Admin-saved personal instructions (``users.custom_email_prompt``).
+   * Weekly sends prefer this over ``newsletter_description`` when both are set.
+   */
+  custom_email_prompt?: string | null;
   newsletter_frequency: "weekly" | "monthly";
   home_location: { city_id?: number; district?: number | string | null } | null;
   subscriptions: NewsletterSubscription[];

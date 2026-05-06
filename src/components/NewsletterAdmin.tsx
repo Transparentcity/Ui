@@ -880,7 +880,11 @@ function newsletterScopeLabel(item: NewsletterPendingListItem): string {
     const d = item.district || "0";
     return d === "0" ? "City-wide (shared edition)" : `District ${d} (shared edition)`;
   }
-  if (dt === "personalized_place") return "Place (personalized)";
+  // Legacy rows: was stamped for multi-subscription or non-empty instructions.
+  if (dt === "personalized_place") {
+    const d = item.district || "0";
+    return d === "0" ? "City-wide (personalized)" : `District ${d} (personalized)`;
+  }
   if (dt === "personalized_district") return "District (personalized)";
   if (dt === "personalized_citywide") return "City-wide (personalized)";
   return dt || "\u2014";

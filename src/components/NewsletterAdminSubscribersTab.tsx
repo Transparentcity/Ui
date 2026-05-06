@@ -92,16 +92,31 @@ interface SubCounts {
   hasPrompt: boolean;
 }
 
+/** Text Seymour uses for this subscriber: DB ``custom_email_prompt`` first, else profile ``newsletter_description``. */
+function effectiveSubscriberPromptText(ov: AdminUserNewsletterOverview): string {
+  const custom = (ov.custom_email_prompt ?? "").trim();
+  if (custom) return custom;
+  return (ov.newsletter_description ?? "").trim();
+}
+
 function getSubCounts(ov: AdminUserNewsletterOverview | undefined): SubCounts | null {
   if (!ov) return null;
   const subs = ov.subscriptions;
-  const city = subs.filter(
-    (s) => !s.district || s.district === "0" || Number(s.district) === 0
-  ).length;
-  const district = subs.filter(
-    (s) => s.district && s.district !== "0" && Number(s.district) !== 0
-  ).length;
-  const hasPrompt = !!(ov.newsletter_description?.trim());
+  /** One city-wide follow per city_id (weekly + monthly rows are one logical city). */
+  const cityWideCityIds = new Set<number>();
+  /** One district follow per (city_id, district); ignore duplicate frequencies. */
+  const districtKeys = new Set<string>();
+  for (const s of subs) {
+    const cityWide = !s.district || s.district === "0" || Number(s.district) === 0;
+    if (cityWide) {
+      cityWideCityIds.add(s.city_id);
+    } else {
+      districtKeys.add(`${s.city_id}:${String(s.district).trim()}`);
+    }
+  }
+  const city = cityWideCityIds.size;
+  const district = districtKeys.size;
+  const hasPrompt = !!effectiveSubscriberPromptText(ov);
   return { city, district, hasPrompt };
 }
 
@@ -289,7 +304,7 @@ export default function NewsletterAdminSubscribersTab() {
         const dStr = d === undefined || d === null ? "" : String(d).trim();
         setTestDistrict(dStr && dStr !== "0" ? dStr : "0");
         setTestFrequency(ov.newsletter_frequency === "monthly" ? "monthly" : "weekly");
-        setTestPrompt(ov.newsletter_description || "");
+        setTestPrompt(effectiveSubscriberPromptText(ov));
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Failed to load user newsletter data");
         setExpandedId(null);
@@ -315,6 +330,10 @@ export default function NewsletterAdminSubscribersTab() {
       try {
         const token = await getAccessTokenSilently();
         await updateUser(userId, { custom_email_prompt: testPrompt.trim() || null }, token);
+        const fresh = await getAdminUserNewsletterOverview(userId, token);
+        setOverview(fresh);
+        setOverviewCache((prev) => new Map(prev).set(userId, fresh));
+        setTestPrompt(effectiveSubscriberPromptText(fresh));
         toast.success("Personal email prompt saved to user preferences.");
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Failed to save personal email prompt");
@@ -730,10 +749,21 @@ function UserNewsletterRow({
                         </div>
                       </div>
                     </div>
-                    {overview.newsletter_description ? (
+                    {effectiveSubscriberPromptText(overview) ? (
                       <div style={{ marginTop: 12 }}>
                         <div style={{ fontWeight: 600, fontSize: 12, color: "var(--text-primary)" }}>
                           Personalized newsletter prompt
+                          {overview.custom_email_prompt?.trim() ? (
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontWeight: 500,
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              (admin-saved override)
+                            </span>
+                          ) : null}
                         </div>
                         <div
                           style={{
@@ -749,7 +779,7 @@ function UserNewsletterRow({
                             border: "1px solid var(--border-primary)",
                           }}
                         >
-                          {overview.newsletter_description}
+                          {effectiveSubscriberPromptText(overview)}
                         </div>
                       </div>
                     ) : null}
