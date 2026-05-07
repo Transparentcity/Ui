@@ -53,11 +53,11 @@
   }
 
   .panel {
-    position: absolute;
+    position: fixed;
     bottom: auto;
     left: auto;
-    right: 0;
-    top: calc(100% + 8px);
+    /* top/right are set inline based on the trigger's viewport rect (the panel
+       is portaled to <body> to escape any clipping ancestor). */
     /* Use dvh so iOS Safari's address bar doesn't push the bottom of the panel
        off-screen. The 120px margin leaves headroom for the filter trigger and
        any surrounding chrome; the 600px cap keeps the panel from stretching
@@ -69,10 +69,9 @@
     animation: fadeInDown 0.15s ease;
   }
 
-  /* Flip-up variant for short viewports where the dropdown would clip below the trigger */
+  /* Flip-up variant for short viewports where the dropdown would clip below the trigger.
+     `top`/`bottom` are set inline; this just swaps the entry animation. */
   .panelFlipUp {
-    top: auto;
-    bottom: calc(100% + 8px);
     animation: fadeInUp 0.15s ease;
   }
 

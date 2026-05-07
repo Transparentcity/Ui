@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import styles from "./FilterPanel.module.css";
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient";
 
@@ -88,7 +89,11 @@ export default function FilterPanel({
   const [draft, setDraft] = useState<FilterState>({ ...filters });
   const isDesktop = useIsDesktop();
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const [flipUp, setFlipUp] = useState(false);
+  const [desktopAnchor, setDesktopAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Close the panel if the viewport crosses the mobile/desktop breakpoint while open —
   // the layout switches abruptly (sheet vs dropdown) and any in-progress draft would look misplaced.
@@ -105,24 +110,35 @@ export default function FilterPanel({
   }, [open, isDesktop, onClose]);
 
   // Decide whether to flip the dropdown above the trigger when there isn't enough room below.
+  // Also track the trigger's viewport rect so the portaled panel can anchor to it.
   useEffect(() => {
     if (!open || !isDesktop) return;
+    triggerRef.current = document.querySelector<HTMLElement>('button[aria-label="Open filters"]');
     const measure = () => {
-      const el = panelRef.current;
-      if (!el) return;
-      const trigger = el.parentElement;
+      const trigger = triggerRef.current;
       if (!trigger) return;
       const triggerRect = trigger.getBoundingClientRect();
+      const el = panelRef.current;
       const spaceBelow = window.innerHeight - triggerRect.bottom;
-      const panelHeight = el.offsetHeight || 600;
-      // Flip if there's not enough room below but plenty above
-      setFlipUp(spaceBelow < panelHeight + 16 && triggerRect.top > spaceBelow);
+      const panelHeight = el?.offsetHeight || 600;
+      const shouldFlip = spaceBelow < panelHeight + 16 && triggerRect.top > spaceBelow;
+      setFlipUp((prev) => (prev === shouldFlip ? prev : shouldFlip));
+      const nextTop = shouldFlip ? triggerRect.top : triggerRect.bottom;
+      const nextRight = window.innerWidth - triggerRect.right;
+      setDesktopAnchor((prev) =>
+        prev && prev.top === nextTop && prev.right === nextRight
+          ? prev
+          : { top: nextTop, right: nextRight },
+      );
     };
     measure();
     window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
     return () => {
       window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
       setFlipUp(false);
+      setDesktopAnchor(null);
     };
   }, [open, isDesktop]);
 
@@ -136,7 +152,7 @@ export default function FilterPanel({
       const target = e.target as Node;
       // Ignore clicks inside the panel or on its trigger button
       if (el.contains(target)) return;
-      const trigger = el.parentElement?.querySelector('button[aria-label="Open filters"]');
+      const trigger = triggerRef.current ?? document.querySelector('button[aria-label="Open filters"]');
       if (trigger && trigger.contains(target)) return;
       onClose();
     };
@@ -189,9 +205,16 @@ export default function FilterPanel({
     onClose();
   };
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  const desktopStyle: React.CSSProperties | undefined =
+    isDesktop && desktopAnchor
+      ? flipUp
+        ? { top: "auto", bottom: window.innerHeight - desktopAnchor.top + 8, right: desktopAnchor.right, left: "auto" }
+        : { top: desktopAnchor.top + 8, right: desktopAnchor.right, bottom: "auto", left: "auto" }
+      : undefined;
+
+  const panelTree = (
     <>
       {/* Backdrop — on mobile, apply draft before closing so selections aren't lost */}
       <div className={styles.backdrop} onClick={() => { if (!isDesktop) onApply(draft); onClose(); }} />
@@ -200,6 +223,7 @@ export default function FilterPanel({
       <div
         ref={panelRef}
         className={`${styles.panel} ${flipUp ? styles.panelFlipUp : ""}`}
+        style={desktopStyle}
         role="dialog"
         aria-modal="true"
         aria-label="Feed filters"
@@ -324,6 +348,8 @@ export default function FilterPanel({
       </div>
     </>
   );
+
+  return createPortal(panelTree, document.body);
 }
 
 /* ── Hook: detect desktop ─────────────────────────────────────────────────── */
