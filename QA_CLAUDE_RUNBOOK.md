@@ -496,10 +496,24 @@ Every launched city must be fully wired: city dashboard, district dashboards for
 ```bash
 cd ~/Documents/Coding/TransparentCITY
 source venv/bin/activate
+
+# Browser mode (recommended): waits for React hydration so the rendered
+# DOM is what a real visitor sees. Slower (~6s/page) but accurate.
+python scripts/qa/check_city_completeness.py --browser --site https://transparent.city
+
+# DB+HTTP mode: cheap urllib fetch, but the urllib mode misses anything
+# that hydrates client-side (district list, mayor button text, metric
+# values). Use only when you trust the site to render those server-side.
 python scripts/qa/check_city_completeness.py --site https://transparent.city
-# DB+HTTP mode (default): pulls canonical inventory from the platform DB,
-# then verifies each public URL renders.
-# HTTP-only fallback if no DATABASE_URL: --http-only
+
+# HTTP-only fallback if no DATABASE_URL: --http-only (combinable with --browser)
+```
+
+**One-time setup for browser mode:**
+
+```bash
+pip install playwright
+python -m playwright install chromium
 ```
 
 Checks:
@@ -523,7 +537,8 @@ Tightening notes (May 2026):
 - C5 fails any district with an empty rep name (catches the Cincinnati gap: 2 districts shown, no names).
 - C6 fails when a district page mirrors citywide values (cohort bug — e.g., Cincinnati district 1).
 - C8 fails when a metric detail page returns 200 but renders no numeric value (e.g., Detroit's `detroit_building_permits_plan_reviews`).
-- HTTP-only mode downgrades district checks to REVIEW since the district list often hydrates client-side; DB mode keeps them as hard fails.
+- HTTP-only mode downgrades district checks to REVIEW since the district list often hydrates client-side; DB mode and `--browser` mode keep them as hard fails.
+- `--browser` mode launches headless Chromium via Playwright, waits for hydration, and reads the rendered DOM. This is what catches the real Cincinnati / Denver / Seattle district gaps that urllib falsely calls "passing".
 - C9 (map tab) was removed: the map is intentionally not surfaced on the unauthenticated dashboard.
 
 Exits 1 if any city has any C1-C8 failure.

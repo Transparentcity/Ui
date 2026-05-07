@@ -444,7 +444,7 @@ These are frontend checks for bad backend data that has caused visible bugs:
 
 ## 24b. City completeness (per launched city)
 
-Backed by `scripts/qa/check_city_completeness.py` in the platform repo.
+Backed by `scripts/qa/check_city_completeness.py` in the platform repo. For accurate results against a live site, run with `--browser` so the script waits for React hydration before reading the DOM.
 
 - [ ] City dashboard at `/c/{slug}` renders with the city name in the headline. **[REG]**
 - [ ] City has at least 3 active feed stories in the last 14 days. **[REG]**
