@@ -4,6 +4,10 @@
 
 This is an automated QA plan for Claude Code to execute against the production site (transparent.city) and/or the local dev server. It focuses on the most likely real-world pathways people will hit tomorrow:
 
+> **Companion docs (separable cadences):**
+> - [`STORY_CONTENT_AUDIT.md`](STORY_CONTENT_AUDIT.md) — weekly deep audit of recent feed stories: imprecise language, near-duplicates, missing source attribution, data-gap disclosure, illogical claims. Backed by `scripts/qa/audit_recent_stories.py`.
+> - [`SMOKE_TESTS.md`](SMOKE_TESTS.md) — per-deploy fast checks for onboarding flows, analytics, map controls, and mobile affordances.
+
 1. Someone sees a post on X or reads a Substack newsletter, clicks a link, lands on a city page or story
 2. They look around, decide to sign up, go through onboarding
 3. They land in their feed and start exploring
