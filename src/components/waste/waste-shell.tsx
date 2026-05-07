@@ -51,9 +51,9 @@ const TOP_TABS: TabItem[] = [
   {
     key: "findings",
     name: "Findings",
-    href: "/waste",
+    href: "/waste/forensics",
     icon: LayoutGrid,
-    matchPrefixes: ["/waste/forensics", "/waste/scores"],
+    matchPrefixes: ["/waste", "/waste/forensics", "/waste/scores"],
   },
   {
     key: "cases",

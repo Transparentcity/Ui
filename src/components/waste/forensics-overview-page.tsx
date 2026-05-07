@@ -21,6 +21,10 @@ import {
   Search,
   Filter,
   X,
+  Layers,
+  Building2,
+  Users,
+  FileSearch,
 } from "lucide-react"
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -415,10 +419,75 @@ export function ForensicsOverviewPage() {
 
   return (
     <WasteShell
-      title="Backtrace"
-      description="Historical analysis and investigation workspace"
+      title="Findings"
+      description="Browse and investigate detected anomalies"
     >
       <ForensicsShell>
+        {/* Browse — quick jumps into the major slices */}
+        <div className="mb-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+            Browse
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Link
+              href="/waste/forensics/findings"
+              className="bg-white border border-gray-200 rounded-lg p-3 hover:border-purple-300 hover:shadow-sm no-underline group"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <FileSearch className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-semibold text-gray-900">
+                  All findings
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Every detected anomaly, fully filterable
+              </p>
+            </Link>
+            <Link
+              href="/waste/forensics/categories"
+              className="bg-white border border-gray-200 rounded-lg p-3 hover:border-purple-300 hover:shadow-sm no-underline"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Layers className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-semibold text-gray-900">
+                  By category
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Payroll, contracts, infrastructure, integrity, influence
+              </p>
+            </Link>
+            <Link
+              href="/waste/forensics/departments"
+              className="bg-white border border-gray-200 rounded-lg p-3 hover:border-purple-300 hover:shadow-sm no-underline"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Building2 className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-semibold text-gray-900">
+                  By department
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Sheriff, Police, DPW, MTA, Public Health, etc.
+              </p>
+            </Link>
+            <Link
+              href="/waste/forensics/entities"
+              className="bg-white border border-gray-200 rounded-lg p-3 hover:border-purple-300 hover:shadow-sm no-underline"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-semibold text-gray-900">
+                  By entity
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Vendors, employees, contractors with risk scores
+              </p>
+            </Link>
+          </div>
+        </div>
+
         {/* Filters */}
         <FilterBar
           filters={filters}

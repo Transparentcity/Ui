@@ -1374,6 +1374,16 @@ export default function DashboardPage() {
   }) => {
     setShowWelcomeModal(false);
     setCurrentView("feed");
+    // WelcomeModal calls onCitySelected before onComplete, which sets My Places
+    // scope (active city / saved place). Clear it so the left nav only highlights
+    // Feed after onboarding — home scope still comes from preferences below.
+    setActiveCityId(null);
+    setInitialDistrict(null);
+    setInitialPlaceId(null);
+    setInitialPlaceGps(null);
+    setInitialSection(null);
+    setCitySelection({ district: null, placeId: null });
+    setGpsLocation(null);
     toast.success("Welcome! We’re building your feed now.");
 
     // Eagerly set home_location so FeedContainer gets the correct homeCityId.

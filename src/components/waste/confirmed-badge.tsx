@@ -15,7 +15,7 @@ export function ConfirmedBadge({ variant = "compact", className }: ConfirmedBadg
       <span
         title="Previously confirmed case — not a newly surfaced finding"
         className={cn(
-          "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-[0.08em] border-2 border-red-600 text-red-700 bg-red-50 -rotate-2 shadow-sm shrink-0",
+          "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-[0.08em] border-2 border-red-600 text-red-700 bg-red-50 shadow-sm shrink-0",
           className
         )}
       >

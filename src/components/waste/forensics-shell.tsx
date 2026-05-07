@@ -9,8 +9,6 @@ import {
   FileSearch,
   Users,
   Building2,
-  FolderKanban,
-  Download,
   Layers,
 } from "lucide-react"
 
@@ -21,14 +19,14 @@ type ForensicsTab = {
   icon: React.ComponentType<{ className?: string }>
 }
 
+// Browse-and-investigate hierarchy. Cases lives as its own top-level tab;
+// exports moved into Reports — both removed here to avoid duplication.
 const FORENSICS_TABS: ForensicsTab[] = [
-  { key: "overview", name: "Overview", href: "/waste/forensics", icon: LayoutList },
-  { key: "findings", name: "Findings", href: "/waste/forensics/findings", icon: FileSearch },
-  { key: "entities", name: "Entities", href: "/waste/forensics/entities", icon: Users },
-  { key: "departments", name: "Departments", href: "/waste/forensics/departments", icon: Building2 },
-  { key: "categories", name: "Categories", href: "/waste/forensics/categories", icon: Layers },
-  { key: "cases", name: "Cases", href: "/waste/forensics/cases", icon: FolderKanban },
-  { key: "exports", name: "Exports", href: "/waste/forensics/exports", icon: Download },
+  { key: "overview", name: "Summary", href: "/waste/forensics", icon: LayoutList },
+  { key: "findings", name: "All findings", href: "/waste/forensics/findings", icon: FileSearch },
+  { key: "categories", name: "By category", href: "/waste/forensics/categories", icon: Layers },
+  { key: "departments", name: "By department", href: "/waste/forensics/departments", icon: Building2 },
+  { key: "entities", name: "By entity", href: "/waste/forensics/entities", icon: Users },
 ]
 
 interface ForensicsShellProps {
@@ -58,7 +56,7 @@ export function ForensicsShell({ children, title }: ForensicsShellProps) {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap no-underline border-b-2 transition-colors",
                 active
-                  ? "text-emerald-700 border-emerald-600"
+                  ? "text-purple-700 border-purple-600"
                   : "text-gray-500 border-transparent hover:text-gray-900 hover:border-gray-300"
               )}
             >
