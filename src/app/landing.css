@@ -123,6 +123,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 /* Brand link: logomark + wordmark (matches Header / BRAND_KIT) */
@@ -133,6 +134,29 @@
   min-width: 180px;
   text-decoration: none;
   color: inherit;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+@media (min-width: 481px) {
+  .brand-link {
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-text {
+    font-size: 1.05rem;
+  }
+  .brand-link {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 374px) {
+  .brand-text {
+    font-size: 0.95rem;
+  }
 }
 
 .logo {
