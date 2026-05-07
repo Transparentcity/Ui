@@ -26,7 +26,6 @@ import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { slugify } from "@/lib/utils";
 import Breadcrumb from "@/components/Breadcrumb";
-import SourceLine from "@/components/SourceLine";
 import { enrichStory } from "@/lib/feed/mockFeedData";
 import type { FeedStory } from "@/lib/hooks/useFeed";
 

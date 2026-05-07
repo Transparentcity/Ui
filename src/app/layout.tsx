@@ -80,7 +80,7 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        {/* Fonts for SourceLine + PublicRecordBanner (v1 source-as-badge). */}
+        {/* Fonts for PublicRecordBanner. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
