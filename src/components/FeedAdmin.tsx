@@ -91,6 +91,7 @@ export default function FeedAdmin() {
   // Table filters
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Table pagination
   const [page, setPage] = useState(0);
@@ -205,13 +206,28 @@ export default function FeedAdmin() {
     if (selectedCityId !== null) {
       result = result.filter((s) => s.city_id === selectedCityId);
     }
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((s) => {
+        const haystack = [
+          s.headline,
+          s.description,
+          s.summary,
+          s.article_html,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
     return result;
-  }, [stories, timeRange, selectedCityId]);
+  }, [stories, timeRange, selectedCityId, searchQuery]);
 
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
-  }, [timeRange, selectedCityId]);
+  }, [timeRange, selectedCityId, searchQuery]);
 
   // Paginated slice for table display
   const totalPages = Math.max(1, Math.ceil(filteredStories.length / PAGE_SIZE));
@@ -479,6 +495,15 @@ export default function FeedAdmin() {
             ))}
           </select>
 
+          <input
+            type="search"
+            className={styles.select}
+            placeholder="Search headline or body..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ minWidth: 220, flex: "1 1 220px" }}
+          />
+
           <button className={styles.primaryBtn} onClick={handleOpenCreate}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -537,6 +562,7 @@ export default function FeedAdmin() {
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th className={styles.th}>ID</th>
                   <th className={styles.th}>Date</th>
                   <th className={styles.th}>City</th>
                   <th className={styles.th}>Headline</th>
@@ -563,6 +589,9 @@ export default function FeedAdmin() {
                       if (e.key === "Enter") handleStoryClick(story);
                     }}
                   >
+                    <td className={styles.td}>
+                      <span className={styles.muted}>#{story.id}</span>
+                    </td>
                     <td className={styles.td}>
                       <span className={styles.muted}>{formatDate(story.story_date)}</span>
                     </td>
