@@ -160,9 +160,9 @@ a {
 /* Responsive adjustments - Mobile full-bleed visualizations */
 @media (max-width: 768px) {
   .visualization-embed {
-    margin-left: -1.5rem;
-    margin-right: -1.5rem;
-    width: calc(100% + 3rem);
+    margin-left: -1rem;
+    margin-right: -1rem;
+    width: calc(100% + 2rem);
     margin-top: 1rem;
     margin-bottom: 1rem;
     border-radius: 0;

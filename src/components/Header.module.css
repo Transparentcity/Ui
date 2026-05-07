@@ -337,7 +337,7 @@
   }
 
   .brandText {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .navRight {
@@ -345,13 +345,23 @@
   }
 
   .navRight .button {
-    padding: 10px 14px;
-    font-size: 13px;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
   .menuWrap .buttonPrimary {
-    padding: 10px 14px;
-    font-size: 13px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .buttonSignIn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .buttonSignUp {
+    padding: 6px 10px;
+    font-size: 12px;
   }
 }
 

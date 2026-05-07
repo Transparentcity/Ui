@@ -135,28 +135,6 @@
   text-decoration: none;
   color: inherit;
   flex-shrink: 1;
-  min-width: 0;
-}
-
-@media (min-width: 481px) {
-  .brand-link {
-    min-width: 180px;
-  }
-}
-
-@media (max-width: 480px) {
-  .brand-text {
-    font-size: 1.05rem;
-  }
-  .brand-link {
-    gap: 8px;
-  }
-}
-
-@media (max-width: 374px) {
-  .brand-text {
-    font-size: 0.95rem;
-  }
 }
 
 .logo {
@@ -212,6 +190,22 @@
 
 .logo-city {
   color: var(--brand-primary);
+}
+
+@media (max-width: 480px) {
+  .brand-link {
+    min-width: 0;
+    gap: 8px;
+  }
+  .brand-text {
+    font-size: 1.05rem;
+  }
+}
+
+@media (max-width: 374px) {
+  .brand-text {
+    font-size: 0.95rem;
+  }
 }
 
 .nav-links {
@@ -2908,6 +2902,16 @@
   font-size: 13px;
   border-radius: 8px;
   white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .nav-signup-wrapper {
+    gap: 6px;
+  }
+  .nav-signup-wrapper .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
 }
 
 .nav-signup-wrapper .btn-outline {
