@@ -489,6 +489,35 @@ Verify the frontend correctly filters bad backend data.
 - [ ] OTC/milestone headlines capped at 65 chars at word boundary
 - [ ] General headlines capped at **70 chars** (`MAX_HEADLINE_LENGTH` in `headlineCleanup.ts`) **(reduced from previous value in commit 055f093)** **[REG]**
 
+### 7.3a City completeness check
+
+Every launched city must be fully wired: city dashboard, district dashboards for all districts, a mayor + one rep per district, dashboard metrics, metric detail pages, feed stories, and a working map tab. Run before every launch and after any city is flipped to `is_launched=true`.
+
+```bash
+cd ~/Documents/Coding/TransparentCITY
+source venv/bin/activate
+python scripts/qa/check_city_completeness.py --site https://transparent.city
+# DB+HTTP mode (default): pulls canonical inventory from the platform DB,
+# then verifies each public URL renders.
+# HTTP-only fallback if no DATABASE_URL: --http-only
+```
+
+Checks:
+
+| rule | what it verifies |
+|---|---|
+| C1 | `/c/{slug}` returns 200, headline contains city name |
+| C2 | city has at least 3 active feed stories in the last 14 days |
+| C3 | `city_leaders` has a mayor row (district=0 or title ~ mayor) |
+| C4 | city has at least one district with a representative |
+| C5 | every district present in `city_leaders` has a leader (no orphans) |
+| C6 | every `/c/{slug}/district/{id}` returns 200 with district-specific signal |
+| C7 | city has at least 3 dashboard metrics (`show_on_dash` + `is_active`) |
+| C8 | every dashboard metric has a working `/c/{slug}/metrics/{key}` page |
+| C9 | (REVIEW) map tab renders — automated SSR detection unreliable, see SMOKE_TESTS.md |
+
+Exits 1 if any city has any C1-C8 failure.
+
 ### 7.4 Charter Section 5.5 mechanical checks
 
 These are mechanical pre-publish checks that enforce the Seymour Voice Charter Section 5.5. Each step references a script in `scripts/qa/` in the **platform repo** (`~/Documents/Coding/TransparentCITY`), not this Ui repo. Run from the platform repo with the platform venv active:

@@ -442,6 +442,20 @@ These are frontend checks for bad backend data that has caused visible bugs:
 - [ ] Story bodies contain at least 50 words of actual prose. No empty templates, no metric ID labels rendered as content. (Render quality) **[REG]**
 - [ ] Pre-publish quality gate from Charter Section 8.1 was run before `create_feed_story`. Failures were corrected or the story was dropped. **[REG]**
 
+## 24b. City completeness (per launched city)
+
+Backed by `scripts/qa/check_city_completeness.py` in the platform repo.
+
+- [ ] City dashboard at `/c/{slug}` renders with the city name in the headline. **[REG]**
+- [ ] City has at least 3 active feed stories in the last 14 days. **[REG]**
+- [ ] City has a mayor (`city_leaders` row at district=0 or title containing "mayor"). **[REG]**
+- [ ] City has at least one district with a representative assigned. **[REG]**
+- [ ] Every district present in `city_leaders` has a leader row (no orphan districts). **[REG]**
+- [ ] Every `/c/{slug}/district/{id}` returns 200 and the page contains a district-specific marker. **[REG]**
+- [ ] City has at least 3 dashboard metrics (`metrics.show_on_dash=true` and `is_active=true`). **[REG]**
+- [ ] Every dashboard metric has a working `/c/{slug}/metrics/{metric_key}` detail page. **[REG]**
+- [ ] Map tab on dashboard renders with citywide markers (manual; SSR detection unreliable). See `SMOKE_TESTS.md` section 3.
+
 ## 24a. Publish pipeline
 
 - [ ] `create_feed_story` rejects any story whose headline + first 100 characters of body match an existing story for the same city in the prior 7 days. **[REG]**
