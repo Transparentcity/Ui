@@ -489,6 +489,45 @@ Verify the frontend correctly filters bad backend data.
 - [ ] OTC/milestone headlines capped at 65 chars at word boundary
 - [ ] General headlines capped at **70 chars** (`MAX_HEADLINE_LENGTH` in `headlineCleanup.ts`) **(reduced from previous value in commit 055f093)** **[REG]**
 
+### 7.3a City completeness check
+
+Every launched city must be fully wired: city dashboard, district dashboards for all districts, a mayor + one rep per district, dashboard metrics, metric detail pages, feed stories, and a working map tab. Run before every launch and after any city is flipped to `is_launched=true`.
+
+```bash
+cd ~/Documents/Coding/TransparentCITY
+source venv/bin/activate
+python scripts/qa/check_city_completeness.py --site https://transparent.city
+# DB+HTTP mode (default): pulls canonical inventory from the platform DB,
+# then verifies each public URL renders.
+# HTTP-only fallback if no DATABASE_URL: --http-only
+```
+
+Checks:
+
+| rule | what it verifies |
+|---|---|
+| C1 | `/c/{slug}` returns 200, headline contains city name |
+| C2 | city has at least 3 active feed stories in the last 14 days |
+| C3 | `city_leaders` has a mayor row (district=0 or title ~ mayor) |
+| C4 | city has at least one district with a representative |
+| C5 | every district present in `city_leaders` has a leader (no orphans) |
+| C6 | every `/c/{slug}/district/{id}` returns 200 with district-specific signal |
+| C7 | city has at least 3 dashboard metrics (`show_on_dash` + `is_active`) |
+| C8 | every dashboard metric has a working `/c/{slug}/metrics/{key}` page |
+| C5b | rendered district list matches `city_leaders` count (DB mode) |
+| C10 | recent-story freshness: at least one story published in the last 7 days (DB mode) |
+| C11 | metric category breadth: dashboard renders at least 2 category headers |
+
+Tightening notes (May 2026):
+- C3 requires a real mayor *name*, not just the word "mayor" in HTML.
+- C5 fails any district with an empty rep name (catches the Cincinnati gap: 2 districts shown, no names).
+- C6 fails when a district page mirrors citywide values (cohort bug — e.g., Cincinnati district 1).
+- C8 fails when a metric detail page returns 200 but renders no numeric value (e.g., Detroit's `detroit_building_permits_plan_reviews`).
+- HTTP-only mode downgrades district checks to REVIEW since the district list often hydrates client-side; DB mode keeps them as hard fails.
+- C9 (map tab) was removed: the map is intentionally not surfaced on the unauthenticated dashboard.
+
+Exits 1 if any city has any C1-C8 failure.
+
 ### 7.4 Charter Section 5.5 mechanical checks
 
 These are mechanical pre-publish checks that enforce the Seymour Voice Charter Section 5.5. Each step references a script in `scripts/qa/` in the **platform repo** (`~/Documents/Coding/TransparentCITY`), not this Ui repo. Run from the platform repo with the platform venv active:
