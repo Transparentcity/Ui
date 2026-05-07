@@ -454,7 +454,15 @@ Backed by `scripts/qa/check_city_completeness.py` in the platform repo.
 - [ ] Every `/c/{slug}/district/{id}` returns 200 and the page contains a district-specific marker. **[REG]**
 - [ ] City has at least 3 dashboard metrics (`metrics.show_on_dash=true` and `is_active=true`). **[REG]**
 - [ ] Every dashboard metric has a working `/c/{slug}/metrics/{metric_key}` detail page. **[REG]**
-- [ ] Map tab on dashboard renders with citywide markers (manual; SSR detection unreliable). See `SMOKE_TESTS.md` section 3.
+- [ ] Mayor's name renders on the dashboard (not just the word "mayor"). **[REG]**
+- [ ] Every district link rendered on the dashboard includes a representative name (not "District N" alone). **[REG]**
+- [ ] Rendered district count matches the count in `city_leaders` for the city. **[REG]**
+- [ ] At least one district page shows metric values that DIFFER from citywide (no district that silently mirrors citywide). **[REG]**
+- [ ] Each metric detail page renders with at least one numeric value (200 + non-empty). **[REG]**
+- [ ] City has at least one active story published in the last 7 days. **[REG]**
+- [ ] Dashboard renders at least 2 metric category headers (Crime, City Ops, etc.). **[REG]**
+
+Note: a "Map" tab is intentionally not shown on the unauthenticated dashboard, so no map check is required.
 
 ## 24a. Publish pipeline
 

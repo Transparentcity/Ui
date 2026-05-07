@@ -514,7 +514,17 @@ Checks:
 | C6 | every `/c/{slug}/district/{id}` returns 200 with district-specific signal |
 | C7 | city has at least 3 dashboard metrics (`show_on_dash` + `is_active`) |
 | C8 | every dashboard metric has a working `/c/{slug}/metrics/{key}` page |
-| C9 | (REVIEW) map tab renders — automated SSR detection unreliable, see SMOKE_TESTS.md |
+| C5b | rendered district list matches `city_leaders` count (DB mode) |
+| C10 | recent-story freshness: at least one story published in the last 7 days (DB mode) |
+| C11 | metric category breadth: dashboard renders at least 2 category headers |
+
+Tightening notes (May 2026):
+- C3 requires a real mayor *name*, not just the word "mayor" in HTML.
+- C5 fails any district with an empty rep name (catches the Cincinnati gap: 2 districts shown, no names).
+- C6 fails when a district page mirrors citywide values (cohort bug — e.g., Cincinnati district 1).
+- C8 fails when a metric detail page returns 200 but renders no numeric value (e.g., Detroit's `detroit_building_permits_plan_reviews`).
+- HTTP-only mode downgrades district checks to REVIEW since the district list often hydrates client-side; DB mode keeps them as hard fails.
+- C9 (map tab) was removed: the map is intentionally not surfaced on the unauthenticated dashboard.
 
 Exits 1 if any city has any C1-C8 failure.
 
