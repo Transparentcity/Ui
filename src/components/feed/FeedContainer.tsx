@@ -1502,36 +1502,47 @@ export default function FeedContainer({
 
       {/* Error */}
       {error && (() => {
+        const errAny = error as any;
+        const errCode = typeof errAny?.error === "string" ? errAny.error : "";
+        const errMessage = (error as Error)?.message ?? "";
         const isAuthError =
-          (error as any)?.error === "login_required" ||
-          (error as any)?.error === "consent_required" ||
-          (error as any)?.status === 401 ||
-          /401|unauthorized|login.required/i.test((error as Error)?.message ?? "");
+          errAny?.status === 401 ||
+          errAny?.status === 403 ||
+          /^(login_required|consent_required|interaction_required|missing_refresh_token|invalid_grant|invalid_token|unauthorized)$/i.test(errCode) ||
+          /\b(401|403)\b|unauthorized|login[_\s-]?required|session\s+expired|token\s+expired|expired\s+token|missing\s+refresh\s+token|invalid[_\s-]?grant|invalid[_\s-]?token|jwt\s+expired/i.test(errMessage);
+        if (isAuthError) {
+          return (
+            <div className={styles.authErrorCard} role="alert">
+              <span className={styles.authErrorIcon} aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </span>
+              <h2 className={styles.authErrorTitle}>Your session has expired</h2>
+              <p className={styles.authErrorBody}>
+                For your security, you&apos;ve been signed out. Sign in again to keep reading your feed.
+              </p>
+              <button
+                type="button"
+                className={styles.authSignInBtn}
+                onClick={() => loginWithRedirect()}
+              >
+                Sign in
+              </button>
+            </div>
+          );
+        }
         return (
           <div className={styles.errorState}>
-            {isAuthError ? (
-              <>
-                <p>Your session has expired. Please sign in again.</p>
-                <button
-                  type="button"
-                  className={styles.retryBtn}
-                  onClick={() => loginWithRedirect()}
-                >
-                  Sign in
-                </button>
-              </>
-            ) : (
-              <>
-                <p>Error loading feed stories.</p>
-                <button
-                  type="button"
-                  className={styles.retryBtn}
-                  onClick={() => runExplicitFeedRefetch()}
-                >
-                  Retry
-                </button>
-              </>
-            )}
+            <p>Error loading feed stories.</p>
+            <button
+              type="button"
+              className={styles.retryBtn}
+              onClick={() => runExplicitFeedRefetch()}
+            >
+              Retry
+            </button>
           </div>
         );
       })()}
