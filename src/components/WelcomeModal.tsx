@@ -1286,7 +1286,16 @@ export default function WelcomeModal({
           createdPlaceId = place?.id ?? null;
           if (createdPlaceId) {
             try {
-              const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(createdPlaceId, token);
+              const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(
+                createdPlaceId,
+                token,
+                {
+                  ...(homeDistrictSnapshot != null && homeDistrictSnapshot > 0
+                    ? { district: homeDistrictSnapshot }
+                    : {}),
+                  weekly_newsletter: weeklyNewsletterOptIn,
+                }
+              );
               startJob(createdPlaceId, job_id);
             } catch {
               // Non-blocking

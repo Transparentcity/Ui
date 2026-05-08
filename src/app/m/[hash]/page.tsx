@@ -97,15 +97,69 @@ interface SavedMap {
   created_at: string;
 }
 
+/**
+ * Format a saved map's start_date / end_date (either may be null) into a
+ * human-readable, locale-aware label such as "Apr 1 – Apr 30, 2026".
+ *
+ * Returns `null` when neither bound is present, so callers can simply skip
+ * rendering. Falls back to the raw YYYY-MM-DD string if parsing fails so we
+ * never silently lose information.
+ */
+function formatMapDateRange(
+  startDate?: string | null,
+  endDate?: string | null,
+): string | null {
+  const hasStart = typeof startDate === "string" && startDate.trim().length > 0;
+  const hasEnd = typeof endDate === "string" && endDate.trim().length > 0;
+  if (!hasStart && !hasEnd) return null;
+
+  const parse = (value: string): Date | null => {
+    // Treat as a calendar date in UTC to avoid local-timezone shifts that would
+    // bump "2026-04-01" back to March 31 in the western hemisphere.
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const start = hasStart ? parse(startDate as string) : null;
+  const end = hasEnd ? parse(endDate as string) : null;
+
+  const fmt = (d: Date, withYear: boolean): string =>
+    d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      ...(withYear ? { year: "numeric" } : {}),
+      timeZone: "UTC",
+    });
+
+  if (start && end) {
+    const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+    return sameYear
+      ? `${fmt(start, false)} – ${fmt(end, true)}`
+      : `${fmt(start, true)} – ${fmt(end, true)}`;
+  }
+  if (start) return `From ${fmt(start, true)}`;
+  if (end) return `Through ${fmt(end as Date, true)}`;
+  // Fallback to raw values if parsing failed
+  if (hasStart && hasEnd) return `${startDate} – ${endDate}`;
+  return (startDate as string) || (endDate as string) || null;
+}
+
 function MapSourceInformation({
   sourceInfo,
+  startDate,
+  endDate,
   expanded,
   onToggle,
 }: {
   sourceInfo: SavedMapSourceInfo;
+  startDate?: string | null;
+  endDate?: string | null;
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const dateRangeLabel = formatMapDateRange(startDate, endDate);
   return (
     <section className="map-source-section" aria-label="Source information">
       <button
@@ -180,6 +234,13 @@ function MapSourceInformation({
                     {sourceInfo.query_url}
                   </a>
                 </span>
+              </div>
+            )}
+
+            {dateRangeLabel && (
+              <div className="map-source-row">
+                <span className="map-source-label">Date range</span>
+                <span className="map-source-value">{dateRangeLabel}</span>
               </div>
             )}
           </div>
@@ -3214,6 +3275,8 @@ export default function PublicMapPage() {
         {sourceInfo && (
           <MapSourceInformation
             sourceInfo={sourceInfo}
+            startDate={map?.map_config?.start_date as string | null | undefined}
+            endDate={map?.map_config?.end_date as string | null | undefined}
             expanded={isSourceInfoExpanded}
             onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
           />
@@ -3686,6 +3749,21 @@ export default function PublicMapPage() {
                 return "—";
               })()}
             </span>
+            {(() => {
+              const range = formatMapDateRange(
+                map.map_config?.start_date as string | null | undefined,
+                map.map_config?.end_date as string | null | undefined,
+              );
+              if (!range) return null;
+              return (
+                <>
+                  <span> • </span>
+                  <span className="map-meta-date-range" title="Date range applied to this map">
+                    {range}
+                  </span>
+                </>
+              );
+            })()}
             <span> • </span>
             <span>Created {new Date(map.created_at).toLocaleDateString()}</span>
           </div>
@@ -3874,6 +3952,8 @@ export default function PublicMapPage() {
           {sourceInfo && (
             <MapSourceInformation
               sourceInfo={sourceInfo}
+              startDate={map?.map_config?.start_date as string | null | undefined}
+              endDate={map?.map_config?.end_date as string | null | undefined}
               expanded={isSourceInfoExpanded}
               onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
             />

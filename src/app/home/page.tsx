@@ -1690,7 +1690,8 @@ export default function DashboardPage() {
         )}
         {searchFollowBanner &&
           currentView === "city" &&
-          activeCityId === searchFollowBanner.cityId && (
+          activeCityId === searchFollowBanner.cityId &&
+          allUserPlaces.some((p) => p.city_id === searchFollowBanner.cityId) && (
             <div className={styles.searchFollowBanner} role="status">
               <p className={styles.searchFollowBannerText}>
                 <SearchFollowOnboardingBannerText

@@ -3272,12 +3272,20 @@ export function runPlaceMetricsAndAnomalies(
 /** Start place metrics + anomalies refresh as a background job. Returns job_id; poll getJob until completed/failed. */
 export function runPlaceMetricsAndAnomaliesAsJob(
   placeId: number,
-  token: string
+  token: string,
+  body?: { district?: number | null; weekly_newsletter?: boolean | null }
 ): Promise<{ job_id: string; message: string }> {
+  const payload: Record<string, unknown> = {};
+  if (body?.district != null && body.district > 0) {
+    payload.district = body.district;
+  }
+  if (body?.weekly_newsletter != null) {
+    payload.weekly_newsletter = body.weekly_newsletter;
+  }
   return request<{ job_id: string; message: string }>(
     `/api/users/me/places/${placeId}/run-as-job`,
     "POST",
-    undefined,
+    Object.keys(payload).length ? payload : {},
     token
   );
 }
@@ -4789,6 +4797,10 @@ export interface NewsletterPendingListItem {
   send_error: string | null;
   /** Public permalink for shared newsletter drafts when an edition exists. */
   public_url?: string | null;
+  /** True when the user has custom_email_prompt or newsletter_description (current profile). */
+  has_custom_instructions?: boolean;
+  /** True when the user has ≥1 user_places row (same rule as weekly personalized cohort). */
+  has_saved_place?: boolean;
   /** LLM token usage from Seymour / curation; null when not captured. */
   llm_usage: {
     prompt_tokens: number;

@@ -188,6 +188,11 @@
   display: inline;
 }
 
+.map-meta-date-range {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 /* Map Container */
 .map-container-wrapper {
   position: relative; /* Required for absolute positioning of child elements */

@@ -206,19 +206,6 @@ function emailUsername(email: string | null | undefined): string {
   return idx > 0 ? email.slice(0, idx) : email;
 }
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return "\u2014";
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return value;
-  return dt.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 function daysSince(dateStr?: string | null): number {
   if (!dateStr) return Infinity;
   const dt = new Date(dateStr);
@@ -413,8 +400,13 @@ export default function NewsletterAdmin() {
       setCities(citiesList);
       setPublicCities(publicList);
 
+      const launchedIds = new Set(
+        publicList.filter((c) => c.is_launched).map((c) => c.id)
+      );
+
       const byCity: Record<number, NewsletterEditionAdminItem[]> = {};
       for (const e of editionsRes.items) {
+        if (!launchedIds.has(e.city_id)) continue;
         if (!byCity[e.city_id]) byCity[e.city_id] = [];
         byCity[e.city_id].push(e);
       }
@@ -427,11 +419,6 @@ export default function NewsletterAdmin() {
         });
       }
       setEditionsByCityId(byCity);
-
-      // Build a set of launched city IDs
-      const launchedIds = new Set(
-        publicList.filter((c) => c.is_launched).map((c) => c.id)
-      );
 
       // Fetch newsletter status for launched cities (parallel, capped)
       const launchedCities = citiesList.filter(
@@ -874,20 +861,62 @@ export default function NewsletterAdmin() {
 // ===========================================================================
 // Dashboard: admin review queue (pending sends)
 // ===========================================================================
+function geographicNewsletterScopeLabel(district: string | null | undefined): string {
+  const d = (district || "0").trim() || "0";
+  return d === "0" ? "Citywide" : "District level";
+}
+
+/**
+ * Subscription / routing geography vs saved-place cohort.
+ * ``draft_type`` personalized_* encodes district routing for per-subscriber Seymour runs;
+ * only treat as "Personal place level" when ``has_saved_place`` matches the weekly pipeline.
+ */
 function newsletterScopeLabel(item: NewsletterPendingListItem): string {
   const dt = item.draft_type || "";
-  if (dt === "shared_city_district") {
-    const d = item.district || "0";
-    return d === "0" ? "City-wide (shared edition)" : `District ${d} (shared edition)`;
+  const gm = (item.generation_mode || "").toLowerCase();
+
+  if (dt === "shared_city_district" || gm === "shared_seymour") {
+    return geographicNewsletterScopeLabel(item.district);
   }
-  // Legacy rows: was stamped for multi-subscription or non-empty instructions.
-  if (dt === "personalized_place") {
-    const d = item.district || "0";
-    return d === "0" ? "City-wide (personalized)" : `District ${d} (personalized)`;
+
+  const isPerSubscriberSeymour =
+    dt === "personalized_place" ||
+    dt === "personalized_district" ||
+    dt === "personalized_citywide" ||
+    gm === "seymour" ||
+    gm === "feed_stories";
+
+  if (isPerSubscriberSeymour) {
+    if (item.has_saved_place === true) {
+      return "Personal place level";
+    }
+    return geographicNewsletterScopeLabel(item.district);
   }
-  if (dt === "personalized_district") return "District (personalized)";
-  if (dt === "personalized_citywide") return "City-wide (personalized)";
-  return dt || "\u2014";
+
+  return dt || geographicNewsletterScopeLabel(item.district);
+}
+
+function NewsletterCustomInstructionsCell({ row }: { row: NewsletterPendingListItem }) {
+  const has = Boolean(row.has_custom_instructions);
+  return (
+    <td
+      className={styles.td}
+      style={{ textAlign: "center", verticalAlign: "middle" }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="checkbox"
+        checked={has}
+        disabled
+        title={
+          has
+            ? "Subscriber has custom newsletter instructions (profile)"
+            : "No custom instructions on file for this email"
+        }
+        aria-label={has ? "Has custom instructions" : "No custom instructions"}
+      />
+    </td>
+  );
 }
 
 function formatWorkloadMoneyUsd(n: number | null | undefined): string {
@@ -1223,7 +1252,7 @@ function NewsletterDashboardQueue({
   // Workload preview
   const [workload, setWorkload] = useState<NewsletterGenerationPreview | null>(null);
   const [workloadLoading, setWorkloadLoading] = useState(true);
-  const [workloadOpen, setWorkloadOpen] = useState(true);
+  const [workloadOpen, setWorkloadOpen] = useState(false);
   const [workloadFrequency, setWorkloadFrequency] = useState<"weekly" | "monthly">("weekly");
   const [saveNewsletterModelBusy, setSaveNewsletterModelBusy] = useState(false);
   const previewModalOpen = expandedId !== null || archiveExpandedKey !== null;
@@ -1738,6 +1767,13 @@ function NewsletterDashboardQueue({
                   <th className={styles.th} style={{ width: 36 }} aria-label="Select" />
                   <th className={styles.th}>Recipient</th>
                   <th className={styles.th}>Scope</th>
+                  <th
+                    className={styles.th}
+                    style={{ maxWidth: 88, fontSize: 11, lineHeight: 1.25, textAlign: "center" }}
+                    title="Whether the subscriber has custom newsletter instructions on file"
+                  >
+                    Custom instructions
+                  </th>
                   <th className={styles.th}>Subject</th>
                   <th className={styles.th}>Mode</th>
                   <th className={styles.th}>Cost</th>
@@ -1747,7 +1783,7 @@ function NewsletterDashboardQueue({
               <tbody>
                 {pending.length === 0 && (
                   <tr>
-                    <td colSpan={7} className={styles.emptyState}>
+                    <td colSpan={8} className={styles.emptyState}>
                       No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
                     </td>
                   </tr>
@@ -1767,6 +1803,7 @@ function NewsletterDashboardQueue({
                       <td className={styles.td} style={{ fontSize: 12 }}>
                         {newsletterScopeLabel(row)}
                       </td>
+                      <NewsletterCustomInstructionsCell row={row} />
                       <td className={styles.td}>
                         <div className={styles.headline}>{row.subject || "\u2014"}</div>
                       </td>
@@ -1799,30 +1836,54 @@ function NewsletterDashboardQueue({
         ))}
       </div>
 
-      <div style={{ marginTop: 12, marginBottom: 16 }}>
-        <button
-          type="button"
-          className={styles.linkBtn}
+      <div className={styles.tableContainer}>
+        <div
+          className={styles.tableHeader}
+          style={{ cursor: "pointer", userSelect: "none" }}
           onClick={() => setArchiveOpen((o) => !o)}
           aria-expanded={archiveOpen}
         >
-          {archiveOpen ? "\u25BC" : "\u25B6"} Archive ({archive.length + directSends.length})
-        </button>
+          <span className={styles.tableTitle}>
+            {archiveOpen ? "\u25BC" : "\u25B6"} Archive
+          </span>
+          <span className={styles.tableCount}>
+            ({archive.length + directSends.length})
+          </span>
+        </div>
         {archiveOpen && (
-          <div style={{ marginTop: 8 }}>
-            {/* ── Admin queue archive ───────────────────────────────── */}
+          <>
+            {archive.length === 0 && directSends.length === 0 && (
+              <div className={styles.emptyState} style={{ padding: "24px 16px" }}>
+                No items in archive yet.
+              </div>
+            )}
             {archive.length > 0 && (
               <>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
-                  Admin queue archive ({archive.length})
+                <div
+                  className={styles.tableCount}
+                  style={{
+                    display: "block",
+                    padding: "10px 16px 6px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Admin queue archive
+                  <span style={{ fontWeight: 400 }}> ({archive.length})</span>
                 </div>
-                <div className={styles.tableWrapper} style={{ marginBottom: 12 }}>
+                <div className={styles.tableWrapper}>
                   <table className={styles.table}>
                     <thead>
                       <tr>
                         <th className={styles.th}>Status</th>
                         <th className={styles.th}>Recipient</th>
                         <th className={styles.th}>Scope</th>
+                        <th
+                          className={styles.th}
+                          style={{ maxWidth: 88, fontSize: 11, lineHeight: 1.25, textAlign: "center" }}
+                          title="Whether the subscriber has custom newsletter instructions on file"
+                        >
+                          Custom instructions
+                        </th>
                         <th className={styles.th}>Subject</th>
                         <th className={styles.th}>Cost</th>
                         <th className={styles.th} />
@@ -1844,6 +1905,7 @@ function NewsletterDashboardQueue({
                               <td className={styles.td} style={{ fontSize: 12 }}>
                                 {newsletterScopeLabel(row)}
                               </td>
+                              <NewsletterCustomInstructionsCell row={row} />
                               <td className={styles.td}>
                                 <div className={styles.headline}>{row.subject || "\u2014"}</div>
                               </td>
@@ -1874,81 +1936,83 @@ function NewsletterDashboardQueue({
               </>
             )}
 
-            {/* ── Direct system sends ───────────────────────────────── */}
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
-              Sent directly by system ({directSends.length})
-            </div>
-            <div className={styles.tableWrapper}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th className={styles.th}>Sent</th>
-                    <th className={styles.th}>Recipient</th>
-                    <th className={styles.th}>Source</th>
-                    <th className={styles.th}>Subject</th>
-                    <th className={styles.th}>Status</th>
-                    <th className={styles.th}>Cost</th>
-                    <th className={styles.th} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {directSends.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className={styles.emptyState}>
-                        No direct system sends found.
-                      </td>
-                    </tr>
-                  )}
-                  {directSends.map((row) => {
-                    const dKey = `d-${row.id}`;
-                    const isExpanded = archiveExpandedKey === dKey;
-                    return (
-                      <Fragment key={`ds-${row.id}`}>
-                        <tr>
-                          <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-                            {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
-                          </td>
-                          <td className={styles.td}>{emailUsername(row.to_email)}</td>
-                          <td className={styles.td} style={{ fontSize: 12 }}>{row.source}</td>
-                          <td className={styles.td}>
-                            <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                          </td>
-                          <td className={styles.td} style={{ fontSize: 12 }}>
-                            <span style={{ color: row.status === "sent" ? "var(--green, #16a34a)" : "var(--text-secondary)" }}>
-                              {row.status}
-                            </span>
-                          </td>
-                          <td className={styles.td}>
-                            <LlmUsagePill usage={row.llm_usage} />
-                          </td>
-                          <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
-                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              {typeof row.pending_send_id === "number" && (
-                                <button
-                                  type="button"
-                                  className={styles.linkBtn}
-                                  onClick={() => handleArchivePreview(dKey, row.pending_send_id as number)}
-                                >
-                                  {isExpanded ? "Hide" : "Preview"}
-                                </button>
-                              )}
-                              {row.session_id?.trim() && (
-                                <JobSessionDebugLink sessionId={row.session_id} />
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {archive.length === 0 && directSends.length === 0 && (
-              <div className={styles.emptyState}>No items in archive yet.</div>
+            {directSends.length > 0 && (
+              <>
+                <div
+                  className={styles.tableCount}
+                  style={{
+                    display: "block",
+                    padding: archive.length > 0 ? "14px 16px 6px" : "10px 16px 6px",
+                    fontWeight: 600,
+                    borderTop:
+                      archive.length > 0 ? "1px solid var(--border-primary)" : undefined,
+                  }}
+                >
+                  Sent directly by system
+                  <span style={{ fontWeight: 400 }}> ({directSends.length})</span>
+                </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th className={styles.th}>Sent</th>
+                        <th className={styles.th}>Recipient</th>
+                        <th className={styles.th}>Source</th>
+                        <th className={styles.th}>Subject</th>
+                        <th className={styles.th}>Status</th>
+                        <th className={styles.th}>Cost</th>
+                        <th className={styles.th} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {directSends.map((row) => {
+                        const dKey = `d-${row.id}`;
+                        const isExpanded = archiveExpandedKey === dKey;
+                        return (
+                          <Fragment key={`ds-${row.id}`}>
+                            <tr>
+                              <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                                {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
+                              </td>
+                              <td className={styles.td}>{emailUsername(row.to_email)}</td>
+                              <td className={styles.td} style={{ fontSize: 12 }}>{row.source}</td>
+                              <td className={styles.td}>
+                                <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                              </td>
+                              <td className={styles.td} style={{ fontSize: 12 }}>
+                                <span style={{ color: row.status === "sent" ? "var(--green, #16a34a)" : "var(--text-secondary)" }}>
+                                  {row.status}
+                                </span>
+                              </td>
+                              <td className={styles.td}>
+                                <LlmUsagePill usage={row.llm_usage} />
+                              </td>
+                              <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  {typeof row.pending_send_id === "number" && (
+                                    <button
+                                      type="button"
+                                      className={styles.linkBtn}
+                                      onClick={() => handleArchivePreview(dKey, row.pending_send_id as number)}
+                                    >
+                                      {isExpanded ? "Hide" : "Preview"}
+                                    </button>
+                                  )}
+                                  {row.session_id?.trim() && (
+                                    <JobSessionDebugLink sessionId={row.session_id} />
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
-          </div>
+          </>
         )}
       </div>
       {previewModalOpen && (
@@ -2091,6 +2155,12 @@ function DashboardTab({
                 <th className={styles.th}>City</th>
                 <th className={styles.th}>State</th>
                 <th className={styles.th}>Newsletters</th>
+                <th
+                  className={styles.th}
+                  title="Stored shared newsletter editions (public permalinks) for this city"
+                >
+                  Shared editions
+                </th>
                 <th className={styles.th}>Last Generated</th>
                 <th className={styles.th}>Status</th>
                 <th className={styles.th}>Districts</th>
@@ -2100,7 +2170,7 @@ function DashboardTab({
             <tbody>
               {cityStatuses.length === 0 && (
                 <tr>
-                  <td colSpan={8} className={styles.emptyState}>
+                  <td colSpan={9} className={styles.emptyState}>
                     No launched cities found
                   </td>
                 </tr>
@@ -2122,100 +2192,6 @@ function DashboardTab({
               })}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Stored shared newsletter permalinks */}
-      <div className={styles.tableContainer} style={{ marginTop: 16 }}>
-        <div className={styles.tableHeader}>
-          <div>
-            <span className={styles.tableTitle}>Stored shared newsletter permalinks </span>
-            <span className={styles.tableCount}>(city / district archive)</span>
-          </div>
-        </div>
-        <div style={{ padding: "12px 16px 16px" }}>
-          <div className={styles.muted} style={{ fontSize: 12, marginBottom: 10 }}>
-            Shared newsletters generated from the dashboard are saved here and can be
-            opened on their formatted public permalink.
-          </div>
-          {cityStatuses.length === 0 ? (
-            <span className={styles.muted}>No launched cities.</span>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {cityStatuses.map((cs) => {
-                const editions = editionsByCityId[cs.city.city_id] ?? [];
-                return (
-                  <div key={cs.city.city_id}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--text-primary)",
-                        marginBottom: 6,
-                      }}
-                    >
-                      {cs.city.city_name}
-                      {cs.city.state ? `, ${cs.city.state}` : ""}
-                    </div>
-                    {editions.length === 0 ? (
-                      <div className={styles.muted} style={{ fontSize: 12 }}>
-                        No stored editions yet.
-                      </div>
-                    ) : (
-                      <ul
-                        style={{
-                          margin: 0,
-                          paddingLeft: 18,
-                          fontSize: 12,
-                          color: "var(--text-primary)",
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        {editions.map((ed) => {
-                          const scope =
-                            ed.district > 0 ? `District ${ed.district}` : "City-wide";
-                          const href =
-                            ed.city_slug && ed.short_hash
-                              ? `/c/${ed.city_slug}/newsletter/${ed.short_hash}`
-                              : null;
-                          return (
-                            <li key={ed.id}>
-                              <span style={{ fontWeight: 500 }}>
-                                Generated {formatDateTime(ed.created_at)}
-                              </span>
-                              {ed.edition_date ? (
-                                <>
-                                  {" "}
-                                  · Edition date {formatDate(ed.edition_date)}
-                                </>
-                              ) : null}
-                              {" "}
-                              · {scope}
-                              {href ? (
-                                <>
-                                  {" "}
-                                  ·{" "}
-                                  <a
-                                    href={href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ color: "var(--brand-primary)" }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    View
-                                  </a>
-                                </>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
     </>
@@ -2257,6 +2233,13 @@ function CityRow({
         <td className={styles.td} style={{ fontWeight: 500 }}>{cs.city.city_name}</td>
         <td className={styles.td}>{cs.city.state || "\u2014"}</td>
         <td className={styles.td}>{cs.totalCount}</td>
+        <td className={styles.td} title="Expand row for permalink details">
+          {editions.length > 0 ? (
+            <span style={{ fontWeight: 600 }}>{editions.length}</span>
+          ) : (
+            <span className={styles.muted}>0</span>
+          )}
+        </td>
         <td className={styles.td}>{formatDate(cs.latestDate)}</td>
         <td className={styles.td}>
           <span className={`${styles.badge} ${fb.cls}`}>{fb.label}</span>
@@ -2275,7 +2258,7 @@ function CityRow({
       </tr>
       {isExpanded && (cs.reports.length > 0 || editions.length > 0) && (
         <tr className={styles.expandedRow}>
-          <td colSpan={8} className={styles.td} style={{ padding: 0 }}>
+          <td colSpan={9} className={styles.td} style={{ padding: 0 }}>
             <div className={styles.expandedContent}>
               {cs.reports.length > 0 && (
                 <table className={styles.subTable}>
@@ -2365,7 +2348,7 @@ function CityRow({
       )}
       {isExpanded && cs.reports.length === 0 && editions.length === 0 && (
         <tr className={styles.expandedRow}>
-          <td colSpan={8} className={styles.td}>
+          <td colSpan={9} className={styles.td}>
             <div className={styles.expandedContent}>
               <span className={styles.muted}>No newsletters generated yet for this city.</span>
             </div>
