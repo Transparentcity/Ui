@@ -45,7 +45,7 @@ function normalizeOrigin(value: string): { protocol: string; host: string } | nu
   }
 }
 
-function isAllowedOrigin(rawOrigin: string, siteOrigin: string): boolean {
+export function isAllowedOrigin(rawOrigin: string, siteOrigin: string): boolean {
   if (!rawOrigin) return true;
   const o = normalizeOrigin(rawOrigin);
   if (!o) return false;
