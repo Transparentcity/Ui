@@ -496,10 +496,24 @@ Every launched city must be fully wired: city dashboard, district dashboards for
 ```bash
 cd ~/Documents/Coding/TransparentCITY
 source venv/bin/activate
+
+# Browser mode (recommended): waits for React hydration so the rendered
+# DOM is what a real visitor sees. Slower (~6s/page) but accurate.
+python scripts/qa/check_city_completeness.py --browser --site https://transparent.city
+
+# DB+HTTP mode: cheap urllib fetch, but the urllib mode misses anything
+# that hydrates client-side (district list, mayor button text, metric
+# values). Use only when you trust the site to render those server-side.
 python scripts/qa/check_city_completeness.py --site https://transparent.city
-# DB+HTTP mode (default): pulls canonical inventory from the platform DB,
-# then verifies each public URL renders.
-# HTTP-only fallback if no DATABASE_URL: --http-only
+
+# HTTP-only fallback if no DATABASE_URL: --http-only (combinable with --browser)
+```
+
+**One-time setup for browser mode:**
+
+```bash
+pip install playwright
+python -m playwright install chromium
 ```
 
 Checks:
@@ -523,7 +537,8 @@ Tightening notes (May 2026):
 - C5 fails any district with an empty rep name (catches the Cincinnati gap: 2 districts shown, no names).
 - C6 fails when a district page mirrors citywide values (cohort bug — e.g., Cincinnati district 1).
 - C8 fails when a metric detail page returns 200 but renders no numeric value (e.g., Detroit's `detroit_building_permits_plan_reviews`).
-- HTTP-only mode downgrades district checks to REVIEW since the district list often hydrates client-side; DB mode keeps them as hard fails.
+- HTTP-only mode downgrades district checks to REVIEW since the district list often hydrates client-side; DB mode and `--browser` mode keep them as hard fails.
+- `--browser` mode launches headless Chromium via Playwright, waits for hydration, and reads the rendered DOM. This is what catches the real Cincinnati / Denver / Seattle district gaps that urllib falsely calls "passing".
 - C9 (map tab) was removed: the map is intentionally not surfaced on the unauthenticated dashboard.
 
 Exits 1 if any city has any C1-C8 failure.
@@ -775,12 +790,88 @@ These are areas the first QA pass didn't cover deeply. Worth a second look.
 
 ## Open findings (May 2026)
 
+> Full audit results from the 2026-05-07 deep pass live in [`AUDIT_2026-05-07.md`](AUDIT_2026-05-07.md) (raw findings, ~165 items) and [`QA_SYNTHESIS_2026-05-07.md`](QA_SYNTHESIS_2026-05-07.md) (synthesis, root-cause patterns, prevention plan). The table below tracks the verified P0s only; consult the synthesis doc for P1/P2 lists and the four-week execution plan.
+
 | Finding | Status | Reference |
 |---|---|---|
 | Map title PII leak on /c/{city} pages | Open, eng ticket needed | Phase 0.4a |
 | Polygon overlap at data layer | Open, eng ticket needed | Phase 7.4 (`check_polygon_overlap.py`) |
 | Publish pipeline dedup | Open, eng ticket needed | Phase 7.4 (`check_duplicates.py`) |
 | `feed_producer` prompt charter compliance | Verify after deploy | Phase 11.10 |
+| **Security P0** `/api/generate-emails` unauthenticated, drives Anthropic spend, reads `prospects` rows by guessable UUID | Open | `src/app/api/generate-emails/route.ts:328` — Phase 12.1 |
+| **Security P0** `/api/analyze-anomaly` unauthenticated, Anthropic-bill DoS | Open | `src/app/api/analyze-anomaly/route.ts:67-142` — Phase 12.1 |
+| **Security P0** `/api/research-media` SSRF (absolute `permalinkPath` overrides URL base) | Open | `src/app/api/research-media/route.ts:78` — Phase 12.2 |
+| **Security P0** `next.config.ts` `images.remotePatterns: **` — open image proxy / probe vector | Open | `next.config.ts:48-65` — Phase 12.3 |
+| **Security P0** Public chat route renders LLM output via `dangerouslySetInnerHTML` after only `\n -> <br/>` (XSS) | Open | `src/app/chat/[hash]/page.tsx:135` — Phase 12.4 |
+| **Security P1** `welcome-email` and `city-suggestion` Origin allowlist matches any `*.vercel.app` (SendGrid abuse) | Open | `src/app/api/welcome-email/route.ts:198`, `src/app/api/city-suggestion/route.ts:48` |
+| **Security P1** No CSP / X-Frame-Options / HSTS / Referrer-Policy headers anywhere | Open | Add `headers()` to `next.config.ts` |
+| **Bug P0** `FeedAdmin` bulk delete confirms with filtered count (e.g. 12) but API deletes every story for the city (~200) | Open | `src/components/FeedAdmin.tsx:259-278` — irreversible data loss |
+| **Bug P0** `providers.tsx` `clearStaleAuth0State` runs *after* `Auth0Provider` initialized off stale localStorage tokens; users hitting auth callback with stale state see redirect loops | Open | `src/app/providers.tsx:106-110` |
+| **Bug P1** `FeedContainer` and `home/page` read `localStorage` in `useState` initializers → SSR/CSR hydration mismatch | Open | `src/components/feed/FeedContainer.tsx:681, 1158`; `src/app/home/page.tsx:182-188` |
+| **Bug P1** `PageFeedback` 429 path persists `markSubmitted()` and shows "Thanks!" — locked out for 24h, feedback never recorded | Open | `src/components/PageFeedback.tsx:68-70` |
+| **Bug P1** `FeedAdmin` `Last 24h` filter parses `YYYY-MM-DD` as UTC; Pacific users miss today's stories near the cutoff | Open | `src/components/FeedAdmin.tsx:62` |
+| **Bug P1** `AuthModal` effect deps include `onClose` (inline arrow); repeated `router.push("/home")` after auth | Open | `src/components/AuthModal.tsx:31-36` |
+| **Tests P0** 20 / 1719 unit tests failing on `main`, including all 10 of WelcomeModal "Preferences step" (the resident onboarding flow) | Open | Run `npm test`. CI does not gate on test exit code |
+| **Lint P0** 989 ESLint errors and 491 warnings on `main`. 92 `react-hooks/exhaustive-deps`, 35 `react-hooks/set-state-in-effect`, 2 `react-hooks/rules-of-hooks` (the latter in `MediaGallery.tsx`, `MultiMetricCard.tsx`, `PhotoCard.tsx`) | Open | Run `npx eslint .`. CI does not gate |
+| **Mobile P0** 6+ `<input>` elements at `font-size: 13px` cause iOS auto-zoom on focus | Open | `src/components/PageFeedback.tsx:271, 284, 434` and others |
+| **Mobile P0** 22 instances of `100vh` clip on iOS address-bar collapse (modals, sidebars, full-screen panels) | Open | See AUDIT_2026-05-07.md §3 |
+| **Mobile P0** Most modals (AuthModal, WelcomeModal, RenameDialog, EditHomeLocationModal) lack iOS-correct body scroll lock; rubber-band can fire overlay close | Open | Pattern exists in `MobileMoreMenu.tsx:65-76` and `NewsletterAdmin.tsx:1326`; not applied elsewhere |
+| **A11y P0** Hand-rolled modals (`RenameDialog`, `UserMetricOrderDialog`, `MobileMoreMenu`, `EditHomeLocationModal`) lack `role="dialog"`, `aria-modal`, focus trap, focus-return-to-trigger | Open | Port to Radix Dialog |
+| **A11y P0** No skip-to-content link in root layout; `loading.tsx` files have no `role="status"` / `aria-busy` (AT users hear silence) | Open | `src/app/layout.tsx`, every `loading.tsx` |
+
+---
+
+## Phase 12: Security checks (added 2026-05-07)
+
+Added after the deep audit found 5 P0 security issues that the runbook had not previously covered. Run these on every deploy and on any change to `src/app/api/**` or `next.config.ts`.
+
+### 12.1 Auth posture on every API route
+- [ ] For each file under `src/app/api/**/route.ts`, confirm one of:
+  - explicit `requireAdmin` / `requireUser` guard, OR
+  - explicit "PUBLIC" comment with rate limit and origin check
+- [ ] Specifically re-verify: `/api/generate-emails`, `/api/analyze-anomaly`, `/api/research-media`, `/api/welcome-email`, `/api/city-suggestion`. As of 2026-05-07 the first two are unauthenticated and pump arbitrary input into the Anthropic API.
+- [ ] Try `curl -X POST https://transparent.city/api/generate-emails -H 'Content-Type: application/json' -d '{}'`. Expected: 401. If it returns 200 or processes the request, halt.
+
+### 12.2 SSRF probe on user-URL fetchers
+- [ ] `curl 'https://transparent.city/api/research-media?path=https%3A%2F%2Fexample.com%2F'`. Expected: 400 (rejected as non-relative). If it returns content from `example.com`, the SSRF is live.
+- [ ] Confirm any new server-side fetch that accepts a URL goes through a hostname-allowlist helper.
+
+### 12.3 Image proxy hostname allowlist
+- [ ] `grep -A 20 'remotePatterns' next.config.ts`. Confirm there's no `hostname: "**"` entry. Specific domains only.
+- [ ] `curl -sI 'https://transparent.city/_next/image?url=http%3A%2F%2Fexample.com%2Ffoo.png&w=64&q=75'`. Expected: 400. If 200, the image proxy is open.
+
+### 12.4 dangerouslySetInnerHTML sinks
+- [ ] `git grep -n dangerouslySetInnerHTML src/`. For each sink, confirm one of:
+  - source is hardcoded in this repo, OR
+  - content is sanitized via `sanitizeHtml` (see prevention plan in `QA_SYNTHESIS_2026-05-07.md` §3.5).
+- [ ] Specifically verify: `src/app/chat/[hash]/page.tsx:135` (currently does `\n -> <br/>` only on LLM output, public route).
+- [ ] Test: have a chat session output literal HTML/script tags, then visit the share URL. Expected: text rendered as text. If a script executes, halt.
+
+### 12.5 Security headers
+- [ ] `curl -sI https://transparent.city | grep -iE 'content-security-policy|x-frame-options|strict-transport-security|referrer-policy'`. Confirm all four are present.
+- [ ] If any are missing, add them via `headers()` in `next.config.ts`.
+
+---
+
+## Phase 13: Automated check gating (added 2026-05-07)
+
+Added because the 2026-05-07 audit found 989 lint errors and 20 test failures sitting on `main`, indicating CI does not gate. The runbook itself can't fix CI — but it can verify on each pre-deploy pass that the gating is in place.
+
+### 13.1 Tests pass
+- [ ] `npm test`. Expected: zero failures. As of 2026-05-07 baseline: 20 failing tests across 5 files.
+- [ ] If failing, halt the deploy until either fixed or the test is deleted with reviewer signoff.
+
+### 13.2 Type check passes
+- [ ] `npm run type-check`. Expected: zero errors. As of 2026-05-07: clean.
+
+### 13.3 Lint count does not increase
+- [ ] `npx eslint . 2>&1 | tail -3`. Note the error/warning counts.
+- [ ] Compare against the previous deploy's count. If higher on any tracked rule (`react-hooks/exhaustive-deps`, `react-hooks/set-state-in-effect`, `react-hooks/rules-of-hooks`), halt the deploy.
+- [ ] 2026-05-07 baseline: 989 errors, 491 warnings. Count should monotonically decrease.
+
+### 13.4 CI gate exists
+- [ ] `cat .github/workflows/*.yml | grep -E 'type-check|test|lint'`. Confirm the GitHub Action runs all three on PRs and fails on non-zero exit.
+- [ ] If no CI workflow exists, the prevention plan in `QA_SYNTHESIS_2026-05-07.md` §3.1 is unimplemented; flag as P0 process gap.
 
 ---
 
