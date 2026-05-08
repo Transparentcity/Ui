@@ -32,6 +32,29 @@ function clip(value: string | undefined, max: number): string {
   return v.length > max ? v.slice(0, max) : v;
 }
 
+function normalizeOrigin(value: string): { protocol: string; host: string } | null {
+  if (!value) return null;
+  try {
+    const u = new URL(value);
+    return {
+      protocol: u.protocol,
+      host: u.hostname.replace(/^www\./i, "").toLowerCase(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedOrigin(rawOrigin: string, siteOrigin: string): boolean {
+  if (!rawOrigin) return true;
+  const o = normalizeOrigin(rawOrigin);
+  if (!o) return false;
+  if (o.host === "localhost" || o.host.endsWith(".vercel.app")) return true;
+  const s = normalizeOrigin(siteOrigin);
+  if (!s) return false;
+  return o.protocol === s.protocol && o.host === s.host;
+}
+
 function row(label: string, value: string | undefined): string {
   const display = value && value.trim() ? escapeHtml(value) : "<em>(not provided)</em>";
   return `<tr><td style="padding:6px 12px 6px 0;color:#666;vertical-align:top;white-space:nowrap;"><strong>${escapeHtml(label)}</strong></td><td style="padding:6px 0;">${display}</td></tr>`;
@@ -40,11 +63,8 @@ function row(label: string, value: string | undefined): string {
 export async function POST(req: NextRequest): Promise<Response> {
   const origin = req.headers.get("origin") ?? req.headers.get("referer") ?? "";
   const siteOrigin = getSiteOrigin();
-  const isAllowed =
-    origin.startsWith(siteOrigin) ||
-    origin.includes(".vercel.app") ||
-    origin.startsWith("http://localhost");
-  if (!isAllowed) {
+  if (!isAllowedOrigin(origin, siteOrigin)) {
+    console.warn("[city-suggestion] Blocked origin:", { origin, siteOrigin });
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -141,16 +161,31 @@ export async function POST(req: NextRequest): Promise<Response> {
 </body>
 </html>`;
 
-  const result = await sendEmail({
-    to: NOTIFY_EMAIL,
-    subject,
-    body: html,
-    replyTo: email || undefined,
-  });
+  const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const replyTo = looksLikeEmail ? email : undefined;
+
+  let result;
+  try {
+    result = await sendEmail({
+      to: NOTIFY_EMAIL,
+      subject,
+      body: html,
+      replyTo,
+    });
+  } catch (err) {
+    console.error("[city-suggestion] sendEmail threw:", err);
+    return NextResponse.json(
+      { error: "Could not send your submission. Please try again or email seymour@transparent.city." },
+      { status: 502 },
+    );
+  }
 
   if (!result.success) {
     console.error("[city-suggestion] SendGrid error:", result.error);
-    return NextResponse.json({ error: result.error }, { status: 502 });
+    return NextResponse.json(
+      { error: "Could not send your submission. Please try again or email seymour@transparent.city." },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json({ sent: true, messageId: result.messageId });
