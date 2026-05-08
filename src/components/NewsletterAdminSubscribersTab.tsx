@@ -10,7 +10,6 @@ import {
   getAvailableModels,
   getOutboundEmail,
   getNewsletterPendingDetail,
-  getNewsletterPrompts,
   listCities,
   listUsers,
   updateUser,
@@ -192,24 +191,19 @@ export default function NewsletterAdminSubscribersTab() {
   const [testPrompt, setTestPrompt] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testTitle, setTestTitle] = useState<string | null>(null);
-  const [savedSharedPrompt, setSavedSharedPrompt] = useState<string | null>(null);
 
   const loadBase = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
-      const [u, c, modelGroups, prompts] = await Promise.all([
+      const [u, c, modelGroups] = await Promise.all([
         listUsers(token, { limit: 500 }),
         listCities(token),
         getAvailableModels(token).catch(() => []),
-        getNewsletterPrompts(token).catch(() => null),
       ]);
       setUsers(u);
       setCities(c.filter((x) => x.is_active !== false));
-      if (prompts?.shared_newsletter_prompt) {
-        setSavedSharedPrompt(prompts.shared_newsletter_prompt);
-      }
       const flat = modelGroups
         .flatMap((g) =>
           g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
@@ -377,8 +371,10 @@ export default function NewsletterAdminSubscribersTab() {
       cities.find((c) => c.city_id === testCityId)?.city_name || "City";
     const districtLabel =
       testDistrict === "0" ? "citywide" : `District ${testDistrict}`;
-    const prompt = testPrompt.trim() || savedSharedPrompt || "";
-    const promptOverride = prompt ? `For ${cityName} (${districtLabel}). ${prompt}` : null;
+    const trimmed = testPrompt.trim();
+    const promptOverride = trimmed
+      ? `For ${cityName} (${districtLabel}). ${trimmed}`
+      : null;
 
     setTestBusy(true);
     setTestTitle(null);
