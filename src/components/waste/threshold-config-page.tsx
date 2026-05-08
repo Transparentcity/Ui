@@ -53,18 +53,18 @@ const POLICY_GROUPS: PolicyGroup[] = [
   },
   {
     key: "procurement",
-    title: "Procurement Risk",
+    title: "Procurement & Contracts",
     description:
-      "Detectors that identify vendor concentration, split purchase orders, ghost vendors, and other procurement red flags in the PO approval flow.",
+      "Detectors that identify vendor concentration, split purchase orders, ghost vendors, contract drift, vague scope language, and sole-source abuse across procurement and contracting.",
     icon: Gauge,
     color: "border-l-orange-500",
     detectorCategories: ["vendor"],
   },
   {
-    key: "contracts",
-    title: "Contract Oversight",
+    key: "infrastructure",
+    title: "Public Services & Permits",
     description:
-      "Monitors for contract drift, vague scope language, sole-source justification weaknesses, and amendment patterns that circumvent competitive processes.",
+      "Monitors public-service quality and infrastructure performance: 311 response times, resolution rates, budget variance, and permit fast-tracking that may indicate preferential treatment.",
     icon: Gauge,
     color: "border-l-teal-500",
     detectorCategories: ["infrastructure"],
