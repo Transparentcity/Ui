@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import type { WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
@@ -78,6 +80,14 @@ export function ForensicsCategoryDetailPage({
       description="Browse and investigate detected anomalies"
     >
       <ForensicsShell title={label}>
+        <Link
+          href="/waste/forensics/categories"
+          className="inline-flex items-center gap-1 text-xs text-gray-500 no-underline hover:text-purple-600 mb-3"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          All categories
+        </Link>
+
         {/* Summary stats */}
         {categoryFindings.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">

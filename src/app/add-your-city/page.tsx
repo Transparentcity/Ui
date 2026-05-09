@@ -25,12 +25,12 @@ export default function AddYourCityPage() {
     e.preventDefault();
     setFormError("");
 
-    if (!formData.city) {
+    if (!formData.city.trim()) {
       setFormError("Please enter a city name.");
       return;
     }
 
-    if (activeTab === "improve" && !formData.email) {
+    if (activeTab === "improve" && !formData.email.trim()) {
       setFormError("Please enter your email so we can get in touch.");
       return;
     }
@@ -42,25 +42,31 @@ export default function AddYourCityPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kind: activeTab,
-          city: formData.city,
-          dataPortalUrl: formData.dataPortalUrl,
-          name: formData.name,
-          email: formData.email,
-          title: formData.title,
+          city: formData.city.trim(),
+          dataPortalUrl: formData.dataPortalUrl.trim(),
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          title: formData.title.trim(),
           hasDataExperience: formData.hasDataExperience,
           isCityGovernment: formData.isCityGovernment,
         }),
       });
 
+      const data = await res.json().catch(() => ({} as { error?: string }));
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || `Request failed (${res.status})`);
+        const message =
+          (data && typeof data.error === "string" && data.error) ||
+          `Submission failed (${res.status}). Please try again or email seymour@transparent.city.`;
+        setFormError(message);
+        return;
       }
 
       setFormSubmitted(true);
-    } catch {
+    } catch (err) {
+      console.error("[add-your-city] submit failed:", err);
       setFormError(
-        "Something went wrong. Please try again or email us directly at seymour@transparent.city."
+        "Could not reach the server. Check your connection or email us at seymour@transparent.city."
       );
     } finally {
       setIsSubmitting(false);

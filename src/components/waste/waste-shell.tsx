@@ -19,6 +19,7 @@ import {
   Code2,
   SlidersHorizontal,
   BookOpen,
+  Cpu,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
@@ -72,12 +73,11 @@ const TOP_TABS: TabItem[] = [
 ]
 
 const GEAR_LINKS: TabItem[] = [
-  { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
   {
-    key: "thresholds",
-    name: "Thresholds",
-    href: "/waste/settings/thresholds",
-    icon: SlidersHorizontal,
+    key: "detectors",
+    name: "Detectors & Data",
+    href: "/waste#detectors",
+    icon: Cpu,
   },
   {
     key: "methodology",
@@ -85,6 +85,13 @@ const GEAR_LINKS: TabItem[] = [
     href: "/waste/methodology",
     icon: BookOpen,
   },
+  {
+    key: "thresholds",
+    name: "Thresholds",
+    href: "/waste/settings/thresholds",
+    icon: SlidersHorizontal,
+  },
+  { key: "api", name: "Guardrails API", href: "/waste/api", icon: Code2 },
 ]
 
 interface WasteShellProps {
@@ -290,8 +297,8 @@ function WasteShellInner({
         </div>
 
         {/* Tab bar */}
-        <nav className="flex items-center gap-0 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-0 flex-1">
+        <nav className="flex items-center gap-0 px-4 lg:px-6">
+          <div className="flex items-center gap-0 flex-1 overflow-x-auto scrollbar-hide">
             {TOP_TABS.map((tab) => {
               const Icon = tab.icon
               const active = isTabActive(tab)
@@ -313,7 +320,7 @@ function WasteShellInner({
             })}
           </div>
 
-          <div className="flex items-center gap-1 pl-2">
+          <div className="flex items-center gap-1 pl-2 shrink-0">
             <button
               onClick={toggleSeymour}
               className={cn(
