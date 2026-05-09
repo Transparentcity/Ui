@@ -169,6 +169,7 @@ export function AddFilter({
           type="text"
           className={styles.searchInput}
           placeholder={tab === "cities" ? "Search cities…" : "Search topics…"}
+          aria-label={tab === "cities" ? "Search cities" : "Search topics"}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoFocus

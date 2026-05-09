@@ -7,7 +7,6 @@
  * Sort lives at the top as a 2-button segmented control.
  * Cities and Topics are tabs to keep the panel compact.
  * Active filters appear as chips below the title for one-click removal.
- * The footer shows a live story count.
  *
  * Props are compatible with the original FilterPanel so it drops into the
  * existing FeedContainer wiring with minimal changes.
@@ -60,8 +59,6 @@ interface Props {
   userPlaces: UserPlace[];
   districtsPerCity: DistrictsForCity[];
   onAddAddress: () => void;
-  /** Optional: visible story count shown in the footer ("Showing N stories"). */
-  currentStoryCount?: number;
   /** Selector used to anchor the desktop dropdown. */
   triggerSelector?: string;
 }
@@ -92,7 +89,6 @@ export default function FilterPanelV2({
   userPlaces,
   districtsPerCity,
   onAddAddress,
-  currentStoryCount,
   triggerSelector = 'button[aria-label="Open filters"]',
 }: Props) {
   const isDesktop = useIsDesktop();
@@ -312,13 +308,18 @@ export default function FilterPanelV2({
     return chips;
   }, [draft, allCities, districtsPerCity, userPlaces, applyMaybe]);
 
-  const hasAnyFilter =
-    draft.selectedCityIds.size > 0 ||
-    draft.selectedTopics.size > 0 ||
-    draft.selectedDistricts.size > 0 ||
-    draft.selectedPlaceId !== null ||
-    draft.onlyMySavedPlaces ||
-    draft.feedOrder !== "published_at";
+  // The default state after Clear all is: the user's followed cities in feed,
+  // no topics, no districts, no place, no near-my-places, sort = newest. So
+  // Clear all should only be enabled when the draft DEVIATES from that default,
+  // not whenever any city is checked.
+  const isAtDefault =
+    setsEqual(draft.selectedCityIds, savedCityIds) &&
+    draft.selectedTopics.size === 0 &&
+    draft.selectedDistricts.size === 0 &&
+    draft.selectedPlaceId === null &&
+    !draft.onlyMySavedPlaces &&
+    draft.feedOrder === "published_at";
+  const hasAnyFilter = !isAtDefault;
 
   if (!open || !mounted) return null;
 
@@ -380,12 +381,14 @@ export default function FilterPanelV2({
           </div>
         )}
 
-        {/* Sort */}
-        <div className={styles.sortSegment} role="tablist" aria-label="Sort">
+        {/* Sort: mutually-exclusive selection. Modeled as a radiogroup so
+            screen readers announce these as a sort choice, not as tabs that
+            would switch a tabpanel (the original role="tablist" was wrong). */}
+        <div className={styles.sortSegment} role="radiogroup" aria-label="Sort">
           <button
             type="button"
-            role="tab"
-            aria-selected={draft.feedOrder === "published_at"}
+            role="radio"
+            aria-checked={draft.feedOrder === "published_at"}
             className={`${styles.sortBtn} ${draft.feedOrder === "published_at" ? styles.sortBtnActive : ""}`}
             onClick={() => applyMaybe({ ...draft, feedOrder: "published_at" })}
           >
@@ -393,8 +396,8 @@ export default function FilterPanelV2({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={draft.feedOrder === "for_you"}
+            role="radio"
+            aria-checked={draft.feedOrder === "for_you"}
             className={`${styles.sortBtn} ${draft.feedOrder === "for_you" ? styles.sortBtnActive : ""}`}
             onClick={() => applyMaybe({ ...draft, feedOrder: "for_you" })}
           >
@@ -538,6 +541,7 @@ function CitiesPane({
           type="text"
           className={styles.searchInput}
           placeholder="Search cities…"
+          aria-label="Search cities"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           autoComplete="off"
@@ -793,6 +797,12 @@ function cloneState(s: FilterState): FilterState {
   };
 }
 
+function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
+
 function summarizeDistricts(
   selected: Map<number, Set<number>>,
   districtsPerCity: DistrictsForCity[],
@@ -810,7 +820,13 @@ function summarizeDistricts(
 }
 
 function useIsDesktop() {
-  const [v, setV] = useState(false);
+  // Lazy-initial so desktop users don't see a one-frame mobile-style flash on
+  // first paint. The panel itself is gated on `mounted` (set in useEffect),
+  // so this initializer never runs on the server.
+  const [v, setV] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(min-width: 768px)").matches;
+  });
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
     setV(mq.matches);

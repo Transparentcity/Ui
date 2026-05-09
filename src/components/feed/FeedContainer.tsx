@@ -1324,7 +1324,6 @@ export default function FeedContainer({
             userPlaces={userPlaces}
             districtsPerCity={districtsPerCity}
             onAddAddress={() => setShowLocationModal(true)}
-            currentStoryCount={visibleStories.length}
           />
         </div>
       </div>
