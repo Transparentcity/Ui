@@ -453,10 +453,6 @@ export default function FilterPanelV2({
         </div>
 
         <div className={styles.footer}>
-          <span className={styles.countLabel}>
-            Showing <strong>{currentStoryCount ?? 0}</strong>{" "}
-            {currentStoryCount === 1 ? "story" : "stories"}
-          </span>
           <span className={styles.hint} aria-hidden="true">
             <span className={styles.kbd}>F</span> open · <span className={styles.kbd}>Esc</span> close
           </span>
