@@ -883,10 +883,17 @@ function useIsDesktop() {
   });
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
-    setV(mq.matches);
-    const h = (e: MediaQueryListEvent) => setV(e.matches);
-    mq.addEventListener("change", h);
-    return () => mq.removeEventListener("change", h);
+    const update = () => setV(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    // Fallback for environments that programmatically resize without firing
+    // matchMedia 'change' (some headless/iframe contexts). CSS media queries
+    // update either way; this just keeps React state in sync.
+    window.addEventListener("resize", update);
+    return () => {
+      mq.removeEventListener("change", update);
+      window.removeEventListener("resize", update);
+    };
   }, []);
   return v;
 }
