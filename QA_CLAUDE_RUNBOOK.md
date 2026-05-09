@@ -17,20 +17,76 @@ cd ~/Documents/Coding/TransparentCITY
 bash scripts/qa/run_weekly.sh
 ```
 
-This runs every check below in order, applies the allowlist in `scripts/qa/qa_known_issues.yaml`, builds the PDF, and writes a one-line top summary. Pipeline:
+This runs every check below in order, applies the allowlist in `scripts/qa/qa_known_issues.yaml`, builds the PDF, and writes a one-line top summary. Pipeline (post-2026-05-08 expansion — **every check listed here now runs as part of the weekly orchestrator**, no opt-in flags except `--with-webkit` for cross-engine smoke and `--skip-phase13` for skipping the slow Ui-repo gates):
 
-1. `check_city_completeness.py --browser` — main sweep (writes JSON sidecar, qa_history snapshot, screenshots)
+**Dashboard / infrastructure**
+1. `check_city_completeness.py --http-only --browser` — main sweep against every city in the production sitemap. `--http-only` is mandatory in the orchestrator so a dev DB with only one city flipped to `is_launched` doesn't silently constrain the sweep.
 2. `check_error_states.py` — ES1-ES3
 3. `check_social_cards.py` — SC1-SC5
 4. `check_perf_trend.py` — PT1-PT3 vs rolling baseline median
 5. `check_visual_regression.py` — VR1 vs prior week
 6. `check_data_truth.py` — DT1 against `metrics_source_queries.yaml`
-7. `check_maps.py` — M1-M5 against `gazetteer.yaml`
-8. `check_webkit_divergence.py` — WK-divergence (chromium vs webkit smoke)
-9. `apply_known_issues.py` — moves allowlisted findings into `suppressed`
-10. `build_qa_pdf.py` — `/tmp/qa_weekly.pdf`
+7. `check_webkit_divergence.py` — chromium vs webkit smoke, runs when `--with-webkit` is passed (recommended; install once with `python -m playwright install webkit`)
+8. `capture_ftux_feed.py` — logged-in /home screenshot (needs `QA_AUTH0_EMAIL` / `QA_AUTH0_PASSWORD`)
 
-Per-check rule taxonomy lives in `scripts/qa/check_registry.py` (single source of truth for pillar / severity / owner / trigger).
+**Story content (Charter 5.5 + auxiliary)**
+9. `pull_feed_stories.py --days 30` — exports `/tmp/qa_stories.csv` for the rest of this group
+10. `check_metric_verb_lock.py` — Charter 5.5.1 (verb/metric agreement). **As of 2026-05-08, "ticket" / "ticketed" is no longer in the banned-verb set** (editorial decision, was producing too many false positives on parking-citation stories). Edit `EVENT_VERBS` in the script if revisiting.
+11. **Disabled** — `check_number_reconciliation.py` (Charter 5.5.2). As of 2026-05-08 this is intentionally skipped in `run_weekly.sh` and the equivalent block in `audit_recent_stories.py` (`headline-number-missing`) is also short-circuited. Editorial decision: too many false positives where the body cited a derived form of the headline number (e.g. headline "67%", body "two-thirds"). The PDF builder also drops any `headline-number-missing` finding still sitting in the JSON. Re-enable by reverting the changes in `run_weekly.sh` and `audit_recent_stories.py:296`.
+12. `check_cross_story_consistency.py --window 14` — Charter 5.5.3 (contradictions on shared metrics)
+13. `check_polygon_overlap.py` — Charter 5.5.4 (top-N neighborhood overlap)
+14. `check_single_source_complaints.py --window 30` — Charter 5.5.7 (queries 311 datasets directly)
+15. `check_duplicates.py --window-days 7` — publish-pipeline dedup
+16. `check_empty_bodies.py --min-words 50` — render quality
+17. `check_internal_tokens.py` — `OLD_`, `DEPRECATED_`, `DISTRICT_ID` placeholder leaks
+18. `check_seymour_voice.py` — Seymour voice charter (advisory; always exits 0)
+19. `audit_recent_stories.py --per-city 10` — deep heuristic audit against rendered HTML
+
+**FTUX, authed, and resident missions**
+20. `check_onboarding.py --browser` — FTUX smoke (C30-C37)
+21. `check_authed_browsing.py --browser` — logged-in flows (C40-C43), needs `QA_AUTH0_*`
+22. `check_resident_question.py` — Phase 10.0: rotating resident question per city per week (see Phase 10 below)
+23. `check_resident_missions.py` — Phase 10.1-10.6 deep resident missions (dashboard test, feed test, map test, story deep-dive, methodology check, city comparison) browser-driven against every launched city
+
+**Phase 11 (deeper technical) and Phase 13 (CI gating)**
+24. `check_phase11_phase13.py` — bundles:
+    - 11.1: API response time for `/api/public/cities/sitemap` (the SSR dependency for every city page render)
+    - 11.3: JS-disabled SSR fetch — confirms `/c/{flagship}` ships meaningful HTML before hydration
+    - 11.7: vercel.json audit — confirms `transparentcity.com → transparent.city` redirect is wired
+    - 13.1: `npm test` exit code in the Ui repo
+    - 13.2: `npm run type-check` exit code in the Ui repo
+    - 13.3: `npx eslint .` error/warning counts vs the stored baseline at `/tmp/qa_lint_baseline.json` (fails P0 if errors went up week-over-week)
+    - Skip Phase 13 with `RUN_PHASE13=0` env var or `--skip-phase13` flag if you only want the technical 11.x checks
+    - 11.2 Lighthouse a11y is not yet bundled (needs node + Chrome path); if added later, slot in here
+
+**Security (Phase 12)**
+25. Inline `curl` probes for `/api/generate-emails`, `/api/analyze-anomaly`, `/api/research-media` SSRF, `/_next/image` open-proxy, and security headers (CSP / X-Frame / HSTS / Referrer-Policy). Findings emitted as `VIOLATION` lines and merged into the JSON.
+
+**Wrap-up**
+26. `merge_check_logs.py` — folds VIOLATION/REVIEW/WARN lines from every check above into the unified JSON sidecar (`/tmp/city_completeness_report.json`)
+27. `apply_known_issues.py` — moves allowlisted findings into `suppressed`
+28. `build_qa_pdf.py` — `/tmp/qa_weekly.pdf`. Layout:
+    - Cover: totals, by-pillar, by-repo, per-city scorecard
+    - All issues at a glance: every finding on one or two pages, severity + rule + city + one-line plain-English what
+    - Phase 10 resident-question results
+    - FTUX feed screenshot (logged-in)
+    - Per-pillar deep dives with city dashboard screenshots and per-finding What / Where to see it / Fix direction blocks
+    - P3 cosmetic appendix
+
+Per-check rule taxonomy lives in `scripts/qa/check_registry.py` (single source of truth for pillar / severity / owner / trigger). Plain-English explanations of each rule live in `scripts/qa/rule_glossary.py` — the PDF builder pulls "What" / "Where to see it" / "Fix direction" from there. New rules added by other checks should also have a `GLOSSARY` entry so the PDF reads in plain English instead of raw error strings.
+
+**Site-wide consolidation.** Some rules fire on every launched city for the same root cause (e.g. `C23-console-errors` for the SVG `<rect> transform: translate(23.5%, -23.5%)` issue, which is one component bug visible across all dashboards). The PDF builder consolidates any rule listed in `CONSOLIDATE_RULES` (in `build_qa_pdf.py`) when it fires on ≥75% of launched cities, rendering a single "site-wide finding" with the affected city list rather than repeating the same finding across the per-city sections. Add other pervasive rules to that set as needed.
+
+### Recommended weekly invocation
+
+```bash
+cd ~/Documents/Coding/TransparentCITY
+source venv/bin/activate
+QA_AUTH0_EMAIL='awerbach+QA@gmail.com' QA_AUTH0_PASSWORD='...' \
+  bash scripts/qa/run_weekly.sh --with-webkit
+```
+
+This is the canonical command Adam and the team should use. Set `RUN_PHASE13=0` to skip the slow Ui-repo gates (~10 min) on quick check-ins, but always include `--with-webkit` on the canonical weekly run.
 
 ### Allowlist workflow
 
@@ -713,6 +769,46 @@ Everything above checks whether the product *works*. This phase checks whether i
 
 Run these as open-ended missions, not checkbox items. Write down what you actually found (or couldn't find). If a mission is frustrating, confusing, or leads to a dead end, that's a finding.
 
+### 10.0 Automated rotating resident question (runs weekly)
+
+`scripts/qa/check_resident_question.py` runs as part of the weekly orchestrator. It picks a different question per city per ISO week from a rotating set of 10 questions, drives a headless browser through that city's dashboard, and records whether a resident could find the answer:
+
+- **ANSWERED** — the answer is on the dashboard (or one click away), with a real number / direction / name.
+- **PARTIAL** — the relevant metric exists but the trend is missing, the chip is implausible (e.g. `+500%`, `-100%`), or the click-through page renders but doesn't include the breakdown the question needs.
+- **BLOCKED** — the metric isn't on the dashboard at all.
+
+The current question set covers:
+
+1. Is violent crime going up or down in my district? (district click-through)
+2. How long does 311 take to respond to potholes?
+3. Are building permits trending up or down this year?
+4. Has drug crime gone up or down compared to last year?
+5. Which neighborhood has the most stolen vehicle reports? (metric detail click-through)
+6. Who is my district representative?
+7. When did the most recent story about police calls publish?
+8. What's the biggest thing that's gotten better in this city recently?
+9. Who is the mayor of this city?
+10. Where is construction happening right now in this city? (metric detail click-through)
+
+Question selection is `(week_of_year + city_index) % len(questions)`, so each week the cities get a rotated set. Add to the rotation by editing `QUESTIONS` in the script.
+
+Findings land in the weekly PDF under "Phase 10: this week's resident question" with severity P0 (blocked), P1 (partial), or P3 (answered — kept for documentation, not for triage).
+
+### 10.0b Automated deep resident missions (runs weekly)
+
+`scripts/qa/check_resident_missions.py` is the browser-driven companion to the rotating question. It runs all six deep missions (10.1 dashboard, 10.2 feed, 10.3 map, 10.4 story deep-dive, 10.5 methodology, 10.6 city comparison) against every launched city, records observations, and writes findings:
+
+- **M10-1-NO-METRICS / NO-IMPROVING / NO-MAYOR / NO-RAW-REP** — dashboard test failures: no trend chips visible, no improving metric, no mayor name, no district-rep names visible without clicking
+- **M10-2-NO-STORIES / DB-FIELDNAME-HEADLINE** — feed test failures: zero story cards, or a headline that reads like a database field
+- **M10-3-NO-MAP** — informational P3, since the map is intentionally not surfaced unauthenticated
+- **M10-4-NO-SOURCE** — story deep-dive: a story body has no recognizable city-data hint or "Source: ..." label
+- **M10-5-METHODOLOGY-EMPTY / MISSING** — `/c/{slug}/methodology` doesn't render or has under 500 characters of content
+- **M10-6-NO-SHARED-METRIC** — comparison test: two flagship cities share zero metric labels, so a resident can't directly compare them
+
+The script also captures a fresh full-page screenshot of every city dashboard at `/tmp/qa_screenshots/{city}-mission.png`, separate from the C-series screenshots, so the PDF has a snapshot of what a resident actually sees.
+
+The longer human-judgment versions of 10.1-10.7 below are still useful (subjective questions like "would you share this story?") and should be run by hand on a quarterly cadence, but the mechanical versions of every mission now fire weekly and surface in the PDF.
+
 ### 10.1 The dashboard test: "What's going on in this city?"
 
 For each of the 3 test cities, land on the city dashboard (`/c/[slug]`) cold and try to answer:
@@ -785,12 +881,12 @@ Pick 3 stories from different cities and read them fully (not just the card, the
 
 ## Phase 11: Deeper Technical Checks
 
-These are areas the first QA pass didn't cover deeply. Worth a second look.
+These are areas the first QA pass didn't cover deeply. **As of 2026-05-08, items 11.1, 11.3, and 11.7 run weekly via `scripts/qa/check_phase11_phase13.py`**; the rest still need a human or a one-off tool. Findings are written into the unified JSON and the weekly PDF as `P11-*` rules.
 
-### 11.1 API response times and server-side rendering
-- [ ] Time the server-side fetch for `listPublicCitiesForSitemap()` on the city page. If the API is slow, the entire page render blocks.
-- [ ] Check for N+1 fetch patterns in server components (e.g., does the city page fetch leaders separately for every district?)
-- [ ] Verify `NEXT_PUBLIC_API_BASE_URL` is correctly set in the Vercel deployment environment (server-side fetches use this directly, not the rewrite proxy)
+### 11.1 API response times and server-side rendering — **automated weekly**
+- [x] **Automated:** Time the server-side fetch for `/api/public/cities/sitemap` (the SSR dependency for every city page render). Budget 2000 ms; over-budget surfaces as `P11-1-API-SLOW` (P1). Failure surfaces as `P11-1-API-FAIL` (P0).
+- [ ] Manual: Check for N+1 fetch patterns in server components (e.g., does the city page fetch leaders separately for every district?)
+- [ ] Manual: Verify `NEXT_PUBLIC_API_BASE_URL` is correctly set in the Vercel deployment environment (server-side fetches use this directly, not the rewrite proxy)
 
 ### 11.2 Accessibility beyond aria attributes
 - [ ] Run axe-core or Lighthouse accessibility audit on the city dashboard page
@@ -808,9 +904,9 @@ These are areas the first QA pass didn't cover deeply. Worth a second look.
 - [ ] Verify metrics dashboard has table ARIA roles
 - [ ] Verify feed card articles do not have `role="link"` (removed in commit 07d1d05)
 
-### 11.3 JS-disabled graceful degradation
-- [ ] Load city pages with JavaScript disabled. Do they show meaningful content from SSR?
-- [ ] Are critical CTAs (signup, follow) visible without JS?
+### 11.3 JS-disabled graceful degradation — **automated weekly**
+- [x] **Automated:** `check_phase11_phase13.py` fetches `/c/san-francisco` with no JS execution. If the city name is not in the visible (non-`<script>`) HTML, surfaces as `P11-3-SSR-MISSING-HEADLINE` (P1). If `og:title` is missing from the SSR HTML, surfaces as `P11-3-SSR-MISSING-OG` (P1).
+- [ ] Manual spot-check: are critical CTAs (signup, follow) visible without JS in a real browser with JS disabled?
 
 ### 11.4 Analytics and tracking
 - [ ] Verify PostHog initialization doesn't block page render
@@ -829,10 +925,10 @@ These are areas the first QA pass didn't cover deeply. Worth a second look.
 - [ ] Test press release archetype selection
 - [ ] Verify SendGrid integration (email compose and send flow)
 
-### 11.7 Vercel configuration
-- [ ] Verify `vercel.json` rewrites are working (API proxy, domain redirects)
-- [ ] Check if ISR/static generation is configured for city pages (affects TTFB)
-- [ ] Verify image optimization config in `next.config.ts` covers all expected image domains
+### 11.7 Vercel configuration — **partially automated weekly**
+- [x] **Automated:** `check_phase11_phase13.py` reads `vercel.json` and confirms the `transparentcity.com → transparent.city` redirect is wired. Surfaces as `P11-7-OLD-DOMAIN-REDIRECT` (P1) if missing or `P11-7-VERCEL-MISSING/PARSE` (P1) if the file is unreadable.
+- [ ] Manual: Check if ISR/static generation is configured for city pages (affects TTFB)
+- [ ] Manual: Verify image optimization config in `next.config.ts` covers all expected image domains
 
 ### 11.8 Content quality spot checks
 - [ ] Read 5 random stories across different cities. Are headlines grammatically correct?
@@ -918,22 +1014,25 @@ Added after the deep audit found 5 P0 security issues that the runbook had not p
 
 ## Phase 13: Automated check gating (added 2026-05-07)
 
-Added because the 2026-05-07 audit found 989 lint errors and 20 test failures sitting on `main`, indicating CI does not gate. The runbook itself can't fix CI — but it can verify on each pre-deploy pass that the gating is in place.
+Added because the 2026-05-07 audit found 989 lint errors and 20 test failures sitting on `main`, indicating CI does not gate. **As of 2026-05-08, items 13.1, 13.2, 13.3 run weekly via `scripts/qa/check_phase11_phase13.py`** and surface as `P13-*` rules in the unified JSON. The runbook still can't fix CI for you — it just confirms whether the gates would pass and tracks lint count drift week-over-week.
 
-### 13.1 Tests pass
-- [ ] `npm test`. Expected: zero failures. As of 2026-05-07 baseline: 20 failing tests across 5 files.
+To skip these (slow, ~10 min) on a quick check-in, set `RUN_PHASE13=0` before invoking `run_weekly.sh`.
+
+### 13.1 Tests pass — **automated weekly**
+- [x] **Automated:** `npm test` runs in the Ui repo. rc != 0 surfaces as `P13-1-TESTS-FAILING` (P0) with the parsed failing-test count.
 - [ ] If failing, halt the deploy until either fixed or the test is deleted with reviewer signoff.
+- 2026-05-07 baseline: 20 failing tests across 5 files.
 
-### 13.2 Type check passes
-- [ ] `npm run type-check`. Expected: zero errors. As of 2026-05-07: clean.
+### 13.2 Type check passes — **automated weekly**
+- [x] **Automated:** `npm run type-check` runs in the Ui repo. rc != 0 surfaces as `P13-2-TYPECHECK-FAILING` (P0) with the first error line.
+- 2026-05-07 baseline: clean.
 
-### 13.3 Lint count does not increase
-- [ ] `npx eslint . 2>&1 | tail -3`. Note the error/warning counts.
-- [ ] Compare against the previous deploy's count. If higher on any tracked rule (`react-hooks/exhaustive-deps`, `react-hooks/set-state-in-effect`, `react-hooks/rules-of-hooks`), halt the deploy.
-- [ ] 2026-05-07 baseline: 989 errors, 491 warnings. Count should monotonically decrease.
+### 13.3 Lint count does not increase — **automated weekly**
+- [x] **Automated:** `npx eslint .` runs in the Ui repo. The merger compares the new error/warning count against the stored baseline at `/tmp/qa_lint_baseline.json` (rolled forward each weekly run). If errors went up week-over-week, surfaces as `P13-3-ESLINT-ERRORS` at P0; otherwise P1 while errors > 0.
+- 2026-05-07 baseline: 989 errors, 491 warnings. Count should monotonically decrease.
 
 ### 13.4 CI gate exists
-- [ ] `cat .github/workflows/*.yml | grep -E 'type-check|test|lint'`. Confirm the GitHub Action runs all three on PRs and fails on non-zero exit.
+- [ ] Manual: `cat .github/workflows/*.yml | grep -E 'type-check|test|lint'`. Confirm the GitHub Action runs all three on PRs and fails on non-zero exit.
 - [ ] If no CI workflow exists, the prevention plan in `QA_SYNTHESIS_2026-05-07.md` §3.1 is unimplemented; flag as P0 process gap.
 
 ---
