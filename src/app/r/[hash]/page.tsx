@@ -226,7 +226,7 @@ export default function PublicResearchPage() {
                 ry="3"
                 mask="url(#logo-mask-bl-research)"
                 fill="var(--text-primary)"
-                transform="translate(23.5%, -23.5%)"
+                transform="translate(23.5, -23.5)"
               />
               <rect
                 className="brace"
@@ -238,7 +238,7 @@ export default function PublicResearchPage() {
                 ry="3"
                 mask="url(#logo-mask-tr-research)"
                 fill="var(--text-primary)"
-                transform="translate(-23.5%, 23.5%)"
+                transform="translate(-23.5, 23.5)"
               />
             </svg>
           </div>

@@ -211,7 +211,13 @@ export default async function DistrictPage({ params }: PageProps) {
     redirect(`/c/${slug}/district/${d}/${supervisorSlug}`);
   }
 
-  const metrics = cityDetail?.metrics ?? [];
+  // Drop metrics that have no district-specific comparison row. The backend
+  // returns the city's full metric list but precomputed comparisons only land
+  // for metrics that actually have a district slice. Rendering the rest leaves
+  // empty cells that look like the page is mirroring citywide data (the C6
+  // 'cohort bug' the QA reviewer flags).
+  const allMetrics = cityDetail?.metrics ?? [];
+  const metrics = allMetrics.filter((m) => comparisonsMap[m.id]?.comparisons?.ytd);
   const accentStories = feedStories.slice(0, 3);
 
   return (

@@ -65,7 +65,7 @@ const fakeMap = {
   },
   city_slug: "san-francisco",
   location_data: [
-    { lat: 37.78, lng: -122.42, label: "Test Location" },
+    { lat: 37.78, lon: -122.42, label: "Test Location" },
   ],
   center_lat: 37.78,
   center_lng: -122.42,

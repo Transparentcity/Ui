@@ -4,6 +4,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import GovernmentSignupMessage from "@/components/GovernmentSignupMessage";
 import authStyles from "@/components/AuthModal.module.css";
 import styles from "./Header.module.css";
@@ -31,6 +32,16 @@ export default function Header() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [showGovMessage]);
+
+  // Auto-open the gov interstitial when arriving with ?signup=public-servant
+  // (deep links from email/CRM, QA C37, etc).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("signup") === "public-servant") {
+      setShowGovMessage(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!signupMenuOpen) return;
@@ -199,7 +210,7 @@ export default function Header() {
                   rx="3"
                   ry="3"
                   mask={`url(#${logoMaskIdBl})`}
-                  transform="translate(23.5%, -23.5%)"
+                  transform="translate(23.5, -23.5)"
                 />
                 <rect
                   className={styles.brace}
@@ -210,7 +221,7 @@ export default function Header() {
                   rx="3"
                   ry="3"
                   mask={`url(#${logoMaskIdTr})`}
-                  transform="translate(-23.5%, 23.5%)"
+                  transform="translate(-23.5, 23.5)"
                 />
               </svg>
             </div>
@@ -282,7 +293,7 @@ export default function Header() {
         </div>
       </div>
 
-      {showGovMessage && (
+      {showGovMessage && typeof document !== "undefined" && createPortal(
         <div
           className={authStyles.overlay}
           onClick={() => setShowGovMessage(false)}
@@ -313,7 +324,8 @@ export default function Header() {
               disabled={isLoading}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </header>
   );

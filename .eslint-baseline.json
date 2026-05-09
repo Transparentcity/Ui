@@ -1,0 +1,6 @@
+{
+  "errors": 993,
+  "warnings": 493,
+  "captured_at": "2026-05-09",
+  "note": "Lint debt baseline. CI fails if errors or warnings grow past these counts. Drive the numbers down monotonically; update this file (with reviewer signoff) only when you intentionally fix violations."
+}

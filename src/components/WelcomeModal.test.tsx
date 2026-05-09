@@ -60,7 +60,7 @@ vi.mock("@/lib/locationSearchUtils", () => ({
 const mockGetUserPreferences = vi.fn().mockResolvedValue({ extra: {} });
 const mockSaveCity = vi.fn().mockResolvedValue(undefined);
 const mockUpdateUserPreferences = vi.fn().mockResolvedValue(undefined);
-const mockGetCity = vi.fn().mockResolvedValue({ id: 1, is_active: true, name: "San Francisco" });
+const mockGetCity = vi.fn().mockResolvedValue({ id: 1, is_active: true, is_launched: true, name: "San Francisco" });
 const mockGetCityLeaders = vi.fn().mockResolvedValue([]);
 const mockCreatePlace = vi.fn().mockResolvedValue({ id: 42 });
 const mockRunPlaceMetricsAndAnomaliesAsJob = vi.fn().mockResolvedValue({ job_id: "job-123" });
@@ -90,6 +90,7 @@ vi.mock("@/lib/uiEvents", () => ({
 
 vi.mock("@/lib/mapUtils", () => ({
   DEFAULT_PLACE_RADIUS_M: 200,
+  MAX_PLACE_RADIUS_M: 1000,
 }));
 
 vi.mock("@/lib/newsletterPreferences", () => ({
@@ -152,7 +153,7 @@ describe("WelcomeModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchPublicCities.mockResolvedValue([]);
-    mockGetCity.mockResolvedValue({ id: 1, is_active: true, name: "San Francisco" });
+    mockGetCity.mockResolvedValue({ id: 1, is_active: true, is_launched: true, name: "San Francisco" });
     mockGetCityLeaders.mockResolvedValue([]);
     Object.defineProperty(navigator, "geolocation", {
       configurable: true,
@@ -245,7 +246,7 @@ describe("WelcomeModal", () => {
       await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "San Francisco");
       await user.click(screen.getByText(/^Continue$/i));
       await waitFor(() => {
-        expect(screen.getByText(/welcome to transparent\.city/i)).toBeInTheDocument();
+        expect(screen.getByText(/almost done/i)).toBeInTheDocument();
       });
     };
 
@@ -255,7 +256,7 @@ describe("WelcomeModal", () => {
 
       expect(screen.queryByText(/Crime & Safety/i)).not.toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: /advanced newsletter options \(optional\)/i })
+        screen.getByRole("button", { name: /personalize your weekly update \(optional\)/i })
       ).toBeInTheDocument();
     });
 
@@ -266,17 +267,17 @@ describe("WelcomeModal", () => {
       expect(screen.queryByLabelText(/in your own words \(optional\)/i)).not.toBeInTheDocument();
 
       await user.click(
-        screen.getByRole("button", { name: /advanced newsletter options \(optional\)/i })
+        screen.getByRole("button", { name: /personalize your weekly update \(optional\)/i })
       );
 
       expect(screen.getByLabelText(/in your own words \(optional\)/i)).toBeInTheDocument();
     });
 
-    it("personalized weekly update checkbox is pre-checked", async () => {
+    it("weekly update checkbox is pre-checked", async () => {
       const user = userEvent.setup();
       await goToStep2(user);
 
-      expect(screen.getByText(/personalized weekly update/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/weekly update/i).length).toBeGreaterThan(0);
       const checkbox = screen.getByRole("checkbox");
       expect(checkbox).toBeChecked();
     });
@@ -296,8 +297,7 @@ describe("WelcomeModal", () => {
       const user = userEvent.setup();
       await goToStep2(user);
 
-      expect(screen.getByText("London Breed")).toBeInTheDocument();
-      expect(screen.getByText("Mayor")).toBeInTheDocument();
+      expect(screen.getByText(/Mayor London Breed/i)).toBeInTheDocument();
       const followBtn = screen.getByRole("button", { name: /unfollow london breed/i });
       expect(followBtn).toHaveAttribute("aria-pressed", "true");
     });
@@ -318,11 +318,11 @@ describe("WelcomeModal", () => {
       await user.click(screen.getByText(/^Continue$/i));
 
       await waitFor(() => {
-        expect(screen.getByText("London Breed")).toBeInTheDocument();
+        expect(screen.getByText(/Mayor London Breed/i)).toBeInTheDocument();
       });
       // District 5 was inferred but leader with district=5 doesn't exist in mock data,
       // so only mayor card shown.
-      expect(screen.queryByText("Rafael Mandelman")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Rafael Mandelman/i)).not.toBeInTheDocument();
     });
 
     it("toggling mayor follow button changes aria-pressed", async () => {
