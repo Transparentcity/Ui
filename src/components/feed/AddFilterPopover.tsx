@@ -18,8 +18,9 @@ import styles from "./AddFilterPopover.module.css";
 
 /**
  * Position a portaled popover relative to a trigger rect, clamped to the
- * viewport. Prefers right-aligned to the trigger; pushes left if it would
- * overflow; pulls right if it would underflow. Vertically prefers below;
+ * viewport. Prefers dropping straight down from the trigger (left-aligned
+ * with the trigger's left edge). Falls back to right-aligned when that
+ * would overflow the right edge of the viewport. Vertically prefers below;
  * flips above when there's no room.
  */
 function viewportAlignedStyle(
@@ -29,9 +30,14 @@ function viewportAlignedStyle(
   if (typeof window === "undefined" || !triggerRect) return undefined;
   const margin = 8;
   const w = Math.min(preferredWidth, window.innerWidth - margin * 2);
-  // Prefer right-aligning the popover with the trigger's right edge.
-  let left = triggerRect.right - w;
-  // Clamp into viewport.
+
+  // Default: drop straight down — left edges aligned with the trigger.
+  let left = triggerRect.left;
+  // If that would overflow the right edge, right-align with the trigger instead.
+  if (left + w > window.innerWidth - margin) {
+    left = triggerRect.right - w;
+  }
+  // Final clamp.
   if (left < margin) left = margin;
   if (left + w > window.innerWidth - margin) left = window.innerWidth - margin - w;
 
@@ -163,6 +169,7 @@ export function AddFilter({
           type="text"
           className={styles.searchInput}
           placeholder={tab === "cities" ? "Search cities…" : "Search topics…"}
+          aria-label={tab === "cities" ? "Search cities" : "Search topics"}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoFocus

@@ -338,6 +338,30 @@ export default function FeedContainer({
     });
   }, [places]);
 
+  // Cities the filter UI knows the name/emoji of: union of cities with stories
+  // (uniqueCities) and the user's followed cities (savedCities). Without the
+  // followed list, a followed city with zero current stories would render as a
+  // generic "City" chip in the active filters.
+  const cityCatalog = useMemo<CityInfo[]>(() => {
+    const seen = new Set<number>();
+    const out: CityInfo[] = [];
+    for (const c of uniqueCities) {
+      if (seen.has(c.city_id)) continue;
+      seen.add(c.city_id);
+      out.push(c);
+    }
+    for (const c of savedCities) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push({
+        city_id: c.id,
+        city_name: c.display_name || c.city_name || "City",
+        city_emoji: c.emoji ?? undefined,
+      });
+    }
+    return out;
+  }, [uniqueCities, savedCities]);
+
   // Detect when a selected city has no feed stories (e.g. newly-launched city)
   const selectedCityWithNoStories = useMemo(() => {
     if (selectedCityIds.size !== 1) return null;
@@ -1225,7 +1249,7 @@ export default function FeedContainer({
   const showPillsRow =
     hasActiveFilters ||
     placeNavIds.length > 0 ||
-    (isAuthenticated && uniqueCities.length > 0);
+    (isAuthenticated && cityCatalog.length > 0);
 
   return (
     <div
@@ -1286,7 +1310,7 @@ export default function FeedContainer({
           <FilterPanelV2
             open={showFilterPanel}
             onClose={() => setShowFilterPanel(false)}
-            allCities={uniqueCities}
+            allCities={cityCatalog}
             savedCityIds={effectiveSavedCityIds}
             filters={{
               selectedCityIds,
@@ -1300,7 +1324,6 @@ export default function FeedContainer({
             userPlaces={userPlaces}
             districtsPerCity={districtsPerCity}
             onAddAddress={() => setShowLocationModal(true)}
-            currentStoryCount={visibleStories.length}
           />
         </div>
       </div>
@@ -1331,7 +1354,7 @@ export default function FeedContainer({
                 so the user can still see it and remove it. Without this fallback
                 the filter badge would say "3 active" with nothing visible. */}
             {[...selectedCityIds].map((cid) => {
-              const c = uniqueCities.find((u) => u.city_id === cid);
+              const c = cityCatalog.find((u) => u.city_id === cid);
               const label = c
                 ? `${c.city_emoji ? `${c.city_emoji} ` : ""}${c.city_name}`
                 : "City";
@@ -1414,7 +1437,7 @@ export default function FeedContainer({
                 or topic without opening the full panel. Lives inside the scroll
                 area so it sits right after the last chip. */}
             <AddFilterControl
-              cities={uniqueCities}
+              cities={cityCatalog}
               topics={[
                 { value: "safety", label: "Safety" },
                 { value: "business", label: "Business" },

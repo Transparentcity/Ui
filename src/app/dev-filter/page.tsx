@@ -187,7 +187,6 @@ export default function FilterPreviewPage() {
         userPlaces={MOCK_PLACES}
         districtsPerCity={MOCK_DISTRICTS}
         onAddAddress={() => alert("Add address")}
-        currentStoryCount={128}
       />
     </div>
   );
