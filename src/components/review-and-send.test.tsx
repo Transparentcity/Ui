@@ -52,6 +52,10 @@ vi.mock("@/app/actions/send-queue", () => ({
   checkSendGridStatus: (...args: any[]) => mockCheckSendGridStatus(...args),
 }))
 
+vi.mock("@/lib/apiClient", () => ({
+  listPublicFeedStories: vi.fn().mockResolvedValue({ stories: [] }),
+}))
+
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 

@@ -1,0 +1,62 @@
+.banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fef3c7;
+  border-bottom: 1px solid #fbbf24;
+  color: #78350f;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.02em;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.label {
+  text-transform: uppercase;
+}
+
+.email {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.email:hover {
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .banner {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    padding: 6px 12px;
+    min-height: 48px;
+  }
+}
+
+:global(body:has([data-city-dev-banner])) :global(.navbar) {
+  top: 40px;
+}
+
+:global(body:has([data-city-dev-banner])) :global(.city-hero-v2) {
+  padding-top: calc(76px + 40px);
+}
+
+@media (max-width: 640px) {
+  :global(body:has([data-city-dev-banner])) :global(.navbar) {
+    top: 48px;
+  }
+
+  :global(body:has([data-city-dev-banner])) :global(.city-hero-v2) {
+    padding-top: calc(76px + 48px);
+  }
+}

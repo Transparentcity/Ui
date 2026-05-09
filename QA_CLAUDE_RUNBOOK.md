@@ -8,6 +8,44 @@ This is an automated QA plan for Claude Code to execute against the production s
 > - [`STORY_CONTENT_AUDIT.md`](STORY_CONTENT_AUDIT.md) — weekly deep audit of recent feed stories: imprecise language, near-duplicates, missing source attribution, data-gap disclosure, illogical claims. Backed by `scripts/qa/audit_recent_stories.py`.
 > - [`SMOKE_TESTS.md`](SMOKE_TESTS.md) — per-deploy fast checks for onboarding flows, analytics, map controls, and mobile affordances.
 
+## Weekly sweep — one command
+
+The full automated weekly QA is now driven by a single orchestrator:
+
+```bash
+cd ~/Documents/Coding/TransparentCITY
+bash scripts/qa/run_weekly.sh
+```
+
+This runs every check below in order, applies the allowlist in `scripts/qa/qa_known_issues.yaml`, builds the PDF, and writes a one-line top summary. Pipeline:
+
+1. `check_city_completeness.py --browser` — main sweep (writes JSON sidecar, qa_history snapshot, screenshots)
+2. `check_error_states.py` — ES1-ES3
+3. `check_social_cards.py` — SC1-SC5
+4. `check_perf_trend.py` — PT1-PT3 vs rolling baseline median
+5. `check_visual_regression.py` — VR1 vs prior week
+6. `check_data_truth.py` — DT1 against `metrics_source_queries.yaml`
+7. `check_maps.py` — M1-M5 against `gazetteer.yaml`
+8. `check_webkit_divergence.py` — WK-divergence (chromium vs webkit smoke)
+9. `apply_known_issues.py` — moves allowlisted findings into `suppressed`
+10. `build_qa_pdf.py` — `/tmp/qa_weekly.pdf`
+
+Per-check rule taxonomy lives in `scripts/qa/check_registry.py` (single source of truth for pillar / severity / owner / trigger).
+
+### Allowlist workflow
+
+When a finding is real but parked, add an entry to `scripts/qa/qa_known_issues.yaml` with an `until` date and a `reason`. The finding moves into `suppressed[]` instead of `findings[]` until expiration. Expired entries log a warning and the finding resurfaces — by design.
+
+### Promoting visual regression baselines
+
+After eyeballing the screenshots in `/tmp/qa_screenshots/`:
+
+```bash
+python scripts/qa/check_visual_regression.py --promote
+```
+
+Copies current shots over `scripts/qa/baselines/` (committed under git so the repo is the source of truth).
+
 1. Someone sees a post on X or reads a Substack newsletter, clicks a link, lands on a city page or story
 2. They look around, decide to sign up, go through onboarding
 3. They land in their feed and start exploring
@@ -301,6 +339,20 @@ Simplified in commit d95fa82. The old multi-step GovernmentOnboardingModal (emai
 - [ ] Welcome modal step indicator renders correctly (no stray braces)
 - [ ] If API times out during place creation, user gets feedback (not blank screen)
 
+### 2.9 Post-add state propagation **[REG]**
+
+These bugs were found in the 2026-05-08 Denver QA pass. The "add a city" flow currently leaves several pieces of UI out of sync with server state.
+
+For an account that does not yet follow the test city:
+
+- [ ] Open Search Cities, enter the test city name, click Continue. After the city dashboard renders, the city appears in the left sidebar under MY PLACES without a manual refresh.
+- [ ] Returning to `/home` after Continue: the city is auto-included in the active feed filter. Adding a place should not require a separate "View in Feed" click in the filter panel.
+- [ ] After saving a home location via the "Add your detailed location" banner: the banner either dismisses or updates copy to confirm the location was saved. It should not continue to ask for the same action.
+- [ ] After clicking "See Data" or otherwise navigating to `/c/[slug]` and using browser-back to `/home`: the feed reflects actual follow state (no `Browsing [city] stories — Follow [city]` prompt for a city already followed).
+- [ ] Filter panel "Followed" / "In feed" toggles stay in sync with the visible filter chips: removing a chip updates the panel's "In feed" pill on next open.
+
+These are stateful checks. If a script is added later, it should drive the UI through Search Cities → home, then assert sidebar contents and feed filter via the rendered DOM. For now, run manually as part of any FTUX regression pass.
+
 ---
 
 ## Phase 3: Post-Signup Experience -- "They're In, Now What?"
@@ -590,7 +642,18 @@ python ~/Documents/Coding/TransparentCITY/scripts/qa/check_duplicates.py /tmp/qa
 # Empty body detection
 python ~/Documents/Coding/TransparentCITY/scripts/qa/check_empty_bodies.py /tmp/qa_stories.csv --min-words 50
 # Expected: 0 empty or template-only bodies.
+
+# Internal-token leak (engineering prefixes, placeholder tokens, template residue)
+python ~/Documents/Coding/TransparentCITY/scripts/qa/check_internal_tokens.py /tmp/qa_stories.csv
+# Expected: 0 violations. May 8 Denver pass found:
+#   - "OLD_Drug Crime up 18% year-to-date" (live feed story headline)
+#   - "Property Crime Incidents - Citywide - by DISTRICT_ID - Day Trend" (chart caption)
+# Catches engineering prefixes (OLD_, DEPRECATED_, DRAFT_, etc.), all-caps
+# placeholder tokens (DISTRICT_ID, METRIC_KEY), curly-brace template residue,
+# and snake_case identifiers in prose.
 ```
+
+> **Open follow-up:** `check_internal_tokens.py` scans the feed CSV (headlines + body). It does not yet scan `metrics.display_name` or chart-title templates directly. The May 8 Denver dashboard surfaced "🍯OLD_Drug Crime" as a row label sourced from the metrics table. Add a DB-side equivalent that flags any active metric whose display name matches the same patterns. Track as a separate task.
 
 ---
 

@@ -48,8 +48,11 @@ export default function DistrictComparisonTable({
   );
   const [loading, setLoading] = useState(!prefetchedDistricts);
   const [error, setError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>("district");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  // Default to "highest current value first" so the page lands on the answer
+  // to "where is this metric highest right now?" without the user having to
+  // re-sort. The header click handlers still let users sort the other ways.
+  const [sortField, setSortField] = useState<SortField>("current");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   useEffect(() => {
     if (prefetchedDistricts) {

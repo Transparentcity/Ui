@@ -3666,7 +3666,6 @@ export default function PublicMapPage() {
                   ry="3"
                   mask="url(#logo-mask-bl-embed)"
                   fill="#ffffff"
-                  transform="translate(23.5%, -23.5%)"
                 />
                 <rect
                   className="brace"
@@ -3678,7 +3677,6 @@ export default function PublicMapPage() {
                   ry="3"
                   mask="url(#logo-mask-tr-embed)"
                   fill="#ffffff"
-                  transform="translate(-23.5%, 23.5%)"
                 />
               </svg>
             </div>
@@ -3970,7 +3968,6 @@ export default function PublicMapPage() {
                 ry="3"
                 mask="url(#logo-mask-bl)"
                 fill="#1f2937"
-                transform="translate(23.5%, -23.5%)"
               />
               <rect
                 className="brace"
@@ -3982,7 +3979,6 @@ export default function PublicMapPage() {
                 ry="3"
                 mask="url(#logo-mask-tr)"
                 fill="#1f2937"
-                transform="translate(-23.5%, 23.5%)"
               />
             </svg>
           </div>

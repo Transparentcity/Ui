@@ -34,7 +34,9 @@ export default async function FeaturedStoriesAsync({
     order_by: "published_at",
   }).catch(() => ({ stories: [], count: 0 }));
 
-  const stories = feedRes.stories ?? [];
+  const stories = (feedRes.stories ?? []).filter(
+    (s) => !/^upcoming civic meetings\b/i.test(s.headline ?? "")
+  );
 
   return (
     <FeaturedStories

@@ -140,7 +140,7 @@ describe("wrong headlines: ALL-CAPS business names are title-cased", () => {
   it.each([
     [
       "FRIENDS HALAL MEAT SUPERMARKET Opens 3-Stand Produce Op on Starling Ave",
-      "Friends Halal Meat Supermarket Opens 3-Stand Produce Op on Starling\u2026",
+      "Friends Halal Meat Supermarket Opens 3-Stand Produce Op on Starling Ave",
     ],
     [
       "PASTA PEOPLE LLC Brings Ice Cream to Flatbush Ave",

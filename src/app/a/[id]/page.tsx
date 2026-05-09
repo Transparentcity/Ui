@@ -915,7 +915,6 @@ export default function AnomalyChartPage() {
                   ry="3"
                   mask="url(#logo-mask-bl-embed)"
                   fill="var(--text-primary)"
-                  transform="translate(23.5%, -23.5%)"
                 />
                 <rect
                   className="brace"
@@ -927,7 +926,6 @@ export default function AnomalyChartPage() {
                   ry="3"
                   mask="url(#logo-mask-tr-embed)"
                   fill="var(--text-primary)"
-                  transform="translate(-23.5%, 23.5%)"
                 />
               </svg>
             </div>
@@ -1100,8 +1098,8 @@ export default function AnomalyChartPage() {
                   <rect x="-1150" y="-400" width="1200" height="1200" fill="black" transform="rotate(-45 50 50)" />
                 </mask>
               </defs>
-              <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#logo-mask-bl)" fill="var(--text-primary)" transform="translate(23.5%, -23.5%)" />
-              <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#logo-mask-tr)" fill="var(--text-primary)" transform="translate(-23.5%, 23.5%)" />
+              <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#logo-mask-bl)" fill="var(--text-primary)" />
+              <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#logo-mask-tr)" fill="var(--text-primary)" />
             </svg>
           </div>
           <span className="brand-text">

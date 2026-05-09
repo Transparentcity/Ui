@@ -1,0 +1,683 @@
+/* ════════════════════════════════════════════════════════════════════════════
+ * FilterPanelV2: simplified filter panel
+ * One mental model: checked = in your feed.
+ * Bottom sheet on mobile, dropdown on desktop.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 10001;
+  animation: fadeIn 0.18s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: min(82vh, 88dvh);
+  background: var(--bg-primary);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  z-index: 10002;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.22s ease;
+  overflow: hidden;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (min-width: 768px) {
+  .backdrop {
+    background: transparent;
+    pointer-events: none;
+  }
+  .panel {
+    bottom: auto;
+    left: auto;
+    width: 380px;
+    max-height: min(calc(100dvh - 120px), 560px);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-primary);
+    animation: fadeInDown 0.14s ease;
+  }
+  .panelFlipUp { animation: fadeInUp 0.14s ease; }
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ── Drag handle (mobile) ─────────────────────────────────────────────── */
+
+.dragHandle {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 2px;
+  flex-shrink: 0;
+}
+.dragHandleBar {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border-secondary, #ccc);
+}
+@media (min-width: 768px) { .dragHandle { display: none; } }
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 6px;
+  flex-shrink: 0;
+}
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+.headerClear {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  color: var(--text-tertiary, #6b7280);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.headerClear:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.headerClear:disabled { opacity: 0.4; cursor: default; }
+.headerClear:disabled:hover { background: none; color: var(--text-tertiary, #6b7280); }
+
+/* ── Active chip row (above content) ──────────────────────────────────── */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-primary);
+  margin-bottom: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  max-width: 200px;
+}
+.chip:hover { background: var(--brand-primary-light, rgba(173, 53, 250, 0.18)); }
+.chipLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chipX {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* ── Sort segmented control ───────────────────────────────────────────── */
+
+.sortSegment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 0 16px 12px;
+  padding: 3px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.sortBtn {
+  padding: 7px 0;
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sortBtn:hover:not(.sortBtnActive) { color: var(--text-primary); }
+.sortBtnActive {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border-primary);
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+.tab {
+  position: relative;
+  padding: 8px 4px 10px;
+  margin-right: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  color: var(--text-tertiary, #6b7280);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.tab:hover { color: var(--text-primary); }
+.tabActive {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.tabActive::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--brand-primary, #ad35fa);
+  border-radius: 2px 2px 0 0;
+}
+.tabCount {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
+  color: var(--brand-primary, #ad35fa);
+  min-width: 16px;
+  line-height: 16px;
+}
+
+/* ── Content area ─────────────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 8px;
+  overscroll-behavior: contain;
+}
+
+/* ── Cities tab ───────────────────────────────────────────────────────── */
+
+.searchWrap {
+  position: relative;
+  margin-bottom: 8px;
+}
+.searchInput {
+  width: 100%;
+  padding: 8px 10px 8px 32px;
+  font-size: 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+.searchInput::placeholder { color: var(--text-tertiary, #999); }
+.searchInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #ad35fa);
+  background: var(--bg-primary);
+}
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary, #999);
+  pointer-events: none;
+}
+
+.quickRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 2px 6px;
+}
+.quickRowLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary, #888);
+}
+.quickActions { display: flex; gap: 4px; }
+.quickBtn {
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.quickBtn:hover { background: var(--brand-primary-light, rgba(173, 53, 250, 0.08)); }
+
+.cityList {
+  display: flex;
+  flex-direction: column;
+}
+.cityRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+.cityRow:hover { background: var(--bg-secondary); }
+.cityRow:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: -2px;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-secondary, #ccc);
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+}
+.cityRow:hover .checkbox:not(.checkboxChecked) {
+  border-color: var(--brand-primary, #ad35fa);
+}
+.checkboxChecked {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.cityName {
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cityFollowedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.emptyState {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-tertiary, #888);
+}
+
+/* Add-more search (typeahead) */
+.addMoreWrap { margin-top: 12px; }
+.addMoreLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary, #888);
+  margin: 0 0 6px 2px;
+}
+.typeaheadList {
+  margin-top: 4px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  list-style: none;
+  padding: 0;
+}
+.typeaheadItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.typeaheadItem:hover:not(:disabled) { background: var(--bg-secondary); }
+.typeaheadItem:disabled { cursor: default; opacity: 0.6; }
+.typeaheadFollow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+}
+.typeaheadFollowing {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary, #888);
+}
+.typeaheadEmpty {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text-tertiary, #999);
+}
+
+/* ── Topics tab ───────────────────────────────────────────────────────── */
+
+.topicGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+.topicChip {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+.topicChip:hover {
+  border-color: var(--text-tertiary, #999);
+  color: var(--text-primary);
+}
+.topicChipActive {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+  color: #fff;
+}
+.topicChipActive:hover {
+  background: var(--brand-primary-hover, #9125d6);
+  border-color: var(--brand-primary-hover, #9125d6);
+  color: #fff;
+}
+
+.topicHelp {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary, #888);
+  line-height: 1.4;
+}
+
+/* ── Districts (collapsible inside Cities tab) ─────────────────────────── */
+
+.districtsBlock {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-primary);
+  padding-top: 12px;
+}
+.districtsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+.districtsHeaderTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary, #888);
+}
+.districtsHeaderSummary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+.districtsCaret { font-size: 10px; color: var(--text-tertiary, #999); }
+
+.districtGroup { margin-top: 8px; }
+.districtGroupLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+}
+.districtChipGrid { display: flex; flex-wrap: wrap; gap: 4px; }
+.districtChip {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.districtChip:hover { border-color: var(--text-tertiary, #999); color: var(--text-primary); }
+.districtChipActive {
+  background: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
+  color: #fff;
+}
+
+/* ── Near-my-places (inline at bottom of Cities tab) ──────────────────── */
+
+.placesInline {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-primary);
+}
+.placesRowInline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  border-radius: 6px;
+}
+.placesRowInline:hover { background: var(--bg-secondary); }
+.placesLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.placesSub {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary, #888);
+  margin-top: 2px;
+}
+.toggleSwitch {
+  width: 38px;
+  height: 22px;
+  border-radius: 12px;
+  background: var(--border-secondary, #ccc);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.18s ease;
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+}
+.toggleSwitchActive { background: var(--brand-primary, #ad35fa); }
+.toggleKnob {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px; left: 2px;
+  transition: transform 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+.toggleSwitchActive .toggleKnob { transform: translateX(16px); }
+
+.placeOptions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.placeOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+.placeOption:hover { background: var(--bg-primary); color: var(--text-primary); }
+.placeOptionActive { color: var(--brand-primary, #ad35fa); font-weight: 500; }
+.placeRadio {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-secondary, #ccc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.placeRadioActive { border-color: var(--brand-primary, #ad35fa); }
+.placeRadioDot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-primary, #ad35fa); }
+
+.addAddressBtn {
+  margin-top: 4px;
+  padding: 6px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand-primary, #ad35fa);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.addAddressBtn:hover { opacity: 0.8; }
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 16px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+.countLabel {
+  font-size: 12px;
+  color: var(--text-tertiary, #6b7280);
+}
+.countLabel strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.doneBtn {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.doneBtn:hover { background: var(--brand-primary-hover, #9125d6); }
+
+/* On desktop the panel auto-applies, so the Done button is redundant. */
+@media (min-width: 768px) {
+  .doneBtn { display: none; }
+  .footer { justify-content: flex-start; }
+}
+
+/* ── Hint row (kbd) ───────────────────────────────────────────────────── */
+
+.hint {
+  display: none;
+  font-size: 11px;
+  color: var(--text-tertiary, #888);
+}
+@media (min-width: 768px) {
+  .hint { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+}
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
