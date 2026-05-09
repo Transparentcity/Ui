@@ -52,8 +52,8 @@ export default function PublicNavBar({ children }: { children: React.ReactNode }
                     <rect x="-1150" y="-400" width="1200" height="1200" fill="black" transform="rotate(-45 50 50)" />
                   </mask>
                 </defs>
-                <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#public-nav-mask-bl)" transform="translate(23.5, -23.5)" />
-                <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#public-nav-mask-tr)" transform="translate(-23.5, 23.5)" />
+                <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#public-nav-mask-bl)" />
+                <rect className="brace" x="0" y="0" width="100" height="100" rx="3" ry="3" mask="url(#public-nav-mask-tr)" />
               </svg>
             </span>
             <span className="brand-text">

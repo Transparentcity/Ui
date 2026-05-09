@@ -210,7 +210,6 @@ export default function Header() {
                   rx="3"
                   ry="3"
                   mask={`url(#${logoMaskIdBl})`}
-                  transform="translate(23.5, -23.5)"
                 />
                 <rect
                   className={styles.brace}
@@ -221,7 +220,6 @@ export default function Header() {
                   rx="3"
                   ry="3"
                   mask={`url(#${logoMaskIdTr})`}
-                  transform="translate(-23.5, 23.5)"
                 />
               </svg>
             </div>
