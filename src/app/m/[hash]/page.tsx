@@ -54,6 +54,7 @@ import {
   getInitialMapView,
   normalizeChoroplethDistrictKey,
   normalizeGeoJsonLngLatPair,
+  normalizeLocationRowLatLng,
 } from "@/lib/mapUtils";
 
 // Types for the map data
@@ -840,6 +841,303 @@ function pickChoroplethAggregationKey(
   return keys[0];
 }
 
+/** One row for the public choropleth / delta aggregate table (under the map). */
+type ChoroplethTableRow = {
+  shapeLabel: string;
+  sortKey: string;
+  value: number | null;
+  countCurrent: number | null;
+  countComparison: number | null;
+  delta: number | null;
+  deltaPct: number | null;
+};
+
+export type ChoroplethTableData = {
+  isDelta: boolean;
+  areaColumnLabel: string;
+  valueColumnLabel: string;
+  rows: ChoroplethTableRow[];
+};
+
+function humanizeMapFieldLabel(field: string): string {
+  const t = field.trim();
+  if (!t) return "Value";
+  if (t.toLowerCase() === "count") return "Count";
+  return t
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Tabular breakdown of saved-map aggregations for choropleth / delta maps.
+ * Returns null when there are no precomputed `map_config.aggregations` rows.
+ */
+export function buildChoroplethTableData(
+  mapData: SavedMap,
+  selectedShapeLayerId: string | null
+): ChoroplethTableData | null {
+  if (mapData.map_type !== "choropleth" && mapData.map_type !== "delta") {
+    return null;
+  }
+  const aggMap = (mapData.map_config?.aggregations || {}) as Record<
+    string,
+    ChoroplethAggBlock
+  >;
+  const shapeIdForAgg =
+    selectedShapeLayerId != null && selectedShapeLayerId !== ""
+      ? selectedShapeLayerId
+      : pickChoroplethShapeLayerInstanceId(mapData, aggMap);
+  const aggKey = pickChoroplethAggregationKey(
+    mapData,
+    aggMap,
+    shapeIdForAgg
+  );
+  if (!aggKey) return null;
+  const aggregation =
+    aggMap[aggKey] ||
+    aggMap[String(Number(aggKey)) as keyof typeof aggMap];
+  const rawRows = aggregation?.rows;
+  if (!Array.isArray(rawRows) || rawRows.length === 0) return null;
+
+  const targetShapeLayer =
+    shapeIdForAgg != null && String(shapeIdForAgg) !== ""
+      ? shapeIdForAgg
+      : aggKey;
+  const dataDistrictField = resolveChoroplethDataDistrictField(
+    mapData,
+    aggregation,
+    targetShapeLayer
+  );
+
+  const isDeltaMap =
+    mapData.map_type === "delta" ||
+    mapData.map_config?.delta_palette === "red_green";
+
+  const areaNounRaw =
+    (mapData.map_config?.choropleth_area_noun as string)?.trim() ||
+    (mapData.map_config?.item_noun as string)?.trim() ||
+    "area";
+  const areaColumnLabel =
+    areaNounRaw.length > 0
+      ? areaNounRaw.charAt(0).toUpperCase() + areaNounRaw.slice(1)
+      : "Area";
+
+  const valueField =
+    typeof mapData.map_config?.value_field === "string"
+      ? mapData.map_config.value_field
+      : "count";
+  const valueColumnLabel = humanizeMapFieldLabel(valueField);
+
+  const parsed: ChoroplethTableRow[] = [];
+  for (const row of rawRows) {
+    const r = row as Record<string, unknown>;
+    const rawDistrict =
+      r[dataDistrictField] ??
+      getCaseInsensitiveProp(r, dataDistrictField) ??
+      (aggregation.identifier_field
+        ? r[aggregation.identifier_field] ??
+          getCaseInsensitiveProp(r, String(aggregation.identifier_field))
+        : undefined) ??
+      r.supervisor_district ??
+      r.sup_dist_num ??
+      r.district;
+    if (rawDistrict == null || String(rawDistrict).trim() === "") continue;
+
+    const shapeLabel = String(rawDistrict).trim();
+    const sortKey =
+      normalizeChoroplethDistrictKey(rawDistrict) || shapeLabel.toLowerCase();
+
+    const value = Number(r.value ?? r.count ?? 0);
+    const countCurrent =
+      r.count_current != null && r.count_current !== ""
+        ? Number(r.count_current)
+        : null;
+    const countComparison =
+      r.count_comparison != null && r.count_comparison !== ""
+        ? Number(r.count_comparison)
+        : null;
+    const delta = r.delta != null && r.delta !== "" ? Number(r.delta) : null;
+    const deltaPct =
+      r.delta_pct != null && r.delta_pct !== "" ? Number(r.delta_pct) : null;
+
+    parsed.push({
+      shapeLabel,
+      sortKey,
+      value: Number.isFinite(value) ? value : null,
+      countCurrent:
+        countCurrent != null && Number.isFinite(countCurrent)
+          ? countCurrent
+          : null,
+      countComparison:
+        countComparison != null && Number.isFinite(countComparison)
+          ? countComparison
+          : null,
+      delta: delta != null && Number.isFinite(delta) ? delta : null,
+      deltaPct: deltaPct != null && Number.isFinite(deltaPct) ? deltaPct : null,
+    });
+  }
+
+  if (parsed.length === 0) return null;
+
+  const byKey = new Map<string, ChoroplethTableRow>();
+  for (const row of parsed) {
+    const k = row.sortKey || row.shapeLabel;
+    if (!byKey.has(k)) byKey.set(k, row);
+  }
+  const rows = Array.from(byKey.values());
+  rows.sort((a, b) => {
+    const na = Number(a.sortKey);
+    const nb = Number(b.sortKey);
+    if (
+      Number.isFinite(na) &&
+      Number.isFinite(nb) &&
+      String(na) === a.sortKey &&
+      String(nb) === b.sortKey
+    ) {
+      return na - nb;
+    }
+    return a.shapeLabel.localeCompare(b.shapeLabel, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+
+  const hasDeltaColumns =
+    isDeltaMap ||
+    rows.some(
+      (x) =>
+        x.countCurrent != null ||
+        x.countComparison != null ||
+        x.delta != null ||
+        x.deltaPct != null
+    );
+
+  return {
+    isDelta: hasDeltaColumns,
+    areaColumnLabel,
+    valueColumnLabel,
+    rows,
+  };
+}
+
+function formatChoroplethTableInt(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return Math.round(n).toLocaleString();
+}
+
+function formatChoroplethTableDelta(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const rounded = Math.round(n);
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded.toLocaleString()}`;
+}
+
+function formatChoroplethTablePct(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(1)}%`;
+}
+
+function ChoroplethDataTableSection({
+  data,
+  expanded,
+  onToggle,
+  embedded,
+}: {
+  data: ChoroplethTableData;
+  expanded: boolean;
+  onToggle: () => void;
+  embedded?: boolean;
+}) {
+  const panelId = "choropleth-data-table-panel";
+  const noun = data.areaColumnLabel.toLowerCase();
+  return (
+    <section
+      className={`map-choropleth-data-section${embedded ? " map-choropleth-data-section--embedded" : ""}`}
+      aria-label={`Numeric breakdown by ${noun}`}
+    >
+      <button
+        type="button"
+        className="map-choropleth-data-toggle"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+      >
+        <span>
+          Data table
+          <span className="map-choropleth-data-toggle-meta">
+            {" "}
+            ({data.rows.length} {noun})
+          </span>
+        </span>
+        <span className="map-choropleth-data-toggle-icon" aria-hidden="true">
+          {expanded ? "−" : "+"}
+        </span>
+      </button>
+      {expanded && (
+        <div id={panelId} className="map-choropleth-data-panel">
+          <div className="map-choropleth-data-scroll">
+            <table className="map-choropleth-data-table">
+              <thead>
+                <tr>
+                  <th scope="col">{data.areaColumnLabel}</th>
+                  {data.isDelta ? (
+                    <>
+                      <th scope="col" className="map-choropleth-data-num">
+                        Current
+                      </th>
+                      <th scope="col" className="map-choropleth-data-num">
+                        Comparison
+                      </th>
+                      <th scope="col" className="map-choropleth-data-num">
+                        Δ
+                      </th>
+                      <th scope="col" className="map-choropleth-data-num">
+                        Δ %
+                      </th>
+                    </>
+                  ) : (
+                    <th scope="col" className="map-choropleth-data-num">
+                      {data.valueColumnLabel}
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((row) => (
+                  <tr key={row.sortKey || row.shapeLabel}>
+                    <td>{row.shapeLabel}</td>
+                    {data.isDelta ? (
+                      <>
+                        <td className="map-choropleth-data-num">
+                          {formatChoroplethTableInt(row.countCurrent ?? row.value)}
+                        </td>
+                        <td className="map-choropleth-data-num">
+                          {formatChoroplethTableInt(row.countComparison)}
+                        </td>
+                        <td className="map-choropleth-data-num">
+                          {formatChoroplethTableDelta(row.delta)}
+                        </td>
+                        <td className="map-choropleth-data-num">
+                          {formatChoroplethTablePct(row.deltaPct)}
+                        </td>
+                      </>
+                    ) : (
+                      <td className="map-choropleth-data-num">
+                        {formatChoroplethTableInt(row.value)}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function PublicMapPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -884,6 +1182,12 @@ export default function PublicMapPage() {
   const lastAppliedBasemapThemeRef = useRef<string | null>(null);
   /** Bumps on each choropleth load so stale async completions skip addSource after newer runs. */
   const choroplethLoadGenRef = useRef(0);
+
+  const [choroplethTableExpanded, setChoroplethTableExpanded] = useState(false);
+  const choroplethTableData = useMemo(() => {
+    if (!map) return null;
+    return buildChoroplethTableData(map, selectedShapeLayer);
+  }, [map, selectedShapeLayer]);
 
   useEffect(() => {
     dotsDistrictIdRef.current = dotsDistrictId;
@@ -1166,18 +1470,14 @@ export default function PublicMapPage() {
 
     removeDotsLayer(mapInstance);
 
-    // Filter for valid coordinates (handle both lat/lon and latitude/longitude)
-    const validFilteredPoints = filtered.filter((point: any) => {
-      const lat = point.lat ?? point.latitude;
-      const lon = point.lon ?? point.longitude;
-      return lat != null && lon != null && 
-             !isNaN(Number(lat)) && !isNaN(Number(lon)) &&
-             isFinite(Number(lat)) && isFinite(Number(lon));
-    }).map((point: any) => ({
-      ...point,
-      lat: point.lat ?? point.latitude,
-      lon: point.lon ?? point.longitude,
-    }));
+    // Filter for display-safe WGS84 (drops pole/null-island outliers)
+    const validFilteredPoints = filtered
+      .map((point: any) => {
+        const n = normalizeLocationRowLatLng(point);
+        if (!n) return null;
+        return { ...point, lat: n.lat, lon: n.lng };
+      })
+      .filter((p: any): p is Record<string, unknown> => p != null);
     
     const districtLocMap = new Map<string, { points: any[]; lat: number; lon: number }>();
     validFilteredPoints.forEach((point: any) => {
@@ -1874,10 +2174,9 @@ export default function PublicMapPage() {
         const spatialDataMap = new Map<string, Record<string, any>>();
 
         for (const item of mapData.location_data) {
-          const lat = Number(item.lat ?? item.latitude);
-          const lon = Number(item.lon ?? item.lng ?? item.longitude);
-          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-          const point: [number, number] = [lon, lat];
+          const n = normalizeLocationRowLatLng(item);
+          if (!n) continue;
+          const point: [number, number] = [n.lng, n.lat];
 
           const matchingFeature = preparedFeatures.find(
             (prepared) =>
@@ -2231,24 +2530,14 @@ export default function PublicMapPage() {
         zoom = 11;
       } else {
         const pts =
-          map.location_data?.filter(
-            (p: any) =>
-              (p.lat != null || p.latitude != null) &&
-              (p.lon != null || p.lng != null || p.longitude != null) &&
-              isFinite(Number(p.lat ?? p.latitude)) &&
-              isFinite(Number(p.lon ?? p.lng ?? p.longitude))
-          ) ?? [];
+          map.location_data
+            ?.map((p: any) => normalizeLocationRowLatLng(p))
+            .filter((n): n is { lat: number; lng: number } => n != null) ?? [];
         if (pts.length > 0) {
           const avgLat =
-            pts.reduce(
-              (s: number, p: any) => s + Number(p.lat ?? p.latitude),
-              0
-            ) / pts.length;
+            pts.reduce((s: number, n) => s + n.lat, 0) / pts.length;
           const avgLon =
-            pts.reduce(
-              (s: number, p: any) => s + Number(p.lon ?? p.lng ?? p.longitude),
-              0
-            ) / pts.length;
+            pts.reduce((s: number, n) => s + n.lng, 0) / pts.length;
           center = [avgLon, avgLat];
           zoom = 11;
         } else {
@@ -2266,9 +2555,7 @@ export default function PublicMapPage() {
         !map.bounds &&
         ((center[0] === 0 && center[1] === 20) ||
           !map.location_data?.some(
-            (p: any) =>
-              (p.lat != null || p.latitude != null) &&
-              (p.lon != null || p.lng != null || p.longitude != null)
+            (p: any) => normalizeLocationRowLatLng(p) != null
           ));
 
       if (needsCityCenter) {
@@ -2446,15 +2733,13 @@ export default function PublicMapPage() {
         const allBounds: Array<[[number, number], [number, number]]> = [];
         layerMaps.forEach((layer: any, layerIndex: number) => {
           const locData = layer.location_data || [];
-          const validPoints = locData.filter((point: any) => {
-            const lat = point.lat ?? point.latitude;
-            const lon = point.lon ?? point.longitude;
-            return lat != null && lon != null && !isNaN(Number(lat)) && !isNaN(Number(lon)) && isFinite(Number(lat)) && isFinite(Number(lon));
-          }).map((point: any) => ({
-            ...point,
-            lat: point.lat ?? point.latitude,
-            lon: point.lon ?? point.longitude,
-          }));
+          const validPoints = locData
+            .map((point: any) => {
+              const n = normalizeLocationRowLatLng(point);
+              if (!n) return null;
+              return { ...point, lat: n.lat, lon: n.lng };
+            })
+            .filter((p: any): p is Record<string, unknown> => p != null);
           if (validPoints.length === 0) return;
           const sourceId = `multi-layer-${layerIndex}-source`;
           const layerId = `multi-layer-${layerIndex}`;
@@ -2569,18 +2854,14 @@ export default function PublicMapPage() {
         }
       } else if (map.map_type === "heatmap") {
         // Heatmap layer - filter for valid coordinates
-        const validPoints = map.location_data.filter((point: any) => {
-          const lat = point.lat ?? point.latitude;
-          const lon = point.lon ?? point.longitude;
-          return lat != null && lon != null && 
-                 !isNaN(Number(lat)) && !isNaN(Number(lon)) &&
-                 isFinite(Number(lat)) && isFinite(Number(lon));
-        }).map((point: any) => ({
-          ...point,
-          lat: point.lat ?? point.latitude,
-          lon: point.lon ?? point.longitude,
-        }));
-        
+        const validPoints = map.location_data
+          .map((point: any) => {
+            const n = normalizeLocationRowLatLng(point);
+            if (!n) return null;
+            return { ...point, lat: n.lat, lon: n.lng };
+          })
+          .filter((p: any): p is Record<string, unknown> => p != null);
+
         const geojsonData = {
           type: "FeatureCollection" as const,
           features: validPoints.map((point: any, index: number) => ({
@@ -2627,17 +2908,13 @@ export default function PublicMapPage() {
         }
       } else {
         // Point layer - filter for valid coordinates (handle both lat/lon and latitude/longitude)
-        const validPoints = map.location_data.filter((point: any) => {
-          const lat = point.lat ?? point.latitude;
-          const lon = point.lon ?? point.longitude;
-          return lat != null && lon != null && 
-                 !isNaN(Number(lat)) && !isNaN(Number(lon)) &&
-                 isFinite(Number(lat)) && isFinite(Number(lon));
-        }).map((point: any) => ({
-          ...point,
-          lat: point.lat ?? point.latitude,
-          lon: point.lon ?? point.longitude,
-        }));
+        const validPoints = map.location_data
+          .map((point: any) => {
+            const n = normalizeLocationRowLatLng(point);
+            if (!n) return null;
+            return { ...point, lat: n.lat, lon: n.lng };
+          })
+          .filter((p: any): p is Record<string, unknown> => p != null);
         const pointLocationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
         validPoints.forEach((point: any) => {
           const latN = Number(point.lat);
@@ -2923,11 +3200,9 @@ export default function PublicMapPage() {
       // Only auto-show points if NOT using choropleth and we're in embedded mode or explicitly enabled
       // Don't show points if we're still waiting for shape layer discovery
       if (!definitelyUseChoropleth && map.map_type === "point" && map.location_data && map.location_data.length > 0) {
-        const validPoints = map.location_data.filter((point: any) => {
-          const lat = point.lat ?? point.latitude;
-          const lon = point.lon ?? point.longitude;
-          return lat != null && lon != null;
-        });
+        const validPoints = map.location_data.filter(
+          (point: any) => normalizeLocationRowLatLng(point) != null
+        );
         if (validPoints.length > 0 && (isEmbedded || showPoints) && !selectedShapeLayer) {
           setShowPoints(true);
         }
@@ -2990,15 +3265,13 @@ export default function PublicMapPage() {
           const vis = multiLayerVisibilityRef.current;
           layerMapsForStyle.forEach((layer: any, layerIndex: number) => {
             const locData = layer.location_data || [];
-            const validPoints = locData.filter((point: any) => {
-              const lat = point.lat ?? point.latitude;
-              const lon = point.lon ?? point.longitude;
-              return lat != null && lon != null && !isNaN(Number(lat)) && !isNaN(Number(lon)) && isFinite(Number(lat)) && isFinite(Number(lon));
-            }).map((point: any) => ({
-              ...point,
-              lat: point.lat ?? point.latitude,
-              lon: point.lon ?? point.longitude,
-            }));
+            const validPoints = locData
+              .map((point: any) => {
+                const n = normalizeLocationRowLatLng(point);
+                if (!n) return null;
+                return { ...point, lat: n.lat, lon: n.lng };
+              })
+              .filter((p: any): p is Record<string, unknown> => p != null);
             if (validPoints.length === 0) return;
             const sourceId = `multi-layer-${layerIndex}-source`;
             const layerId = `multi-layer-${layerIndex}`;
@@ -3548,6 +3821,14 @@ export default function PublicMapPage() {
               </div>
             </div>
           )}
+          {choroplethTableData && (
+            <ChoroplethDataTableSection
+              data={choroplethTableData}
+              expanded={choroplethTableExpanded}
+              onToggle={() => setChoroplethTableExpanded((v) => !v)}
+              embedded
+            />
+          )}
         </div>
       </div>
     );
@@ -3884,6 +4165,13 @@ export default function PublicMapPage() {
                 </div>
               </div>
             </div>
+          )}
+          {choroplethTableData && (
+            <ChoroplethDataTableSection
+              data={choroplethTableData}
+              expanded={choroplethTableExpanded}
+              onToggle={() => setChoroplethTableExpanded((v) => !v)}
+            />
           )}
         </div>
         

@@ -214,6 +214,104 @@
   background: var(--bg-secondary);
 }
 
+/* Collapsible aggregate table under choropleth / delta maps */
+.map-choropleth-data-section {
+  margin-top: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.map-choropleth-data-section--embedded {
+  margin-top: 0.5rem;
+  border-radius: 10px;
+}
+
+.map-choropleth-data-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-weight: 700;
+}
+
+.map-choropleth-data-toggle:hover {
+  background: rgba(127, 127, 127, 0.06);
+}
+
+.map-choropleth-data-toggle-meta {
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.map-choropleth-data-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.map-choropleth-data-panel {
+  border-top: 1px solid var(--border-primary);
+}
+
+.map-choropleth-data-scroll {
+  max-height: min(50vh, 22rem);
+  overflow: auto;
+  padding: 0 0.5rem 0.75rem;
+}
+
+.map-choropleth-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.map-choropleth-data-table th,
+.map-choropleth-data-table td {
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.map-choropleth-data-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.map-choropleth-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.map-choropleth-data-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .map-bottom-panel {
   position: absolute;
   left: 0;

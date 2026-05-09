@@ -255,6 +255,39 @@ export function normalizeChoroplethDistrictKey(raw: unknown): string {
 }
 
 /**
+ * Finite WGS84 degrees that are safe to plot and use in Mapbox `fitBounds`.
+ * Rejects null-island sentinels and near-pole junk rows (e.g. lat -90) that
+ * force the camera to span the globe when mixed with city-scale points.
+ */
+export function isDisplayableWgs84Point(lat: number, lng: number): boolean {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
+  if (Math.abs(lat) >= 89) return false;
+  if (Math.abs(lng) >= 179.5) return false;
+  if (Math.abs(lat) < 1e-8 && Math.abs(lng) < 1e-8) return false;
+  return true;
+}
+
+/**
+ * Parse a saved-map / API location row into WGS84 lat & lng (degrees).
+ * Handles `latitude`/`longitude`, `lng`, optional lat/lon swap when clearly wrong,
+ * and rejects coordinates outside {@link isDisplayableWgs84Point}.
+ */
+export function normalizeLocationRowLatLng(
+  point: Record<string, unknown>
+): { lat: number; lng: number } | null {
+  const rawLat = point.lat ?? point.latitude;
+  const rawLng = point.lon ?? point.lng ?? point.longitude;
+  if (rawLat == null || rawLng == null) return null;
+  const a = Number(rawLat);
+  const b = Number(rawLng);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (isDisplayableWgs84Point(a, b)) return { lat: a, lng: b };
+  if (isDisplayableWgs84Point(b, a)) return { lat: b, lng: a };
+  return null;
+}
+
+/**
  * Interpret a 2D position as WGS84 for Mapbox. GeoJSON uses [lng, lat]; some sources
  * store [lat, lng] or projected coordinates (invalid as lng/lat).
  * Prefer native order when valid; otherwise try swapped; otherwise return null.
@@ -265,7 +298,7 @@ export function normalizeGeoJsonLngLatPair(
 ): [number, number] | null {
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   const ok = (lng: number, lat: number) =>
-    Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    isDisplayableWgs84Point(lat, lng);
   if (ok(a, b)) return [a, b];
   if (ok(b, a)) return [b, a];
   return null;
