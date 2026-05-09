@@ -206,7 +206,11 @@ export default async function DistrictSlugPage({ params }: PageProps) {
     }
   }
 
-  const metrics = cityDetail?.metrics ?? [];
+  // Drop metrics without district-specific comparison rows so the page only
+  // shows numbers that are actually scoped to this district. See the matching
+  // comment in ../page.tsx for context (C6 cohort bug).
+  const allMetrics = cityDetail?.metrics ?? [];
+  const metrics = allMetrics.filter((m) => comparisonsMap[m.id]?.comparisons?.ytd);
   const accentStories = feedStories.slice(0, 3);
 
   return (

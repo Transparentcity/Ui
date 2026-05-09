@@ -2,6 +2,7 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   trackSignupStart,
@@ -145,7 +146,7 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
               onClick={() => handleSignup("resident")}
               disabled={isLoading}
             >
-              <div className="nav-signup-item-title">I&apos;m a citizen</div>
+              <div className="nav-signup-item-title">Sign up as citizen</div>
               <div className="nav-signup-item-desc">
                 Follow a city, read research, and get the map view.
               </div>
@@ -168,7 +169,7 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
         )}
       </div>
 
-      {showGovMessage && (
+      {showGovMessage && typeof document !== "undefined" && createPortal(
         <div
           className={authStyles.overlay}
           onClick={() => setShowGovMessage(false)}
@@ -199,7 +200,8 @@ export default function CitySignupButton({ citySlug, cityName, cityId }: Props =
               disabled={isLoading}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -129,37 +129,39 @@ function StoryFeedCard({
     ? `/c/${slug}/stories/${story.short_hash}`
     : story.detail_url || null;
 
-  return (
-    <div
-      className={feedStyles.card}
-      style={{ position: "relative", color: "inherit" }}
-    >
-      {href && (
-        <a
-          href={href}
-          aria-label={headline}
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 0,
-            textDecoration: "none",
-          }}
-        />
+  const cardInner = (
+    <>
+      <CardHeader
+        typeIcon={catMeta.icon}
+        typeLabel="Story"
+        actor={catMeta.label}
+        subline={dateLabel ?? ""}
+        neighborhoodLabel={neighborhoodLabel}
+        categoryColor={catMeta.color}
+      />
+      <h2 className={feedStyles.cardHeadline}>{headline}</h2>
+      {story.description && (
+        <p className={feedStyles.cardDescription}>{story.description}</p>
       )}
-      <div style={{ position: "relative", zIndex: 1, pointerEvents: "none" }}>
-        <CardHeader
-          typeIcon={catMeta.icon}
-          typeLabel="Story"
-          actor={catMeta.label}
-          subline={dateLabel ?? ""}
-          neighborhoodLabel={neighborhoodLabel}
-          categoryColor={catMeta.color}
-        />
-        <h2 className={feedStyles.cardHeadline}>{headline}</h2>
-        {story.description && (
-          <p className={feedStyles.cardDescription}>{story.description}</p>
-        )}
-      </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        aria-label={headline}
+        className={feedStyles.card}
+        style={{ color: "inherit", textDecoration: "none", display: "block" }}
+      >
+        {cardInner}
+      </a>
+    );
+  }
+
+  return (
+    <div className={feedStyles.card} style={{ color: "inherit" }}>
+      {cardInner}
     </div>
   );
 }

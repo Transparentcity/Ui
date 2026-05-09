@@ -35,11 +35,12 @@ import BrandedLoader from "@/components/BrandedLoader";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import { slugify } from "@/lib/utils";
 import OnboardingBanner from "./OnboardingBanner";
-import FilterPanel, {
+import FilterPanelV2, {
   type CityInfo,
   type DistrictsForCity,
   type FilterState,
-} from "./FilterPanel";
+} from "./FilterPanelV2";
+import { AddFilter as AddFilterControl, SortDropdown } from "./AddFilterPopover";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import { startSignup } from "@/lib/signup";
 import styles from "./feed.module.css";
@@ -175,6 +176,27 @@ export default function FeedContainer({
     } catch { return "published_at"; }
   });
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Press F to toggle the filter panel. Ignored while typing into a text field
+  // or while a modifier key is held (so the browser's Find / dev shortcuts still work).
+  useEffect(() => {
+    const isEditable = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      return el.isContentEditable;
+    };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "f" && e.key !== "F") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditable(e.target)) return;
+      e.preventDefault();
+      setShowFilterPanel((v) => !v);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(
     saved.current?.placeId ?? null,
   );
@@ -1196,7 +1218,14 @@ export default function FeedContainer({
     return [...found].sort((a, b) => a - b);
   }, [isAuthenticated, userPlaces, visibleStories, selectedPlaceId]);
 
-  const showPillsRow = hasActiveFilters || placeNavIds.length > 0;
+  // Show the pills row when filtering is meaningful: the user has chips to
+  // remove, has place-nav suggestions, or is signed in with cities loaded so
+  // the inline "Add filter" popover and Sort dropdown actually have content.
+  // Hides cleanly during logged-out flashes and feed-error states.
+  const showPillsRow =
+    hasActiveFilters ||
+    placeNavIds.length > 0 ||
+    (isAuthenticated && uniqueCities.length > 0);
 
   return (
     <div
@@ -1253,8 +1282,8 @@ export default function FeedContainer({
             )}
           </button>
 
-          {/* FilterPanel — anchored to feedHeaderRight so it spans the full header chrome */}
-          <FilterPanel
+          {/* Filter 2.0 anchored to feedHeaderRight so it spans the full header chrome */}
+          <FilterPanelV2
             open={showFilterPanel}
             onClose={() => setShowFilterPanel(false)}
             allCities={uniqueCities}
@@ -1268,10 +1297,10 @@ export default function FeedContainer({
               feedOrder,
             }}
             onApply={handleApplyFilters}
-            onToggleFollow={handleToggleFollow}
             userPlaces={userPlaces}
             districtsPerCity={districtsPerCity}
             onAddAddress={() => setShowLocationModal(true)}
+            currentStoryCount={visibleStories.length}
           />
         </div>
       </div>
@@ -1297,10 +1326,15 @@ export default function FeedContainer({
               </button>
             ))}
 
-            {/* City pills */}
+            {/* City pills. If uniqueCities hasn't been loaded yet (auth flap, feed
+                error, fresh hydrate) the chip falls back to a generic "City" label
+                so the user can still see it and remove it. Without this fallback
+                the filter badge would say "3 active" with nothing visible. */}
             {[...selectedCityIds].map((cid) => {
               const c = uniqueCities.find((u) => u.city_id === cid);
-              if (!c) return null;
+              const label = c
+                ? `${c.city_emoji ? `${c.city_emoji} ` : ""}${c.city_name}`
+                : "City";
               return (
                 <button
                   key={`city-${cid}`}
@@ -1308,9 +1342,7 @@ export default function FeedContainer({
                   className={styles.activePill}
                   onClick={() => handleToggleFeed(cid)}
                 >
-                  <span className={styles.activePillLabel}>
-                    {c.city_emoji ? `${c.city_emoji} ` : ""}{c.city_name}
-                  </span>
+                  <span className={styles.activePillLabel}>{label}</span>
                   <span className={styles.activePillX} aria-hidden="true">&times;</span>
                 </button>
               );
@@ -1378,17 +1410,30 @@ export default function FeedContainer({
               </button>
             )}
 
-            {/* Sort pill (only if non-default) */}
-            {feedOrder !== "published_at" && (
-              <button
-                type="button"
-                className={styles.activePill}
-                onClick={() => setFeedOrder("published_at")}
-              >
-                <span className={styles.activePillLabel}>Recommended</span>
-                <span className={styles.activePillX} aria-hidden="true">&times;</span>
-              </button>
-            )}
+            {/* + Add filter opens a tabbed popover so the user can pick a city
+                or topic without opening the full panel. Lives inside the scroll
+                area so it sits right after the last chip. */}
+            <AddFilterControl
+              cities={uniqueCities}
+              topics={[
+                { value: "safety", label: "Safety" },
+                { value: "business", label: "Business" },
+                { value: "spending", label: "Spending" },
+                { value: "alert", label: "Alerts" },
+                { value: "trend", label: "Trends" },
+                { value: "justice", label: "Justice" },
+                { value: "context", label: "Context" },
+              ]}
+              selectedCityIds={selectedCityIds}
+              selectedTopics={selectedTopics}
+              onToggleCity={(cid) => handleToggleFeed(cid)}
+              onToggleTopic={(t) => {
+                const next = new Set(selectedTopics);
+                if (next.has(t)) next.delete(t);
+                else next.add(t);
+                setSelectedTopics(next);
+              }}
+            />
           </div>
 
           {hasActiveFilters && (
@@ -1407,6 +1452,8 @@ export default function FeedContainer({
               Clear all
             </button>
           )}
+
+          <SortDropdown order={feedOrder} onChange={setFeedOrder} />
         </div>
       )}
 
