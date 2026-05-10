@@ -171,10 +171,12 @@ export function listWasteAdminFindings(
 
 export function getWasteAdminFinding(
   token: string,
-  findingId: number
+  findingId: number,
+  citySlug: string
 ): Promise<WasteAdminFindingDetail> {
+  const q = new URLSearchParams({ city: citySlug });
   return request<WasteAdminFindingDetail>(
-    `/api/admin/waste/findings/${findingId}`,
+    `/api/admin/waste/findings/${findingId}?${q.toString()}`,
     "GET",
     undefined,
     token
