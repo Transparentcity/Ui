@@ -1,8 +1,71 @@
+"use client";
+
+import { Suspense, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+
 import { Mono, SeverityChip, SeverityDot } from "@/components/admin/waste/primitives";
-import { DETECTOR_CATEGORIES, DETECTORS } from "@/lib/wasteFixtures";
+import { useWasteAdminDetectors } from "@/lib/hooks/useWasteAdmin";
+import { adaptDetector, categoryFromBackend } from "@/lib/admin/waste/adapters";
+import { DETECTOR_CATEGORIES, type Detector, type DetectorCategoryId } from "@/lib/wasteFixtures";
 import styles from "./metrics.module.css";
 
-export default function WasteMetricsPage() {
+function MetricsView() {
+  const params = useSearchParams();
+  const citySlug = params.get("city") ?? "san-francisco";
+  const { data, isLoading, error, refetch } = useWasteAdminDetectors(citySlug);
+
+  const grouped = useMemo<Record<DetectorCategoryId, Detector[]>>(() => {
+    const out: Record<DetectorCategoryId, Detector[]> = {
+      vendor: [], payroll: [], benefits: [], permits: [], cards: [], stat: [],
+    };
+    for (const d of data ?? []) {
+      const cat = categoryFromBackend(d);
+      out[cat].push(adaptDetector(d));
+    }
+    return out;
+  }, [data]);
+
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <h2 className={styles.title}>Methodology</h2>
+        <p className={styles.subtitle} role="alert">
+          Couldn&apos;t load detector catalog: {error instanceof Error ? error.message : "Unknown error"}
+        </p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          style={{ padding: "6px 12px", marginTop: 8 }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className={styles.page}>
+        <h2 className={styles.title}>Methodology</h2>
+        <p className={styles.subtitle}>Loading detector catalog…</p>
+      </div>
+    );
+  }
+
+  const totalDetectors = (data ?? []).length;
+  if (totalDetectors === 0) {
+    return (
+      <div className={styles.page} data-testid="waste-metrics-page">
+        <div className={styles.header}>
+          <h2 className={styles.title}>Methodology</h2>
+          <p className={styles.subtitle}>
+            No detectors configured for this city yet.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page} data-testid="waste-metrics-page">
       <div className={styles.header}>
@@ -14,13 +77,13 @@ export default function WasteMetricsPage() {
       </div>
 
       {DETECTOR_CATEGORIES.map(cat => {
-        const items = DETECTORS.filter(d => d.category === cat.id);
+        const items = grouped[cat.id] ?? [];
         if (!items.length) return null;
         return (
           <section key={cat.id} className={styles.categoryBlock} data-category={cat.id}>
             <div className={styles.categoryHeader}>
               <h3 className={styles.categoryLabel}>{cat.label}</h3>
-              <Mono>{cat.count} detectors · {items.length} documented</Mono>
+              <Mono>{items.length} active</Mono>
             </div>
             <div className={styles.list}>
               {items.map(d => (
@@ -32,40 +95,32 @@ export default function WasteMetricsPage() {
                       <SeverityChip level={d.severity} />
                     </div>
                     <div className={styles.detectorName}>{d.name}</div>
-                    <Mono>
-                      Last tuned {d.lastTuned} · historical precision {Math.round(d.precision * 100)}%
-                    </Mono>
-                    <div className={styles.sourcesWrap}>
-                      <div className={styles.sourcesLabel}>Data sources joined</div>
-                      <div className={styles.sourceTags}>
-                        {d.sources.map(s => (
-                          <span key={s} className={styles.sourceTag}>{s}</span>
-                        ))}
+                    {d.sources.length > 0 ? (
+                      <div className={styles.sourcesWrap}>
+                        <div className={styles.sourcesLabel}>Standards basis</div>
+                        <div className={styles.sourceTags}>
+                          {d.sources.map(s => (
+                            <span key={s} className={styles.sourceTag}>{s}</span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                   </div>
                   <div>
-                    <div className={styles.plainLabel}>What it flags · plain language</div>
+                    <div className={styles.plainLabel}>What it flags</div>
                     <p className={styles.plainText}>{d.plain}</p>
-                    {d.historical ? (
+                    {d.historical && d.historical.summary ? (
                       <div className={styles.exampleCallout}>
                         <div className={styles.exampleHeader}>
                           <span className={styles.seymourBadge}>
                             <span className={styles.seymourBadgeDot} />
-                            Seymour
+                            Anchor
                           </span>
-                          <span className={styles.exampleLabel}>Example finding</span>
+                          <span className={styles.exampleLabel}>{d.historical.case}</span>
                         </div>
-                        <p className={styles.exampleText}>
-                          Tuned on {d.historical.case}. {d.historical.lesson}
-                        </p>
+                        <p className={styles.exampleText}>{d.historical.lesson}</p>
                       </div>
                     ) : null}
-                    <div className={styles.exampleLink}>
-                      <button type="button" className={styles.exampleLinkBtn}>
-                        View example findings →
-                      </button>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -74,5 +129,13 @@ export default function WasteMetricsPage() {
         );
       })}
     </div>
+  );
+}
+
+export default function WasteMetricsPage() {
+  return (
+    <Suspense fallback={<div className={styles.page} />}>
+      <MetricsView />
+    </Suspense>
   );
 }

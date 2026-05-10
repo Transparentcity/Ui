@@ -15,71 +15,82 @@ import {
   SeymourRail,
 } from "@/components/admin/waste/feed/SeymourRail";
 import {
-  DETECTORS,
-  SEYMOUR,
-  getDetectorById,
-  getFindingsForCity,
-  type Detector,
-  type Finding,
-  type WasteStateMode,
-} from "@/lib/wasteFixtures";
+  FeedErrorState,
+  FeedLoadingSkeleton,
+} from "@/components/admin/waste/feed/AsyncStates";
+import {
+  useWasteAdminDetectors,
+  useWasteAdminFindings,
+  useWasteAdminSeymourFeed,
+} from "@/lib/hooks/useWasteAdmin";
+import {
+  adaptDetector,
+  adaptFinding,
+  adaptSeymour,
+} from "@/lib/admin/waste/adapters";
+import type { Detector, Finding } from "@/lib/wasteFixtures";
 import styles from "@/components/admin/waste/feed/feed.module.css";
 
 const VALID_FILTERS: readonly FindingsFilter[] = ["all", "high", "med"];
 const VALID_PERIODS: readonly FindingsPeriod[] = ["today", "week", "month"];
-const VALID_MODES: readonly WasteStateMode[] = ["rich", "quiet", "degraded"];
 
 function asEnum<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
   return value && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
-}
-
-function applyFilter(findings: readonly Finding[], filter: FindingsFilter): readonly Finding[] {
-  if (filter === "all") return findings;
-  if (filter === "high") return findings.filter(f => f.severity === "high");
-  return findings.filter(f => f.severity !== "low");
 }
 
 function FeedView() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const cityId = params.get("city") ?? "sf";
-  const stateMode = asEnum<WasteStateMode>(params.get("state"), VALID_MODES, "rich");
+  const citySlug = params.get("city") ?? "san-francisco";
   const filter = asEnum<FindingsFilter>(params.get("filter"), VALID_FILTERS, "all");
   const period = asEnum<FindingsPeriod>(params.get("period"), VALID_PERIODS, "today");
 
-  const isQuiet = stateMode === "quiet";
-  const isDegraded = stateMode === "degraded";
-  const isSparse = cityId === "atx";
+  const detectorsQ = useWasteAdminDetectors(citySlug);
+  const findingsQ = useWasteAdminFindings({ citySlug, period, filter });
+  const seymourQ = useWasteAdminSeymourFeed(citySlug);
 
-  const sourceFindings = useMemo(
-    () => (isQuiet ? [] : getFindingsForCity(cityId)),
-    [cityId, isQuiet]
+  const detectors = useMemo<Detector[]>(
+    () => (detectorsQ.data ?? []).map(adaptDetector),
+    [detectorsQ.data]
   );
-  const visibleFindings = useMemo(
-    () => applyFilter(sourceFindings, filter),
-    [sourceFindings, filter]
-  );
-
   const detectorById = useMemo<Record<string, Detector>>(
-    () => Object.fromEntries(DETECTORS.map(d => [d.id, d])),
-    []
+    () => Object.fromEntries(detectors.map(d => [d.id, d])),
+    [detectors]
+  );
+  const findings = useMemo<Finding[]>(
+    () => (findingsQ.data ?? []).map(adaptFinding),
+    [findingsQ.data]
+  );
+  const seymour = useMemo(
+    () =>
+      seymourQ.data
+        ? adaptSeymour(seymourQ.data)
+        : {
+            todaysRead: "",
+            generatedAt: "",
+            clusters: [],
+            suggested: [],
+          },
+    [seymourQ.data]
   );
 
   const urlDetectorId = params.get("detector");
   const urlFindingId = params.get("finding");
 
-  const fallbackFinding = sourceFindings[0] ?? null;
-  const fallbackDetectorId = fallbackFinding?.detectorId ?? DETECTORS[0].id;
+  const fallbackFinding = findings[0] ?? null;
+  const fallbackDetectorId =
+    fallbackFinding?.detectorId ?? detectors[0]?.id ?? null;
 
-  const selectedFinding =
-    sourceFindings.find(f => f.id === urlFindingId) ?? fallbackFinding;
+  const selectedFinding = findings.find(f => f.id === urlFindingId) ?? fallbackFinding;
   const selectedDetectorId =
-    (urlDetectorId && getDetectorById(urlDetectorId)?.id) ??
+    (urlDetectorId && detectorById[urlDetectorId]?.id) ??
     selectedFinding?.detectorId ??
     fallbackDetectorId;
 
-  const selectedDetector = getDetectorById(selectedDetectorId) ?? null;
+  const selectedDetector = selectedDetectorId
+    ? detectorById[selectedDetectorId] ?? null
+    : null;
   const findingForPanel =
     selectedFinding && selectedFinding.detectorId === selectedDetectorId
       ? selectedFinding
@@ -100,41 +111,61 @@ function FeedView() {
     [params, router]
   );
 
-  // Keep the URL pointing at a valid finding/detector after city or state changes.
   useEffect(() => {
-    if (isQuiet) return;
-    if (!sourceFindings.length) return;
-    const findingValid = urlFindingId && sourceFindings.some(f => f.id === urlFindingId);
-    if (!findingValid && fallbackFinding) {
-      updateParams({
-        finding: fallbackFinding.id,
-        detector: fallbackFinding.detectorId,
-      });
+    if (!findings.length) return;
+    const valid = urlFindingId && findings.some(f => f.id === urlFindingId);
+    if (!valid && fallbackFinding) {
+      updateParams({ finding: fallbackFinding.id, detector: fallbackFinding.detectorId });
     }
-  }, [cityId, stateMode, isQuiet, sourceFindings, urlFindingId, fallbackFinding, updateParams]);
+  }, [findings, urlFindingId, fallbackFinding, updateParams]);
 
   const handleSelectFinding = (id: string) => {
-    const f = sourceFindings.find(x => x.id === id);
+    const f = findings.find(x => x.id === id);
     if (!f) return;
     updateParams({ finding: f.id, detector: f.detectorId });
   };
 
-  const handleSelectDetector = (id: string) => {
-    updateParams({ detector: id });
-  };
+  const handleSelectDetector = (id: string) => updateParams({ detector: id });
+
+  const isLoading = detectorsQ.isLoading || findingsQ.isLoading;
+  const error = detectorsQ.error ?? findingsQ.error;
+  const isQuiet = !isLoading && findings.length === 0;
+
+  if (error) {
+    return (
+      <div className={styles.feed}>
+        <FeedErrorState
+          error={error}
+          onRetry={() => {
+            detectorsQ.refetch();
+            findingsQ.refetch();
+            seymourQ.refetch();
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className={styles.feed}>
+        <FeedLoadingSkeleton label="Loading detectors and findings" />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.feed}>
       <DetectorRail
-        detectors={DETECTORS}
+        detectors={detectors}
         selectedDetectorId={selectedDetectorId}
         onSelect={handleSelectDetector}
         query={query}
         onQueryChange={setQuery}
-        isSparse={isSparse}
+        isSparse={detectors.length > 0 && detectors.length < 10}
       />
       <FindingsStream
-        findings={visibleFindings}
+        findings={findings}
         detectorById={detectorById}
         selectedFindingId={selectedFinding?.id ?? null}
         onSelect={handleSelectFinding}
@@ -143,16 +174,19 @@ function FeedView() {
         period={period}
         onPeriodChange={p => updateParams({ period: p === "today" ? null : p })}
         isQuiet={isQuiet}
-        isDegraded={isDegraded}
+        isDegraded={false}
       />
       <ProvenancePanel detector={selectedDetector} finding={findingForPanel} />
       {seymourCollapsed ? (
-        <SeymourCollapsedTab count={SEYMOUR.clusters.length} onExpand={() => setSeymourCollapsed(false)} />
+        <SeymourCollapsedTab
+          count={seymour.clusters.length}
+          onExpand={() => setSeymourCollapsed(false)}
+        />
       ) : (
         <SeymourRail
-          data={SEYMOUR}
+          data={seymour}
           onCollapse={() => setSeymourCollapsed(true)}
-          isQuiet={isQuiet || isSparse}
+          isQuiet={isQuiet}
         />
       )}
     </div>

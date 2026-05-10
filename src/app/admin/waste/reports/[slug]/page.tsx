@@ -2,7 +2,7 @@
 
 import { Suspense, use } from "react";
 import Link from "next/link";
-import { notFound, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import {
   Button,
@@ -10,36 +10,49 @@ import {
   ReportStatusChip,
   SeverityChip,
 } from "@/components/admin/waste/primitives";
+import { useWasteAdminReport } from "@/lib/hooks/useWasteAdmin";
 import {
-  DETECTORS,
-  FINDINGS,
-  getReportBySlug,
-  type ReportStatus,
-} from "@/lib/wasteFixtures";
+  adaptFinding,
+  adaptReportDetail,
+} from "@/lib/admin/waste/adapters";
 import styles from "./reportDetail.module.css";
-
-const VALID_MODES: readonly ReportStatus[] = ["draft", "under-review", "final"];
 
 function ReportDetailView({ slug }: { slug: string }) {
   const params = useSearchParams();
-  const report = getReportBySlug(slug);
-  if (!report) notFound();
+  const citySlug = params.get("city") ?? "san-francisco";
+  const { data, isLoading, error, refetch } = useWasteAdminReport(slug, citySlug);
 
-  const modeParam = params.get("mode");
-  const overrideStatus =
-    modeParam && (VALID_MODES as readonly string[]).includes(modeParam)
-      ? (modeParam as ReportStatus)
-      : null;
-  const status: ReportStatus = overrideStatus ?? report.status;
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <Link href={`/admin/waste/reports?city=${encodeURIComponent(citySlug)}`} className={styles.backBtn}>
+          ← All workpapers
+        </Link>
+        <p role="alert">
+          Couldn&apos;t load report: {error instanceof Error ? error.message : "Unknown error"}
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => refetch()}>Retry</Button>
+      </div>
+    );
+  }
+
+  if (isLoading || !data) {
+    return (
+      <div className={styles.page}>
+        <Link href={`/admin/waste/reports?city=${encodeURIComponent(citySlug)}`} className={styles.backBtn}>
+          ← All workpapers
+        </Link>
+        <p>Loading report…</p>
+      </div>
+    );
+  }
+
+  const report = adaptReportDetail(data);
+  const reportFindings = data.findings.map(adaptFinding);
+  const status = report.status;
   const isFinal = status === "final";
   const isDraft = status === "draft";
-
-  const detectorById = Object.fromEntries(DETECTORS.map(d => [d.id, d]));
-  const reportFindings = FINDINGS.filter(f => report.detectors.includes(f.detectorId));
-
-  const backHref = overrideStatus
-    ? `/admin/waste/reports?demo=${overrideStatus}`
-    : "/admin/waste/reports";
+  const backHref = `/admin/waste/reports?city=${encodeURIComponent(citySlug)}`;
 
   return (
     <div className={styles.page} data-testid="waste-report-detail" data-status={status}>
@@ -74,20 +87,24 @@ function ReportDetailView({ slug }: { slug: string }) {
             <div className={styles.kpiValue}>{report.materiality}</div>
           </div>
           <div className={styles.kpi}>
-            <div className={styles.kpiLabel}>Prior period</div>
-            <div className={styles.kpiValueSmall}>{report.priorPeriod}</div>
+            <div className={styles.kpiLabel}>Detectors</div>
+            <div className={styles.kpiValueSmall}>{report.detectors.length}</div>
           </div>
         </div>
       </div>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Methodology</h2>
-        <Mono color="#9ca3af">Standards basis</Mono>
-        <p className={styles.subhead}>{report.standards}</p>
+        {report.standards ? (
+          <>
+            <Mono color="#9ca3af">Standards basis</Mono>
+            <p className={styles.subhead}>{report.standards}</p>
+          </>
+        ) : null}
 
         <Mono color="#9ca3af">Calculation method</Mono>
         <div style={{ marginTop: 6 }}>
-          {isDraft ? (
+          {isDraft && report.methodology ? (
             <div className={styles.seymourBlock} data-testid="methodology-draft">
               <div className={styles.seymourHeader}>
                 <span className={styles.seymourBadge}>
@@ -96,21 +113,20 @@ function ReportDetailView({ slug }: { slug: string }) {
                 </span>
               </div>
               <p className={styles.seymourText}>{report.methodology}</p>
-              <div className={styles.seymourActions}>
-                <button type="button" className={`${styles.seymourBtn} ${styles.seymourBtnPrimary}`}>
-                  Accept
-                </button>
-                <button type="button" className={styles.seymourBtn}>Edit</button>
-                <button type="button" className={styles.seymourBtn}>Regenerate</button>
-              </div>
             </div>
           ) : (
-            <p className={styles.bodyText} data-testid="methodology-final">{report.methodology}</p>
+            <p className={styles.bodyText} data-testid="methodology-final">
+              {report.methodology || "—"}
+            </p>
           )}
         </div>
 
-        <Mono color="#9ca3af">Caveats</Mono>
-        <p className={styles.caveatText}>{report.caveats}</p>
+        {report.caveats ? (
+          <>
+            <Mono color="#9ca3af">Caveats</Mono>
+            <p className={styles.caveatText}>{report.caveats}</p>
+          </>
+        ) : null}
       </section>
 
       <section className={styles.findingsSection}>
@@ -119,15 +135,15 @@ function ReportDetailView({ slug }: { slug: string }) {
           <Mono>{reportFindings.length} of {report.findings} shown</Mono>
         </div>
         <div className={styles.findingsList}>
-          {reportFindings.map(f => {
-            const d = detectorById[f.detectorId];
-            return (
+          {reportFindings.length === 0 ? (
+            <p>No findings under this report yet.</p>
+          ) : (
+            reportFindings.map(f => (
               <div key={f.id} className={styles.findingRow}>
                 <div className={styles.findingTopLine}>
                   <SeverityChip level={f.severity} />
                   <Mono color="#9ca3af">{f.id}</Mono>
-                  {d && <span className={styles.detectorTag}>{d.id}</span>}
-                  {d && <span className={styles.detectorName}>{d.name}</span>}
+                  <span className={styles.detectorTag}>{f.detectorId}</span>
                   <span className={styles.spacer} />
                   <span className={styles.findingAmount}>{f.amount}</span>
                 </div>
@@ -135,8 +151,8 @@ function ReportDetailView({ slug }: { slug: string }) {
                 <div className={styles.findingSubject}>{f.subject} · {f.department}</div>
                 <p className={styles.findingDetail}>{f.detail}</p>
               </div>
-            );
-          })}
+            ))
+          )}
         </div>
       </section>
     </div>

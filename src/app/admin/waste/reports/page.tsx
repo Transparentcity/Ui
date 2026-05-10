@@ -1,22 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { Button, Mono, ReportStatusChip } from "@/components/admin/waste/primitives";
-import { REPORTS, type ReportStatus } from "@/lib/wasteFixtures";
+import { useWasteAdminReports } from "@/lib/hooks/useWasteAdmin";
+import { adaptReportRow } from "@/lib/admin/waste/adapters";
 import styles from "./reports.module.css";
 
-type DemoMode = "actual" | "draft" | "final";
+function ReportsView() {
+  const params = useSearchParams();
+  const citySlug = params.get("city") ?? "san-francisco";
+  const { data, isLoading, error, refetch } = useWasteAdminReports(citySlug);
 
-export default function WasteReportsPage() {
-  const [demoMode, setDemoMode] = useState<DemoMode>("actual");
+  const rows = useMemo(() => (data ?? []).map(adaptReportRow), [data]);
 
-  const rows = useMemo(() => {
-    if (demoMode === "actual") return REPORTS;
-    const overrideStatus: ReportStatus = demoMode;
-    return REPORTS.map(r => ({ ...r, status: overrideStatus }));
-  }, [demoMode]);
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <h2 className={styles.title}>Audit workpapers</h2>
+        <p role="alert" className={styles.subtitle}>
+          Couldn&apos;t load reports: {error instanceof Error ? error.message : "Unknown error"}
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => refetch()}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page} data-testid="waste-reports-page">
@@ -30,21 +40,6 @@ export default function WasteReportsPage() {
         <Button variant="primary" size="sm">+ New workpaper</Button>
       </div>
 
-      <div className={styles.toggleBar} data-testid="reports-demo-toggle">
-        <span className={styles.toggleLabel}>Demo state</span>
-        {(["actual", "draft", "final"] as DemoMode[]).map(m => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setDemoMode(m)}
-            className={`${styles.toggleBtn} ${demoMode === m ? styles.toggleBtnActive : ""}`}
-            data-active={demoMode === m}
-          >
-            {m === "actual" ? "Actual" : m === "draft" ? "All draft" : "All final"}
-          </button>
-        ))}
-      </div>
-
       <div className={styles.table}>
         <div className={styles.tableHeader}>
           <span>Title</span>
@@ -54,26 +49,57 @@ export default function WasteReportsPage() {
           <span>Updated</span>
           <span>Status</span>
         </div>
-        {rows.map(r => {
-          const href =
-            demoMode === "actual"
-              ? `/admin/waste/reports/${r.slug}`
-              : `/admin/waste/reports/${r.slug}?mode=${demoMode}`;
-          return (
-            <Link key={r.slug} href={href} className={styles.row} data-slug={r.slug}>
-              <div className={styles.titleCell}>
-                <div className={styles.titleText}>{r.title}</div>
-                <Mono>{r.detectors.length} detectors · materiality {r.materiality}</Mono>
-              </div>
-              <span className={styles.periodCell}>{r.period}</span>
-              <span className={styles.numCell}>{r.findings}</span>
-              <span className={styles.numCell}>{r.exposure}</span>
-              <span className={styles.updatedCell}>{r.updated}</span>
-              <ReportStatusChip status={r.status} />
-            </Link>
-          );
-        })}
+
+        {isLoading ? (
+          <div className={styles.row} role="status" aria-live="polite">
+            <div className={styles.titleCell}>
+              <div className={styles.titleText}>Loading reports…</div>
+            </div>
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className={styles.row}>
+            <div className={styles.titleCell}>
+              <div className={styles.titleText}>No reports yet for this city.</div>
+              <Mono>Reports populate as findings accumulate.</Mono>
+            </div>
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : (
+          rows.map(r => {
+            const href = `/admin/waste/reports/${r.slug}?city=${encodeURIComponent(citySlug)}`;
+            return (
+              <Link key={r.slug} href={href} className={styles.row} data-slug={r.slug}>
+                <div className={styles.titleCell}>
+                  <div className={styles.titleText}>{r.title}</div>
+                  <Mono>materiality {r.materiality}</Mono>
+                </div>
+                <span className={styles.periodCell}>{r.period}</span>
+                <span className={styles.numCell}>{r.findings}</span>
+                <span className={styles.numCell}>{r.exposure}</span>
+                <span className={styles.updatedCell}>{r.updated}</span>
+                <ReportStatusChip status={r.status} />
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
+  );
+}
+
+export default function WasteReportsPage() {
+  return (
+    <Suspense fallback={<div className={styles.page} />}>
+      <ReportsView />
+    </Suspense>
   );
 }
