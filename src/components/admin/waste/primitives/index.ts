@@ -5,6 +5,8 @@ export { SeverityDot, SeverityChip, SeverityBar } from "./Severity";
 export type { SeverityLevel } from "./Severity";
 export { StatusChip } from "./StatusChip";
 export type { FindingStatus } from "./StatusChip";
+export { ReportStatusChip } from "./ReportStatusChip";
+export type { ReportStatus } from "./ReportStatusChip";
 export { Mono } from "./Mono";
 export { SectionLabel } from "./SectionLabel";
 export { ConfidenceBar } from "./ConfidenceBar";

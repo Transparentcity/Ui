@@ -71,6 +71,25 @@ export type SeymourData = {
 
 export type WasteStateMode = "rich" | "quiet" | "degraded";
 
+export type ReportStatus = "draft" | "under-review" | "final";
+
+export type Report = {
+  slug: string;
+  title: string;
+  period: string;
+  findings: number;
+  exposure: string;
+  materiality: string;
+  priorPeriod: string;
+  updated: string;
+  status: ReportStatus;
+  detectors: string[];
+  standards: string;
+  methodology: string;
+  caveats: string;
+  seymourDraft?: boolean;
+};
+
 export const DETECTOR_CATEGORIES: readonly DetectorCategory[] = [
   { id: "vendor",   label: "Vendor & procurement",  count: 11 },
   { id: "payroll",  label: "Payroll & pension",     count: 8  },
@@ -300,6 +319,80 @@ export const SEYMOUR: SeymourData = {
     },
   ],
 };
+
+export const REPORTS: readonly Report[] = [
+  {
+    slug: "fy26-q3-vendor-procurement",
+    title: "FY26 Q3 · Vendor & Procurement Risk Review",
+    period: "Jan 1 – Mar 31, 2026",
+    findings: 47,
+    exposure: "$2.84M",
+    materiality: "$25,000",
+    priorPeriod: "FY26 Q2 · 39 findings · $2.11M",
+    updated: "Apr 18, 2026",
+    status: "draft",
+    detectors: ["D-014", "D-002", "D-031", "D-007"],
+    standards: "GAGAS 2024 (Yellow Book), Ch. 8 — Performance Audits",
+    methodology:
+      "We executed all 11 vendor and procurement detectors across the city's AP ledger for the period, joining vendor master data, USPS CMRA registry, CA Secretary of State filings, and FFIEC bank records. Findings exceeding the $25,000 materiality threshold were promoted to the workpaper. Each finding underwent a two-stage review: detector-level confidence ≥ 0.70 to enter the report, plus a manual auditor review before promotion to confirmed.",
+    caveats:
+      "Three vendors flagged by D-014 are awaiting Secretary of State response. Their findings remain Open pending corroborating evidence.",
+    seymourDraft: true,
+  },
+  {
+    slug: "fy26-q3-payroll-pension",
+    title: "FY26 Q3 · Payroll & Pension Anomaly Review",
+    period: "Jan 1 – Mar 31, 2026",
+    findings: 12,
+    exposure: "$184K (annualized pension impact)",
+    materiality: "$10,000 annualized",
+    priorPeriod: "FY26 Q2 · 8 findings · $112K",
+    updated: "Apr 11, 2026",
+    status: "under-review",
+    detectors: ["D-021"],
+    standards: "GAGAS 2024 (Yellow Book) + GFOA Pension Funding Best Practices",
+    methodology:
+      "Detector D-021 was run against the full payroll ledger for the period, joined to the time & attendance system and the pensionable-comp tables. Employees with terminal-year pay surges exceeding 2σ above their 5-year baseline were flagged.",
+    caveats:
+      "Two flagged employees have legitimate retroactive promotion adjustments; their findings have been reclassified.",
+  },
+  {
+    slug: "fy25-annual-final",
+    title: "FY25 Annual · Citywide Waste & Abuse Summary",
+    period: "Jul 1, 2024 – Jun 30, 2025",
+    findings: 213,
+    exposure: "$8.44M",
+    materiality: "$50,000",
+    priorPeriod: "FY24 · 167 findings · $6.21M",
+    updated: "Sep 28, 2025",
+    status: "final",
+    detectors: ["D-014", "D-021", "D-007", "D-019", "D-031", "D-038", "D-002", "D-026"],
+    standards: "GAGAS 2024 (Yellow Book), Ch. 8",
+    methodology:
+      "All 42 active detectors were run quarterly across the fiscal year. Findings were aggregated, deduplicated against the prior-year register, and categorized by detector class. The materiality threshold of $50,000 was applied at the finding level for inclusion in the summary; lower-value findings are catalogued in the per-quarter workpapers.",
+    caveats: "—",
+  },
+  {
+    slug: "fy26-q2-permits",
+    title: "FY26 Q2 · Permits & Inspections Review",
+    period: "Oct 1 – Dec 31, 2025",
+    findings: 18,
+    exposure: "—",
+    materiality: "Risk-based (no $ threshold)",
+    priorPeriod: "FY26 Q1 · 14 findings",
+    updated: "Jan 24, 2026",
+    status: "final",
+    detectors: ["D-038"],
+    standards: "GAGAS 2024 (Yellow Book) + IIA Practice Guide on Auditing Conflicts of Interest",
+    methodology:
+      "Detector D-038 examined all permits issued in the period, computing inspector-applicant pairing rates against the citywide baseline. Pairings exceeding 3× the baseline with median approval times below 5 days were flagged for review.",
+    caveats: "—",
+  },
+];
+
+export function getReportBySlug(slug: string): Report | undefined {
+  return REPORTS.find(r => r.slug === slug);
+}
 
 export function getFindingsForCity(cityId: string): readonly Finding[] {
   if (cityId === "atx") return FINDINGS_SPARSE;
