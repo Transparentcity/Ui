@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useAuth0 } from "@auth0/auth0-react";
 import { BracketMark } from "./primitives/BracketMark";
 import { CitySelector } from "./CitySelector";
 import { getWasteCity } from "@/lib/admin/waste/cities";
 import styles from "./PrimaryNav.module.css";
+
+function avatarInitial(name?: string | null, email?: string | null): string {
+  if (name && name.trim().length > 0) return name.trim()[0]!.toUpperCase();
+  if (email && email.length > 0) return email[0]!.toUpperCase();
+  return "?";
+}
 
 type NavItem = {
   id: string;
@@ -30,6 +37,7 @@ export function PrimaryNav() {
   const params = useSearchParams();
   const cityId = params?.get("city") ?? null;
   const city = getWasteCity(cityId);
+  const { user, isAuthenticated, loginWithRedirect, logout } = useAuth0();
   const preservedKeys = ["city", "state"] as const;
   const preserved = new URLSearchParams();
   for (const k of preservedKeys) {
@@ -67,10 +75,37 @@ export function PrimaryNav() {
       </div>
 
       <div className={styles.navFooter}>
-        <div className={styles.navFooterTitle}>Auditor&apos;s Office</div>
-        <div className={styles.navFooterCity}>
-          <span>{city.flag}</span> {city.name}
-        </div>
+        {isAuthenticated ? (
+          <button
+            type="button"
+            className={styles.userButton}
+            onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+            title="Sign out"
+          >
+            <span className={styles.userAvatar}>
+              {user?.picture ? (
+                <img src={user.picture} alt="" />
+              ) : (
+                avatarInitial(user?.name, user?.email)
+              )}
+            </span>
+            <span className={styles.userText}>
+              <span className={styles.userName}>{user?.name || user?.email || "Account"}</span>
+              <span className={styles.userAction}>Sign out</span>
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.userButton}
+            onClick={() => loginWithRedirect()}
+          >
+            <span className={styles.userAvatar}>?</span>
+            <span className={styles.userText}>
+              <span className={styles.userName}>Sign in</span>
+            </span>
+          </button>
+        )}
       </div>
     </nav>
   );
