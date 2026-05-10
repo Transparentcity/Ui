@@ -1,0 +1,166 @@
+.page {
+  flex: 1;
+  overflow-y: auto;
+  background: #fafafa;
+  padding: 20px 28px 80px;
+}
+
+.header { margin-bottom: 18px; }
+.title {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  color: #111827;
+  margin: 0;
+}
+.subtitle {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+.categoryBlock { margin-bottom: 22px; }
+.categoryHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px 8px;
+}
+.categoryLabel {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #111827;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.list {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.row {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 2fr);
+  gap: 24px;
+}
+.row + .row { border-top: 1px solid #f3f4f6; }
+
+.idLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.detectorName {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin-bottom: 6px;
+}
+.sourcesWrap { margin-top: 10px; }
+.sourcesLabel,
+.plainLabel {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+.sourceTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sourceTag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: #374151;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.plainText {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.55;
+  color: #111827;
+  margin: 0 0 12px;
+}
+
+.exampleCallout {
+  background: rgba(204, 251, 241, 0.3);
+  border-left: 2px solid #0d9488;
+  padding: 8px 10px;
+  border-radius: 0 4px 4px 0;
+}
+.exampleHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.seymourBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0d9488;
+  background: #fff;
+  border: 1px solid rgba(13, 148, 136, 0.3);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.seymourBadgeDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #0d9488;
+}
+.exampleLabel {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0d9488;
+}
+.exampleText {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #111827;
+  margin: 0;
+  font-style: italic;
+}
+
+.exampleLink {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+.exampleLinkBtn {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
