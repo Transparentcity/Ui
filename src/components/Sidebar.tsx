@@ -136,6 +136,12 @@ export default function Sidebar({
       setJobSessionsExpanded(true);
     }
   }, [isCurrentSessionJobSession]);
+
+  useEffect(() => {
+    if (currentView === "research" || currentView === "research-new") {
+      setResearchExpanded(true);
+    }
+  }, [currentView]);
   
   // Generate unique IDs for logo masks
   const baseId = useId();
@@ -191,8 +197,8 @@ export default function Sidebar({
     };
   }, [isOpen]);
 
-  // Research and New Research Report: government-verified users only
-  const canAccessResearch = governmentVerified;
+  // Research reports in nav: government-verified users or platform admins
+  const canAccessResearch = governmentVerified || isAdmin;
 
   // Helper to close sidebar in narrow mode after action
   const handleActionWithClose = (action: () => void) => {
@@ -532,6 +538,51 @@ export default function Sidebar({
               }
             } : undefined}
           />
+
+          {/* Research reports — government-verified or admin */}
+          {canAccessResearch && onResearchClick && (
+            <>
+              <div className={styles.navSectionSpacer} />
+              <div id="research-reports-section">
+                <div
+                  id="research-reports-header"
+                  className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}`}
+                  onClick={() => setResearchExpanded(!researchExpanded)}
+                >
+                  <span>Research reports</span>
+                  <span
+                    id="research-reports-chevron"
+                    className={styles.navSectionChevron}
+                  >
+                    {researchExpanded ? "▼" : "▶"}
+                  </span>
+                </div>
+                {researchExpanded && (
+                  <div id="research-report-list">
+                    <ResearchList
+                      isAdmin={isAdmin}
+                      onResearchClick={(reportId) => {
+                        onResearchClick(reportId);
+                        if (isNarrowScreen() && onClose) {
+                          onClose();
+                        }
+                      }}
+                      currentResearchId={currentResearchId}
+                      onResearchDeleted={onResearchDeleted}
+                      onCreateNew={
+                        chatEnabled && isAdmin && onViewChange
+                          ? () =>
+                              handleActionWithClose(() =>
+                                onViewChange("research-new")
+                              )
+                          : undefined
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Recent Chats Section - only when chat enabled */}
           {chatEnabled && (

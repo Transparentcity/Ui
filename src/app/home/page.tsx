@@ -837,10 +837,15 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Redirect away from research and research-new unless government-verified or admin
-  const canAccessResearch = !!govVerificationStatus?.government_verified;
+  // Research UI: government-verified users and platform admins
+  const canAccessResearch =
+    !!govVerificationStatus?.government_verified || isAdmin;
   useEffect(() => {
-    if (!isCheckingAdmin && !canAccessResearch && !isAdmin && (currentView === "research" || currentView === "research-new")) {
+    if (
+      !isCheckingAdmin &&
+      !canAccessResearch &&
+      (currentView === "research" || currentView === "research-new")
+    ) {
       setCurrentView("chat");
       setCurrentResearchId(null);
     }

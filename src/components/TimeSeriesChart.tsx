@@ -921,6 +921,8 @@ export default function TimeSeriesChart({
             if (points.length === 0) continue;
 
             const year = parseInt(yearStr, 10);
+            /** Match citywide YTD: emphasize this year per series; prior years in neutral grey. */
+            const lineColor = year === currentYear ? groupColor : "#888888";
             const x = points.map((point) => parseInt(point.time_period));
             const y = points.map((point) => point.numeric_value);
 
@@ -951,8 +953,8 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines+markers",
                 name: `${originalGroup} ${yearStr}`,
-                line: { color: groupColor, width: 2 },
-                marker: { color: groupColor, size: 5 },
+                line: { color: lineColor, width: 2 },
+                marker: { color: lineColor, size: 5 },
                 showlegend: true,
                 hovertemplate: `${originalGroup} ${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
@@ -965,15 +967,15 @@ export default function TimeSeriesChart({
               });
               if (incompleteX.length > 1) {
                 ytdIncompleteForLegend = true;
-                if (incompleteLegendLineColor == null) incompleteLegendLineColor = groupColor;
+                if (incompleteLegendLineColor == null) incompleteLegendLineColor = lineColor;
                 traces.push({
                   x: incompleteX,
                   y: incompleteY,
                   type: "scatter",
                   mode: "lines+markers",
                   name: `${originalGroup} ${yearStr} (incomplete)`,
-                  line: { color: groupColor, width: 2, dash: "dot" },
-                  marker: { color: groupColor, size: 5 },
+                  line: { color: lineColor, width: 2, dash: "dot" },
+                  marker: { color: lineColor, size: 5 },
                   showlegend: false,
                   hovertemplate: `${originalGroup} ${yearStr} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
@@ -1003,7 +1005,7 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines",
                 name: `${originalGroup} ${yearStr}`,
-                line: { color: groupColor, width: 0.75 },
+                line: { color: lineColor, width: 0.75 },
                 opacity: 0.2,
                 showlegend: false,
                 hoverinfo: "skip",
@@ -1015,7 +1017,7 @@ export default function TimeSeriesChart({
                 type: "scatter",
                 mode: "lines",
                 name: `${originalGroup} ${yearStr} 7-Day Avg`,
-                line: { color: groupColor, width: 2 },
+                line: { color: lineColor, width: 2 },
                 showlegend: true,
                 hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
@@ -1029,14 +1031,14 @@ export default function TimeSeriesChart({
 
               if (incompleteX.length > 1) {
                 ytdIncompleteForLegend = true;
-                if (incompleteLegendLineColor == null) incompleteLegendLineColor = groupColor;
+                if (incompleteLegendLineColor == null) incompleteLegendLineColor = lineColor;
                 traces.push({
                   x: incompleteX,
                   y: incompleteY,
                   type: "scatter",
                   mode: "lines",
                   name: `${originalGroup} ${yearStr} (incomplete)`,
-                  line: { color: groupColor, width: 0.75 },
+                  line: { color: lineColor, width: 0.75 },
                   opacity: 0.2,
                   showlegend: false,
                   hoverinfo: "skip",
@@ -1047,7 +1049,7 @@ export default function TimeSeriesChart({
                   type: "scatter",
                   mode: "lines",
                   name: `${originalGroup} ${yearStr} 7-Day Avg (incomplete)`,
-                  line: { color: groupColor, width: 2, dash: "dot" },
+                  line: { color: lineColor, width: 2, dash: "dot" },
                   showlegend: false,
                   hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {

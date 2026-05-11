@@ -561,6 +561,11 @@ export interface TemplateInstantiationStatusItem {
   template_name: string;
   status: "instantiated" | "not_instantiated";
   metric_id?: number | null;
+  /** Display category from the platform template metric */
+  category?: string | null;
+  subcategory?: string | null;
+  /** Slug derived from category (stable ordering / filters) */
+  category_slug?: string | null;
 }
 
 /** Response for GET template-instantiation-status */

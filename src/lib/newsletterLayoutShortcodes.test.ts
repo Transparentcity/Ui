@@ -18,6 +18,8 @@ describe("expand()", () => {
     expect(out).toContain("A short sentence");
     expect(out).toContain("Body text");
     expect(out).toContain('href="/c/sf/stories/x"');
+    expect(out).toContain("display:block");
+    expect(out).toContain("padding:24px");
     expect(out).toContain("font-size:32px");
   });
 

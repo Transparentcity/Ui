@@ -438,6 +438,15 @@ export default function NewsletterAdmin() {
             }
           }
 
+          // Weekly Seymour shared path persists to newsletter_editions, not research_reports.
+          // Merge edition timestamps so "Last Generated" reflects real weekly runs.
+          const cityEditions = byCity[city.city_id] || [];
+          for (const ed of cityEditions) {
+            if (ed.created_at && (!latestDate || ed.created_at > latestDate)) {
+              latestDate = ed.created_at;
+            }
+          }
+
           return {
             city,
             isLaunched: true,
@@ -523,7 +532,8 @@ export default function NewsletterAdmin() {
 
     for (const cs of cityStatuses) {
       totalNewsletters += cs.totalCount;
-      if (cs.totalCount > 0) citiesWithNewsletters++;
+      const editionCount = editionsByCityId[cs.city.city_id]?.length ?? 0;
+      if (cs.totalCount > 0 || editionCount > 0) citiesWithNewsletters++;
       for (const r of cs.reports) {
         if (r.final_report_html) {
           const wc = countWords(r.final_report_html);
@@ -536,9 +546,19 @@ export default function NewsletterAdmin() {
         }
       }
     }
+
+    for (const editions of Object.values(editionsByCityId)) {
+      for (const ed of editions) {
+        if (ed.created_at) {
+          const d = new Date(ed.created_at).getTime();
+          if (!Number.isNaN(d) && d >= weekAgo) thisWeek++;
+        }
+      }
+    }
+
     const avgWords = reportsWithHtml > 0 ? Math.round(totalWords / reportsWithHtml) : 0;
     return { totalNewsletters, citiesWithNewsletters, thisWeek, avgWords, totalCities: cityStatuses.length };
-  }, [cityStatuses]);
+  }, [cityStatuses, editionsByCityId]);
 
   // Browse filtered + paginated
   const filteredBrowse = useMemo(() => {
@@ -2161,7 +2181,12 @@ function DashboardTab({
                 >
                   Shared editions
                 </th>
-                <th className={styles.th}>Last Generated</th>
+                <th
+                  className={styles.th}
+                  title="Most recent of newsletter research reports or stored shared Seymour editions (newsletter_editions)."
+                >
+                  Last Generated
+                </th>
                 <th className={styles.th}>Status</th>
                 <th className={styles.th}>Districts</th>
                 <th className={styles.th} style={{ width: 100 }}>Actions</th>

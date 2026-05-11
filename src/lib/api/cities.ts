@@ -393,6 +393,9 @@ export interface TemplateInstantiationStatusItem {
   template_name: string;
   status: "instantiated" | "not_instantiated";
   metric_id?: number | null;
+  category?: string | null;
+  subcategory?: string | null;
+  category_slug?: string | null;
 }
 
 /** Response for GET template-instantiation-status */

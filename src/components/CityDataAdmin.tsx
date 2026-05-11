@@ -74,6 +74,21 @@ import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import styles from "./CityDataAdmin.module.css";
 import metricStyles from "./MetricsAdmin.module.css";
 
+/** Slug for display/sort when API omits category_slug (older backends). */
+function templateCategorySlug(
+  category: string | null | undefined,
+  apiSlug?: string | null
+): string {
+  if (apiSlug != null && String(apiSlug).trim() !== "") return String(apiSlug).trim();
+  if (!category?.trim()) return "uncategorized";
+  const s = category
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return s || "uncategorized";
+}
+
 interface CityData {
   id: number;
   name: string;
@@ -1103,6 +1118,28 @@ export default function CityDataAdmin({
     }
     return map;
   }, [orderingData]);
+
+  const sortedTemplateInstantiationRows = useMemo(() => {
+    const raw = templateStatusQuery.data?.templates;
+    if (!raw?.length) return [];
+    return [...raw].sort((a, b) => {
+      const slugCmp = templateCategorySlug(a.category, a.category_slug).localeCompare(
+        templateCategorySlug(b.category, b.category_slug),
+        undefined,
+        { sensitivity: "base" }
+      );
+      if (slugCmp !== 0) return slugCmp;
+      const catCmp = (a.category ?? "").localeCompare(b.category ?? "", undefined, {
+        sensitivity: "base",
+      });
+      if (catCmp !== 0) return catCmp;
+      const subCmp = (a.subcategory ?? "").localeCompare(b.subcategory ?? "", undefined, {
+        sensitivity: "base",
+      });
+      if (subCmp !== 0) return subCmp;
+      return a.template_name.localeCompare(b.template_name, undefined, { sensitivity: "base" });
+    });
+  }, [templateStatusQuery.data?.templates]);
 
   const handleSaveCityData = async () => {
     try {
@@ -4061,7 +4098,7 @@ export default function CityDataAdmin({
           </div>
 
           {/* Template metrics: same table as metrics list, greyed out, with Run / Run all */}
-          {templateStatusQuery.data?.templates && templateStatusQuery.data.templates.length > 0 && (
+          {sortedTemplateInstantiationRows.length > 0 && (
             <div style={{ marginBottom: "32px" }}>
               <h4 style={{
                 margin: "0 0 12px 0",
@@ -4219,14 +4256,51 @@ export default function CityDataAdmin({
                     </tr>
                   </thead>
                   <tbody>
-                    {templateStatusQuery.data.templates.map((t) => {
+                    {sortedTemplateInstantiationRows.map((t, idx) => {
                       const jobId = runningSingleJobByTemplateId[t.template_id];
                       const job = jobId ? jobs?.find((j) => j.job_id === jobId) : null;
                       const isRunning = !!jobId && job && (job.status === "pending" || job.status === "running");
                       const isInstantiated = t.status === "instantiated";
+                      const slug = templateCategorySlug(t.category, t.category_slug);
+                      const prev = idx > 0 ? sortedTemplateInstantiationRows[idx - 1] : null;
+                      const prevSlug = prev ? templateCategorySlug(prev.category, prev.category_slug) : null;
+                      const showCategoryDivider = slug !== prevSlug;
+                      const categoryLabel = t.category?.trim() ? t.category : "Uncategorized";
                       return (
+                        <Fragment key={t.template_id}>
+                        {showCategoryDivider && (
+                          <tr className={styles.metricCategoryDividerRow}>
+                            <td
+                              colSpan={5}
+                              style={{
+                                padding: "10px 12px",
+                                background: "var(--bg-secondary, #f5f5f7)",
+                                borderTop: "1px solid var(--border-color, #e5e5ea)",
+                                borderBottom: "1px solid var(--border-color, #e5e5ea)",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              <span style={{ color: "var(--text-primary)" }}>{categoryLabel}</span>
+                              <code
+                                style={{
+                                  marginLeft: "8px",
+                                  fontSize: "11px",
+                                  color: "var(--text-tertiary)",
+                                  textTransform: "none",
+                                  letterSpacing: 0,
+                                }}
+                                title="Category slug"
+                              >
+                                {slug}
+                              </code>
+                            </td>
+                          </tr>
+                        )}
                         <tr
-                          key={t.template_id}
                           className={styles.metricTableRow}
                           style={{
                             opacity: isInstantiated ? 0.9 : 0.7,
@@ -4238,6 +4312,19 @@ export default function CityDataAdmin({
                               <div style={{ fontWeight: 500, color: isInstantiated ? "var(--text-primary)" : "var(--text-secondary)" }}>
                                 {t.template_name}
                                 <span className={styles.metricIdInline}> (template {t.template_id})</span>
+                                {t.subcategory?.trim() && (
+                                  <span
+                                    style={{
+                                      marginLeft: "8px",
+                                      fontSize: "11px",
+                                      color: "var(--text-tertiary)",
+                                      fontWeight: 400,
+                                    }}
+                                    title="Subcategory"
+                                  >
+                                    · {t.subcategory}
+                                  </span>
+                                )}
                                 {isInstantiated && t.metric_id != null && (
                                   <span style={{ marginLeft: "6px", fontSize: "12px", color: "var(--color-success, #22c55e)" }}>
                                     → metric #{t.metric_id}
@@ -4313,6 +4400,7 @@ export default function CityDataAdmin({
                             )}
                           </td>
                         </tr>
+                        </Fragment>
                       );
                     })}
                   </tbody>

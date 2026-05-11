@@ -1051,6 +1051,12 @@ function ChoroplethDataTableSection({
 }) {
   const panelId = "choropleth-data-table-panel";
   const noun = data.areaColumnLabel.toLowerCase();
+  // Sum all row values for the total count (e.g. total complaints across all
+  // districts). Showing rows.length (= number of districts = 11) is misleading.
+  const totalCount = data.rows.reduce(
+    (sum, r) => sum + (r.value != null && Number.isFinite(r.value) ? r.value : 0),
+    0
+  );
   return (
     <section
       className={`map-choropleth-data-section${embedded ? " map-choropleth-data-section--embedded" : ""}`}
@@ -1067,7 +1073,7 @@ function ChoroplethDataTableSection({
           Data table
           <span className="map-choropleth-data-toggle-meta">
             {" "}
-            ({data.rows.length} {noun})
+            ({totalCount.toLocaleString()} {noun})
           </span>
         </span>
         <span className="map-choropleth-data-toggle-icon" aria-hidden="true">
