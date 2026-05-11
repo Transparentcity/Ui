@@ -202,9 +202,11 @@ export default function FilterPanelV2({
     onClose();
   };
 
+  // Empty every selection. The user explicitly cleared — don't sneak the
+  // followed-cities set back in. "Select my cities" is the one-click recovery.
   const clearAll = () => {
     const cleared: FilterState = {
-      selectedCityIds: new Set(savedCityIds),
+      selectedCityIds: new Set(),
       selectedTopics: new Set(),
       selectedDistricts: new Map(),
       selectedPlaceId: null,
@@ -212,6 +214,14 @@ export default function FilterPanelV2({
       feedOrder: "published_at",
     };
     applyMaybe(cleared);
+  };
+
+  // Additive: union followed cities into the current selection. Never removes
+  // a non-followed city the user added by hand.
+  const selectMyCities = () => {
+    const next = new Set(draft.selectedCityIds);
+    for (const id of savedCityIds) next.add(id);
+    applyMaybe({ ...draft, selectedCityIds: next });
   };
 
   /* ── Derived values ───────────────────────────────────────────────── */
@@ -245,7 +255,28 @@ export default function FilterPanelV2({
         onRemove: () => {
           const next = new Set(draft.selectedCityIds);
           next.delete(id);
-          applyMaybe({ ...draft, selectedCityIds: next });
+          // Drop orphan sub-filters that pointed inside this city — same
+          // semantics as unchecking the row in the city list.
+          let nextDistricts = draft.selectedDistricts;
+          let nextPlaceId = draft.selectedPlaceId;
+          if (draft.selectedDistricts.has(id)) {
+            nextDistricts = new Map(
+              [...draft.selectedDistricts].map(([k, v]) => [k, new Set(v)]),
+            );
+            nextDistricts.delete(id);
+          }
+          if (
+            draft.selectedPlaceId !== null &&
+            userPlaces.find((p) => p.id === draft.selectedPlaceId)?.city_id === id
+          ) {
+            nextPlaceId = null;
+          }
+          applyMaybe({
+            ...draft,
+            selectedCityIds: next,
+            selectedDistricts: nextDistricts,
+            selectedPlaceId: nextPlaceId,
+          });
         },
       });
     }
@@ -308,18 +339,23 @@ export default function FilterPanelV2({
     return chips;
   }, [draft, allCities, districtsPerCity, userPlaces, applyMaybe]);
 
-  // The default state after Clear all is: the user's followed cities in feed,
-  // no topics, no districts, no place, no near-my-places, sort = newest. So
-  // Clear all should only be enabled when the draft DEVIATES from that default,
-  // not whenever any city is checked.
-  const isAtDefault =
-    setsEqual(draft.selectedCityIds, savedCityIds) &&
-    draft.selectedTopics.size === 0 &&
-    draft.selectedDistricts.size === 0 &&
-    draft.selectedPlaceId === null &&
-    !draft.onlyMySavedPlaces &&
-    draft.feedOrder === "published_at";
-  const hasAnyFilter = !isAtDefault;
+  // "Clear all" is enabled whenever there's anything to clear, full stop.
+  // No hidden "default state" that the UI doesn't show.
+  const hasAnyFilter =
+    draft.selectedCityIds.size > 0 ||
+    draft.selectedTopics.size > 0 ||
+    draft.selectedDistricts.size > 0 ||
+    draft.selectedPlaceId !== null ||
+    draft.onlyMySavedPlaces ||
+    draft.feedOrder !== "published_at";
+
+  // "Select my cities" is enabled when there is at least one followed city
+  // that isn't already checked.
+  const canSelectMyCities = useMemo(() => {
+    if (savedCityIds.size === 0) return false;
+    for (const id of savedCityIds) if (!draft.selectedCityIds.has(id)) return true;
+    return false;
+  }, [savedCityIds, draft.selectedCityIds]);
 
   if (!open || !mounted) return null;
 
@@ -354,14 +390,31 @@ export default function FilterPanelV2({
 
         <div className={styles.header}>
           <h2 className={styles.title}>Filter feed</h2>
-          <button
-            type="button"
-            className={styles.headerClear}
-            onClick={clearAll}
-            disabled={!hasAnyFilter}
-          >
-            Clear all
-          </button>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.headerClear}
+              onClick={selectMyCities}
+              disabled={!canSelectMyCities}
+              title={
+                savedCityIds.size === 0
+                  ? "Follow a city first"
+                  : canSelectMyCities
+                    ? "Add your followed cities to the selection"
+                    : "All your cities are already selected"
+              }
+            >
+              Select my cities
+            </button>
+            <button
+              type="button"
+              className={styles.headerClear}
+              onClick={clearAll}
+              disabled={!hasAnyFilter}
+            >
+              Clear all
+            </button>
+          </div>
         </div>
 
         {activeChips.length > 0 && (
@@ -501,33 +554,58 @@ function CitiesPane({
 }) {
   const toggleCity = (id: number) => {
     const next = new Set(draft.selectedCityIds);
-    if (next.has(id)) next.delete(id);
+    const removing = next.has(id);
+    if (removing) next.delete(id);
     else next.add(id);
+
+    // When removing a city, drop sub-filters that pointed inside it.
+    // A dormant district set or a place-in-an-unchecked-city is dead state.
+    let nextDistricts = draft.selectedDistricts;
+    let nextPlaceId = draft.selectedPlaceId;
+    if (removing) {
+      if (draft.selectedDistricts.has(id)) {
+        nextDistricts = new Map(
+          [...draft.selectedDistricts].map(([k, v]) => [k, new Set(v)]),
+        );
+        nextDistricts.delete(id);
+      }
+      if (
+        draft.selectedPlaceId !== null &&
+        userPlaces.find((p) => p.id === draft.selectedPlaceId)?.city_id === id
+      ) {
+        nextPlaceId = null;
+      }
+    }
+
     applyMaybe({
       ...draft,
       selectedCityIds: next,
-      onlyMySavedPlaces: next.size > 0 ? false : draft.onlyMySavedPlaces,
-      selectedPlaceId: next.size > 0 ? null : draft.selectedPlaceId,
+      selectedDistricts: nextDistricts,
+      selectedPlaceId: nextPlaceId,
     });
   };
 
+  // Additive: union followed cities into current selection. Matches the
+  // header "Select my cities" so the two behave the same. Falls back to the
+  // visible list when there are no follows yet.
   const selectAll = () => {
-    // Prefer the user's saved cities, but fall back to whatever's currently
-    // visible (the search-filtered list). Otherwise the button is a no-op for
-    // users who haven't saved cities yet.
-    const all = savedCityIds.size > 0
-      ? new Set(savedCityIds)
-      : new Set(cities.map((c) => c.city_id));
+    const next = new Set(draft.selectedCityIds);
+    if (savedCityIds.size > 0) {
+      for (const id of savedCityIds) next.add(id);
+    } else {
+      for (const c of cities) next.add(c.city_id);
+    }
+    applyMaybe({ ...draft, selectedCityIds: next });
+  };
+
+  // Clear the city set and drop the now-orphan sub-filters with it.
+  const selectNone = () => {
     applyMaybe({
       ...draft,
-      selectedCityIds: all,
-      onlyMySavedPlaces: all.size > 0 ? false : draft.onlyMySavedPlaces,
-      selectedPlaceId: all.size > 0 ? null : draft.selectedPlaceId,
+      selectedCityIds: new Set(),
+      selectedDistricts: new Map(),
+      selectedPlaceId: null,
     });
-  };
-
-  const selectNone = () => {
-    applyMaybe({ ...draft, selectedCityIds: new Set() });
   };
 
   return (
@@ -795,12 +873,6 @@ function cloneState(s: FilterState): FilterState {
     onlyMySavedPlaces: s.onlyMySavedPlaces,
     feedOrder: s.feedOrder,
   };
-}
-
-function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
-  if (a.size !== b.size) return false;
-  for (const v of a) if (!b.has(v)) return false;
-  return true;
 }
 
 function summarizeDistricts(
