@@ -116,26 +116,29 @@
 .chipRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 16px 10px;
+  gap: 4px;
+  padding: 0 16px 8px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-primary);
   margin-bottom: 8px;
+  max-height: 92px;
+  overflow-y: auto;
 }
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px 3px 10px;
-  font-size: 12px;
+  gap: 2px;
+  padding: 1px 4px 1px 8px;
+  font-size: 11px;
   font-weight: 500;
+  line-height: 1.4;
   border-radius: 999px;
   border: 1px solid var(--brand-primary, #ad35fa);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
   color: var(--brand-primary, #ad35fa);
   cursor: pointer;
   transition: background 0.12s ease;
-  max-width: 200px;
+  max-width: 160px;
 }
 .chip:hover { background: var(--brand-primary-light, rgba(173, 53, 250, 0.18)); }
 .chipLabel {
@@ -144,10 +147,10 @@
   text-overflow: ellipsis;
 }
 .chipX {
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1;
   opacity: 0.7;
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 /* ── Sort segmented control ───────────────────────────────────────────── */

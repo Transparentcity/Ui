@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useFeedStories,
   useFeedPlaces,
@@ -21,6 +21,7 @@ import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
 import {
   getPublicCityDetail,
   getPublicMetricComparisonsBatch,
+  listPublicCitiesForSitemap,
   type PublicCityMetricItem,
   type PublicMetricComparisons,
 } from "@/lib/publicApiClient";
@@ -338,20 +339,42 @@ export default function FeedContainer({
     });
   }, [places]);
 
-  // Cities the filter UI knows the name/emoji of: union of cities with stories
-  // (uniqueCities) and the user's followed cities (savedCities). Without the
-  // followed list, a followed city with zero current stories would render as a
-  // generic "City" chip in the active filters.
+  // Launched-city set, used to gate which cities appear in the filter panel.
+  // A city should only appear when it's been launched AND has stories in the
+  // current feed payload — checking a non-launched or empty city is a no-op.
+  const { data: launchedCitiesData } = useQuery({
+    queryKey: ["public", "cities", "sitemap"],
+    queryFn: listPublicCitiesForSitemap,
+    staleTime: 5 * 60 * 1000,
+  });
+  const launchedCityIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const c of launchedCitiesData ?? []) {
+      if (c.is_launched) set.add(c.id);
+    }
+    return set;
+  }, [launchedCitiesData]);
+
+  // Cities the filter UI knows the name/emoji of: cities with stories
+  // (uniqueCities) intersected with launched cities. Followed cities are
+  // included so an active chip can still render its label after the city
+  // drops out of the current feed payload, but only if launched.
   const cityCatalog = useMemo<CityInfo[]>(() => {
     const seen = new Set<number>();
     const out: CityInfo[] = [];
+    // launched-cities list might not have resolved yet — fall back to permissive
+    // until it does, so the filter isn't briefly empty on first paint.
+    const launchedGate = (id: number) =>
+      launchedCityIds.size === 0 || launchedCityIds.has(id);
     for (const c of uniqueCities) {
       if (seen.has(c.city_id)) continue;
+      if (!launchedGate(c.city_id)) continue;
       seen.add(c.city_id);
       out.push(c);
     }
     for (const c of savedCities) {
       if (seen.has(c.id)) continue;
+      if (!launchedGate(c.id)) continue;
       seen.add(c.id);
       out.push({
         city_id: c.id,
@@ -360,7 +383,7 @@ export default function FeedContainer({
       });
     }
     return out;
-  }, [uniqueCities, savedCities]);
+  }, [uniqueCities, savedCities, launchedCityIds]);
 
   // Detect when a selected city has no feed stories (e.g. newly-launched city)
   const selectedCityWithNoStories = useMemo(() => {
