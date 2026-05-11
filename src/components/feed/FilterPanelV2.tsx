@@ -52,7 +52,10 @@ export interface FilterState {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Broad catalog used to label active chips. Every city the app knows about. */
   allCities: CityInfo[];
+  /** Optional narrowed list used for the city-row checkboxes. Defaults to allCities. */
+  filterableCities?: CityInfo[];
   savedCityIds: Set<number>;
   filters: FilterState;
   onApply: (filters: FilterState) => void;
@@ -83,6 +86,7 @@ export default function FilterPanelV2({
   open,
   onClose,
   allCities,
+  filterableCities,
   savedCityIds,
   filters,
   onApply,
@@ -91,6 +95,7 @@ export default function FilterPanelV2({
   onAddAddress,
   triggerSelector = 'button[aria-label="Open filters"]',
 }: Props) {
+  const cityListSource = filterableCities ?? allCities;
   const isDesktop = useIsDesktop();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -225,11 +230,11 @@ export default function FilterPanelV2({
   /* ── Derived values ───────────────────────────────────────────────── */
 
   const sortedCities = useMemo(() => {
-    const followed = allCities.filter((c) => savedCityIds.has(c.city_id));
-    const other = allCities.filter((c) => !savedCityIds.has(c.city_id));
+    const followed = cityListSource.filter((c) => savedCityIds.has(c.city_id));
+    const other = cityListSource.filter((c) => !savedCityIds.has(c.city_id));
     const byName = (a: CityInfo, b: CityInfo) => a.city_name.localeCompare(b.city_name);
     return [...followed.sort(byName), ...other.sort(byName)];
-  }, [allCities, savedCityIds]);
+  }, [cityListSource, savedCityIds]);
 
   const filteredCities = sortedCities;
 
