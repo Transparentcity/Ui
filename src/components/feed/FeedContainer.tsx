@@ -355,26 +355,20 @@ export default function FeedContainer({
     return set;
   }, [launchedCitiesData]);
 
-  // Cities the filter UI knows the name/emoji of: cities with stories
-  // (uniqueCities) intersected with launched cities. Followed cities are
-  // included so an active chip can still render its label after the city
-  // drops out of the current feed payload, but only if launched.
+  // Broad label catalog — every city we know about from any source. Used to
+  // render chip/pill labels for whatever the user has selected, even if the
+  // city is no longer in the filter panel's list (because it dropped out of
+  // the current feed payload, isn't launched, etc.).
   const cityCatalog = useMemo<CityInfo[]>(() => {
     const seen = new Set<number>();
     const out: CityInfo[] = [];
-    // launched-cities list might not have resolved yet — fall back to permissive
-    // until it does, so the filter isn't briefly empty on first paint.
-    const launchedGate = (id: number) =>
-      launchedCityIds.size === 0 || launchedCityIds.has(id);
     for (const c of uniqueCities) {
       if (seen.has(c.city_id)) continue;
-      if (!launchedGate(c.city_id)) continue;
       seen.add(c.city_id);
       out.push(c);
     }
     for (const c of savedCities) {
       if (seen.has(c.id)) continue;
-      if (!launchedGate(c.id)) continue;
       seen.add(c.id);
       out.push({
         city_id: c.id,
@@ -382,8 +376,24 @@ export default function FeedContainer({
         city_emoji: c.emoji ?? undefined,
       });
     }
+    for (const c of launchedCitiesData ?? []) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push({
+        city_id: c.id,
+        city_name: c.name || "City",
+        city_emoji: c.emoji ?? undefined,
+      });
+    }
     return out;
-  }, [uniqueCities, savedCities, launchedCityIds]);
+  }, [uniqueCities, savedCities, launchedCitiesData]);
+
+  // Filter-panel city list — narrower: only cities with stories AND launched.
+  // Checking a city outside this set would be a no-op, so we don't surface them.
+  const cityFilterList = useMemo<CityInfo[]>(() => {
+    if (launchedCityIds.size === 0) return uniqueCities; // permissive while launched list loads
+    return uniqueCities.filter((c) => launchedCityIds.has(c.city_id));
+  }, [uniqueCities, launchedCityIds]);
 
   // Detect when a selected city has no feed stories (e.g. newly-launched city)
   const selectedCityWithNoStories = useMemo(() => {
@@ -1334,6 +1344,7 @@ export default function FeedContainer({
             open={showFilterPanel}
             onClose={() => setShowFilterPanel(false)}
             allCities={cityCatalog}
+            filterableCities={cityFilterList}
             savedCityIds={effectiveSavedCityIds}
             filters={{
               selectedCityIds,
