@@ -375,10 +375,10 @@ export default function FeedContainer({
       : null;
   }, [selectedCityIds, uniqueCities, savedCities]);
 
-  // When a city has no stories, auto-switch to All Cities so user sees content
+  // When a user's only selected city has no stories yet, show a banner that
+  // explains the city is still launching. (We no longer auto-switch away.)
   const [noStoriesCity, setNoStoriesCity] = useState<{ id: number; name: string } | null>(null);
   const [showCityLaunchBanner, setShowCityLaunchBanner] = useState(true);
-  const autoSwitchedCityRef = useRef<number | null>(null);
 
   // Determine API params: single-city → server-side filter, multi/all → fetch all + client filter
   const singleCityId = selectedCityIds.size === 1 ? [...selectedCityIds][0] : undefined;
@@ -498,22 +498,11 @@ export default function FeedContainer({
     }
   }, [selectedCityWithNoStories]);
 
-  // Suppress auto-switch while onboarding is actively scanning (city or place level)
-  // or has just completed successfully. Once onboarding resolves as failed (or idle),
-  // allow the switch to All Cities.
-  useEffect(() => {
-    if (
-      selectedCityWithNoStories &&
-      !isLoading &&
-      stories.length === 0 &&
-      !isOnboardingScanning &&
-      onboarding.status !== "completed" &&
-      autoSwitchedCityRef.current !== selectedCityWithNoStories.id
-    ) {
-      autoSwitchedCityRef.current = selectedCityWithNoStories.id;
-      setSelectedCityIds(new Set());
-    }
-  }, [selectedCityWithNoStories, isLoading, stories.length, isOnboardingScanning, onboarding.status]);
+  // Previously: when a user's only selected city had no stories yet, we
+  // silently cleared selectedCityIds to fall back to an all-cities view.
+  // That fought the rule "checked cities show up, unchecked don't" — under
+  // the new model, zero checked = empty feed. The "We're building [city]"
+  // banner at the top of the list already explains why the feed is empty.
 
   // Complete city-level loading when the feed query resolves
   useEffect(() => {
@@ -808,8 +797,9 @@ export default function FeedContainer({
         const matchesLegacy = legacyIds.includes(selectedPlaceId);
         if (!matchesColumn && !matchesLegacy) return false;
       }
-      // Multi-city filter
-      if (selectedCityIds.size > 0 && !selectedCityIds.has(s.city_id)) return false;
+      // City selection is the master scope. A story must come from a
+      // checked city to appear, full stop. Zero cities checked = empty feed.
+      if (!selectedCityIds.has(s.city_id)) return false;
       // Multi-district filter (client-side for multi-city or multi-district cases)
       if (selectedDistricts.size > 0) {
         const cityDistricts = selectedDistricts.get(s.city_id);
@@ -818,21 +808,16 @@ export default function FeedContainer({
           if (!cityDistricts.has(s.district ?? 0)) return false;
         }
       }
-      // When "My Places" is active (no specific city or place selected),
-      // constrain to saved cities. Also allow stories that match an
-      // address-level place so they aren't lost when saved cities exist.
-      if (
-        onlyMySavedPlacesFeed &&
-        selectedPlaceId === null &&
-        selectedCityIds.size === 0 &&
-        savedCityIds.size > 0
-      ) {
-        const inSavedCity = savedCityIds.has(s.city_id);
+      // City selection is the master scope. "Near my places" only narrows
+      // within that scope — it never silently expands the cities under
+      // consideration. If the user wants stories near their places, they
+      // need to keep the containing city checked.
+      if (onlyMySavedPlacesFeed && selectedPlaceId === null) {
         const matchesAddressPlace =
           userPlaces.length > 0 &&
           s.user_place_id != null &&
           userPlaces.some((p) => p.id === s.user_place_id);
-        if (!inSavedCity && !matchesAddressPlace) return false;
+        if (!matchesAddressPlace) return false;
       }
       return true;
     });
@@ -1041,14 +1026,29 @@ export default function FeedContainer({
   // ── Toggle feed membership only (no follow change). Used by the "View in Feed" row button and chip X. ──
   const handleToggleFeed = useCallback(
     (cid: number) => {
+      const removing = selectedCityIds.has(cid);
       setSelectedCityIds((prev) => {
         const next = new Set(prev);
         if (next.has(cid)) next.delete(cid);
         else next.add(cid);
         return next;
       });
+      // When removing a city, drop sub-filters that pointed inside it
+      // so a "Near my block" or "District 3" chip can't survive its city.
+      if (removing) {
+        setSelectedDistricts((prev) => {
+          if (!prev.has(cid)) return prev;
+          const next = new Map(prev);
+          next.delete(cid);
+          return next;
+        });
+        setSelectedPlaceId((prev) => {
+          if (prev === null) return prev;
+          return userPlaces.find((p) => p.id === prev)?.city_id === cid ? null : prev;
+        });
+      }
     },
-    [],
+    [selectedCityIds, userPlaces],
   );
 
   // ── Save a city without toggling feed membership (used by the "Browsing X — Follow X" banner). ──
@@ -1464,7 +1464,7 @@ export default function FeedContainer({
               type="button"
               className={styles.clearAllBtn}
               onClick={() => {
-                setSelectedCityIds(new Set(effectiveSavedCityIds));
+                setSelectedCityIds(new Set());
                 setSelectedTopics(new Set());
                 setSelectedDistricts(new Map());
                 setSelectedPlaceId(null);
@@ -1642,10 +1642,10 @@ export default function FeedContainer({
             <p>
               {personalNewsletterOnly
                 ? "No newsletter stories yet. Check back soon as new data comes in."
+                : selectedCityIds.size === 0 && effectiveSavedCityIds.size > 0
+                  ? "No cities selected. Check a city in the filter to see stories."
                 : onlyMySavedPlacesFeed
                   ? "No stories yet for your saved places. New stories appear as city data updates."
-                : feedExplicitlyEmpty
-                  ? "Your feed is empty. Add a city back in to see stories."
                 : hasActiveFilters
                   ? "No stories match your current filters. Try adjusting or clearing them."
                   : isAdmin
@@ -1655,14 +1655,22 @@ export default function FeedContainer({
                       : "Follow a city to see stories in your feed."}
             </p>
             {feedExplicitlyEmpty && (
-              <button
-                type="button"
-                className={styles.browseBtn}
-                style={{ marginTop: 8 }}
-                onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
-              >
-                Add my cities back
-              </button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className={styles.browseBtn}
+                  onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
+                >
+                  Select my cities
+                </button>
+                <button
+                  type="button"
+                  className={styles.compactClear}
+                  onClick={() => setShowFilterPanel(true)}
+                >
+                  Open filter
+                </button>
+              </div>
             )}
             {hasActiveFilters && !personalNewsletterOnly && (
               <button
@@ -1670,7 +1678,7 @@ export default function FeedContainer({
                 className={styles.compactClear}
                 style={{ marginTop: 8 }}
                 onClick={() => {
-                  setSelectedCityIds(new Set(effectiveSavedCityIds));
+                  setSelectedCityIds(new Set());
                   setSelectedTopics(new Set());
                   setSelectedDistricts(new Map());
                   setSelectedPlaceId(null);
@@ -1747,15 +1755,23 @@ export default function FeedContainer({
         stories.length > 0 &&
         feedExplicitlyEmpty && (
         <div className={styles.emptyState}>
-          <p>Your feed is empty. Add a city back in to see stories.</p>
-          <button
-            type="button"
-            className={styles.browseBtn}
-            style={{ marginTop: 8 }}
-            onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
-          >
-            Add my cities back
-          </button>
+          <p>No cities selected. Check a city in the filter to see stories.</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, justifyContent: "center" }}>
+            <button
+              type="button"
+              className={styles.browseBtn}
+              onClick={() => setSelectedCityIds(new Set(effectiveSavedCityIds))}
+            >
+              Select my cities
+            </button>
+            <button
+              type="button"
+              className={styles.compactClear}
+              onClick={() => setShowFilterPanel(true)}
+            >
+              Open filter
+            </button>
+          </div>
         </div>
       )}
 
