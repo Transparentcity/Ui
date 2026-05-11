@@ -96,7 +96,6 @@ export default function FilterPanelV2({
   const triggerRef = useRef<HTMLElement | null>(null);
   const [draft, setDraft] = useState<FilterState>(() => cloneState(filters));
   const [tab, setTab] = useState<"cities" | "topics">("cities");
-  const [search, setSearch] = useState("");
   const [districtsExpanded, setDistrictsExpanded] = useState(false);
   const [flipUp, setFlipUp] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
@@ -108,7 +107,6 @@ export default function FilterPanelV2({
   useEffect(() => {
     if (open) {
       setDraft(cloneState(filters));
-      setSearch("");
       setDistrictsExpanded(false);
       if (!isDesktop) {
         document.body.style.overflow = "hidden";
@@ -233,11 +231,7 @@ export default function FilterPanelV2({
     return [...followed.sort(byName), ...other.sort(byName)];
   }, [allCities, savedCityIds]);
 
-  const filteredCities = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return sortedCities;
-    return sortedCities.filter((c) => c.city_name.toLowerCase().includes(q));
-  }, [sortedCities, search]);
+  const filteredCities = sortedCities;
 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
@@ -491,8 +485,6 @@ export default function FilterPanelV2({
           {tab === "cities" ? (
             <CitiesPane
               cities={filteredCities}
-              search={search}
-              onSearchChange={setSearch}
               savedCityIds={savedCityIds}
               draft={draft}
               applyMaybe={applyMaybe}
@@ -527,8 +519,6 @@ export default function FilterPanelV2({
 
 function CitiesPane({
   cities,
-  search,
-  onSearchChange,
   savedCityIds,
   draft,
   applyMaybe,
@@ -540,8 +530,6 @@ function CitiesPane({
   onAddAddress,
 }: {
   cities: CityInfo[];
-  search: string;
-  onSearchChange: (v: string) => void;
   savedCityIds: Set<number>;
   draft: FilterState;
   applyMaybe: (next: FilterState) => void;
@@ -610,22 +598,6 @@ function CitiesPane({
 
   return (
     <>
-      <div className={styles.searchWrap}>
-        <svg className={styles.searchIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" />
-        </svg>
-        <input
-          type="text"
-          className={styles.searchInput}
-          placeholder="Search cities…"
-          aria-label="Search cities"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          autoComplete="off"
-        />
-      </div>
-
       <div className={styles.quickRow}>
         <span className={styles.quickRowLabel}>
           {draft.selectedCityIds.size} of {savedCityIds.size || cities.length} selected
@@ -643,11 +615,9 @@ function CitiesPane({
       <div className={styles.cityList}>
         {cities.length === 0 ? (
           <div className={styles.emptyState}>
-            {search.trim().length > 0
-              ? `No cities match "${search.trim()}"`
-              : savedCityIds.size === 0
-                ? "Your cities haven't loaded yet. If this persists, sign back in or refresh."
-                : "No cities to show"}
+            {savedCityIds.size === 0
+              ? "Your cities haven't loaded yet. If this persists, sign back in or refresh."
+              : "No cities to show"}
           </div>
         ) : (
           cities.map((c) => {

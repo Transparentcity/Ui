@@ -159,19 +159,19 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  margin: 0 16px 12px;
-  padding: 3px;
+  margin: 0 16px 8px;
+  padding: 2px;
   background: var(--bg-secondary);
-  border-radius: 10px;
+  border-radius: 8px;
   flex-shrink: 0;
 }
 .sortBtn {
-  padding: 7px 0;
-  font-size: 13px;
+  padding: 4px 0;
+  font-size: 12px;
   font-weight: 500;
   background: transparent;
   border: none;
-  border-radius: 7px;
+  border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
