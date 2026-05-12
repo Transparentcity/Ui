@@ -113,12 +113,19 @@ export default function FilterPanelV2({
     if (open) {
       setDraft(cloneState(filters));
       setDistrictsExpanded(false);
-      if (!isDesktop) {
-        document.body.style.overflow = "hidden";
-        return () => { document.body.style.overflow = ""; };
-      }
     }
-  }, [open, isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Body scroll lock on mobile while the panel is open.
+     Kept in its own effect so the cleanup always runs and restores scroll,
+     even if the panel unmounts mid-render or the breakpoint flips. iOS Safari
+     leaves the page un-scrollable ("frozen") if this leaks. */
+  useEffect(() => {
+    if (!open || isDesktop) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open, isDesktop]);
 
   /* Close if breakpoint flips while open */
   const initialIsDesktopRef = useRef<boolean | null>(null);

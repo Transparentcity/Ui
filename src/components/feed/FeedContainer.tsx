@@ -85,7 +85,34 @@ export default function FeedContainer({
   onPlaceSaved,
   homeCityId,
 }: FeedContainerProps) {
-  const { getAccessTokenSilently, isAuthenticated, loginWithRedirect } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0();
+
+  // Auth-bootstrap window: right after Auth0 finishes (isLoading: false,
+  // isAuthenticated: true), iPhone Safari can take a moment before the access
+  // token is attached to the request interceptor. Feed requests fired during
+  // that window return 401 and used to render a misleading "Your session has
+  // expired" card. We suppress that card for a short grace period after auth
+  // first lands, and show a spinner instead.
+  const [authBootstrapping, setAuthBootstrapping] = useState(false);
+  const authBootstrapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setAuthBootstrapping(false);
+      return;
+    }
+    setAuthBootstrapping(true);
+    if (authBootstrapTimerRef.current) clearTimeout(authBootstrapTimerRef.current);
+    authBootstrapTimerRef.current = setTimeout(() => {
+      setAuthBootstrapping(false);
+    }, 3000);
+    return () => {
+      if (authBootstrapTimerRef.current) {
+        clearTimeout(authBootstrapTimerRef.current);
+        authBootstrapTimerRef.current = null;
+      }
+    };
+  }, [authLoading, isAuthenticated]);
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const onboarding = usePlaceOnboarding();
@@ -506,6 +533,12 @@ export default function FeedContainer({
       isAuthenticated && selectedPlaceId != null ? selectedPlaceId : undefined,
     only_my_saved_places: apiOnlyMySavedPlaces,
   });
+
+  // First successful feed response means the token is attached and requests
+  // are flowing — end the bootstrap grace period early.
+  useEffect(() => {
+    if (feedData && authBootstrapping) setAuthBootstrapping(false);
+  }, [feedData, authBootstrapping]);
 
   const stories = feedData?.stories ?? [];
   const userPlaceLabelMap = useMemo(
@@ -1614,6 +1647,13 @@ export default function FeedContainer({
           errAny?.status === 403 ||
           /^(login_required|consent_required|interaction_required|missing_refresh_token|invalid_grant|invalid_token|unauthorized)$/i.test(errCode) ||
           /\b(401|403)\b|unauthorized|login[_\s-]?required|session\s+expired|token\s+expired|expired\s+token|missing\s+refresh\s+token|invalid[_\s-]?grant|invalid[_\s-]?token|jwt\s+expired/i.test(errMessage);
+        if (isAuthError && authBootstrapping) {
+          return (
+            <div className={styles.loadingState} role="status" aria-live="polite">
+              <p>Loading your feed&hellip;</p>
+            </div>
+          );
+        }
         if (isAuthError) {
           return (
             <div className={styles.authErrorCard} role="alert">
