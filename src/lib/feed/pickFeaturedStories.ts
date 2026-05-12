@@ -1,7 +1,7 @@
 /**
  * Picks 10 diverse, interesting stories for the landing page.
  *
- * Only uses stories from the last 36 hours. First fills slots with stories
+ * Only uses stories from the last 72 hours. First fills slots with stories
  * that meet diversity guidelines (required types + variety across cities
  * and card types), then fills remaining slots with the most recent stories
  * regardless of diversity. At most one cold-case story is ever included.
@@ -18,7 +18,7 @@ const REQUIRED_TYPES: CardType[] = ["context", "off_the_charts", "traction"];
 const MIN_HEADLINE_LENGTH = 30;
 
 /** Stories older than this many hours are excluded entirely. */
-const MAX_AGE_HOURS = 36;
+const MAX_AGE_HOURS = 72;
 
 const HOUR_MS = 3600000;
 
@@ -70,7 +70,7 @@ function diversityScore(
 ): number {
   let score = 0;
 
-  // Recency: strongly prefer newer stories. Inside the 36-hour window this
+  // Recency: strongly prefer newer stories. Inside the 72-hour window this
   // contributes up to ~9 points (newest) and decays linearly to 0 at the cutoff.
   score += Math.max(0, (MAX_AGE_HOURS - ageHours(candidate)) / 4);
 
@@ -94,7 +94,7 @@ function diversityScore(
 /**
  * From a pool of enriched stories, pick up to `count` with guaranteed variety.
  *
- * Uses only stories from the last 36 hours, with strong recency preference.
+ * Uses only stories from the last 72 hours, with strong recency preference.
  * Phases: fill required types, fill greedily by diversity, then top up with
  * the most recent stories. At most one cold-case story is ever included.
  */
