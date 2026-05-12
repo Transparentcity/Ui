@@ -13,10 +13,11 @@ import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import DistrictListWithFollow from "../../DistrictListWithFollow";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
-import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import { formatLeaderName } from "@/lib/utils";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
+import MetricFeedCard from "@/components/feed/MetricFeedCard";
+import DistrictStoryCard from "./DistrictStoryCard";
 import Breadcrumb from "@/components/Breadcrumb";
 
 export type DistrictPageContentProps = {
@@ -174,56 +175,22 @@ export default function DistrictPageContent({
               {accentStories.map((story) => {
                 const href = story.short_hash
                   ? `/c/${slug}/stories/${story.short_hash}`
-                  : story.detail_url || null;
-                const content = (
-                  <>
-                    <span className="district-story-headline">{improveGenericHeadline(story.headline, { description: story.description })}</span>
-                    {story.description && (
-                      <span className="district-story-desc">{story.description}</span>
-                    )}
-                    <span className="district-story-readmore">Read story →</span>
-                  </>
-                );
-                return href ? (
-                  <a key={story.id} href={href} className="district-story-card">
-                    {content}
-                  </a>
-                ) : (
-                  <div key={story.id} className="district-story-card">
-                    {content}
-                  </div>
-                );
-              })}
-              {districtMetricCards.map((mc) => {
-                const curr = mc.comparison.current_period_value;
-                const prior = mc.comparison.comparison_period_value;
-                const pct = curr != null && prior != null && prior !== 0
-                  ? ((curr - prior) / prior) * 100
-                  : 0;
-                const absPct = Math.abs(Math.round(pct));
-                const direction = pct >= 0 ? "up" : "down";
-                const suffix = mc.comparison.comparison_type === "ytd"
-                  ? "year-to-date"
-                  : mc.comparison.comparison_type === "mtd"
-                    ? "this month"
-                    : "";
-                const cleanName = mc.metric.metric_name.replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]+\s*/gu, "").trim();
-                const headline = `${cleanName} ${direction} ${absPct}% ${suffix}`.trim();
-                const desc = curr != null && prior != null
-                  ? `${curr.toLocaleString()} vs ${prior.toLocaleString()} last year`
-                  : null;
+                  : story.detail_url;
+                if (!href) return null;
                 return (
-                  <a
-                    key={mc.metric.id}
-                    href={`/c/${slug}/metrics/${mc.metric.metric_key}`}
-                    className="district-story-card"
-                  >
-                    <span className="district-story-headline">{headline}</span>
-                    {desc && <span className="district-story-desc">{desc}</span>}
-                    <span className="district-story-readmore">View metric →</span>
-                  </a>
+                  <DistrictStoryCard
+                    key={story.id}
+                    headline={story.headline}
+                    description={story.description}
+                    href={href}
+                    cityName={city.shortDisplay}
+                    district={d}
+                  />
                 );
               })}
+              {districtMetricCards.map((mc) => (
+                <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
+              ))}
             </div>
           ) : (
             <p className="district-stories-empty">
