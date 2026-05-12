@@ -460,6 +460,20 @@ For each test city dashboard:
 - [ ] GPS button meets 44px touch target minimum **[REG]**
 - [ ] Modal is non-dismissable (no close button, user must complete onboarding) **(changed in commit 7551204)** **[REG]**
 
+### 4.6 Feed filter login flow on iPhone Safari **[REG]**
+
+Real device required (not just a mobile-width Chrome window). The original bug was a 401 race during Auth0's post-redirect token-attach window, plus a body scroll lock that leaked when the filter panel unmounted.
+
+- [ ] Log out, then log back in on iPhone Safari with a real user account
+- [ ] No "Your session has expired" card flashes on the feed during the post-login render (you should see a brief "Loading your feed…" instead if anything)
+- [ ] After the feed lands, the session-expired card does not appear at all
+- [ ] Open the feed filter panel (tap the filter button), then dismiss it via backdrop tap, Done button, or Esc
+- [ ] After dismissing, the underlying page scrolls normally (no `body { overflow: hidden }` left behind, no "frozen" feel)
+- [ ] Open and close the filter panel a few times in a row, then scroll the feed, still scrollable
+- [ ] Rotate the device while the filter panel is open; if the panel closes, the page must remain scrollable
+- [ ] Force a real auth error (wait for token to actually expire, or clear cookies mid-session) and confirm the session-expired card *does* still appear in that case (the suppression is only for the bootstrap window)
+- [ ] *May 12 fix (PR #139):* `authBootstrapping` state suppresses the auth-error card for up to 3s post-login or until first successful feed response; FilterPanelV2 body scroll lock moved to its own effect with always-running cleanup. Verify both behaviors hold.
+
 ---
 
 ## Phase 5: Dark Mode
