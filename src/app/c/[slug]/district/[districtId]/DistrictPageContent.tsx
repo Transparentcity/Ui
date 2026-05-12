@@ -172,6 +172,7 @@ export default function DistrictPageContent({
           <span className="district-stories-label">Latest from District {d}</span>
           {accentStories.length > 0 || districtMetricCards.length > 0 ? (
             <>
+              {accentStories.length > 0 && (
               <div className="district-stories-row">
                 {accentStories.map((story) => {
                   const href = story.short_hash
@@ -196,6 +197,7 @@ export default function DistrictPageContent({
                   );
                 })}
               </div>
+              )}
               {districtMetricCards.length > 0 && (
                 <div className="district-metric-cards">
                   {districtMetricCards.map((mc) => (

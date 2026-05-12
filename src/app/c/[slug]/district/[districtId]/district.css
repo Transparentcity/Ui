@@ -188,10 +188,12 @@
 /* ── METRIC CARDS (in story strip) ────────────────────────────────────── */
 
 .district-metric-cards {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
   margin-top: 12px;
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 /* ── ALL DISTRICTS SECTION ───────────────────────────────────────────── */
