@@ -108,49 +108,50 @@
   border-bottom: 1px solid var(--border-secondary);
 }
 
-.district-stories-strip .container {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
 .district-stories-label {
+  display: block;
   font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
-  white-space: nowrap;
-  padding-top: 4px;
-  flex-shrink: 0;
+  margin: 0 0 12px;
 }
 
 .district-stories-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
-  flex-wrap: wrap;
-  flex: 1;
 }
 
 .district-story-card {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  flex: 1 1 200px;
-  max-width: 320px;
-  padding: 10px 14px;
+  gap: 6px;
+  padding: 14px 16px;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius);
   text-decoration: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .district-story-card:hover {
   border-color: var(--brand-primary);
   box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.district-story-readmore {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .district-story-headline {
@@ -183,15 +184,6 @@
   margin: 0;
   padding: 4px 0;
   line-height: 1.5;
-}
-
-/* ── METRIC CARDS (in story strip) ────────────────────────────────────── */
-
-.district-metric-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 12px;
 }
 
 /* ── ALL DISTRICTS SECTION ───────────────────────────────────────────── */

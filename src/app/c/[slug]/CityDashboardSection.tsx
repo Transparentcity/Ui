@@ -429,19 +429,20 @@ export default function CityDashboardSection({
             style={{
               display: "flex",
               flexWrap: "wrap",
-              gap: 10,
+              alignItems: "center",
+              gap: 6,
               padding: "0 0 8px 0",
             }}
           >
-            <Link href={base} className="nav-link" style={{ fontSize: 14 }}>
+            <Link href={base} className="district-pill" style={{ fontSize: 13 }}>
               ← Back to citywide
             </Link>
             {districts.map((d) => (
               <Link
                 key={d}
                 href={`${base}/district/${d}`}
-                className="nav-link"
-                style={{ fontSize: 14 }}
+                className="district-pill"
+                style={{ fontSize: 13 }}
               >
                 District {d}
               </Link>
