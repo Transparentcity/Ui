@@ -280,8 +280,12 @@
   }
 
   .metric-period-selector {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    /* Wrap to a second row on narrow viewports. The base style uses
+       overflow-x: auto, but on iPhone the third button ("Month-to-Date
+       (Prior Year)") clips at the right edge with no scroll affordance,
+       so users read it as a broken page. Wrapping is cleaner. */
+    flex-wrap: wrap;
+    overflow-x: visible;
     padding-bottom: 4px;
   }
 
