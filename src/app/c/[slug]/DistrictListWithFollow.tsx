@@ -155,7 +155,7 @@ export default function DistrictListWithFollow({
                 minWidth: 0,
               }}
             >
-              <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 <Link
                   href={`${base}/district/${d}`}
                   className="nav-link"
