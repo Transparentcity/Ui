@@ -20,6 +20,7 @@ import {
   getCityLeaders,
   createPlace,
   runPlaceMetricsAndAnomaliesAsJob,
+  sendOnboardingWelcomeEmail,
   followRepresentative,
   unfollowRepresentative,
   subscribeNewsletter,
@@ -38,7 +39,6 @@ import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
-import { slugify } from "@/lib/utils";
 import {
   stripUnsupportedHomeRequest,
 } from "@/lib/onboardingHomeLocation";
@@ -220,23 +220,6 @@ export default function WelcomeModal({
       }
     };
   }, []);
-
-  /** Fire-and-forget: send welcome email with story previews */
-  const sendWelcomeEmail = (opts?: {
-    cityId?: number;
-    citySlug?: string;
-    cityName?: string;
-  }) => {
-    const email = user?.email;
-    if (!email) return;
-    fetch("/api/welcome-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, ...opts }),
-    }).then((res) => {
-      if (!res.ok) console.error("[WelcomeModal] welcome email returned", res.status);
-    }).catch((err) => console.error("[WelcomeModal] welcome email failed:", err));
-  };
 
   if (!isOpen) return null;
 
@@ -1408,13 +1391,18 @@ export default function WelcomeModal({
             console.error("Newsletter subscription sync failed:", subscriptionErr);
           }
 
-          // Send welcome email with stories from their city
-          const welcomeCityName = locationResult?.matchedCity?.name ?? locationResult?.cityName ?? "";
-          sendWelcomeEmail({
-            cityId,
-            citySlug: slugify(welcomeCityName),
-            cityName: welcomeCityName,
-          });
+          // Send the personalized backend welcome email for city/district-level
+          // sign-ups (no precise place). For users with a precise address the
+          // place metrics job sends the welcome email when it completes.
+          if (!hasPreciseLocation) {
+            sendOnboardingWelcomeEmail(token, {
+              city_id: cityId,
+              district: homeDistrictSnapshot ?? null,
+              weekly_newsletter: weeklyNewsletterOptIn,
+            }).catch((err) =>
+              console.error("[WelcomeModal] onboarding welcome email failed:", err)
+            );
+          }
         } catch (err) {
           console.error("Error saving preferences in background:", err);
         }

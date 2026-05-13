@@ -76,6 +76,13 @@ export const metricKeys = {
   cityMetricsForMap: (cityId: number) => [...metricKeys.all, "city-metrics-map", cityId] as const,
 };
 
+// Explicitly pass the audience so the correct JWT (not an opaque ID token) is always
+// returned, even when the Auth0Provider authorizationParams are misconfigured in a
+// deployment that has NEXT_PUBLIC_AUTH0_AUDIENCE unset.
+const _AUTH0_AUDIENCE_PARAMS = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE
+  ? { authorizationParams: { audience: process.env.NEXT_PUBLIC_AUTH0_AUDIENCE } }
+  : undefined;
+
 export interface UseMetricsOptions {
   limit?: number;
   search?: string;
@@ -102,7 +109,7 @@ export function useMetrics(options: UseMetricsOptions = {}) {
   return useQuery({
     queryKey: metricKeys.list(options),
     queryFn: async () => {
-      const token = await getAccessTokenSilently();
+      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }
@@ -178,7 +185,7 @@ export function useMetricsSummary() {
   return useQuery({
     queryKey: metricKeys.summary(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently();
+      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }
@@ -199,7 +206,7 @@ export function useMetricCategories() {
   return useQuery({
     queryKey: metricKeys.categories(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently();
+      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }
@@ -220,7 +227,7 @@ export function useMetricTypes() {
   return useQuery({
     queryKey: metricKeys.types(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently();
+      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }
@@ -241,7 +248,7 @@ export function useMetricCities() {
   return useQuery({
     queryKey: metricKeys.cities(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently();
+      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }

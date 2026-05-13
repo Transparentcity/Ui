@@ -1429,7 +1429,9 @@ export function listAdminMetrics(
   if (options?.force_refresh) params.append("_t", Date.now().toString());
 
   const query = params.toString();
-  const path = `/api/admin/metrics${query ? `?${query}` : ""}`;
+  // Use a trailing slash so FastAPI doesn't issue a 307 redirect that drops
+  // the Authorization header in the Next.js proxy layer on production.
+  const path = `/api/admin/metrics/${query ? `?${query}` : ""}`;
   return request<AdminMetricListItem[]>(path, "GET", undefined, token);
 }
 
@@ -3293,6 +3295,21 @@ export function runPlaceMetricsAndAnomaliesAsJob(
     Object.keys(payload).length ? payload : {},
     token
   );
+}
+
+/**
+ * Trigger the personalized onboarding welcome email for users who completed
+ * onboarding at city or district level (no saved place / precise home address).
+ * Idempotent — safe to call even if the email was already sent.
+ */
+export function sendOnboardingWelcomeEmail(
+  token: string,
+  opts: { city_id: number; district?: number | null; weekly_newsletter?: boolean | null }
+): Promise<{ success: boolean }> {
+  const payload: Record<string, unknown> = { city_id: opts.city_id };
+  if (opts.district != null && opts.district > 0) payload.district = opts.district;
+  if (opts.weekly_newsletter != null) payload.weekly_newsletter = opts.weekly_newsletter;
+  return request<{ success: boolean }>("/api/user/onboarding-welcome-email", "POST", payload, token);
 }
 
 /** Same request shape as batch comparisons for city/district; used for place dashboard parity. */

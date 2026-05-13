@@ -61,6 +61,8 @@ interface CityViewProps {
   onRequestPlaceMetricsBootstrap?: (placeId: number) => void;
   /** When set, scroll to this section on mount (e.g. from sidebar Dashboard shortcut). */
   initialSection?: CityViewSection | null;
+  /** Called when user selects a different city from the city switcher, passing the new city id and current tab. */
+  onCityChange?: (cityId: number, section: CityViewSection) => void;
 }
 
 interface MetricWithYTD {
@@ -2061,6 +2063,7 @@ export default function CityView({
   onConsumePlaceMetricsBootstrap,
   onRequestPlaceMetricsBootstrap,
   initialSection,
+  onCityChange,
 }: CityViewProps) {
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   // alertsSectionVisible removed – anomalies section hidden
@@ -2429,6 +2432,8 @@ export default function CityView({
             }
             showAdminIcon={isAdmin}
             onAdminClick={() => setAdminDrawerOpen(true)}
+            followedCities={savedCities.filter((c) => c.id !== cityId)}
+            onCityChange={onCityChange ? (id) => onCityChange(id, activeSection) : undefined}
           />
         </div>
 

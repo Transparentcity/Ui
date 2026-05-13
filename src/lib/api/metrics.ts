@@ -281,7 +281,9 @@ export function listAdminMetrics(
   if (options?.force_refresh) params.append("_t", Date.now().toString());
 
   const query = params.toString();
-  const path = `/api/admin/metrics${query ? `?${query}` : ""}`;
+  // Use a trailing slash so FastAPI doesn't issue a 307 redirect that drops
+  // the Authorization header in the Next.js proxy layer on production.
+  const path = `/api/admin/metrics/${query ? `?${query}` : ""}`;
   return request<AdminMetricListItem[]>(path, "GET", undefined, token);
 }
 

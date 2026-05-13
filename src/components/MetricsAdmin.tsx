@@ -132,7 +132,7 @@ function StatusBadge({
 }
 
 export default function MetricsAdmin() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, loginWithRedirect } = useAuth0();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -225,11 +225,18 @@ export default function MetricsAdmin() {
   
   const loading = summaryQuery.isLoading || categoriesQuery.isLoading || 
                   typesQuery.isLoading || citiesQuery.isLoading || metricsQuery.isLoading;
-  const error = summaryQuery.error || categoriesQuery.error || 
-                typesQuery.error || citiesQuery.error || metricsQuery.error
-                ? (summaryQuery.error || categoriesQuery.error || 
-                   typesQuery.error || citiesQuery.error || metricsQuery.error)?.message || "Failed to load data"
-                : null;
+
+  const firstError = summaryQuery.error || categoriesQuery.error ||
+                     typesQuery.error || citiesQuery.error || metricsQuery.error || null;
+  const isAuthError = !!(firstError && (
+    (firstError as any).status === 401 ||
+    String((firstError as any).message).toLowerCase().includes("authentication required") ||
+    String((firstError as any).message).toLowerCase().includes("not authenticated") ||
+    String((firstError as any).message).toLowerCase().includes("login_required")
+  ));
+  const error = firstError
+    ? firstError.message || "Failed to load data"
+    : null;
 
   // Modals
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -708,7 +715,37 @@ export default function MetricsAdmin() {
 
   return (
     <div className={styles.metricsAdmin}>
-      {error && <div className={styles.errorMessage}>{String(error)}</div>}
+      {error && (
+        <div className={styles.errorMessage}>
+          {isAuthError ? (
+            <>
+              <span>Your session has expired or authentication failed.</span>
+              <button
+                type="button"
+                onClick={() => loginWithRedirect()}
+                style={{ marginLeft: 12, textDecoration: "underline", cursor: "pointer", background: "none", border: "none", color: "inherit", font: "inherit" }}
+              >
+                Sign in again
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  metricsQuery.refetch();
+                  summaryQuery.refetch();
+                  categoriesQuery.refetch();
+                  typesQuery.refetch();
+                  citiesQuery.refetch();
+                }}
+                style={{ marginLeft: 8, textDecoration: "underline", cursor: "pointer", background: "none", border: "none", color: "inherit", font: "inherit" }}
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            String(error)
+          )}
+        </div>
+      )}
 
       {/* Backup: full platform + metrics-only export/import */}
       <div className={styles.backupPanel}>

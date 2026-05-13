@@ -1820,6 +1820,10 @@ export default function DashboardPage() {
                   bootstrapPlaceMetricsForPlaceId={placeIdPendingPlaceMetricsBootstrap}
                   onConsumePlaceMetricsBootstrap={consumePlaceMetricsBootstrap}
                   onRequestPlaceMetricsBootstrap={setPlaceIdPendingPlaceMetricsBootstrap}
+                  onCityChange={(newCityId, section) => {
+                    setInitialSection(section === "alerts" ? null : section);
+                    setActiveCityId(newCityId);
+                  }}
                 />
               </div>
             </div>
