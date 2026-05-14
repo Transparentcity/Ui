@@ -86,33 +86,6 @@ export default function FeedContainer({
   homeCityId,
 }: FeedContainerProps) {
   const { getAccessTokenSilently, isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0();
-
-  // Auth-bootstrap window: right after Auth0 finishes (isLoading: false,
-  // isAuthenticated: true), iPhone Safari can take a moment before the access
-  // token is attached to the request interceptor. Feed requests fired during
-  // that window return 401 and used to render a misleading "Your session has
-  // expired" card. We suppress that card for a short grace period after auth
-  // first lands, and show a spinner instead.
-  const [authBootstrapping, setAuthBootstrapping] = useState(false);
-  const authBootstrapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated) {
-      setAuthBootstrapping(false);
-      return;
-    }
-    setAuthBootstrapping(true);
-    if (authBootstrapTimerRef.current) clearTimeout(authBootstrapTimerRef.current);
-    authBootstrapTimerRef.current = setTimeout(() => {
-      setAuthBootstrapping(false);
-    }, 3000);
-    return () => {
-      if (authBootstrapTimerRef.current) {
-        clearTimeout(authBootstrapTimerRef.current);
-        authBootstrapTimerRef.current = null;
-      }
-    };
-  }, [authLoading, isAuthenticated]);
   const queryClient = useQueryClient();
   const trackEngagement = useTrackFeedEngagement();
   const onboarding = usePlaceOnboarding();
@@ -534,11 +507,6 @@ export default function FeedContainer({
     only_my_saved_places: apiOnlyMySavedPlaces,
   });
 
-  // First successful feed response means the token is attached and requests
-  // are flowing — end the bootstrap grace period early.
-  useEffect(() => {
-    if (feedData && authBootstrapping) setAuthBootstrapping(false);
-  }, [feedData, authBootstrapping]);
 
   const stories = feedData?.stories ?? [];
   const userPlaceLabelMap = useMemo(
@@ -1637,59 +1605,43 @@ export default function FeedContainer({
         </>
       )}
 
-      {/* Error */}
-      {error && (() => {
-        const errAny = error as any;
-        const errCode = typeof errAny?.error === "string" ? errAny.error : "";
-        const errMessage = (error as Error)?.message ?? "";
-        const isAuthError =
-          errAny?.status === 401 ||
-          errAny?.status === 403 ||
-          /^(login_required|consent_required|interaction_required|missing_refresh_token|invalid_grant|invalid_token|unauthorized)$/i.test(errCode) ||
-          /\b(401|403)\b|unauthorized|login[_\s-]?required|session\s+expired|token\s+expired|expired\s+token|missing\s+refresh\s+token|invalid[_\s-]?grant|invalid[_\s-]?token|jwt\s+expired/i.test(errMessage);
-        if (isAuthError && authBootstrapping) {
-          return (
-            <div className={styles.loadingState} role="status" aria-live="polite">
-              <p>Loading your feed&hellip;</p>
-            </div>
-          );
-        }
-        if (isAuthError) {
-          return (
-            <div className={styles.authErrorCard} role="alert">
-              <span className={styles.authErrorIcon} aria-hidden="true">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </span>
-              <h2 className={styles.authErrorTitle}>Your session has expired</h2>
-              <p className={styles.authErrorBody}>
-                For your security, you&apos;ve been signed out. Sign in again to keep reading your feed.
-              </p>
-              <button
-                type="button"
-                className={styles.authSignInBtn}
-                onClick={() => loginWithRedirect()}
-              >
-                Sign in
-              </button>
-            </div>
-          );
-        }
-        return (
-          <div className={styles.errorState}>
-            <p>Error loading feed stories.</p>
-            <button
-              type="button"
-              className={styles.retryBtn}
-              onClick={() => runExplicitFeedRefetch()}
-            >
-              Retry
-            </button>
-          </div>
-        );
-      })()}
+      {/* Error: trust Auth0 for "are you logged in." Only show the
+          session-expired card when Auth0 itself says we're not authenticated.
+          If Auth0 says we are authenticated but a request errored, it's
+          transient or a backend issue — offer a plain retry. */}
+      {error && !authLoading && !isAuthenticated && (
+        <div className={styles.authErrorCard} role="alert">
+          <span className={styles.authErrorIcon} aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </span>
+          <h2 className={styles.authErrorTitle}>Your session has expired</h2>
+          <p className={styles.authErrorBody}>
+            For your security, you&apos;ve been signed out. Sign in again to keep reading your feed.
+          </p>
+          <button
+            type="button"
+            className={styles.authSignInBtn}
+            onClick={() => loginWithRedirect()}
+          >
+            Sign in
+          </button>
+        </div>
+      )}
+      {error && (authLoading || isAuthenticated) && !isFetching && (
+        <div className={styles.errorState}>
+          <p>Error loading feed stories.</p>
+          <button
+            type="button"
+            className={styles.retryBtn}
+            onClick={() => runExplicitFeedRefetch()}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Empty: show preview stories when available, otherwise text fallback */}
       {!isLoading && !error && stories.length === 0 && (
