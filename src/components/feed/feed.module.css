@@ -2260,8 +2260,11 @@
   }
 
   .detailArticleBody .visualization-embed {
-    margin-left: -20px;
-    margin-right: -20px;
+    /* Bleed to the detailContainer edges. Must match .detailContainer's
+       horizontal padding below (14px) — anything larger overflows the
+       viewport on iPhone Safari and clips the chart on the right. */
+    margin-left: -14px;
+    margin-right: -14px;
     border-radius: 0;
     border-left: none;
     border-right: none;
@@ -2273,6 +2276,8 @@
 
   .detailContainer {
     padding: 16px 14px;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }
 
