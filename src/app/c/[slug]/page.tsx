@@ -19,11 +19,9 @@ import {
 } from "@/lib/publicApiClient";
 import CitySignupButton from "./CitySignupButton";
 import CityDashboardSection from "./CityDashboardSection";
-import CityDashboardSectionWithOrdering from "./CityDashboardSectionWithOrdering";
 import CityViewTracker from "./CityViewTracker";
 import CityPageClient from "./CityPageClient";
 import PublicNavBar from "@/components/PublicNavBar";
-import DashboardSwitch from "./DashboardSwitch";
 import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 import HeroDistrictSelector from "./HeroDistrictSelector";
 import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
@@ -327,63 +325,36 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
             </a>
           </div>
         ) : city?.id ? (
-          <DashboardSwitch
-            cardGrid={
-              <CityDashboardSection
-                cityDisplayName={cityDisplayName}
-                slug={slug}
-                metrics={cityDetail?.metrics ?? []}
-                comparisonsMap={comparisonsMap}
-                districts={districts}
-                maps={maps}
-                datasetsCount={city.datasets_count}
-                orderings={cityOrdering?.orderings?.filter((o) => o.metric_id != null).map((o) => ({
-                  metric_id: o.metric_id!,
-                  category_order: o.category_order,
-                  metric_order: o.metric_order,
-                  category_name: o.category_name,
-                  subcategory_name: o.subcategory_name ?? null,
-                }))}
-                cityId={city.id}
-                leaders={leaders}
-                storiesSlot={
-                  <Suspense fallback={<FeaturedStoriesSkeleton />}>
-                    <FeaturedStoriesAsync
-                      cityId={city.id}
-                      slug={slug}
-                      cityDisplayName={cityDisplayName}
-                      cityEmoji={city.emoji ?? undefined}
-                      metrics={cityDetail?.metrics}
-                      comparisonsMap={comparisonsMap}
-                    />
-                  </Suspense>
-                }
-              />
-            }
-            tableView={
-              <CityDashboardSectionWithOrdering
-                cityId={city.id}
-                cityDisplayName={cityDisplayName}
-                slug={slug}
-                metrics={cityDetail?.metrics ?? []}
-                comparisonsMap={comparisonsMap}
-                districts={districts}
-                maps={maps}
-                leaders={leaders}
-                cityOrdering={cityOrdering?.orderings ?? []}
-                storiesSlot={
-                  <Suspense fallback={<FeaturedStoriesSkeleton />}>
-                    <FeaturedStoriesAsync
-                      cityId={city.id}
-                      slug={slug}
-                      cityDisplayName={cityDisplayName}
-                      cityEmoji={city.emoji ?? undefined}
-                      metrics={cityDetail?.metrics}
-                      comparisonsMap={comparisonsMap}
-                    />
-                  </Suspense>
-                }
-              />
+          <CityDashboardSection
+            cityDisplayName={cityDisplayName}
+            slug={slug}
+            metrics={cityDetail?.metrics ?? []}
+            comparisonsMap={comparisonsMap}
+            districts={districts}
+            maps={maps}
+            datasetsCount={city.datasets_count}
+            orderings={cityOrdering?.orderings
+              ?.filter((o) => o.metric_id != null)
+              .map((o) => ({
+                metric_id: o.metric_id!,
+                category_order: o.category_order,
+                metric_order: o.metric_order,
+                category_name: o.category_name,
+                subcategory_name: o.subcategory_name ?? null,
+              }))}
+            cityId={city.id}
+            leaders={leaders}
+            storiesSlot={
+              <Suspense fallback={<FeaturedStoriesSkeleton />}>
+                <FeaturedStoriesAsync
+                  cityId={city.id}
+                  slug={slug}
+                  cityDisplayName={cityDisplayName}
+                  cityEmoji={city.emoji ?? undefined}
+                  metrics={cityDetail?.metrics}
+                  comparisonsMap={comparisonsMap}
+                />
+              </Suspense>
             }
           />
         ) : (

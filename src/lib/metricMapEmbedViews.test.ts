@@ -120,4 +120,42 @@ describe("computeMetricMapEmbedViewSpecs", () => {
       expect(secondary[0].shapeLayerId).toBe("10");
     }
   });
+
+  it("keeps points as primary when chart_type_preference is point even with many rows", () => {
+    const rows = Array.from({ length: 1200 }, (_, i) => ({
+      lat: 37.7 + i * 0.0001,
+      lon: -122.4 + i * 0.0001,
+      supervisor_district: String((i % 11) + 1),
+    }));
+    const map = baseSavedMap({
+      location_data: rows,
+      map_config: {
+        chart_type_preference: "point",
+        available_views: [
+          {
+            type: "choropleth",
+            shape_layer_instance_id: 10,
+            identifier_field: "supervisor_district",
+            display_name: "Supervisor districts",
+            row_count: 11,
+            is_city_district: true,
+          },
+        ],
+        aggregations: {
+          "10": {
+            identifier_field: "supervisor_district",
+            display_name: "Supervisor districts",
+            rows: Array.from({ length: 11 }, (_, d) => ({
+              district: String(d + 1),
+              supervisor_district: String(d + 1),
+              value: d + 1,
+            })),
+          },
+        },
+        default_view: { type: "points" },
+      },
+    });
+    const { primary } = computeMetricMapEmbedViewSpecs(map);
+    expect(primary.kind).toBe("points");
+  });
 });

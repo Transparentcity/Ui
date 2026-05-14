@@ -131,6 +131,8 @@ interface DashboardMetricsSectionProps {
   lastRefreshAt?: string | null;
   /** Ward vs District (and similar) for dashboard scope labels next to comparison selectors. */
   geographicUnitLabel?: string;
+  /** Called when the user clicks "Edit" on the customized metrics banner. */
+  onEditMetrics?: () => void;
 }
 
 // Time series data point for sparkline
@@ -560,7 +562,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District" }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District", onEditMetrics }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   // Block (place) scope: metrics and anomalies for selected place
@@ -773,20 +775,25 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Only restrict to the ordering list when the user explicitly saved a personal dashboard
   // (matches public /c pages). City default ordering is for sort/categories only — new metrics
   // still appear like they do when logged out.
+  // New metrics (not yet in the user's saved ordering) are always appended so users
+  // don't miss metrics that were added after they last saved their preferences.
   const metricsToShow = useMemo(() => {
     // Avoid a brief "all metrics then filtered metrics" flash while user ordering is loading.
     if (orderingQuery.isLoading) return [];
     if (!orderingData?.orderings?.length) return metrics;
     if (orderingData.is_personal_order !== true) return metrics;
     const ids = new Set(orderingData.orderings.map((o) => o.metric_id).filter(Boolean));
-    return metrics.filter((m) => ids.has(m.id));
+    const orderedMetrics = metrics.filter((m) => ids.has(m.id));
+    // Append any metrics added since the user last saved (show_on_dash !== false means admin enabled them)
+    const newMetrics = metrics.filter((m) => !ids.has(m.id) && (m as any).show_on_dash !== false);
+    return [...orderedMetrics, ...newMetrics];
   }, [metrics, orderingData, orderingQuery.isLoading]);
 
+  // True whenever the user has explicitly saved a personal ordering (even if all metrics are showing).
   const isPersonalSubsetApplied = useMemo(() => {
     if (!orderingData?.orderings?.length) return false;
-    if (orderingData.is_personal_order !== true) return false;
-    return metricsToShow.length > 0 && metricsToShow.length < metrics.length;
-  }, [orderingData, metricsToShow.length, metrics.length]);
+    return orderingData.is_personal_order === true;
+  }, [orderingData]);
 
   // Group and sort metrics by category using saved ordering
   const groupedMetrics = useMemo(() => {
@@ -1782,9 +1789,31 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               borderRadius: 8,
               background: "var(--surface-muted, rgba(0,0,0,0.04))",
               color: "var(--text-secondary, #4b5563)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
           >
-            Showing your customized dashboard metrics ({metricsToShow.length} of {metrics.length}).
+            <span>
+              Showing your customized dashboard metrics ({metricsToShow.length} of {metrics.length}).
+            </span>
+            <button
+              type="button"
+              onClick={() => onEditMetrics?.()}
+              style={{
+                marginLeft: "auto",
+                fontSize: 11,
+                padding: "2px 10px",
+                borderRadius: 5,
+                border: "1px solid var(--border-muted, #d1d5db)",
+                background: "var(--surface-base, #fff)",
+                color: "var(--text-secondary, #4b5563)",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              Edit
+            </button>
           </div>
         )}
         {groupedMetrics.sortedCategories.map((category) => {
@@ -1810,15 +1839,25 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             subcategoryMap.get(subcat)!.push(metric);
           });
           
-          // Convert to array and sort (null subcategory first, then alphabetically)
+          // Convert to array and sort subcategory bands like MetricOrderEditor /
+          // CityDashboardSection: min(metric_order) within the band, then name.
           subcategoryMap.forEach((metrics, subcategory) => {
             subcategoryGroups.push({ subcategory, metrics });
           });
           subcategoryGroups.sort((a, b) => {
+            const minOrder = (g: (typeof subcategoryGroups)[0]) => {
+              if (g.metrics.length === 0) return 1000;
+              return Math.min(
+                ...g.metrics.map((m) => (m as MetricWithYTD & { metricOrder?: number }).metricOrder ?? 1000)
+              );
+            };
+            const oa = minOrder(a);
+            const ob = minOrder(b);
+            if (oa !== ob) return oa - ob;
             if (a.subcategory === null && b.subcategory === null) return 0;
             if (a.subcategory === null) return -1;
             if (b.subcategory === null) return 1;
-            return a.subcategory.localeCompare(b.subcategory);
+            return String(a.subcategory).localeCompare(String(b.subcategory));
           });
           
           // Determine if we should show subcategory headers
@@ -2598,6 +2637,7 @@ export default function CityView({
             onConsumePlaceMetricsBootstrap={onConsumePlaceMetricsBootstrap}
             lastRefreshAt={lastPlaceRefreshAt}
             geographicUnitLabel={geographicUnitLabel}
+            onEditMetrics={() => setUserOrderDialogOpen(true)}
           />
         </section>
 

@@ -152,7 +152,7 @@ export default function CityDashboardSection({
           </div>
         </div>
         <div className="ytd-placeholder">
-          <p>No metrics with comparison data for {cityDisplayName} yet.</p>
+          <p>No dashboard metrics for {cityDisplayName} yet.</p>
           <a href="/add-your-city">Help us get your city set up</a>
         </div>
         {storiesSlot}
@@ -222,22 +222,24 @@ export default function CityDashboardSection({
       <div className="metrics-table-container">
         {sortedCategories.map((category) => {
           const subMap = grouped.get(category)!;
+          // Match MetricOrderEditor: subcategory bands sort by min(metric_order), then name.
+          // (Alphabet-only order put e.g. "Units" after "Permitting" despite saved order.)
           const subKeys = Array.from(subMap.keys()).sort((a, b) => {
+            if (orderingMap) {
+              const minOrder = (sk: string | null) => {
+                const arr = subMap.get(sk) ?? [];
+                if (arr.length === 0) return 1000;
+                return Math.min(...arr.map((r) => r.metricOrder));
+              };
+              const oa = minOrder(a);
+              const ob = minOrder(b);
+              if (oa !== ob) return oa - ob;
+            }
             if (a === null && b === null) return 0;
             if (a === null) return -1;
             if (b === null) return 1;
-            return a.localeCompare(b);
+            return String(a).localeCompare(String(b));
           });
-
-          // Skip category if no metric has comparison data (match dashboard)
-          const categoryHasData = subKeys.some((sk) =>
-            (subMap.get(sk) ?? []).some(
-              (r) =>
-                r.ytd?.current_period_value != null ||
-                r.ytd?.comparison_period_value != null
-            )
-          );
-          if (!categoryHasData) return null;
 
           const hasMultipleSub = subKeys.length > 1;
           const hasSingleNamed =
@@ -259,13 +261,11 @@ export default function CityDashboardSection({
 
               <div className="metrics-table-body">
                 {subKeys.map((subcategory) => {
+                  // Show every metric in the band (same as sort dialog). Missing YTD shows
+                  // "No data" / "—" in cells; do not drop rows for null comparison values.
                   const rows = subMap
                     .get(subcategory)!
-                    .filter(
-                      (r) =>
-                        r.ytd?.current_period_value != null ||
-                        r.ytd?.comparison_period_value != null
-                    )
+                    .slice()
                     .sort((a, b) => {
                       if (orderingMap && a.metricOrder !== b.metricOrder) return a.metricOrder - b.metricOrder;
                       return a.m.metric_name.localeCompare(b.m.metric_name);

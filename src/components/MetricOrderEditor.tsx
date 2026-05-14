@@ -148,9 +148,18 @@ export default function MetricOrderEditor({
     const useOrderingAsVisibility =
       orderingIds.length > 0 &&
       (useCityOrdering || orderingData?.is_personal_order === true);
-    const initialVisible = useOrderingAsVisibility
-      ? new Set(orderingIds)
-      : new Set(metrics.filter((m) => m.show_on_dash !== false).map((m) => m.id));
+    let initialVisible: Set<number>;
+    if (useOrderingAsVisibility) {
+      // Start with metrics the user/admin explicitly saved, then pre-check any new metrics
+      // (not yet in their ordering) that are enabled by default — so they don't disappear silently.
+      const orderingIdSet = new Set(orderingIds);
+      const newMetricIds = metrics
+        .filter((m) => !orderingIdSet.has(m.id) && m.show_on_dash !== false)
+        .map((m) => m.id);
+      initialVisible = new Set([...orderingIds, ...newMetricIds]);
+    } else {
+      initialVisible = new Set(metrics.filter((m) => m.show_on_dash !== false).map((m) => m.id));
+    }
     setVisibleMetricIds(initialVisible);
 
     // Create a map of saved ordering - same structure as dashboard
@@ -230,12 +239,19 @@ export default function MetricOrderEditor({
         subcategoryMap.get(subcat)!.push({ metric: metricItem.metric, order: metricItem.order });
       });
 
-      // Convert to array and sort (null subcategory first, then alphabetically)
+      // Convert to array and sort by minimum metric_order (preserves saved subcategory order),
+      // then alphabetically as fallback (null subcategory first).
       const subcategories: SubcategoryGroup[] = [];
-      subcategoryMap.forEach((metrics, subcategory) => {
-        subcategories.push({ name: subcategory, metrics });
+      const subcategoryMinOrder = new Map<string | null, number>();
+      subcategoryMap.forEach((subcatMetrics, subcategory) => {
+        const minOrder = subcatMetrics.reduce((min, m) => Math.min(min, m.order), Infinity);
+        subcategoryMinOrder.set(subcategory, isFinite(minOrder) ? minOrder : 1000);
+        subcategories.push({ name: subcategory, metrics: subcatMetrics });
       });
       subcategories.sort((a, b) => {
+        const orderA = subcategoryMinOrder.get(a.name) ?? 1000;
+        const orderB = subcategoryMinOrder.get(b.name) ?? 1000;
+        if (orderA !== orderB) return orderA - orderB;
         if (a.name === null && b.name === null) return 0;
         if (a.name === null) return -1;
         if (b.name === null) return 1;
@@ -301,6 +317,22 @@ export default function MetricOrderEditor({
       const newGroups = [...prev];
       [newGroups[catIndex], newGroups[newIndex]] = [newGroups[newIndex], newGroups[catIndex]];
       return newGroups.map((cat, i) => ({ ...cat, order: (i + 1) * 100 }));
+    });
+    setHasChanges(true);
+  }, []);
+
+  // Move subcategory up/down within its parent category
+  const moveSubcategory = useCallback((catIndex: number, subIndex: number, direction: -1 | 1) => {
+    const newIndex = subIndex + direction;
+    setCategoryGroups((prev) => {
+      const cat = prev[catIndex];
+      if (!cat || newIndex < 0 || newIndex >= cat.subcategories.length) return prev;
+      return prev.map((c, i) => {
+        if (i !== catIndex) return c;
+        const newSubs = [...c.subcategories];
+        [newSubs[subIndex], newSubs[newIndex]] = [newSubs[newIndex], newSubs[subIndex]];
+        return { ...c, subcategories: newSubs };
+      });
     });
     setHasChanges(true);
   }, []);
@@ -529,7 +561,7 @@ export default function MetricOrderEditor({
       {isExpanded && (
         <div className={styles.content}>
           <div className={styles.instructions}>
-            Add or rename categories and subcategories, reorder with ▲▼, and use checkboxes to show or hide metrics. Move metrics between groups with the dropdown. Save to persist; empty categories are not saved.
+            Add or rename categories and subcategories. Use ▲▼ to reorder categories, subcategories within a category, and individual metrics. Use checkboxes to show or hide metrics, and the dropdown to move a metric to a different group. Save to persist; empty categories are not saved.
           </div>
 
           <div className={styles.categoryList}>
@@ -632,6 +664,22 @@ export default function MetricOrderEditor({
                             {/* Subcategory header */}
                             {showSubcategoryHeaders && (
                               <div className={styles.subcategoryHeader}>
+                                <span className={styles.moveButtons}>
+                                  <button
+                                    type="button"
+                                    className={styles.moveBtn}
+                                    disabled={subIndex === 0}
+                                    onClick={(e) => { e.stopPropagation(); moveSubcategory(catIndex, subIndex, -1); }}
+                                    title="Move subcategory up"
+                                  >▲</button>
+                                  <button
+                                    type="button"
+                                    className={styles.moveBtn}
+                                    disabled={subIndex === subcategories.length - 1}
+                                    onClick={(e) => { e.stopPropagation(); moveSubcategory(catIndex, subIndex, 1); }}
+                                    title="Move subcategory down"
+                                  >▼</button>
+                                </span>
                                 {isEditingSub ? (
                                   <input
                                     type="text"

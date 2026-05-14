@@ -198,6 +198,14 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
   const hasRenderablePoints =
     validPoints.length > 0 && validPoints.length <= MAX_POINTS_LIMIT;
 
+  const chartPref = String(
+    (mapData.map_config?.chart_type_preference as string | undefined) || ""
+  )
+    .trim()
+    .toLowerCase();
+  /** Backend already chose points when chart_type_preference is point; do not override with choropleth. */
+  const forcePointChart = chartPref === "point";
+
   const fewPoints = locationDataCount <= 1000;
   const choroLayerId = resolveChoroShapeLayerId(
     aggregations,
@@ -206,6 +214,7 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
     shapeLayersFromConfig
   );
   const preferChoroOverPoints =
+    !forcePointChart &&
     choroLayerId != null &&
     !fewPoints &&
     locationDataCount > 1000 &&
@@ -243,14 +252,18 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
     } else {
       primary = { kind: "points", label: "Location pins" };
     }
-  } else if (initialShapeLayers.length > 0 && locationDataCount > 1000) {
+  } else if (
+    initialShapeLayers.length > 0 &&
+    locationDataCount > 1000 &&
+    !forcePointChart
+  ) {
     const sid = String(initialShapeLayers[0].shape_layer_instance_id);
     primary = {
       kind: "choropleth",
       shapeLayerId: sid,
       label: labelForShapeLayer(sid, initialShapeLayers, shapeLayersFromConfig),
     };
-  } else if (shapeLayersFromConfig?.length && locationDataCount > 1000) {
+  } else if (shapeLayersFromConfig?.length && locationDataCount > 1000 && !forcePointChart) {
     const first = shapeLayersFromConfig[0];
     const sid = String(first.shape_layer_instance_id);
     primary = {
