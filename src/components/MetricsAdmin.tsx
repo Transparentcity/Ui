@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth0 } from "@auth0/auth0-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -15,6 +16,7 @@ import {
   getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
 import {
+  ADMIN_API_ACCESS_TOKEN_QUERY_KEY,
   useMetrics,
   useMetric,
   useMetricsSummary,
@@ -40,6 +42,29 @@ import styles from "./MetricsAdmin.module.css";
 
 type StatusFilter = "" | "true" | "false";
 type LastRunFilter = "" | "failed" | "completed" | "never";
+
+/** True when the failure is likely an expired/invalid session or Auth0 silent-auth failure. */
+function isLikelySessionOrTokenAuthError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { status?: number; message?: unknown; error?: string };
+  if (e.status === 401) return true;
+  if (typeof e.error === "string") {
+    const code = e.error.toLowerCase();
+    if (
+      code === "login_required" ||
+      code === "consent_required" ||
+      code === "missing_refresh_token"
+    ) {
+      return true;
+    }
+  }
+  const msg = String(e.message ?? "").toLowerCase();
+  return (
+    msg.includes("login_required") ||
+    msg.includes("consent_required") ||
+    msg.includes("missing_refresh_token")
+  );
+}
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "Never";
@@ -133,6 +158,7 @@ function StatusBadge({
 
 export default function MetricsAdmin() {
   const { getAccessTokenSilently, loginWithRedirect } = useAuth0();
+  const queryClient = useQueryClient();
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -228,12 +254,7 @@ export default function MetricsAdmin() {
 
   const firstError = summaryQuery.error || categoriesQuery.error ||
                      typesQuery.error || citiesQuery.error || metricsQuery.error || null;
-  const isAuthError = !!(firstError && (
-    (firstError as any).status === 401 ||
-    String((firstError as any).message).toLowerCase().includes("authentication required") ||
-    String((firstError as any).message).toLowerCase().includes("not authenticated") ||
-    String((firstError as any).message).toLowerCase().includes("login_required")
-  ));
+  const isAuthError = isLikelySessionOrTokenAuthError(firstError);
   const error = firstError
     ? firstError.message || "Failed to load data"
     : null;
@@ -730,6 +751,9 @@ export default function MetricsAdmin() {
               <button
                 type="button"
                 onClick={() => {
+                  void queryClient.invalidateQueries({
+                    queryKey: [...ADMIN_API_ACCESS_TOKEN_QUERY_KEY],
+                  });
                   metricsQuery.refetch();
                   summaryQuery.refetch();
                   categoriesQuery.refetch();

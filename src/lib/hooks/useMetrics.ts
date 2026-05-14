@@ -1,7 +1,13 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { GetTokenSilentlyOptions } from "@auth0/auth0-react";
 import { useAuth0 } from "@auth0/auth0-react";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   listAdminMetrics,
   getAdminMetric,
@@ -83,6 +89,38 @@ const _AUTH0_AUDIENCE_PARAMS = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE
   ? { authorizationParams: { audience: process.env.NEXT_PUBLIC_AUTH0_AUDIENCE } }
   : undefined;
 
+/**
+ * React Query key for coalescing `getAccessTokenSilently` across parallel
+ * metrics-admin requests (avoids Auth0 races when many hooks mount at once).
+ */
+export const ADMIN_API_ACCESS_TOKEN_QUERY_KEY = [
+  "auth0",
+  "admin-api-access-token",
+  process.env.NEXT_PUBLIC_AUTH0_AUDIENCE ?? "default",
+] as const;
+
+const _ADMIN_API_ACCESS_TOKEN_STALE_MS = 5000;
+
+async function fetchCoalescedAdminApiAccessToken(
+  queryClient: QueryClient,
+  getAccessTokenSilently: (
+    options?: GetTokenSilentlyOptions
+  ) => Promise<string>
+): Promise<string> {
+  return queryClient.fetchQuery({
+    queryKey: ADMIN_API_ACCESS_TOKEN_QUERY_KEY,
+    queryFn: async () => {
+      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
+      if (!token?.trim()) {
+        throw new Error("Not authenticated: no access token. Log in and try again.");
+      }
+      return token;
+    },
+    staleTime: _ADMIN_API_ACCESS_TOKEN_STALE_MS,
+    gcTime: 60 * 1000,
+  });
+}
+
 export interface UseMetricsOptions {
   limit?: number;
   search?: string;
@@ -105,14 +143,15 @@ export interface UseMetricsOptions {
  */
 export function useMetrics(options: UseMetricsOptions = {}) {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: metricKeys.list(options),
     queryFn: async () => {
-      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
-      if (!token?.trim()) {
-        throw new Error("Not authenticated: no access token. Log in and try again.");
-      }
+      const token = await fetchCoalescedAdminApiAccessToken(
+        queryClient,
+        getAccessTokenSilently
+      );
       return listAdminMetrics(token, options);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
@@ -181,14 +220,15 @@ export function useTemplateStructuringNotes(
  */
 export function useMetricsSummary() {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: metricKeys.summary(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
-      if (!token?.trim()) {
-        throw new Error("Not authenticated: no access token. Log in and try again.");
-      }
+      const token = await fetchCoalescedAdminApiAccessToken(
+        queryClient,
+        getAccessTokenSilently
+      );
       return getAdminMetricsSummary(token);
     },
     staleTime: 1 * 60 * 1000, // 1 minute
@@ -202,14 +242,15 @@ export function useMetricsSummary() {
  */
 export function useMetricCategories() {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: metricKeys.categories(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
-      if (!token?.trim()) {
-        throw new Error("Not authenticated: no access token. Log in and try again.");
-      }
+      const token = await fetchCoalescedAdminApiAccessToken(
+        queryClient,
+        getAccessTokenSilently
+      );
       return listAdminMetricCategories(token);
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -223,14 +264,15 @@ export function useMetricCategories() {
  */
 export function useMetricTypes() {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: metricKeys.types(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
-      if (!token?.trim()) {
-        throw new Error("Not authenticated: no access token. Log in and try again.");
-      }
+      const token = await fetchCoalescedAdminApiAccessToken(
+        queryClient,
+        getAccessTokenSilently
+      );
       return listAdminMetricTypes(token);
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -244,14 +286,15 @@ export function useMetricTypes() {
  */
 export function useMetricCities() {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: metricKeys.cities(),
     queryFn: async () => {
-      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
-      if (!token?.trim()) {
-        throw new Error("Not authenticated: no access token. Log in and try again.");
-      }
+      const token = await fetchCoalescedAdminApiAccessToken(
+        queryClient,
+        getAccessTokenSilently
+      );
       return listAdminMetricCities(token);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
