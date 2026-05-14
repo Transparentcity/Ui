@@ -39,10 +39,12 @@ export const metadata: Metadata = {
   },
 };
 
-async function fetchFeaturedStories(): Promise<EnrichedFeedStory[]> {
+async function fetchFeaturedStories(
+  launchedCityIds: Set<number>,
+): Promise<EnrichedFeedStory[]> {
   try {
     const apiBase = getApiBaseUrl();
-    const url = `${apiBase}/api/feed/public?limit=50&order_by=published_at`;
+    const url = `${apiBase}/api/feed/public?limit=100&order_by=published_at`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
       next: { revalidate: 3600 },
@@ -50,8 +52,14 @@ async function fetchFeaturedStories(): Promise<EnrichedFeedStory[]> {
     if (!res.ok) return [];
     const data = await res.json();
     const stories = (data.stories ?? []) as FeedStory[];
-    const enriched = stories.map((s) => enrichStory(s)).filter(isCoherentMultiMetric);
-    return pickFeaturedStories(enriched);
+    const enriched = stories
+      .map((s) => enrichStory(s))
+      .filter(isCoherentMultiMetric)
+      .filter((s) => launchedCityIds.has(s.city_id));
+    const picked = pickFeaturedStories(enriched);
+    // Constrain to an even count between 6 and 10 when possible.
+    const target = picked.length >= 10 ? 10 : picked.length - (picked.length % 2);
+    return picked.slice(0, target);
   } catch {
     return [];
   }
@@ -118,8 +126,9 @@ export default async function HomePage() {
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, 10);
 
+  const launchedCityIds = new Set(launched.map((c) => c.id));
   const [stories, metricCards] = await Promise.all([
-    fetchFeaturedStories(),
+    fetchFeaturedStories(launchedCityIds),
     fetchHomeMetricCards(launched.slice(0, 3)),
   ]);
   return (
