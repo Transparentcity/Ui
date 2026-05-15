@@ -9,6 +9,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  AUTH0_API_ACCESS_TOKEN_OPTIONS,
+  getAuth0ApiAudience,
+} from "@/lib/auth0ApiAudience";
+import {
   listAdminMetrics,
   getAdminMetric,
   getAdminMetricsSummary,
@@ -82,13 +86,6 @@ export const metricKeys = {
   cityMetricsForMap: (cityId: number) => [...metricKeys.all, "city-metrics-map", cityId] as const,
 };
 
-// Explicitly pass the audience so the correct JWT (not an opaque ID token) is always
-// returned, even when the Auth0Provider authorizationParams are misconfigured in a
-// deployment that has NEXT_PUBLIC_AUTH0_AUDIENCE unset.
-const _AUTH0_AUDIENCE_PARAMS = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE
-  ? { authorizationParams: { audience: process.env.NEXT_PUBLIC_AUTH0_AUDIENCE } }
-  : undefined;
-
 /**
  * React Query key for coalescing `getAccessTokenSilently` across parallel
  * metrics-admin requests (avoids Auth0 races when many hooks mount at once).
@@ -96,7 +93,7 @@ const _AUTH0_AUDIENCE_PARAMS = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE
 export const ADMIN_API_ACCESS_TOKEN_QUERY_KEY = [
   "auth0",
   "admin-api-access-token",
-  process.env.NEXT_PUBLIC_AUTH0_AUDIENCE ?? "default",
+  getAuth0ApiAudience(),
 ] as const;
 
 const _ADMIN_API_ACCESS_TOKEN_STALE_MS = 5000;
@@ -110,7 +107,9 @@ async function fetchCoalescedAdminApiAccessToken(
   return queryClient.fetchQuery({
     queryKey: ADMIN_API_ACCESS_TOKEN_QUERY_KEY,
     queryFn: async () => {
-      const token = await getAccessTokenSilently(_AUTH0_AUDIENCE_PARAMS);
+      const token = await getAccessTokenSilently({
+        ...AUTH0_API_ACCESS_TOKEN_OPTIONS,
+      });
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }

@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
 import { queryClient } from "@/lib/queryClient";
 
 interface AuthProviderProps {
@@ -111,15 +112,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
   const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
-  const audience = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE;
+  const audience = getAuth0ApiAudience();
 
-  if (!domain || !clientId || !audience) {
+  if (!domain || !clientId) {
     if (typeof window !== "undefined") {
-       
       console.warn(
         "Auth0 environment variables are not fully configured. " +
-          "Set NEXT_PUBLIC_AUTH0_DOMAIN, NEXT_PUBLIC_AUTH0_CLIENT_ID, " +
-          "and NEXT_PUBLIC_AUTH0_AUDIENCE in .env.local.",
+          "Set NEXT_PUBLIC_AUTH0_DOMAIN and NEXT_PUBLIC_AUTH0_CLIENT_ID in .env.local. " +
+          "Optional: NEXT_PUBLIC_AUTH0_AUDIENCE must match the platform AUTH0_AUDIENCE.",
       );
     }
   }
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       authorizationParams={{
         redirect_uri:
           typeof window !== "undefined" ? window.location.origin : undefined,
-        audience: audience || "https://api.transparent.city/api",
+        audience,
         scope: "openid profile email offline_access",
       }}
       cacheLocation="localstorage"
