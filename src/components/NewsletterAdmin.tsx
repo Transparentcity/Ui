@@ -2052,14 +2052,32 @@ function NewsletterDashboardQueue({
               <div className={styles.emailPreviewTitle}>Email preview</div>
               <div className={styles.emailPreviewActions}>
                 {(previewPublicUrl || archivePreviewPublicUrl) && (
-                  <a
-                    href={previewPublicUrl || archivePreviewPublicUrl || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.secondaryBtn}
-                  >
-                    Open permalink
-                  </a>
+                  <>
+                    <a
+                      href={previewPublicUrl || archivePreviewPublicUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.secondaryBtn}
+                    >
+                      Open permalink
+                    </a>
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={async () => {
+                        const url = previewPublicUrl || archivePreviewPublicUrl || "";
+                        if (!url) return;
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          toast.success("Link copied");
+                        } catch {
+                          toast.error("Could not copy link");
+                        }
+                      }}
+                    >
+                      Copy link
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
