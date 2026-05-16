@@ -53,7 +53,7 @@ export const metadata: Metadata = {
         url: "/images/app-screenshot-dashboard.png",
         width: 1200,
         height: 630,
-        alt: "Transparent.city dashboard screenshot",
+        alt: "Transparent.city homepage",
       },
     ],
   },
