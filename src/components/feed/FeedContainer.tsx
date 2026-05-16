@@ -41,7 +41,7 @@ import FilterPanelV2, {
   type DistrictsForCity,
   type FilterState,
 } from "./FilterPanelV2";
-import { AddFilter as AddFilterControl, SortDropdown } from "./AddFilterPopover";
+import { SortDropdown } from "./AddFilterPopover";
 import { usePlaceOnboarding } from "@/contexts/PlaceOnboardingContext";
 import { startSignup } from "@/lib/signup";
 import styles from "./feed.module.css";
@@ -1468,30 +1468,6 @@ export default function FeedContainer({
               </button>
             )}
 
-            {/* + Add filter opens a tabbed popover so the user can pick a city
-                or topic without opening the full panel. Lives inside the scroll
-                area so it sits right after the last chip. */}
-            <AddFilterControl
-              cities={cityCatalog}
-              topics={[
-                { value: "safety", label: "Safety" },
-                { value: "business", label: "Business" },
-                { value: "spending", label: "Spending" },
-                { value: "alert", label: "Alerts" },
-                { value: "trend", label: "Trends" },
-                { value: "justice", label: "Justice" },
-                { value: "context", label: "Context" },
-              ]}
-              selectedCityIds={selectedCityIds}
-              selectedTopics={selectedTopics}
-              onToggleCity={(cid) => handleToggleFeed(cid)}
-              onToggleTopic={(t) => {
-                const next = new Set(selectedTopics);
-                if (next.has(t)) next.delete(t);
-                else next.add(t);
-                setSelectedTopics(next);
-              }}
-            />
           </div>
 
           {hasActiveFilters && (
