@@ -58,16 +58,6 @@ interface UserPlace {
   label: string;
 }
 
-const TOPIC_LABELS: Record<string, string> = {
-  safety: "Safety", justice: "Justice",
-  business: "Business", spending: "Spending",
-  alert: "Alerts", trend: "Trends",
-  context: "Context", off_the_charts: "Off the Charts",
-  comparison: "Your District", milestone: "Milestones",
-  "311_images": "311 Photos",
-  my_block: "My place",
-};
-
 interface FeedContainerProps {
   cityId?: number | null;
   district?: number | null;
@@ -1253,8 +1243,6 @@ export default function FeedContainer({
     }
   }, [showCityDiscovery, visibleStories.length]);
 
-  const topicLabels = TOPIC_LABELS;
-
   /** Saved places that appear on at least one visible story — offer chips to narrow the feed. */
   const placeNavIds = useMemo(() => {
     if (!isAuthenticated || userPlaces.length === 0 || selectedPlaceId !== null) {
@@ -1381,45 +1369,6 @@ export default function FeedContainer({
                 <span className={styles.activePillLabel}>
                   📍 {userPlaces.find((p) => p.id === pid)?.label ?? "Saved place"}
                 </span>
-              </button>
-            ))}
-
-            {/* City pills. If uniqueCities hasn't been loaded yet (auth flap, feed
-                error, fresh hydrate) the chip falls back to a generic "City" label
-                so the user can still see it and remove it. Without this fallback
-                the filter badge would say "3 active" with nothing visible. */}
-            {[...selectedCityIds].map((cid) => {
-              const c = cityCatalog.find((u) => u.city_id === cid);
-              const label = c
-                ? `${c.city_emoji ? `${c.city_emoji} ` : ""}${c.city_name}`
-                : "City";
-              return (
-                <button
-                  key={`city-${cid}`}
-                  type="button"
-                  className={styles.activePill}
-                  onClick={() => handleToggleFeed(cid)}
-                >
-                  <span className={styles.activePillLabel}>{label}</span>
-                  <span className={styles.activePillX} aria-hidden="true">&times;</span>
-                </button>
-              );
-            })}
-
-            {/* Topic pills */}
-            {[...selectedTopics].map((t) => (
-              <button
-                key={`topic-${t}`}
-                type="button"
-                className={styles.activePill}
-                onClick={() => {
-                  const next = new Set(selectedTopics);
-                  next.delete(t);
-                  setSelectedTopics(next);
-                }}
-              >
-                <span className={styles.activePillLabel}>{topicLabels[t] ?? t}</span>
-                <span className={styles.activePillX} aria-hidden="true">&times;</span>
               </button>
             ))}
 
