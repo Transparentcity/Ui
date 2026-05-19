@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
-import { API_BASE } from "./apiBase";
+import { getApiBaseUrl } from "./apiBase";
 import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -57,7 +57,7 @@ async function request<T>(
   body?: any,
   token?: string
 ): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${getApiBaseUrl()}${path}`;
   const impersonationUserId = getImpersonationUserId();
 
   const headers: HeadersInit = {
@@ -1301,7 +1301,7 @@ export async function exportAdminMetrics(
   options?: { city_id?: number }
 ): Promise<Blob> {
   const query = options?.city_id != null ? `?city_id=${options.city_id}` : "";
-  const res = await fetch(`${API_BASE}/api/admin/metrics/export${query}`, {
+  const res = await fetch(`${getApiBaseUrl()}/api/admin/metrics/export${query}`, {
     method: "GET",
     credentials: "include",
     headers: { Authorization: `Bearer ${token}` },
@@ -1327,7 +1327,7 @@ export async function importAdminMetrics(
     options?.target_city_id != null
       ? `?target_city_id=${options.target_city_id}`
       : "";
-  const res = await fetch(`${API_BASE}/api/admin/metrics/import${query}`, {
+  const res = await fetch(`${getApiBaseUrl()}/api/admin/metrics/import${query}`, {
     method: "POST",
     credentials: "include",
     headers: { Authorization: `Bearer ${token}` },
@@ -1352,7 +1352,7 @@ export async function exportAdminPlatformMetadata(
   }
   const q = params.toString();
   const res = await fetch(
-    `${API_BASE}/api/admin/metrics/metadata-bundle/export${q ? `?${q}` : ""}`,
+    `${getApiBaseUrl()}/api/admin/metrics/metadata-bundle/export${q ? `?${q}` : ""}`,
     {
       method: "GET",
       credentials: "include",
@@ -1383,7 +1383,7 @@ export async function importAdminPlatformMetadata(
       ? `?target_city_id=${options.target_city_id}`
       : "";
   const res = await fetch(
-    `${API_BASE}/api/admin/metrics/metadata-bundle/import${query}`,
+    `${getApiBaseUrl()}/api/admin/metrics/metadata-bundle/import${query}`,
     {
       method: "POST",
       credentials: "include",
@@ -2584,7 +2584,7 @@ export async function sendChatMessageStream(
   onEvent: (event: StreamEvent) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  const url = `${API_BASE}/api/chat/message/stream`;
+  const url = `${getApiBaseUrl()}/api/chat/message/stream`;
 
   let lastError: unknown = null;
 
@@ -5211,7 +5211,7 @@ export function getResearchByHash(hash: string): Promise<ResearchReport> {
   // Note: /api/research/public/by-hash/ does NOT exist on the backend, and
   // a Next.js filesystem route at /api/research/public/ intercepts it before
   // the rewrite proxy can forward it, causing a 404.
-  return fetch(`${API_BASE}/api/research/by-hash/${hash}`, {
+  return fetch(`${getApiBaseUrl()}/api/research/by-hash/${hash}`, {
     method: "GET",
     headers: {
       "Accept": "application/json",
@@ -5266,7 +5266,7 @@ export function deleteResearch(
   reportId: number,
   token: string
 ): Promise<void> {
-  return fetch(`${API_BASE}/api/research/${reportId}`, {
+  return fetch(`${getApiBaseUrl()}/api/research/${reportId}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -5521,7 +5521,7 @@ export function updateMap(mapId: number, data: UpdateMapRequest, token: string):
 
 // Delete a map
 export function deleteMap(mapId: number, token: string): Promise<void> {
-  return fetch(`${API_BASE}/api/maps/${mapId}`, {
+  return fetch(`${getApiBaseUrl()}/api/maps/${mapId}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -6501,7 +6501,7 @@ export async function exportWasteFindings(
 ): Promise<Blob> {
   const params = new URLSearchParams({ format });
   if (cityId != null) params.append("city_id", String(cityId));
-  const url = `${API_BASE}/api/waste/export/${category}?${params.toString()}`;
+  const url = `${getApiBaseUrl()}/api/waste/export/${category}?${params.toString()}`;
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
@@ -6522,7 +6522,7 @@ export async function exportAuditorReport(
 ): Promise<Blob> {
   const params = new URLSearchParams({ category });
   if (cityId != null) params.append("city_id", String(cityId));
-  const url = `${API_BASE}/api/waste/export-report?${params.toString()}`;
+  const url = `${getApiBaseUrl()}/api/waste/export-report?${params.toString()}`;
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
@@ -6811,7 +6811,7 @@ export function exportInvestigationEvidence(
   token: string,
   investigationId: string
 ): Promise<Blob> {
-  const url = `${API_BASE}/api/waste/investigations/${investigationId}/export`;
+  const url = `${getApiBaseUrl()}/api/waste/investigations/${investigationId}/export`;
   return fetch(url, {
     method: "GET",
     credentials: "include",

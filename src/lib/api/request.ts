@@ -1,4 +1,4 @@
-import { API_BASE } from "../apiBase";
+import { API_BASE, getApiBaseUrl } from "../apiBase";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -33,7 +33,7 @@ export async function request<T>(
   token?: string,
   options?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${getApiBaseUrl()}${path}`;
 
   const headers: HeadersInit = {
     "Accept": "application/json",

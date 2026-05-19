@@ -28,7 +28,9 @@ export function getApiBaseUrl(): string {
   if (globalThis.window?.location) {
     const hostname = globalThis.location.hostname;
     const onTransparentCitySite =
-      hostname === "transparent.city" || hostname === "www.transparent.city";
+      hostname === "transparent.city" ||
+      hostname === "www.transparent.city" ||
+      hostname === "app.transparent.city";
 
     // Production build, or the live site host: always same-origin /api/* so
     // Next rewrites proxy to the backend (avoids cross-origin CORS to api.*).
@@ -46,8 +48,13 @@ export function getApiBaseUrl(): string {
   return computeServerSideApiBase();
 }
 
-// Export the API base URL as a constant
-export const API_BASE = getApiBaseUrl();
+/**
+ * @deprecated Do not use for browser fetch — value is wrong if this module was
+ * first evaluated during SSR/build (often `https://api.transparent.city`).
+ * Call `getApiBaseUrl()` at fetch time instead (see `lib/api/request.ts`).
+ */
+export const API_BASE =
+  typeof globalThis.window === "undefined" ? computeServerSideApiBase() : "";
 
 /**
  * Base URL for public asset URLs (e.g. img src for map/chart images).
