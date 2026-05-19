@@ -477,6 +477,96 @@
   flex: 1;
   padding: 16px 16px 24px;
 }
+.seymourAsk {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+}
+.seymourAskLabel {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #0d9488;
+  margin-bottom: 6px;
+}
+.seymourAskInput {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+}
+.seymourAskInput:focus {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+.seymourAskRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.seymourAskHint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #9ca3af;
+}
+.seymourAskBtn {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #0d9488;
+  background: #0d9488;
+  color: #fff;
+  cursor: pointer;
+}
+.seymourAskBtn:hover:not(:disabled) { background: #0f766e; border-color: #0f766e; }
+.seymourAskBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.seymourAskError {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #b91c1c;
+}
+.seymourAskThread {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.seymourAskUser {
+  align-self: flex-end;
+  max-width: 90%;
+  font-size: 12.5px;
+  background: #ecfeff;
+  border: 1px solid #cffafe;
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: #0f766e;
+}
+.seymourAskReply {
+  align-self: flex-start;
+  max-width: 95%;
+  font-size: 12.5px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: #111827;
+  white-space: pre-wrap;
+}
 .seymourSection { margin-bottom: 18px; }
 .seymourSectionHead {
   display: flex;

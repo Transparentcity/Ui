@@ -130,16 +130,22 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
   if (f.entity_name) subjectParts.push(f.entity_name);
   if (f.subcategory) subjectParts.push(f.subcategory);
   const detailConfidence = (f as Partial<{ confidence_score: number | null }>).confidence_score;
+  const headline = f.headline || f.description || f.detector_name || "Finding";
+  const rawDetail = f.description || f.detector_name || "";
+  // The backend currently ships the same string in `headline` and `description`
+  // for many finding types. Suppress the detail when it would duplicate the
+  // headline so the card doesn't render the same paragraph twice.
+  const detail = rawDetail.trim() === headline.trim() ? "" : rawDetail;
   return {
     id: f.finding_id || String(f.id),
     detectorId: f.detector_key,
-    headline: f.headline || f.description || f.detector_name || "Finding",
+    headline,
     subject: subjectParts.join(" · ") || (f.detector_name ?? f.detector_key),
     department: f.department || "—",
     amount: formatAmount(f.estimated_dollar_impact ?? f.amount),
     confidence: parseConfidence(detailConfidence ?? f.confidence),
     flagged: relativeTime(f.created_at),
-    detail: f.description || f.detector_name || "",
+    detail,
     severity: severityFromBackend(f.severity),
     status: statusFromBackend(f.finding_status),
   };

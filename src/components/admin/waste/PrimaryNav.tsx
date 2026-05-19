@@ -31,6 +31,8 @@ const NAV_ITEMS: readonly NavItem[] = [
     iconPath: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></> },
   { id: "reports", label: "Reports", href: "/admin/waste/reports",
     iconPath: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></> },
+  { id: "data-sources", label: "Data sources", href: "/admin/waste/data-sources",
+    iconPath: <><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" /></> },
 ];
 
 export function PrimaryNav() {

@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
+
 import { Mono } from "@/components/admin/waste/primitives";
+import { sendChatMessage } from "@/lib/api/chat";
 import type { SeymourData } from "@/lib/wasteFixtures";
 import styles from "./feed.module.css";
 
@@ -23,6 +27,35 @@ type Props = {
 };
 
 export function SeymourRail({ data, onCollapse, isQuiet }: Props) {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const [question, setQuestion] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [thread, setThread] = useState<{ role: "user" | "seymour"; text: string }[]>([]);
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+
+  const handleAsk = async () => {
+    const trimmed = question.trim();
+    if (!trimmed || asking) return;
+    setAsking(true);
+    setAskError(null);
+    setThread(prev => [...prev, { role: "user", text: trimmed }]);
+    setQuestion("");
+    try {
+      const token = isAuthenticated ? await getAccessTokenSilently() : "";
+      const res = await sendChatMessage(
+        { message: trimmed, session_id: sessionId ?? undefined },
+        token
+      );
+      setSessionId(res.session_id);
+      setThread(prev => [...prev, { role: "seymour", text: res.response }]);
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : "Couldn't reach Seymour");
+    } finally {
+      setAsking(false);
+    }
+  };
+
   return (
     <aside className={styles.seymour} aria-label="Seymour analyst rail">
       <div className={styles.seymourHeader}>
@@ -35,6 +68,46 @@ export function SeymourRail({ data, onCollapse, isQuiet }: Props) {
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
+      </div>
+
+      <div className={styles.seymourAsk}>
+        <label htmlFor="seymour-ask" className={styles.seymourAskLabel}>Ask Seymour</label>
+        <textarea
+          id="seymour-ask"
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              handleAsk();
+            }
+          }}
+          rows={2}
+          placeholder="e.g. Why is THE BANK OF NEW YORK MELLON flagged?"
+          className={styles.seymourAskInput}
+          disabled={asking}
+        />
+        <div className={styles.seymourAskRow}>
+          <span className={styles.seymourAskHint}>⌘+Enter to send</span>
+          <button
+            type="button"
+            onClick={handleAsk}
+            disabled={asking || !question.trim()}
+            className={styles.seymourAskBtn}
+          >
+            {asking ? "Asking…" : "Ask →"}
+          </button>
+        </div>
+        {askError && <div className={styles.seymourAskError} role="alert">{askError}</div>}
+        {thread.length > 0 && (
+          <div className={styles.seymourAskThread}>
+            {thread.map((m, i) => (
+              <div key={i} className={m.role === "user" ? styles.seymourAskUser : styles.seymourAskReply}>
+                {m.text}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.seymourScroll}>
