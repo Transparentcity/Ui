@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import { AdminGuard } from "@/components/AdminGuard";
 import { PrimaryNav } from "@/components/admin/waste/PrimaryNav";
 import { TopStrip } from "@/components/admin/waste/TopStrip";
 import { Readout } from "@/components/admin/waste/Readout";
@@ -11,19 +12,21 @@ export const metadata = {
 
 export default function WasteLayout({ children }: { children: ReactNode }) {
   return (
-    <div className={`waste-root ${styles.shell}`}>
-      <Suspense fallback={null}>
-        <PrimaryNav />
-      </Suspense>
-      <div className={styles.content}>
+    <AdminGuard>
+      <div className={`waste-root ${styles.shell}`}>
         <Suspense fallback={null}>
-          <TopStrip />
+          <PrimaryNav />
         </Suspense>
-        <Suspense fallback={null}>
-          <Readout />
-        </Suspense>
-        <div className={styles.body}>{children}</div>
+        <div className={styles.content}>
+          <Suspense fallback={null}>
+            <TopStrip />
+          </Suspense>
+          <Suspense fallback={null}>
+            <Readout />
+          </Suspense>
+          <div className={styles.body}>{children}</div>
+        </div>
       </div>
-    </div>
+    </AdminGuard>
   );
 }
