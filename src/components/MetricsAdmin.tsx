@@ -34,6 +34,7 @@ import {
 } from "@/lib/hooks/useMetrics";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import TemplateOrderEditor from "./TemplateOrderEditor";
+import CrossCityComparisonChart from "./CrossCityComparisonChart";
 import MetricActions from "./MetricActions";
 import MetricEditModal from "./MetricEditModal";
 import MetricChartsModal from "./MetricChartsModal";
@@ -170,6 +171,7 @@ export default function MetricsAdmin() {
   const [maxLagDays, setMaxLagDays] = useState<number | null>(null);
   /** List metrics whose `template_id` matches this platform template metric. */
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
   /** Touch / coarse pointer: tap row to pin the action bar open. */
   const [pinnedActionsMetricId, setPinnedActionsMetricId] = useState<number | null>(null);
 
@@ -357,6 +359,31 @@ export default function MetricsAdmin() {
       a.metric_name.localeCompare(b.metric_name, undefined, { sensitivity: "base" })
     );
   }, [templatesQuery.data]);
+
+  const selectedTemplateName =
+    selectedTemplateId == null ? undefined : templateNameById.get(selectedTemplateId);
+
+  const hasSelectedTemplateChildren = useMemo(
+    () => selectedTemplateId != null && metrics.some((m) => m.city_id != null),
+    [metrics, selectedTemplateId]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => {
+        if (!cancelled) setAdminToken(token);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("Unable to load admin token for cross-city chart", err);
+          setAdminToken(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessTokenSilently]);
 
   const handleMetricRowPointerToggle = useCallback(
     (e: ReactMouseEvent<HTMLTableRowElement>, metricId: number) => {
@@ -1252,6 +1279,15 @@ export default function MetricsAdmin() {
           </div>
         </div>
       </div>
+
+      {selectedTemplateId != null && adminToken && hasSelectedTemplateChildren && (
+        <CrossCityComparisonChart
+          templateId={selectedTemplateId}
+          token={adminToken}
+          metricName={selectedTemplateName}
+          fullPageHref={`/admin/metrics/cross-city/${selectedTemplateId}`}
+        />
+      )}
 
       {/* Table */}
       <div className={styles.tableContainer}>
