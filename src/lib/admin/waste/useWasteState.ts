@@ -2,13 +2,19 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { getWasteCity, type WasteCity } from "./cities";
+import {
+  useWasteAdminCities,
+  useWasteAdminReadout,
+} from "@/lib/hooks/useWasteAdmin";
+import type {
+  WasteAdminCityRow,
+  WasteAdminReadoutKPI,
+} from "@/lib/api/wasteAdmin";
 
-export type WasteDemoState = "rich" | "quiet" | "degraded";
 export type WasteHealth = "healthy" | "warn" | "down";
 export type WasteSection = "feed" | "metrics" | "findings" | "reports";
 
 export type WasteUIState = {
-  state: WasteDemoState;
   city: WasteCity;
   section: WasteSection;
   sectionLabel: string;
@@ -20,6 +26,7 @@ export type WasteUIState = {
   lastRunAt: string;
   health: WasteHealth;
   healthLabel: string;
+  isLoading: boolean;
 };
 
 const SECTION_LABEL: Record<WasteSection, string> = {
@@ -34,76 +41,71 @@ function parseSection(pathname: string): WasteSection {
   return (match?.[1] as WasteSection) ?? "feed";
 }
 
-function parseState(value: string | null | undefined): WasteDemoState {
-  if (value === "quiet" || value === "degraded") return value;
-  return "rich";
+function slugifyName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-// Per-state multipliers applied to the city's baseline detector/findings counts.
-// Rich = the live design-handoff numbers. Quiet = a slow news week. Degraded =
-// fewer detectors reporting because something upstream is broken.
-function deriveCounts(city: WasteCity, state: WasteDemoState) {
-  const baseDetectors = city.detectors ?? 0;
-  const baseToday = city.findingsToday ?? 0;
+function relativeRunLabel(iso: string | null | undefined): string {
+  if (!iso) return "Last run —";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "Last run —";
+  const diff = Date.now() - t;
+  const min = Math.round(diff / 60_000);
+  if (min < 1) return "Last run just now";
+  if (min < 60) return `Last run ${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `Last run ${hr} hr ago`;
+  const day = Math.round(hr / 24);
+  return `Last run ${day} day${day === 1 ? "" : "s"} ago`;
+}
 
-  if (state === "quiet") {
-    return {
-      detectorsActive: baseDetectors,
-      findingsToday: 0,
-      findingsThisWeek: Math.max(1, Math.round(baseToday * 1.2)),
-      inReview: Math.max(1, Math.round(baseToday * 0.6)),
-      confirmed30d: Math.max(2, Math.round(baseToday * 2.4)),
-    };
-  }
-
-  if (state === "degraded") {
-    return {
-      detectorsActive: Math.max(0, Math.round(baseDetectors * 0.45)),
-      findingsToday: Math.max(0, Math.round(baseToday * 0.4)),
-      findingsThisWeek: Math.max(0, Math.round(baseToday * 2)),
-      inReview: Math.max(0, Math.round(baseToday * 1.5)),
-      confirmed30d: Math.max(0, Math.round(baseToday * 4)),
-    };
-  }
-
+function deriveHealth(
+  cityRow: WasteAdminCityRow | undefined
+): { health: WasteHealth; healthLabel: string } {
+  if (!cityRow) return { health: "healthy", healthLabel: "All systems normal" };
+  const failing = cityRow.health?.failing_count ?? 0;
+  if (failing <= 0) return { health: "healthy", healthLabel: "All systems normal" };
   return {
-    detectorsActive: baseDetectors,
-    findingsToday: baseToday,
-    findingsThisWeek: baseToday * 4 + 3,
-    inReview: Math.max(2, Math.round(baseToday * 1.8)),
-    confirmed30d: baseToday * 9 + 4,
+    health: failing > 3 ? "down" : "warn",
+    healthLabel: cityRow.health?.message || "Pipeline degraded",
   };
 }
 
-function deriveHealth(state: WasteDemoState): { health: WasteHealth; healthLabel: string } {
-  if (state === "degraded") return { health: "warn", healthLabel: "Pipeline degraded" };
-  if (state === "quiet") return { health: "healthy", healthLabel: "All systems normal" };
-  return { health: "healthy", healthLabel: "All systems normal" };
-}
-
-function deriveLastRunAt(state: WasteDemoState): string {
-  if (state === "degraded") return "Last run 47 min ago";
-  if (state === "quiet") return "Last run 6 min ago";
-  return "Last run 2 min ago";
+function kpiValue(kpis: WasteAdminReadoutKPI[] | undefined, key: string): number {
+  const m = kpis?.find(k => k.key === key);
+  return m ? m.value : 0;
 }
 
 export function useWasteState(): WasteUIState {
   const pathname = usePathname() ?? "";
   const params = useSearchParams();
   const city = getWasteCity(params?.get("city"));
-  const state = parseState(params?.get("state"));
   const section = parseSection(pathname);
-  const counts = deriveCounts(city, state);
-  const { health, healthLabel } = deriveHealth(state);
+
+  const backendSlug = slugifyName(city.name);
+  const citiesQ = useWasteAdminCities();
+  const readoutQ = useWasteAdminReadout(backendSlug);
+
+  const cityRow = citiesQ.data?.find(c => c.slug === backendSlug);
+  const kpis = readoutQ.data?.kpis;
+  const { health, healthLabel } = deriveHealth(cityRow);
 
   return {
-    state,
     city,
     section,
     sectionLabel: SECTION_LABEL[section],
-    ...counts,
-    lastRunAt: deriveLastRunAt(state),
+    detectorsActive: kpiValue(kpis, "detectors_active"),
+    findingsToday: kpiValue(kpis, "findings_today"),
+    findingsThisWeek: kpiValue(kpis, "findings_week"),
+    inReview: kpiValue(kpis, "findings_in_review"),
+    confirmed30d: kpiValue(kpis, "confirmed_30d"),
+    lastRunAt: relativeRunLabel(cityRow?.last_run_at),
     health,
     healthLabel,
+    isLoading: citiesQ.isLoading || readoutQ.isLoading,
   };
 }
