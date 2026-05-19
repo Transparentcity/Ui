@@ -94,13 +94,13 @@
   --transition-fast: 120ms ease;
   --transition-medium: 200ms ease;
 
-  /* Dark surfaces for the left nav */
-  --nav-bg: #0f1117;
-  --nav-bg-raised: #161922;
-  --nav-border: #1f2330;
-  --nav-text: #ffffff;
-  --nav-text-muted: #94a3b8;
-  --nav-text-dim: #6b7280;
+  /* Light surfaces for the left nav, matching the rest of the site. */
+  --nav-bg: #ffffff;
+  --nav-bg-raised: #f9fafb;
+  --nav-border: #e5e7eb;
+  --nav-text: #111827;
+  --nav-text-muted: #6b7280;
+  --nav-text-dim: #9ca3af;
 
   /* Type scale */
   --type-h1-size: 34px;       --type-h1-leading: 1.06;  --type-h1-tracking: -0.04em;  --type-h1-weight: 900;

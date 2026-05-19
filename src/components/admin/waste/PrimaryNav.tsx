@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth0 } from "@auth0/auth0-react";
@@ -38,6 +39,18 @@ export function PrimaryNav() {
   const cityId = params?.get("city") ?? null;
   const city = getWasteCity(cityId);
   const { user, isAuthenticated, loginWithRedirect, logout } = useAuth0();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [userMenuOpen]);
   const preservedKeys = ["city", "state"] as const;
   const preserved = new URLSearchParams();
   for (const k of preservedKeys) {
@@ -74,26 +87,43 @@ export function PrimaryNav() {
         })}
       </div>
 
-      <div className={styles.navFooter}>
+      <div className={styles.navFooter} ref={userMenuRef}>
         {isAuthenticated ? (
-          <button
-            type="button"
-            className={styles.userButton}
-            onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
-            title="Sign out"
-          >
-            <span className={styles.userAvatar}>
-              {user?.picture ? (
-                <img src={user.picture} alt="" />
-              ) : (
-                avatarInitial(user?.name, user?.email)
-              )}
-            </span>
-            <span className={styles.userText}>
-              <span className={styles.userName}>{user?.name || user?.email || "Account"}</span>
-              <span className={styles.userAction}>Sign out</span>
-            </span>
-          </button>
+          <>
+            <button
+              type="button"
+              className={styles.userButton}
+              onClick={() => setUserMenuOpen(o => !o)}
+              aria-haspopup="menu"
+              aria-expanded={userMenuOpen}
+            >
+              <span className={styles.userAvatar}>
+                {user?.picture ? (
+                  <img src={user.picture} alt="" />
+                ) : (
+                  avatarInitial(user?.name, user?.email)
+                )}
+              </span>
+              <span className={styles.userText}>
+                <span className={styles.userName}>{user?.name || user?.email || "Account"}</span>
+              </span>
+            </button>
+            {userMenuOpen && (
+              <div className={styles.userMenu} role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.userMenuItem}
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    logout({ logoutParams: { returnTo: window.location.origin } });
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <button
             type="button"
