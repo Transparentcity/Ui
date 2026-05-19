@@ -37,6 +37,8 @@ function mergeSendgridFromPlatformEnvDir(): void {
 mergeSendgridFromPlatformEnvDir();
 
 const nextConfig: NextConfig = {
+  // Keep `/api/admin/metrics/` from 308→no-slash→backend 307→api.* (drops Bearer).
+  skipTrailingSlashRedirect: true,
   output: process.env.VERCEL ? undefined : "standalone", // standalone for Docker/Cloud Run; disabled on Vercel
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,

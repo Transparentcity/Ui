@@ -1429,9 +1429,9 @@ export function listAdminMetrics(
   if (options?.force_refresh) params.append("_t", Date.now().toString());
 
   const query = params.toString();
-  // Use a trailing slash so FastAPI doesn't issue a 307 redirect that drops
-  // the Authorization header in the Next.js proxy layer on production.
-  const path = `/api/admin/metrics/${query ? `?${query}` : ""}`;
+  // No trailing slash before `?`: Vercel 308-strips `/api/admin/metrics/` →
+  // `/api/admin/metrics`, then the API 307 to api.* drops Authorization.
+  const path = `/api/admin/metrics${query ? `?${query}` : ""}`;
   return request<AdminMetricListItem[]>(path, "GET", undefined, token);
 }
 
@@ -1496,7 +1496,7 @@ export function createAdminMetric(
   payload: CreateAdminMetricRequest,
   token: string
 ): Promise<AdminMetricWriteResponse> {
-  return request<AdminMetricWriteResponse>("/api/admin/metrics/", "POST", payload, token);
+  return request<AdminMetricWriteResponse>("/api/admin/metrics", "POST", payload, token);
 }
 
 export function updateAdminMetric(
