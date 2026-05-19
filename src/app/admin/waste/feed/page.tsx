@@ -28,6 +28,7 @@ import {
   adaptFinding,
   adaptSeymour,
 } from "@/lib/admin/waste/adapters";
+import { getWasteApiSlug } from "@/lib/admin/waste/cities";
 import type { Detector, Finding } from "@/lib/wasteFixtures";
 import styles from "@/components/admin/waste/feed/feed.module.css";
 
@@ -42,7 +43,7 @@ function FeedView() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const citySlug = params.get("city") ?? "san-francisco";
+  const citySlug = getWasteApiSlug(params.get("city"));
   const filter = asEnum<FindingsFilter>(params.get("filter"), VALID_FILTERS, "all");
   const period = asEnum<FindingsPeriod>(params.get("period"), VALID_PERIODS, "today");
 

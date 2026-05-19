@@ -39,7 +39,7 @@ export function DetectorRail({ detectors, selectedDetectorId, onSelect, query, o
             <div key={cat.id}>
               <div className={styles.catHeader}>
                 <span className={styles.catLabel}>{cat.label}</span>
-                <Mono>{isSparse ? `1/${cat.count}` : cat.count}</Mono>
+                <Mono>{isSparse ? `${items.length}/${cat.count}` : cat.count}</Mono>
               </div>
               {items.map(d => {
                 const isSel = selectedDetectorId === d.id;
