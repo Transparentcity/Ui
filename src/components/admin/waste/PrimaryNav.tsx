@@ -96,6 +96,8 @@ export function PrimaryNav() {
               onClick={() => setUserMenuOpen(o => !o)}
               aria-haspopup="menu"
               aria-expanded={userMenuOpen}
+              aria-label="Account"
+              title={user?.name || user?.email || "Account"}
             >
               <span className={styles.userAvatar}>
                 {user?.picture ? (
@@ -103,9 +105,6 @@ export function PrimaryNav() {
                 ) : (
                   avatarInitial(user?.name, user?.email)
                 )}
-              </span>
-              <span className={styles.userText}>
-                <span className={styles.userName}>{user?.name || user?.email || "Account"}</span>
               </span>
             </button>
             {userMenuOpen && (
@@ -129,11 +128,10 @@ export function PrimaryNav() {
             type="button"
             className={styles.userButton}
             onClick={() => loginWithRedirect()}
+            aria-label="Sign in"
+            title="Sign in"
           >
             <span className={styles.userAvatar}>?</span>
-            <span className={styles.userText}>
-              <span className={styles.userName}>Sign in</span>
-            </span>
           </button>
         )}
       </div>
