@@ -6,12 +6,13 @@ import { useSearchParams } from "next/navigation";
 import { Mono, SeverityChip, SeverityDot } from "@/components/admin/waste/primitives";
 import { useWasteAdminDetectors } from "@/lib/hooks/useWasteAdmin";
 import { adaptDetector, categoryFromBackend } from "@/lib/admin/waste/adapters";
+import { getWasteApiSlug } from "@/lib/admin/waste/cities";
 import { DETECTOR_CATEGORIES, type Detector, type DetectorCategoryId } from "@/lib/wasteFixtures";
 import styles from "./metrics.module.css";
 
 function MetricsView() {
   const params = useSearchParams();
-  const citySlug = params.get("city") ?? "san-francisco";
+  const citySlug = getWasteApiSlug(params.get("city"));
   const { data, isLoading, error, refetch } = useWasteAdminDetectors(citySlug);
 
   const grouped = useMemo<Record<DetectorCategoryId, Detector[]>>(() => {

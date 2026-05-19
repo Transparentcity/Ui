@@ -15,11 +15,12 @@ import {
   adaptFinding,
   adaptReportDetail,
 } from "@/lib/admin/waste/adapters";
+import { getWasteApiSlug } from "@/lib/admin/waste/cities";
 import styles from "./reportDetail.module.css";
 
 function ReportDetailView({ slug }: { slug: string }) {
   const params = useSearchParams();
-  const citySlug = params.get("city") ?? "san-francisco";
+  const citySlug = getWasteApiSlug(params.get("city"));
   const { data, isLoading, error, refetch } = useWasteAdminReport(slug, citySlug);
 
   if (error) {
@@ -48,7 +49,13 @@ function ReportDetailView({ slug }: { slug: string }) {
   }
 
   const report = adaptReportDetail(data);
-  const reportFindings = data.findings.map(adaptFinding);
+  const reportFindings = [...data.findings]
+    .sort((a, b) => {
+      const av = a.estimated_dollar_impact ?? a.amount ?? 0;
+      const bv = b.estimated_dollar_impact ?? b.amount ?? 0;
+      return bv - av;
+    })
+    .map(adaptFinding);
   const status = report.status;
   const isFinal = status === "final";
   const isDraft = status === "draft";

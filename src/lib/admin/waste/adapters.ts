@@ -38,7 +38,7 @@ export function statusFromBackend(value: string | null | undefined): FindingStat
 const CATEGORY_KEYWORDS: ReadonlyArray<[RegExp, DetectorCategoryId]> = [
   [/(vendor|procurement|contract|invoice)/i, "vendor"],
   [/(payroll|pension|salary|overtime)/i, "payroll"],
-  [/(benefit|claim|workers.?comp|wc)/i, "benefits"],
+  [/(benefit|claim|workers[\s-]?comp|\bwc\b)/i, "benefits"],
   [/(permit|inspection|inspector)/i, "permits"],
   [/(p.?card|expense|card)/i, "cards"],
   [/(benford|statistic|anomaly|convergence|integrity)/i, "stat"],
@@ -105,7 +105,7 @@ function relativeTime(iso: string | null): string {
   if (!iso) return "—";
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return "—";
-  const diff = Date.now() - t;
+  const diff = Math.max(0, Date.now() - t);
   const min = Math.round(diff / 60_000);
   if (min < 1) return "Just now";
   if (min < 60) return `${min} min ago`;
@@ -116,10 +116,20 @@ function relativeTime(iso: string | null): string {
   return new Date(iso).toLocaleDateString();
 }
 
+function parseConfidence(value: string | number | null | undefined): number {
+  if (value == null) return 0;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return 0;
+  // Accept either 0–1 or 0–100 inputs; normalize to 0–100.
+  const pct = n <= 1 ? n * 100 : n;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
 export function adaptFinding(f: WasteAdminFindingRow): Finding {
   const subjectParts: string[] = [];
   if (f.entity_name) subjectParts.push(f.entity_name);
   if (f.subcategory) subjectParts.push(f.subcategory);
+  const detailConfidence = (f as Partial<{ confidence_score: number | null }>).confidence_score;
   return {
     id: f.finding_id || String(f.id),
     detectorId: f.detector_key,
@@ -127,7 +137,7 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
     subject: subjectParts.join(" · ") || (f.detector_name ?? f.detector_key),
     department: f.department || "—",
     amount: formatAmount(f.estimated_dollar_impact ?? f.amount),
-    confidence: 0,
+    confidence: parseConfidence(detailConfidence ?? f.confidence),
     flagged: relativeTime(f.created_at),
     detail: f.description || f.detector_name || "",
     severity: severityFromBackend(f.severity),

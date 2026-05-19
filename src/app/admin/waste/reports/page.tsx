@@ -7,11 +7,12 @@ import { useSearchParams } from "next/navigation";
 import { Button, Mono, ReportStatusChip } from "@/components/admin/waste/primitives";
 import { useWasteAdminReports } from "@/lib/hooks/useWasteAdmin";
 import { adaptReportRow } from "@/lib/admin/waste/adapters";
+import { getWasteApiSlug } from "@/lib/admin/waste/cities";
 import styles from "./reports.module.css";
 
 function ReportsView() {
   const params = useSearchParams();
-  const citySlug = params.get("city") ?? "san-francisco";
+  const citySlug = getWasteApiSlug(params.get("city"));
   const { data, isLoading, error, refetch } = useWasteAdminReports(citySlug);
 
   const rows = useMemo(() => (data ?? []).map(adaptReportRow), [data]);
@@ -75,7 +76,7 @@ function ReportsView() {
           </div>
         ) : (
           rows.map(r => {
-            const href = `/admin/waste/reports/${r.slug}?city=${encodeURIComponent(citySlug)}`;
+            const href = `/admin/waste/reports/${encodeURIComponent(r.slug)}?city=${encodeURIComponent(citySlug)}`;
             return (
               <Link key={r.slug} href={href} className={styles.row} data-slug={r.slug}>
                 <div className={styles.titleCell}>
