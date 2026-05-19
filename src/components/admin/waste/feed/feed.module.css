@@ -10,6 +10,56 @@
   background: #fff;
 }
 
+/* Findings page wrapper (replaces /feed). Adds a thin header bar with a
+   Full/Brief view toggle above the column layout. */
+.findingsPage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: #fff;
+}
+.viewToggleBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+}
+.viewToggleLabel {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+.viewToggle {
+  display: inline-flex;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.viewToggleBtn {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border: 0;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+.viewToggleBtn + .viewToggleBtn {
+  border-left: 1px solid #e5e7eb;
+}
+.viewToggleBtnActive {
+  background: rgba(173, 53, 250, 0.08);
+  color: #7c3aed;
+}
+
 /* ─── DetectorRail (col 1) ─────────────────────────────────────────────── */
 .detectorRail {
   width: 268px;
