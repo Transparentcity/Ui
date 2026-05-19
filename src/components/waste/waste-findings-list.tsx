@@ -23,7 +23,7 @@ export interface GroupedSubcategory {
   subGroups?: SubGroup[]
 }
 
-export type FindingSortMode = "severity" | "amount" | "demo"
+export type FindingSortMode = "severity" | "amount"
 
 interface WasteFindingsListProps {
   findings: WasteFinding[]
@@ -108,22 +108,6 @@ export function WasteFindingsList({
     setExpandedFindingId((prev) => (prev === id ? null : id))
   }
 
-  // Demo-quality sorted findings (flat list, no grouping)
-  const demoSorted = useMemo(() => {
-    if (sortMode !== "demo") return null
-    return [...findings].sort((a, b) => {
-      const scoreA =
-        (a.amount ?? 0) *
-        (a.signal_tier === "primary" ? 2 : 1) *
-        (a.priority_score ?? 1)
-      const scoreB =
-        (b.amount ?? 0) *
-        (b.signal_tier === "primary" ? 2 : 1) *
-        (b.priority_score ?? 1)
-      return scoreB - scoreA
-    })
-  }, [findings, sortMode])
-
   // Amount-sorted findings (flat list)
   const amountSorted = useMemo(() => {
     if (sortMode !== "amount") return null
@@ -197,18 +181,12 @@ export function WasteFindingsList({
     )
   }
 
-  // Flat list for demo or amount sort modes
-  const flatList = demoSorted ?? amountSorted
-  if (flatList) {
+  // Flat list for amount sort mode
+  if (amountSorted) {
     return (
       <div className="space-y-2">
-        {flatList.map((finding, i) => (
+        {amountSorted.map((finding) => (
           <div key={finding.id} className="relative">
-            {sortMode === "demo" && (
-              <span className="absolute -left-8 top-3 text-xs font-bold text-gray-300 tabular-nums">
-                #{i + 1}
-              </span>
-            )}
             <WasteFindingCard
               finding={finding}
               isExpanded={expandedFindingId === finding.id}

@@ -6,9 +6,6 @@ import type { WasteDetectorAccuracy } from "@/lib/apiClient"
 import { cn } from "@/lib/utils"
 import {
   Sparkles,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Brain,
   CheckCircle2,
   XCircle,
@@ -64,10 +61,6 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
 
     const fpRate = totalDispositions > 0 ? fpCount / totalDispositions : 0
 
-    // Simulated baseline precision (before any calibration)
-    const baselinePrecision = 0.5
-    const precisionImprovement = avgPrecision - baselinePrecision
-
     return {
       totalDispositions,
       totalFindings,
@@ -75,7 +68,6 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
       fpCount,
       avgPrecision,
       fpRate,
-      precisionImprovement,
       detectorCount: withData.length,
     }
   }, [data])
@@ -122,38 +114,6 @@ export function ModelHealth({ cityId, className }: ModelHealthProps) {
               </div>
               <div className="text-[10px] text-gray-500">FP Rate</div>
             </div>
-          </div>
-
-          {/* Precision improvement */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 border border-purple-100">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-500" />
-              <span className="text-xs font-medium text-purple-800">
-                Precision vs Baseline
-              </span>
-            </div>
-            <span className="flex items-center gap-1 text-sm font-bold">
-              {stats.precisionImprovement > 0 ? (
-                <>
-                  <TrendingUp className="w-4 h-4 text-emerald-500" />
-                  <span className="text-emerald-600">
-                    +{Math.round(stats.precisionImprovement * 100)}pp
-                  </span>
-                </>
-              ) : stats.precisionImprovement < 0 ? (
-                <>
-                  <TrendingDown className="w-4 h-4 text-red-500" />
-                  <span className="text-red-600">
-                    {Math.round(stats.precisionImprovement * 100)}pp
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Minus className="w-4 h-4 text-gray-500" />
-                  <span className="text-gray-500">0pp</span>
-                </>
-              )}
-            </span>
           </div>
 
           {/* Disposition breakdown */}
