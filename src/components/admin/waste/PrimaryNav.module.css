@@ -34,7 +34,7 @@
   padding: 10px 12px;
   border: 1px solid var(--nav-border);
   background: var(--nav-bg-raised);
-  color: #fff;
+  color: var(--nav-text);
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
@@ -45,7 +45,7 @@
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 700;
-  color: #fff;
+  color: var(--nav-text);
   line-height: 1.1;
 }
 .cityMeta {
@@ -60,10 +60,10 @@
   left: 12px;
   right: 12px;
   z-index: 50;
-  background: var(--nav-bg-raised);
+  background: #ffffff;
   border: 1px solid var(--nav-border);
   border-radius: 8px;
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
   max-height: 420px;
   overflow-y: auto;
 }
@@ -89,18 +89,18 @@
   padding: 8px 12px;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: var(--nav-text);
   cursor: pointer;
   text-align: left;
 }
-.cityItem:hover { background: rgba(255, 255, 255, 0.04); }
-.cityItemActive { background: rgba(173, 53, 250, 0.15); }
-.cityItemActive:hover { background: rgba(173, 53, 250, 0.15); }
+.cityItem:hover { background: rgba(15, 23, 42, 0.04); }
+.cityItemActive { background: rgba(173, 53, 250, 0.10); }
+.cityItemActive:hover { background: rgba(173, 53, 250, 0.10); }
 .cityItemName {
   font-family: var(--font-ui);
   font-size: 12.5px;
   font-weight: 600;
-  color: #fff;
+  color: var(--nav-text);
 }
 .cityItemStatus {
   font-family: var(--font-ui);
@@ -157,7 +157,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #cbd5e1;
+  color: var(--nav-text-muted);
   font-family: var(--font-ui);
   font-size: 13.5px;
   font-weight: 500;
@@ -167,15 +167,15 @@
   cursor: pointer;
 }
 .navLink:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--nav-text);
 }
 .navLinkActive {
-  background: rgba(173, 53, 250, 0.18);
-  color: #fff;
+  background: rgba(173, 53, 250, 0.10);
+  color: #ad35fa;
   font-weight: 700;
 }
-.navLinkActive:hover { background: rgba(173, 53, 250, 0.18); }
+.navLinkActive:hover { background: rgba(173, 53, 250, 0.10); color: #ad35fa; }
 .navLinkRail {
   position: absolute;
   left: 0;
@@ -188,6 +188,7 @@
 .navLinkIcon { width: 15px; height: 15px; flex: 0 0 auto; }
 
 .navFooter {
+  position: relative;
   margin-top: auto;
   padding: 12px 14px;
   border-top: 1px solid var(--nav-border);
@@ -195,6 +196,36 @@
   font-size: 11px;
   color: var(--nav-text-dim);
 }
+
+.userMenu {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 12px;
+  right: 12px;
+  z-index: 50;
+  background: #ffffff;
+  border: 1px solid var(--nav-border);
+  border-radius: 8px;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+  padding: 4px;
+}
+.userMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nav-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.userMenuItem:hover { background: rgba(15, 23, 42, 0.04); }
 
 .userButton {
   display: flex;
@@ -210,7 +241,7 @@
   text-align: left;
   transition: background 0.15s ease;
 }
-.userButton:hover { background: rgba(255, 255, 255, 0.04); }
+.userButton:hover { background: rgba(15, 23, 42, 0.04); }
 
 .userAvatar {
   width: 28px;
@@ -240,7 +271,7 @@
 .userName {
   font-size: 12.5px;
   font-weight: 600;
-  color: #fff;
+  color: var(--nav-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
