@@ -16,7 +16,7 @@ import type {
   CityScheduleRun,
   CityScheduleStructureSummary,
 } from "@/lib/apiClient";
-import { batchExecuteMetrics, getCityScheduleHealth } from "@/lib/apiClient";
+import { batchExecuteMetrics, getCityScheduleHealth, patchMetricMetadata } from "@/lib/apiClient";
 import MetricEditModal from "./MetricEditModal";
 import {
   BadgeCheck,
@@ -152,15 +152,13 @@ const BUCKET_COLOR: Record<CityFreshnessMetricRow["bucket"], string> = {
   no_data: "#9ca3af",
 };
 
-function sortMetricsByStaleness(rows: CityFreshnessMetricRow[]): CityFreshnessMetricRow[] {
+function sortMetricsByCategoryThenName(rows: CityFreshnessMetricRow[]): CityFreshnessMetricRow[] {
   return [...rows].sort((a, b) => {
-    const bucketDiff = BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket];
-    if (bucketDiff !== 0) return bucketDiff;
-    // Within same bucket, sort stalest first (highest days_old first; null last)
-    if (a.days_old == null && b.days_old == null) return 0;
-    if (a.days_old == null) return 1;
-    if (b.days_old == null) return -1;
-    return b.days_old - a.days_old;
+    const catA = (a.category ?? "").toLowerCase();
+    const catB = (b.category ?? "").toLowerCase();
+    const catCmp = catA.localeCompare(catB, undefined, { sensitivity: "base" });
+    if (catCmp !== 0) return catCmp;
+    return a.metric_name.localeCompare(b.metric_name, undefined, { sensitivity: "base" });
   });
 }
 
@@ -341,14 +339,79 @@ function lastRunIsoForDisplay(run: CityScheduleRun | null): string | null {
   return run.completed_at ?? run.updated_at ?? run.created_at;
 }
 
+interface ReviewedOverride {
+  reviewed: boolean;
+  reviewed_by: string;
+  reviewed_at: string;
+}
+
 function MetricHealthTable({
   rows,
   onEditMetric,
+  getAccessTokenSilently,
+  userId,
 }: {
   rows: CityFreshnessMetricRow[];
   onEditMetric: (metricId: number) => void;
+  getAccessTokenSilently: () => Promise<string>;
+  userId: string | undefined;
 }) {
-  const sorted = sortMetricsByStaleness(rows);
+  // Optimistic overrides: metricId → reviewed state (cleared on parent refresh)
+  const [reviewOverrides, setReviewOverrides] = useState<Map<number, ReviewedOverride>>(
+    new Map()
+  );
+  const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
+
+  const sorted = sortMetricsByCategoryThenName(rows);
+
+  const handleReviewToggle = async (m: CityFreshnessMetricRow, newChecked: boolean) => {
+    const id = m.metric_id;
+    const prevOverride = reviewOverrides.get(id);
+    const prevReviewed = prevOverride?.reviewed ?? (m.metadata?.reviewed === true);
+
+    // Optimistic update
+    const override: ReviewedOverride = {
+      reviewed: newChecked,
+      reviewed_by: userId ?? "unknown",
+      reviewed_at: new Date().toISOString(),
+    };
+    setReviewOverrides((prev) => new Map(prev).set(id, override));
+    setSavingIds((prev) => new Set(prev).add(id));
+
+    try {
+      const t = await getAccessTokenSilently();
+      await patchMetricMetadata(id, override, t);
+    } catch (err) {
+      console.error("Failed to save reviewed state", err);
+      // Revert to previous
+      setReviewOverrides((prev) => {
+        const next = new Map(prev);
+        if (prevOverride !== undefined) {
+          next.set(id, prevOverride);
+        } else {
+          next.delete(id);
+        }
+        return next;
+      });
+      // Restore previous reviewed value as override so UI is consistent
+      if (prevReviewed !== newChecked) {
+        setReviewOverrides((prev) =>
+          new Map(prev).set(id, {
+            reviewed: prevReviewed,
+            reviewed_by: String(m.metadata?.reviewed_by ?? ""),
+            reviewed_at: String(m.metadata?.reviewed_at ?? ""),
+          })
+        );
+      }
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
   if (sorted.length === 0) {
     return <p style={{ fontSize: "0.72rem", margin: "0.25rem 0", color: "var(--text-secondary, #6b7280)" }}>No metrics.</p>;
   }
@@ -358,6 +421,8 @@ function MetricHealthTable({
         <thead>
           <tr>
             <th>Metric</th>
+            <th>Category</th>
+            <th>Template</th>
             <th>Last data</th>
             <th>Age</th>
             <th title="Date of last execution, colored by run status">Last run</th>
@@ -365,8 +430,8 @@ function MetricHealthTable({
               Charts
             </th>
             <th title="District in map_config or location_fields (name heuristic)">Dist</th>
-            <th title="District + data date + last run success">Δ OK</th>
             <th title="map_query or lat/lon in map_config">Map</th>
+            <th title="Metric has been reviewed by an admin">Reviewed</th>
             <th />
           </tr>
         </thead>
@@ -375,22 +440,41 @@ function MetricHealthTable({
             const execStatus = formatExecStatus(m.last_execution_status);
             const charts = m.charts ?? 0;
             const hasDist = m.has_district_field === true;
-            const distOk = m.district_working === true;
             const hasMap = m.has_map_fields === true;
             const isProblematic =
               m.bucket === "stale" ||
               m.bucket === "no_data" ||
               execStatus.isError ||
               charts === 0;
-            const rowStyle = isProblematic
-              ? { background: "rgba(239,68,68,0.06)" }
-              : undefined;
             const bucketColor = BUCKET_COLOR[m.bucket];
             const runDateColor = execStatus.isError ? "#ef4444" : "#10b981";
+
+            const override = reviewOverrides.get(m.metric_id);
+            const isReviewed = override !== undefined
+              ? override.reviewed
+              : m.metadata?.reviewed === true;
+            const isSaving = savingIds.has(m.metric_id);
+
+            const rowStyle = isReviewed
+              ? { background: "rgba(16,185,129,0.04)" }
+              : isProblematic
+              ? { background: "rgba(239,68,68,0.06)" }
+              : undefined;
+
             return (
               <tr key={m.metric_id} style={rowStyle}>
                 <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.metric_name}>
                   {m.metric_name}
+                </td>
+                <td style={{ whiteSpace: "nowrap", color: "var(--text-secondary, #6b7280)" }}>
+                  {m.category ?? <span style={{ color: "#9ca3af" }}>—</span>}
+                </td>
+                <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.template_name ?? undefined}>
+                  {m.template_name ? (
+                    <span style={{ color: "var(--text-secondary, #6b7280)" }}>{m.template_name}</span>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>—</span>
+                  )}
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   {m.most_recent_data_date ? (
@@ -433,20 +517,21 @@ function MetricHealthTable({
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
-                  {distOk ? (
-                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
-                  ) : hasDist ? (
-                    <span style={{ color: "#f59e0b", fontWeight: 600 }}>!</span>
-                  ) : (
-                    <span style={{ color: "#6b7280" }}>—</span>
-                  )}
-                </td>
-                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
                   {hasMap ? (
                     <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
                   ) : (
                     <span style={{ color: "#6b7280" }}>—</span>
                   )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={isReviewed}
+                    disabled={isSaving}
+                    onChange={(e) => handleReviewToggle(m, e.target.checked)}
+                    style={{ cursor: "pointer", accentColor: "#10b981" }}
+                    title="Mark as reviewed"
+                  />
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <button
@@ -484,7 +569,7 @@ export default function ScheduleHealthDashboard({
   getAccessTokenSilently,
   onViewJob,
 }: ScheduleHealthDashboardProps) {
-  const { isAuthenticated } = useAuth0();
+  const { isAuthenticated, user } = useAuth0();
   const [cities, setCities] = useState<CityScheduleHealth[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -855,6 +940,8 @@ export default function ScheduleHealthDashboard({
                               <MetricHealthTable
                                 rows={city.freshness_metrics}
                                 onEditMetric={setEditingMetricId}
+                                getAccessTokenSilently={getAccessTokenSilently}
+                                userId={user?.sub}
                               />
                             </div>
                           </div>

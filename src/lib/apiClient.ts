@@ -1511,6 +1511,20 @@ export function deleteAdminMetric(metricId: number, token: string): Promise<Admi
   return request<AdminMetricWriteResponse>(`/api/admin/metrics/${metricId}`, "DELETE", undefined, token);
 }
 
+/** Merge-patch specific keys into a metric's metadata JSON without touching other keys. */
+export function patchMetricMetadata(
+  metricId: number,
+  patch: Record<string, unknown>,
+  token: string
+): Promise<AdminMetricWriteResponse> {
+  return request<AdminMetricWriteResponse>(
+    `/api/admin/metrics/${metricId}/metadata-patch`,
+    "PATCH",
+    { patch },
+    token
+  );
+}
+
 export interface PurgeMetricDataResponse {
   metric_id: number;
   metric_name: string;
@@ -2297,6 +2311,13 @@ export interface CityFreshnessMetricRow {
   last_execution_status: string | null;
   /** Active time_series_metadata rows for this metric */
   charts: number;
+  /** Metric category */
+  category?: string | null;
+  /** Template this metric was instantiated from */
+  template_id?: number | null;
+  template_name?: string | null;
+  /** Full metadata JSON — used for reviewed flag and other ad-hoc fields */
+  metadata?: Record<string, unknown> | null;
   /** District column in map_config / location_fields heuristic */
   has_district_field?: boolean;
   /** District configured, has data date, last run success/completed */

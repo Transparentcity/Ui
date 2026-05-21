@@ -420,8 +420,6 @@
 }
 
 .metricTableWrap {
-  max-height: 340px;
-  overflow-y: auto;
   border: 1px solid var(--border-primary, #e5e7eb);
   border-radius: 6px;
 }
@@ -432,10 +430,7 @@
 }
 
 .metricTableWrap .miniTable thead th {
-  position: sticky;
-  top: 0;
   background: var(--bg-secondary, #f8f9fa);
-  z-index: 1;
 }
 
 :global([data-theme="dark"]) .metricTableWrap,

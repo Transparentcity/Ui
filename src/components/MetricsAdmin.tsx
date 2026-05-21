@@ -232,7 +232,7 @@ export default function MetricsAdmin() {
   const types = typesQuery.data ?? [];
   const cities = citiesQuery.data ?? [];
   
-  // Apply client-side freshness filters only; order is from backend (last run descending)
+  // Apply client-side filters, then sort by category → metric_name
   const metrics = useMemo(() => {
     let filtered = metricsQuery.data ?? [];
     
@@ -247,8 +247,12 @@ export default function MetricsAdmin() {
         (m) => (m.freshness?.lag_days ?? Infinity) <= maxLagDays
       );
     }
-    
-    return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const catCmp = (a.category ?? "").localeCompare(b.category ?? "", undefined, { sensitivity: "base" });
+      if (catCmp !== 0) return catCmp;
+      return (a.metric_name ?? "").localeCompare(b.metric_name ?? "", undefined, { sensitivity: "base" });
+    });
   }, [metricsQuery.data, selectedUpdateFrequency, maxLagDays]);
   
   const loading = summaryQuery.isLoading || categoriesQuery.isLoading || 
