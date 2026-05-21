@@ -6,5 +6,5 @@ export default async function WasteIndex({
   searchParams: Promise<{ city?: string }>;
 }) {
   const { city } = await searchParams;
-  redirect(city ? `/admin/waste/feed?city=${encodeURIComponent(city)}` : "/admin/waste/feed");
+  redirect(city ? `/admin/waste/findings?city=${encodeURIComponent(city)}` : "/admin/waste/findings");
 }

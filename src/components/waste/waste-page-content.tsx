@@ -49,7 +49,7 @@ const STALE_DATA_WARNING_DAYS = 7
 
 const SEVERITY_FILTERS: SeverityFilter[] = ["all", "critical", "high", "medium"]
 const SIGNAL_TIER_FILTERS: SignalTierFilter[] = ["primary", "all"]
-const SORT_MODES: FindingSortMode[] = ["severity", "amount", "demo"]
+const SORT_MODES: FindingSortMode[] = ["severity", "amount"]
 
 function readInitialFilters(): {
   severity: SeverityFilter
@@ -979,7 +979,6 @@ export function WastePageContent() {
                       className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 cursor-pointer"
                     >
                       <option value="severity">Severity</option>
-                      <option value="demo">Demo Quality</option>
                       <option value="amount">Dollar Amount</option>
                     </select>
                   </div>

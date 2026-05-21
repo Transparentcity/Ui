@@ -23,14 +23,14 @@ type NavItem = {
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { id: "feed", label: "Feed", href: "/admin/waste/feed",
-    iconPath: <path d="M4 6h16M4 12h16M4 18h10" /> },
-  { id: "metrics", label: "Metrics", href: "/admin/waste/metrics",
-    iconPath: <path d="M3 3v18h18M7 14l3-3 4 4 5-6" /> },
   { id: "findings", label: "Findings", href: "/admin/waste/findings",
     iconPath: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></> },
+  { id: "metrics", label: "Metrics", href: "/admin/waste/metrics",
+    iconPath: <path d="M3 3v18h18M7 14l3-3 4 4 5-6" /> },
   { id: "reports", label: "Reports", href: "/admin/waste/reports",
     iconPath: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></> },
+  { id: "data-sources", label: "Data sources", href: "/admin/waste/data-sources",
+    iconPath: <><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" /></> },
 ];
 
 export function PrimaryNav() {
@@ -96,6 +96,8 @@ export function PrimaryNav() {
               onClick={() => setUserMenuOpen(o => !o)}
               aria-haspopup="menu"
               aria-expanded={userMenuOpen}
+              aria-label="Account"
+              title={user?.name || user?.email || "Account"}
             >
               <span className={styles.userAvatar}>
                 {user?.picture ? (
@@ -103,9 +105,6 @@ export function PrimaryNav() {
                 ) : (
                   avatarInitial(user?.name, user?.email)
                 )}
-              </span>
-              <span className={styles.userText}>
-                <span className={styles.userName}>{user?.name || user?.email || "Account"}</span>
               </span>
             </button>
             {userMenuOpen && (
@@ -129,11 +128,10 @@ export function PrimaryNav() {
             type="button"
             className={styles.userButton}
             onClick={() => loginWithRedirect()}
+            aria-label="Sign in"
+            title="Sign in"
           >
             <span className={styles.userAvatar}>?</span>
-            <span className={styles.userText}>
-              <span className={styles.userName}>Sign in</span>
-            </span>
           </button>
         )}
       </div>
