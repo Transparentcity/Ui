@@ -1,4 +1,4 @@
-import { API_BASE } from "./apiBase";
+import { getApiBaseUrl } from "./apiBase";
 
 export type NewsletterEditionData = {
   id: number;
@@ -28,7 +28,7 @@ export async function getNewsletterEdition(
   slug: string,
   shortHash: string
 ): Promise<NewsletterEditionData> {
-  const url = `${API_BASE}/api/newsletter/editions/by-hash/${encodeURIComponent(shortHash)}`;
+  const url = `${getApiBaseUrl()}/api/newsletter/editions/by-hash/${encodeURIComponent(shortHash)}`;
 
   const res = await fetch(url, {
     method: "GET",
@@ -49,7 +49,7 @@ export async function getNewsletterEdition(
 }
 
 export async function listNewsletterEditionsForSitemap(): Promise<NewsletterEditionSitemapItem[]> {
-  const url = `${API_BASE}/api/newsletter/editions/sitemap`;
+  const url = `${getApiBaseUrl()}/api/newsletter/editions/sitemap`;
 
   try {
     const res = await fetch(url, {

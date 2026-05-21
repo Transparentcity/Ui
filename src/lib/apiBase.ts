@@ -1,12 +1,30 @@
 /**
+ * Production site origin for server-side fetches (SSR, sitemap, etc.).
+ * Prefer same-origin /api/* rewrites instead of calling api.* directly from
+ * Vercel/serverless — direct upstream calls have intermittently returned 502.
+ */
+function getProductionSiteOrigin(): string | null {
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+  if (explicit) return explicit.replace(/\/$/, "");
+  const vercel = process.env.VERCEL_URL;
+  if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
+  return null;
+}
+
+/**
  * Get the API base URL based on environment.
  *
  * Browser (production): "" (empty — all /api/* calls go through Next.js
  *   rewrites which proxy to the backend, avoiding CORS issues)
- * Server-side (SSR/API routes): uses NEXT_PUBLIC_API_BASE_URL env var
- * Development: http://localhost:8001 (or from env var)
+ * Server-side (SSR/API routes): production uses NEXT_PUBLIC_SITE_URL so
+ *   /api/* is proxied like the browser; dev uses NEXT_PUBLIC_API_BASE_URL
+ *   or http://localhost:8001
  */
 function computeServerSideApiBase(): string {
+  if (process.env.NODE_ENV === "production") {
+    const siteOrigin = getProductionSiteOrigin();
+    if (siteOrigin) return siteOrigin;
+  }
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
   }

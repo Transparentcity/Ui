@@ -7,7 +7,7 @@ import styles from "./sitemap.module.css";
 import PublicFooter from "@/components/PublicFooter";
 import Header from "@/components/Header";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
-import { API_BASE } from "@/lib/apiBase";
+import { getApiBaseUrl } from "@/lib/apiBase";
 import { slugify } from "@/lib/utils";
 
 export const revalidate = 3600;
@@ -109,7 +109,7 @@ export default async function SiteMapPage() {
       error = e.message;
       // Log error details for debugging (only in server-side, won't expose to client)
       console.error(
-        `[SiteMap] Failed to load cities from ${API_BASE}/api/public/cities/sitemap:`,
+        `[SiteMap] Failed to load cities from ${getApiBaseUrl()}/api/public/cities/sitemap:`,
         e.message
       );
     } else {
