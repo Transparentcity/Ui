@@ -339,11 +339,11 @@ function lastRunIsoForDisplay(run: CityScheduleRun | null): string | null {
   return run.completed_at ?? run.updated_at ?? run.created_at;
 }
 
-interface ReviewedOverride {
+type ReviewedOverride = Record<string, unknown> & {
   reviewed: boolean;
   reviewed_by: string;
   reviewed_at: string;
-}
+};
 
 function MetricHealthTable({
   rows,
