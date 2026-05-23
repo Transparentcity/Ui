@@ -33,7 +33,7 @@ export const revalidate = 3600;
 
 /** Hardcoded marketing samples on /get/{slug} hero (pending newsletter id). */
 const FEATURED_PENDING_BY_SLUG: Record<string, number> = {
-  cincinnati: 263,
+  cincinnati: 266,
 };
 
 function getCanonicalCitySlug(
