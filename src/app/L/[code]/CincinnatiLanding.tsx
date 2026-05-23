@@ -237,16 +237,7 @@ function Hero({
             One Sunday-morning email. Real numbers from Cincinnati open data, permits, 311s, crime stats, restaurant openings, and the changes that actually affect your neighborhood.
           </p>
 
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: 14.5,
-              color: "#6b7280",
-              margin: "0 0 26px",
-            }}
-          >
-            Free, forever. Unsubscribe whenever.
-          </p>
+          <div style={{ height: 22 }} />
 
           <EmailSignupForm
             citySlug={citySlug}

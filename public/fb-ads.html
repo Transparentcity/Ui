@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Cincinnati FB Ad Mockups · transparent.city</title>
+<meta name="robots" content="noindex"/>
+<link rel="icon" href="/favicon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #ad35fa;
+    --brand-dark: #6d28d9;
+    --ink: #111827;
+    --muted: #6b7280;
+    --good: #059669;
+    --bad: #dc2626;
+    --font-heading: "Archivo", -apple-system, sans-serif;
+    --font-body: "Inter", -apple-system, sans-serif;
+    --font-data: "IBM Plex Sans", -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 48px 24px;
+    background: #1a1a1a;
+    color: #fff;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-title {
+    max-width: 1200px;
+    margin: 0 auto 16px;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 32px;
+    letter-spacing: -0.03em;
+  }
+  .page-sub {
+    max-width: 1200px;
+    margin: 0 auto 48px;
+    color: #9ca3af;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .page-sub code { background: #2a2a2a; padding: 2px 6px; border-radius: 4px; }
+  .grid {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 36px;
+  }
+  .card {
+    background: #fff;
+    color: var(--ink);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+  }
+  .card-meta {
+    background: #fff;
+    color: var(--ink);
+    padding: 16px 18px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .meta-name {
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+  }
+  .meta-size {
+    font-family: var(--font-data);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .cta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--brand), #8b5cf6);
+    color: #fff;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 18px;
+    box-shadow: 0 8px 24px rgba(173,53,250,0.35);
+  }
+
+  /* ============================================================
+   * AD 1 — The big drop
+   * ============================================================ */
+  .ad-1 {
+    width: 1080px; height: 1080px;
+    background:
+      radial-gradient(900px 540px at 18% -10%, rgba(173,53,250,0.18), transparent 60%),
+      radial-gradient(800px 480px at 92% 8%, rgba(245,158,11,0.07), transparent 55%),
+      #fff;
+    padding: 56px 60px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .ad-1 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .ad-1 .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px 6px 10px; border-radius: 999px;
+    background: rgba(173,53,250,0.10); border: 1px solid rgba(173,53,250,0.20);
+    color: #7c3aed; font-size: 16px; font-weight: 600;
+  }
+  .ad-1 .brand-line {
+    font-family: var(--font-heading); font-weight: 900; font-size: 22px;
+    letter-spacing: -0.03em; color: var(--ink);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .ad-1 .brand-line .dot-purple { color: var(--brand); }
+  .ad-1 .stat {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 220px; line-height: 0.9; letter-spacing: -0.05em;
+    color: var(--good); margin: 0;
+  }
+  .ad-1 .stat-label {
+    font-family: var(--font-heading); font-weight: 800;
+    font-size: 36px; line-height: 1.05; letter-spacing: -0.025em;
+    color: var(--ink); margin: 12px 0 0; max-width: 18ch;
+  }
+  .ad-1 .stat-sub {
+    font-family: var(--font-data); font-size: 17px; color: var(--muted);
+    margin-top: 14px; font-weight: 500;
+  }
+  .ad-1 .footer-line {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .ad-1 .pitch {
+    font-family: var(--font-body); font-size: 19px; color: #374151;
+    max-width: 42ch; line-height: 1.4;
+  }
+  .ad-1 .pitch b { color: var(--ink); font-weight: 700; }
+
+  /* ============================================================
+   * AD 2 — The hook
+   * ============================================================ */
+  .ad-2 {
+    width: 1080px; height: 1080px;
+    background: #0f0a1f; color: #fff;
+    padding: 64px; display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .ad-2 .brand-line {
+    font-family: var(--font-heading); font-weight: 900; font-size: 22px;
+    letter-spacing: -0.03em;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .ad-2 .brand-line .dot-purple { color: #c4b5fd; }
+  .ad-2 h1 {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 96px; line-height: 0.96; letter-spacing: -0.045em;
+    margin: 0; color: #fff;
+  }
+  .ad-2 h1 .actually {
+    font-style: italic;
+    background-image: linear-gradient(120deg, #c4b5fd 0%, #ad35fa 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .ad-2 .sub {
+    font-family: var(--font-body); font-size: 26px; line-height: 1.4;
+    color: rgba(255,255,255,0.72); max-width: 36ch;
+  }
+  .ad-2 .row { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .ad-2 .source-row {
+    font-family: var(--font-data); font-size: 15px;
+    color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+
+  /* ============================================================
+   * AD 3 — The surprise
+   * ============================================================ */
+  .ad-3 {
+    width: 1080px; height: 1080px;
+    background: #fff; padding: 60px;
+    display: flex; flex-direction: column; justify-content: space-between; position: relative;
+  }
+  .ad-3 .top { display: flex; align-items: center; justify-content: space-between; }
+  .ad-3 .neighborhood {
+    font-family: var(--font-data); font-size: 15px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #7c3aed; font-weight: 700;
+  }
+  .ad-3 .big {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 200px; line-height: 0.9; letter-spacing: -0.05em;
+    color: var(--bad); margin: 0;
+  }
+  .ad-3 .arrow { color: var(--bad); font-size: 64px; margin-right: 10px; }
+  .ad-3 .head {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 56px; line-height: 1.0; letter-spacing: -0.035em;
+    margin: 20px 0 0; color: var(--ink); max-width: 17ch;
+  }
+  .ad-3 .body {
+    font-family: var(--font-body); font-size: 19px; line-height: 1.5;
+    color: #374151; max-width: 44ch; margin-top: 20px;
+  }
+  .ad-3 .chart { margin-top: 24px; display: flex; align-items: flex-end; gap: 12px; height: 110px; }
+  .ad-3 .bar { width: 56px; background: #e5e7eb; border-radius: 4px; position: relative; }
+  .ad-3 .bar.now { background: linear-gradient(180deg, var(--brand), var(--brand-dark)); }
+  .ad-3 .bar-label {
+    position: absolute; bottom: -32px; left: 0; right: 0; text-align: center;
+    font-family: var(--font-data); font-size: 13px; color: var(--muted);
+    font-weight: 600; white-space: nowrap;
+  }
+  .ad-3 .footer-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .ad-3 .pitch { font-family: var(--font-body); font-size: 19px; color: var(--ink); font-weight: 600; }
+
+  /* ============================================================
+   * AD 4 — The hyperlocal
+   * ============================================================ */
+  .ad-4 {
+    width: 1080px; height: 1080px;
+    background: #f8f9fa; padding: 60px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .ad-4 .header-row { display: flex; align-items: center; justify-content: space-between; }
+  .ad-4 .tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-body); font-size: 16px; font-weight: 700;
+    color: #7c3aed; background: rgba(173,53,250,0.08);
+    padding: 6px 14px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .ad-4 .num-row { display: flex; align-items: baseline; gap: 18px; margin-top: 24px; }
+  .ad-4 .num {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 280px; line-height: 0.85; letter-spacing: -0.05em;
+    color: var(--brand);
+  }
+  .ad-4 .num-suffix {
+    font-family: var(--font-heading); font-weight: 800;
+    font-size: 64px; letter-spacing: -0.025em; color: var(--brand);
+  }
+  .ad-4 .head {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 48px; line-height: 1.0; letter-spacing: -0.035em;
+    margin: 16px 0 0; color: var(--ink); max-width: 18ch;
+  }
+  .ad-4 .body {
+    font-family: var(--font-body); font-size: 19px; line-height: 1.5;
+    color: #374151; margin-top: 18px; max-width: 44ch;
+  }
+  .ad-4 .body b { color: var(--ink); }
+  .ad-4 .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .ad-4 .pitch {
+    font-family: var(--font-body); font-size: 19px; color: var(--ink);
+    font-weight: 600; max-width: 26ch; line-height: 1.4;
+  }
+
+  /* ============================================================
+   * AD 5 — The big CTA. The image IS the call to action.
+   * ============================================================ */
+  .ad-5 {
+    width: 1080px; height: 1080px;
+    background:
+      radial-gradient(900px 600px at 80% 0%, rgba(196,181,253,0.35), transparent 60%),
+      radial-gradient(700px 500px at 0% 100%, rgba(245,158,11,0.15), transparent 60%),
+      linear-gradient(160deg, #ad35fa 0%, #6d28d9 60%, #4c1d95 100%);
+    color: #fff;
+    padding: 70px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+  .ad-5 .brand-line {
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 24px; letter-spacing: -0.03em;
+    display: inline-flex; align-items: center; gap: 12px; color: #fff;
+  }
+  .ad-5 .brand-line .dot { color: #fbbf24; }
+  .ad-5 .tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: #fff; font-family: var(--font-body); font-weight: 700;
+    font-size: 17px; padding: 8px 16px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .ad-5 .header {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .ad-5 .cta-block {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
+    line-height: 0.94;
+    text-align: left;
+  }
+  .ad-5 .cta-block .small {
+    display: block;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: #fde68a;
+    margin-bottom: 22px;
+    text-transform: uppercase;
+  }
+  .ad-5 .cta-block .l1,
+  .ad-5 .cta-block .l2,
+  .ad-5 .cta-block .l3,
+  .ad-5 .cta-block .l4 {
+    display: block;
+    font-size: 110px;
+    line-height: 0.96;
+  }
+  .ad-5 .cta-block .l1 { color: #fde68a; }
+  .ad-5 .cta-block .l2 { color: #fff; }
+  .ad-5 .cta-block .l3 { color: #fff; }
+  .ad-5 .cta-block .l4 {
+    color: #fff;
+    background: rgba(0,0,0,0.18);
+    padding: 6px 18px;
+    margin-top: 12px;
+    border-radius: 12px;
+    width: max-content;
+    border-left: 8px solid #fde68a;
+  }
+  .ad-5 .footer-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  }
+  .ad-5 .arrow-cta {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 18px 32px; border-radius: 18px;
+    background: #fff; color: #6d28d9;
+    font-family: var(--font-heading); font-weight: 900;
+    font-size: 28px; letter-spacing: -0.02em;
+    text-transform: uppercase;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+  }
+  .ad-5 .arrow-cta .arrow {
+    font-size: 32px; transform: translateY(-1px);
+  }
+  .ad-5 .url-line {
+    font-family: var(--font-data); font-size: 18px; font-weight: 600;
+    color: rgba(255,255,255,0.85); letter-spacing: 0.02em;
+  }
+  .ad-5 .corner-bracket {
+    position: absolute;
+    width: 100px; height: 100px; opacity: 0.15;
+  }
+  .ad-5 .corner-bracket.tl { top: 30px; left: 30px; }
+  .ad-5 .corner-bracket.br { bottom: 30px; right: 30px; transform: rotate(180deg); }
+
+  /* ============================================================
+   * Copy block under each ad
+   * ============================================================ */
+  .copy-block {
+    background: #111; color: #e5e7eb;
+    border-top: 1px solid #2a2a2a;
+    padding: 18px 18px 22px;
+    font-size: 13.5px; line-height: 1.55;
+  }
+  .copy-block .label {
+    color: #9ca3af; font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin: 6px 0 2px;
+  }
+  .copy-block .label:first-child { margin-top: 0; }
+  .copy-block .v { font-family: var(--font-body); color: #fff; }
+  .copy-block .headline {
+    font-family: var(--font-heading); font-weight: 800;
+    color: #fff; font-size: 15px; letter-spacing: -0.02em;
+  }
+
+  .ad-frame {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: #fff;
+  }
+  .ad-frame svg { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Cincinnati FB ad mockups</h1>
+<p class="page-sub">
+  Five square (1:1) ad creative concepts that drive to <code>transparent.city/L/&lt;code&gt;</code>.
+  Each ad is rendered at native 1080×1080 inside an SVG so right-click → "Save image as..." gives you a pixel-perfect PNG ready for FB Ads Manager.
+  Copy under each card is the headline + primary text + CTA you'd paste into the ad set.
+</p>
+
+<div class="grid">
+
+  <!-- AD 1 -->
+  <div class="card">
+    <div class="card-meta">
+      <span class="meta-name">Ad 1 · The big drop</span>
+      <span class="meta-size">1080 × 1080</span>
+    </div>
+    <div class="ad-frame">
+      <svg viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+        <foreignObject x="0" y="0" width="1080" height="1080">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="ad-1">
+            <div class="top">
+              <span class="badge">🐅 The Cincinnati Weekly</span>
+              <span class="brand-line">
+                <svg viewBox="0 0 32 32" width="26" height="26" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L2 12 L6 12 L6 6 L12 6 L12 2 Z M30 2 L30 12 L26 12 L26 6 L20 6 L20 2 Z M2 30 L2 20 L6 20 L6 26 L12 26 L12 30 Z M30 30 L30 20 L26 20 L26 26 L20 26 L20 30 Z" fill="#111827"/></svg>
+                transparent<span class="dot-purple">.city</span>
+              </span>
+            </div>
+            <div>
+              <div class="stat">−11.7%</div>
+              <div class="stat-label">Property crime in Cincinnati this year.</div>
+              <div class="stat-sub">3,849 incidents YTD vs 4,359 last year · STARS data</div>
+            </div>
+            <div class="footer-line">
+              <div class="pitch"><b>One Sunday email</b> with the week's biggest changes in Cincinnati open data.</div>
+              <span class="cta-pill">Subscribe →</span>
+            </div>
+          </div>
+        </foreignObject>
+      </svg>
+    </div>
+    <div class="copy-block">
+      <div class="label">Primary text</div>
+      <div class="v">Cincinnati property crime is down 11.7% this year. Auto theft fell from 796 to 593, burglary from 649 to 497. Get the week's biggest moves in Cincinnati open data, every Sunday morning.</div>
+      <div class="label">Headline</div>
+      <div class="headline">What's actually changing in Cincinnati this week</div>
+      <div class="label">CTA button</div>
+      <div class="v">Subscribe</div>
+    </div>
+  </div>
+
+  <!-- AD 2 -->
+  <div class="card">
+    <div class="card-meta">
+      <span class="meta-name">Ad 2 · The hook</span>
+      <span class="meta-size">1080 × 1080</span>
+    </div>
+    <div class="ad-frame">
+      <svg viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+        <foreignObject x="0" y="0" width="1080" height="1080">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="ad-2">
+            <div class="brand-line">
+              <svg viewBox="0 0 32 32" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L2 12 L6 12 L6 6 L12 6 L12 2 Z M30 2 L30 12 L26 12 L26 6 L20 6 L20 2 Z M2 30 L2 20 L6 20 L6 26 L12 26 L12 30 Z M30 30 L30 20 L26 20 L26 26 L20 26 L20 30 Z" fill="#fff"/></svg>
+              transparent<span class="dot-purple">.city</span>
+            </div>
+            <h1>
+              What's<br/>
+              <span class="actually">actually</span><br/>
+              changing in<br/>
+              Cincinnati<br/>
+              this week.
+            </h1>
+            <div class="row">
+              <div class="sub">One Sunday email. Real numbers from Cincinnati open data, tied back to your block.</div>
+              <span class="cta-pill">Subscribe →</span>
+            </div>
+            <div class="source-row">🐅 The Cincinnati Weekly</div>
+          </div>
+        </foreignObject>
+      </svg>
+    </div>
+    <div class="copy-block">
+      <div class="label">Primary text</div>
+      <div class="v">Permits, 311s, crime stats, restaurant openings. We watch every series the city publishes and send you the week's biggest moves on Sunday morning.</div>
+      <div class="label">Headline</div>
+      <div class="headline">See Cincinnati clearly, every week</div>
+      <div class="label">CTA button</div>
+      <div class="v">Subscribe</div>
+    </div>
+  </div>
+
+  <!-- AD 3 -->
+  <div class="card">
+    <div class="card-meta">
+      <span class="meta-name">Ad 3 · The surprise</span>
+      <span class="meta-size">1080 × 1080</span>
+    </div>
+    <div class="ad-frame">
+      <svg viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+        <foreignObject x="0" y="0" width="1080" height="1080">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="ad-3">
+            <div class="top">
+              <span class="neighborhood">🐅 Cincinnati · 311 data</span>
+              <span style="font-family:var(--font-heading);font-weight:900;font-size:22px;letter-spacing:-0.03em;color:#111827;display:inline-flex;align-items:center;gap:10px">
+                <svg viewBox="0 0 32 32" width="26" height="26" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L2 12 L6 12 L6 6 L12 6 L12 2 Z M30 2 L30 12 L26 12 L26 6 L20 6 L20 2 Z M2 30 L2 20 L6 20 L6 26 L12 26 L12 30 Z M30 30 L30 20 L26 20 L26 26 L20 26 L20 30 Z" fill="#111827"/></svg>
+                transparent<span style="color:#ad35fa">.city</span>
+              </span>
+            </div>
+            <div>
+              <div style="display:flex;align-items:flex-end;gap:8px;line-height:0.9">
+                <span class="arrow">↑</span>
+                <div class="big">231%</div>
+              </div>
+              <div class="head">Cincinnati noise complaints are up 231% this year.</div>
+              <div class="body">377 noise complaints filed YTD through 311, vs 114 in the same period of 2025. The kind of move the city's data publishes quietly. We surface it.</div>
+              <div class="chart">
+                <div class="bar" style="height:35%"><div class="bar-label">2025: 114</div></div>
+                <div class="bar now" style="height:100%"><div class="bar-label">2026: 377</div></div>
+              </div>
+            </div>
+            <div class="footer-row" style="margin-top:48px">
+              <div class="pitch">Sunday email · One issue a week</div>
+              <span class="cta-pill">Subscribe →</span>
+            </div>
+          </div>
+        </foreignObject>
+      </svg>
+    </div>
+    <div class="copy-block">
+      <div class="label">Primary text</div>
+      <div class="v">Cincinnati 311 logged 377 noise complaints this year, 231% more than 2025. We watch every series the city publishes and email you the week's biggest moves. Sundays.</div>
+      <div class="label">Headline</div>
+      <div class="headline">What Cincinnati's 311 data is actually saying</div>
+      <div class="label">CTA button</div>
+      <div class="v">Subscribe</div>
+    </div>
+  </div>
+
+  <!-- AD 4 -->
+  <div class="card">
+    <div class="card-meta">
+      <span class="meta-name">Ad 4 · The hyperlocal</span>
+      <span class="meta-size">1080 × 1080</span>
+    </div>
+    <div class="ad-frame">
+      <svg viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+        <foreignObject x="0" y="0" width="1080" height="1080">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="ad-4">
+            <div class="header-row">
+              <span class="tag">🐅 North Avondale · One intersection</span>
+              <span style="font-family:var(--font-heading);font-weight:900;font-size:22px;letter-spacing:-0.03em;color:#111827;display:inline-flex;align-items:center;gap:10px">
+                <svg viewBox="0 0 32 32" width="26" height="26" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L2 12 L6 12 L6 6 L12 6 L12 2 Z M30 2 L30 12 L26 12 L26 6 L20 6 L20 2 Z M2 30 L2 20 L6 20 L6 26 L12 26 L12 30 Z M30 30 L30 20 L26 20 L26 26 L20 26 L20 30 Z" fill="#111827"/></svg>
+                transparent<span style="color:#ad35fa">.city</span>
+              </span>
+            </div>
+            <div>
+              <div class="num-row">
+                <span class="num">5</span>
+                <span class="num-suffix">repairs<br/>in 30 days</span>
+              </div>
+              <div class="head">A North Avondale traffic signal was fixed five times this month.</div>
+              <div class="body">The city closed <b>5 signal repair cases at 3924 Reading Rd</b> in the 30 days ending May 20. Zero the year before. The kind of story you only see if someone reads the data.</div>
+            </div>
+            <div class="footer-row">
+              <div class="pitch">We read Cincinnati's 311. You read our Sunday email.</div>
+              <span class="cta-pill">Subscribe →</span>
+            </div>
+          </div>
+        </foreignObject>
+      </svg>
+    </div>
+    <div class="copy-block">
+      <div class="label">Primary text</div>
+      <div class="v">One Cincinnati intersection logged 5 traffic signal repairs in 30 days. Last year it was zero. This is the kind of pattern open data shows when someone bothers to look.</div>
+      <div class="label">Headline</div>
+      <div class="headline">The story your city's data tells, every Sunday</div>
+      <div class="label">CTA button</div>
+      <div class="v">Subscribe</div>
+    </div>
+  </div>
+
+  <!-- AD 5 — The big CTA -->
+  <div class="card">
+    <div class="card-meta">
+      <span class="meta-name">Ad 5 · The big CTA</span>
+      <span class="meta-size">1080 × 1080</span>
+    </div>
+    <div class="ad-frame">
+      <svg viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+        <foreignObject x="0" y="0" width="1080" height="1080">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="ad-5">
+
+            <svg class="corner-bracket tl" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 2 L2 14 L6 14 L6 6 L14 6 L14 2 Z" fill="#fff"/>
+            </svg>
+            <svg class="corner-bracket br" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 2 L2 14 L6 14 L6 6 L14 6 L14 2 Z" fill="#fff"/>
+            </svg>
+
+            <div class="header">
+              <span class="brand-line">
+                <svg viewBox="0 0 32 32" width="30" height="30" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L2 12 L6 12 L6 6 L12 6 L12 2 Z M30 2 L30 12 L26 12 L26 6 L20 6 L20 2 Z M2 30 L2 20 L6 20 L6 26 L12 26 L12 30 Z M30 30 L30 20 L26 20 L26 26 L20 26 L20 30 Z" fill="#fff"/></svg>
+                transparent<span class="dot">.city</span>
+              </span>
+              <span class="tag">🐅 Cincinnati</span>
+            </div>
+
+            <div class="cta-block">
+              <span class="small">Sign up for the</span>
+              <span class="l1">Free</span>
+              <span class="l2">newsletter to</span>
+              <span class="l3">find out what's</span>
+              <span class="l4">in your data.</span>
+            </div>
+
+            <div class="footer-row">
+              <div class="url-line">transparent.city · One email a week</div>
+              <span class="arrow-cta">Sign up <span class="arrow">→</span></span>
+            </div>
+
+          </div>
+        </foreignObject>
+      </svg>
+    </div>
+    <div class="copy-block">
+      <div class="label">Primary text</div>
+      <div class="v">Sign up for a free newsletter to find out the data from your neighborhood in Cincinnati. Permits, 311 cases, crime stats, restaurant openings. One Sunday email, every week.</div>
+      <div class="label">Headline</div>
+      <div class="headline">The free Cincinnati newsletter built from your city's data</div>
+      <div class="label">Description</div>
+      <div class="v">One email a week. Real numbers from your block.</div>
+      <div class="label">CTA button</div>
+      <div class="v">Sign Up</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
