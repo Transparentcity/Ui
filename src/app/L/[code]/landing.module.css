@@ -1,0 +1,76 @@
+/* Cincinnati paid-acquisition landing: fonts and base styles.
+ * Three-family type system mirrored from the design handoff:
+ *   Inter (body/UI), Archivo (display), IBM Plex Sans (data). */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+.root {
+  --font-heading: "Archivo", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-data: "IBM Plex Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  font-family: var(--font-body);
+  color: #111827;
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.root * { box-sizing: border-box; }
+.root a { color: inherit; text-decoration: none; }
+
+@keyframes tc-brace-bl-breathe { 0%,100% { transform: translate(0,0); } 50% { transform: translate(2px,-2px); } }
+@keyframes tc-brace-tr-breathe { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-2px,2px); } }
+.braceBl { animation: tc-brace-bl-breathe 1.6s ease-in-out infinite; transform-origin: 16px 16px; }
+.braceTr { animation: tc-brace-tr-breathe 1.6s ease-in-out infinite; transform-origin: 16px 16px; }
+
+/* Responsive collapse. Using :global so literal classNames on JSX nodes match. */
+@media (max-width: 960px) {
+  .root :global(.heroGrid)    { grid-template-columns: 1fr !important; gap: 36px !important; }
+  .root :global(.briefGrid)   { grid-template-columns: repeat(2, 1fr) !important; }
+  .root :global(.storiesGrid) { grid-template-columns: 1fr !important; }
+  .root :global(.crossBlock)  { grid-template-columns: 1fr !important; }
+  .root :global(.crossBlock) > div:first-child {
+    border-right: 0 !important;
+    border-bottom: 1px solid #e5e7eb;
+    padding-right: 0 !important;
+    padding-bottom: 16px;
+  }
+  .root :global(.h1Hero) { font-size: 42px !important; }
+  .root :global(.h1CTA)  { font-size: 40px !important; }
+  .root :global(.numbersHeader) { grid-template-columns: 1.4fr 100px 110px !important; }
+  .root :global(.numbersHeader) > div:nth-child(2) { display: none; }
+  .root :global(.numbersRow) { grid-template-columns: 1.4fr 100px 110px !important; }
+  .root :global(.numbersRow)  > div:nth-child(2) { display: none; }
+}
+
+.root :global(.brHideMobile) { display: inline; }
+
+@media (max-width: 640px) {
+  .root :global(.brHideMobile) { display: none; }
+
+  .root :global(.briefGrid)   { grid-template-columns: 1fr !important; }
+  .root :global(.h1Hero) {
+    font-size: 30px !important;
+    line-height: 1.02 !important;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+  .root :global(.h1CTA)  {
+    font-size: 30px !important;
+    line-height: 1.02 !important;
+  }
+  /* Stack the email form so the long CTA label doesn't blow out the input. */
+  .root :global(.signupForm) {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .root :global(.signupForm) input,
+  .root :global(.signupForm) button { width: 100% !important; }
+  .root :global(.numbersHeader),
+  .root :global(.numbersRow) {
+    grid-template-columns: 1fr 80px 92px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
