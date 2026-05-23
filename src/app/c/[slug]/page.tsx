@@ -386,6 +386,18 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                   cityName={city?.name ?? slug}
                   cityId={city?.id}
                 />
+                <a
+                  href={`/get/${slug}`}
+                  style={{
+                    display: "inline-block",
+                    marginTop: 12,
+                    fontSize: 13,
+                    color: "var(--brand-primary, #ad35fa)",
+                    textDecoration: "none",
+                  }}
+                >
+                  Learn more about the {city?.name ?? slug} weekly →
+                </a>
               </div>
             </div>
           </div>

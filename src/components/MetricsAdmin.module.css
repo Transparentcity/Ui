@@ -728,6 +728,23 @@
   }
 }
 
+.metricsListTable .metricIdTh,
+.metricsListTable .metricIdTd {
+  width: 3.5rem;
+  max-width: 3.5rem;
+  padding-left: 8px;
+  padding-right: 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metricIdCell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
 .metricsListTable .metricNameContent {
   gap: 3px;
 }

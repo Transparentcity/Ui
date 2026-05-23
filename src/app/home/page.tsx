@@ -20,6 +20,7 @@ import {
   getCity,
   saveCity,
   generateSampleNewsletter,
+  resendWelcomeEmail,
   saveUserMetricOrdering,
   recordSignupIntent,
   getGovernmentVerificationStatus,
@@ -247,6 +248,7 @@ export default function DashboardPage() {
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
   const [sampleNewsletterSubject, setSampleNewsletterSubject] = useState<string | null>(null);
+  const [resendingWelcomeEmail, setResendingWelcomeEmail] = useState(false);
   const [testNewsletterGenerationMode, setTestNewsletterGenerationMode] = useState<"stories" | "seymour">("stories");
   const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
   const identityScopeKey = impersonationState
@@ -1306,6 +1308,40 @@ export default function DashboardPage() {
     }
   };
 
+  const handleResendWelcomeEmail = async () => {
+    setResendingWelcomeEmail(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await resendWelcomeEmail(token);
+      const kind = res.email_type === "place" ? "block (place-level)" : "city/district";
+      toast.success(
+        `Welcome email sent (${kind})${res.to_email ? ` to ${res.to_email}` : ""}.`
+      );
+    } catch (err: unknown) {
+      const detailMessages: Record<string, string> = {
+        no_email_on_account: "Add an email to your account first.",
+        no_saved_place_or_home_city:
+          "Set a home city or saved place first, then try again.",
+        email_delivery_problem:
+          "This account is flagged for email delivery problems.",
+        send_failed_or_skipped:
+          "Send was skipped (check SendGrid config or server logs).",
+      };
+      let message = "Failed to resend welcome email.";
+      if (err instanceof Error) {
+        const detailMatch = err.message.match(/"detail"\s*:\s*"([^"]+)"/);
+        const detail = detailMatch?.[1];
+        if (detail && detailMessages[detail]) {
+          message = detailMessages[detail];
+        }
+      }
+      console.error("Error resending welcome email:", err);
+      toast.error(message);
+    } finally {
+      setResendingWelcomeEmail(false);
+    }
+  };
+
   const handleGenerateSampleNewsletter = async () => {
     const homeLocation = userPreferences?.extra?.home_location;
     const cityId = homeLocation?.city_id;
@@ -2236,6 +2272,31 @@ export default function DashboardPage() {
                         </div>
                         <div className={styles.settingsRowControl}>
                           <button type="button" className={styles.settingsSecondaryBtn} onClick={handleResetOnboarding}>Reset</button>
+                        </div>
+                      </div>
+                      <div className={styles.settingsRow}>
+                        <div className={styles.settingsRowLabel}>
+                          <div className={styles.settingsRowTitle}>Resend welcome email</div>
+                          <div className={styles.settingsRowDescription}>
+                            Send the latest onboarding welcome email to your account email (place dashboard embed if you have a saved block, otherwise city/district).
+                          </div>
+                        </div>
+                        <div className={styles.settingsRowControl}>
+                          <button
+                            type="button"
+                            className={styles.settingsSecondaryBtn}
+                            onClick={handleResendWelcomeEmail}
+                            disabled={resendingWelcomeEmail}
+                          >
+                            {resendingWelcomeEmail ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                <Loader size="sm" color="dark" />
+                                Sending…
+                              </span>
+                            ) : (
+                              "Resend to me"
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>

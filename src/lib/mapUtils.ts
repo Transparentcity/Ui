@@ -310,7 +310,8 @@ export function buildStaticMapUrl(
   radiusM: number,
   zoom: number = DEFAULT_MAP_ZOOM,
   width: number = 340,
-  height: number = 160
+  height: number = 160,
+  theme: "light" | "dark" = "light"
 ): string | null {
   const token =
     typeof process !== "undefined" ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : undefined;
@@ -360,6 +361,6 @@ export function buildStaticMapUrl(
     ],
   };
   const encoded = encodeURIComponent(JSON.stringify(geojson));
-  const style = "mapbox/light-v11";
+  const style = theme === "dark" ? "mapbox/dark-v11" : "mapbox/light-v11";
   return `https://api.mapbox.com/styles/v1/${style}/static/geojson(${encoded})/${lng},${lat},${zoom}/${width}x${height}@2x?access_token=${token}`;
 }

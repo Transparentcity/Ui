@@ -36,6 +36,7 @@ export interface AnomalyResult {
   difference?: number | null;
   pct_change?: number | null;
   is_anomaly: boolean;
+  run_is_active?: boolean;
   chart_payload?: Record<string, any> | null;
   item_noun?: string | null;
   city_name?: string | null;

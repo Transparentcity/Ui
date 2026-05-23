@@ -16,7 +16,12 @@ import type {
   CityScheduleRun,
   CityScheduleStructureSummary,
 } from "@/lib/apiClient";
-import { batchExecuteMetrics, getCityScheduleHealth, patchMetricMetadata } from "@/lib/apiClient";
+import {
+  batchExecuteMetrics,
+  getCityScheduleHealth,
+  patchMetricMetadata,
+  updateAdminMetric,
+} from "@/lib/apiClient";
 import MetricEditModal from "./MetricEditModal";
 import {
   BadgeCheck,
@@ -360,6 +365,9 @@ function MetricHealthTable({
   const [reviewOverrides, setReviewOverrides] = useState<Map<number, ReviewedOverride>>(
     new Map()
   );
+  const [showOnDashOverrides, setShowOnDashOverrides] = useState<Map<number, boolean>>(
+    new Map()
+  );
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
 
   const sorted = sortMetricsByCategoryThenName(rows);
@@ -412,6 +420,36 @@ function MetricHealthTable({
     }
   };
 
+  const handleShowOnDashToggle = async (m: CityFreshnessMetricRow, newChecked: boolean) => {
+    const id = m.metric_id;
+    const prevChecked = showOnDashOverrides.get(id) ?? m.show_on_dash === true;
+
+    setShowOnDashOverrides((prev) => new Map(prev).set(id, newChecked));
+    setSavingIds((prev) => new Set(prev).add(id));
+
+    try {
+      const t = await getAccessTokenSilently();
+      await updateAdminMetric(id, { show_on_dash: newChecked }, t);
+    } catch (err) {
+      console.error("Failed to save show_on_dash", err);
+      setShowOnDashOverrides((prev) => {
+        const next = new Map(prev);
+        if (prevChecked === (m.show_on_dash === true)) {
+          next.delete(id);
+        } else {
+          next.set(id, prevChecked);
+        }
+        return next;
+      });
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
   if (sorted.length === 0) {
     return <p style={{ fontSize: "0.72rem", margin: "0.25rem 0", color: "var(--text-secondary, #6b7280)" }}>No metrics.</p>;
   }
@@ -431,6 +469,8 @@ function MetricHealthTable({
             </th>
             <th title="District in map_config or location_fields (name heuristic)">Dist</th>
             <th title="map_query or lat/lon in map_config">Map</th>
+            <th title="Point column or lat/lon — supports saved-place filtering">Precise</th>
+            <th title="Show on public city dashboard">Show on dash</th>
             <th title="Metric has been reviewed by an admin">Reviewed</th>
             <th />
           </tr>
@@ -441,6 +481,7 @@ function MetricHealthTable({
             const charts = m.charts ?? 0;
             const hasDist = m.has_district_field === true;
             const hasMap = m.has_map_fields === true;
+            const hasPrecise = m.has_precise_location === true;
             const isProblematic =
               m.bucket === "stale" ||
               m.bucket === "no_data" ||
@@ -453,6 +494,11 @@ function MetricHealthTable({
             const isReviewed = override !== undefined
               ? override.reviewed
               : m.metadata?.reviewed === true;
+            const showOnDashOverride = showOnDashOverrides.get(m.metric_id);
+            const showOnDash =
+              showOnDashOverride !== undefined
+                ? showOnDashOverride
+                : m.show_on_dash === true;
             const isSaving = savingIds.has(m.metric_id);
 
             const rowStyle = isReviewed
@@ -522,6 +568,23 @@ function MetricHealthTable({
                   ) : (
                     <span style={{ color: "#6b7280" }}>—</span>
                   )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                  {hasPrecise ? (
+                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                  ) : (
+                    <span style={{ color: "#6b7280" }}>—</span>
+                  )}
+                </td>
+                <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={showOnDash}
+                    disabled={isSaving}
+                    onChange={(e) => handleShowOnDashToggle(m, e.target.checked)}
+                    style={{ cursor: "pointer", accentColor: "#3b82f6" }}
+                    title="Show on public city dashboard"
+                  />
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
                   <input

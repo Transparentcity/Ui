@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { useAnomalyDetail } from "@/lib/hooks/useAnomalies";
 import AnomalyChart from "./AnomalyChart";
+import AnomalyInactiveBanner from "./AnomalyInactiveBanner";
 import { MetricLink } from "./MetricLink";
 import styles from "./MetricsAdmin.module.css";
 
@@ -119,6 +120,10 @@ export default function AnomalyChartModal({
                   )}
                 </div>
               </div>
+
+              {anomalyDetail.run_is_active === false && (
+                <AnomalyInactiveBanner compact />
+              )}
 
               <div style={{ marginTop: 14 }}>
                 <AnomalyChart

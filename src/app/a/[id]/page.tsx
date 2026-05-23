@@ -8,6 +8,7 @@ import { getPublicMetric, getPublicCityDetail, type PublicMetricDetail, type Pub
 import { slugify } from "@/lib/utils";
 import { parseLocalDate } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
+import AnomalyInactiveBanner from "@/components/AnomalyInactiveBanner";
 import { useTheme } from "@/contexts/ThemeContext";
 import "./styles.css";
 
@@ -54,6 +55,8 @@ interface Anomaly {
   difference: number;
   percent_change: number;
   is_anomaly: boolean;
+  /** False when a newer detection run superseded this result's run */
+  run_is_active?: boolean;
   chart_data: AnomalyChartData;
   metadata?: AnomalyMetadata;
   recent_date?: string;
@@ -250,6 +253,7 @@ export default function AnomalyChartPage() {
             difference: result.difference || 0,
             percent_change: result.pct_change || 0,
             is_anomaly: result.is_anomaly || false,
+            run_is_active: result.run_is_active !== false,
             chart_data: result.chart_payload
               ? {
                   dates: result.chart_payload.dates || [],
@@ -737,10 +741,13 @@ export default function AnomalyChartPage() {
     );
   }
 
+  const showInactiveBanner = anomaly.run_is_active === false;
+
   // Thumbnail mode — chart only, no chrome, for feed card previews
   if (isThumbnail) {
     return (
       <div className="anomaly-page embedded thumbnail">
+        {showInactiveBanner && <AnomalyInactiveBanner compact />}
         <div className="chart-container embedded-chart" ref={chartContainerRef}>
           {traces.length > 0 && (
             <Plot
@@ -943,6 +950,7 @@ export default function AnomalyChartPage() {
             Open full view ↗
           </a>
         </div>
+        {showInactiveBanner && <AnomalyInactiveBanner compact />}
         <div className="chart-container embedded-chart" ref={chartContainerRef}>
           {traces.length > 0 && (
             <Plot
@@ -1125,6 +1133,10 @@ export default function AnomalyChartPage() {
       </header>
 
       <article className="anomaly-article">
+        {showInactiveBanner && (
+          <AnomalyInactiveBanner className="anomaly-inactive-banner-full" />
+        )}
+
         {/* Hero Section - Anomaly Announcement */}
         <div className="anomaly-hero">
           <div className="anomaly-badge">

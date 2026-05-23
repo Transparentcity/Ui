@@ -31,6 +31,7 @@ import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
 import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
+import PlaceDashboardStories from "@/components/PlaceDashboardStories";
 import { resolveGeographicUnitLabel } from "@/lib/geographicUnitLabel";
 import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
@@ -2639,6 +2640,15 @@ export default function CityView({
             geographicUnitLabel={geographicUnitLabel}
             onEditMetrics={() => setUserOrderDialogOpen(true)}
           />
+          {selectedPlaceId != null && (
+            <PlaceDashboardStories
+              placeId={selectedPlaceId}
+              placeLabel={
+                userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null
+              }
+              isAdmin={isAdmin}
+            />
+          )}
         </section>
 
         {/* Alerts tab content (admin only) – lazy-mounted the first time the tab is opened */}

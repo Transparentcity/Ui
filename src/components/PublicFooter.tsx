@@ -26,6 +26,11 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
           <div className="footer-column">
             <h3 className="footer-title">Explore</h3>
             {citySlug && (
+              <Link href={`/get/${citySlug}`} className="footer-link">
+                Get the weekly
+              </Link>
+            )}
+            {citySlug && (
               <Link
                 href={`/c/${citySlug}/methodology`}
                 className="footer-link"

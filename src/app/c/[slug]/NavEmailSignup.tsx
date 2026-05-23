@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
 import { useSignupEmail } from "./SignupEmailContext";
+import { startPasswordlessEmailSignup } from "@/lib/passwordlessSignup";
 
 type Props = {
   citySlug: string;
@@ -11,9 +12,24 @@ type Props = {
   cityId?: number | null;
   /** When true, hides the authenticated home link (used on the feed page itself). */
   isHome?: boolean;
+  /** Analytics surface label (default: "city_page"). */
+  sourceSurface?: string;
+  /**
+   * When provided, stored in sessionStorage as `auth_return_after_check_email`
+   * instead of the current window path. Use on marketing pages that should
+   * not bounce the user back after sign-in.
+   */
+  overrideReturnPath?: string;
 };
 
-export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: Props) {
+export default function NavEmailSignup({
+  citySlug,
+  cityName,
+  cityId,
+  isHome,
+  sourceSurface,
+  overrideReturnPath,
+}: Props) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const { setEmail: setSharedEmail } = useSignupEmail();
   const [email, setEmail] = useState("");
@@ -37,10 +53,12 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
 
   const storeReturnPath = () => {
     if (typeof window === "undefined") return;
-    const currentPath = window.location.pathname + window.location.search;
-    if (currentPath !== "/check-email") {
+    const path =
+      overrideReturnPath ??
+      (window.location.pathname + window.location.search);
+    if (path !== "/check-email") {
       try {
-        sessionStorage.setItem("auth_return_after_check_email", currentPath);
+        sessionStorage.setItem("auth_return_after_check_email", path);
       } catch { /* ignore */ }
     }
   };
@@ -50,24 +68,14 @@ export default function NavEmailSignup({ citySlug, cityName, cityId, isHome }: P
     if (!email || !email.includes("@")) return;
     setStatus("sending");
     storeReturnPath();
-    // Persist signup intent and city context so the onboarding modal shows
-    // immediately when the user lands on /home after the magic-link flow,
-    // instead of waiting for the permissions API to finish.
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", "resident");
-      if (citySlug) window.localStorage.setItem("transparentcity.follow_city_slug", citySlug);
-      if (cityName) window.localStorage.setItem("transparentcity.follow_city_name", cityName);
-      if (typeof cityId === "number") window.localStorage.setItem("transparentcity.follow_city_id", String(cityId));
-    }
     try {
-      await loginWithRedirect({
-        authorizationParams: {
-          connection: "email",
-          login_hint: email,
-          scope: "openid profile email offline_access",
-          redirect_uri: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
-        appState: { returnTo: "/check-email" },
+      await startPasswordlessEmailSignup(loginWithRedirect, {
+        email,
+        sourceSurface: sourceSurface ?? "city_page",
+        citySlug,
+        cityName,
+        cityId,
+        returnAfterCheckEmail: overrideReturnPath,
       });
     } catch (err) {
       console.error("[NavEmailSignup] Auth0 redirect failed:", err);

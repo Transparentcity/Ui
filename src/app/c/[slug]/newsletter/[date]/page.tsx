@@ -155,6 +155,7 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
             fontWeight: 700,
             lineHeight: 1.2,
             marginBottom: 16,
+            color: "var(--text-primary)",
           }}
         >
           {edition.summary_headline || edition.subject || extractFirstH2(edition.body_html)}
@@ -177,6 +178,14 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
             {edition.district > 0 ? ` · District ${edition.district}` : ""}
           </span>
         </div>
+
+        {/* Intro / summary section */}
+        {edition.intro_html && (
+          <div
+            className="newsletter-intro-html"
+            dangerouslySetInnerHTML={{ __html: edition.intro_html }}
+          />
+        )}
 
         {/* Edition body */}
         <div
@@ -217,42 +226,93 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
           max-width: 760px;
           margin: 0 auto;
           padding: 96px 24px 80px;
+          font-family: "IBM Plex Sans", Inter, -apple-system, sans-serif;
         }
         @media (max-width: 640px) {
           .newsletter-article-container {
             padding: 80px 16px 48px;
           }
         }
+
+        /* Intro section */
+        .newsletter-intro-html {
+          font-size: 1.0625rem;
+          line-height: 1.75;
+          color: var(--text-secondary);
+          margin-bottom: 32px;
+          padding-bottom: 32px;
+          border-bottom: 1px solid var(--border-primary);
+        }
+        .newsletter-intro-html p { margin: 0 0 0.75rem; }
+        .newsletter-intro-html p:last-child { margin-bottom: 0; }
+        .newsletter-intro-html a { color: var(--brand-primary); }
+
+        /* Body */
         .newsletter-edition-body h1 {
           font-size: 1.35rem;
           font-weight: 700;
           margin: 0 0 1rem;
-          color: var(--text-primary, #111827);
+          color: var(--text-primary);
         }
         .newsletter-edition-body h2 {
           font-weight: 700;
-          margin: 0 0 0.5rem;
-          color: var(--text-primary, #111827);
+          margin: 1.5rem 0 0.5rem;
+          color: var(--text-primary);
+        }
+        .newsletter-edition-body h3 {
+          font-size: 0.95rem;
+          font-weight: 600;
+          margin: 1.25rem 0 0.25rem;
+          color: var(--text-primary);
         }
         .newsletter-edition-body p {
           margin-bottom: 1rem;
-          color: var(--text-primary, #111);
+          color: var(--text-secondary);
         }
-        .newsletter-edition-body strong {
-          color: var(--text-primary, #111827);
-        }
+        .newsletter-edition-body strong { color: var(--text-primary); }
         .newsletter-edition-body a {
-          color: var(--brand-primary, #ad35fa);
+          color: var(--brand-primary);
           text-decoration: underline;
           text-underline-offset: 2px;
         }
         .newsletter-edition-body hr {
           border: none;
-          border-top: 1px solid var(--border-subtle, #e5e7eb);
+          border-top: 1px solid var(--border-primary);
           margin: 24px 0;
         }
-        .newsletter-edition-body div[style*="background:#f3f4f6"] {
-          background: var(--bg-subtle, #f3f4f6) !important;
+        .newsletter-edition-body ul,
+        .newsletter-edition-body ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+        .newsletter-edition-body li { margin-bottom: 0.25rem; color: var(--text-secondary); }
+        .newsletter-edition-body blockquote {
+          border-left: 3px solid var(--brand-primary);
+          margin: 1rem 0;
+          padding: 4px 16px;
+          color: var(--text-muted);
+        }
+        /* Override inline-styled highlight blocks from generated HTML */
+        .newsletter-edition-body div[style*="background:#f3f4f6"],
+        .newsletter-edition-body div[style*="background: #f3f4f6"] {
+          background: var(--bg-secondary) !important;
+          color: var(--text-primary) !important;
+        }
+        .newsletter-edition-body div[style*="background:#ffffff"],
+        .newsletter-edition-body div[style*="background: #ffffff"],
+        .newsletter-edition-body div[style*="background: white"] {
+          background: var(--bg-primary) !important;
+        }
+        .newsletter-edition-body [style*="color:#111827"],
+        .newsletter-edition-body [style*="color: #111827"],
+        .newsletter-edition-body [style*="color:#374151"],
+        .newsletter-edition-body [style*="color: #374151"] {
+          color: var(--text-primary) !important;
+        }
+        .newsletter-edition-body [style*="color:#6b7280"],
+        .newsletter-edition-body [style*="color: #6b7280"] {
+          color: var(--text-muted) !important;
+        }
+        .newsletter-edition-body [style*="border-color:#e5e7eb"],
+        .newsletter-edition-body [style*="border: 1px solid #e5e7eb"] {
+          border-color: var(--border-primary) !important;
         }
       `}</style>
     </SignupEmailProvider>

@@ -17,8 +17,8 @@ export function formatCategoryName(raw: string): string {
 /**
  * Format a metric value based on its display unit.
  * - percentage: "49%"
- * - currency: "$1.2M"
- * - default: "1,234" with compact notation (k, M, B)
+ * - currency: "$10M"
+ * - default: compact integers (100k, 10M) or comma-separated counts under 1k
  */
 export function formatMetricValue(
   value: number | null | undefined,
@@ -35,7 +35,7 @@ export function formatMetricValue(
   const absValue = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   const formatWithSuffix = (scaled: number, suffix: string) =>
-    `${scaled.toFixed(1).replace(/\.0$/, "")}${suffix}`;
+    `${Math.round(scaled)}${suffix}`;
 
   const compact =
     absValue >= 1e9
@@ -44,7 +44,9 @@ export function formatMetricValue(
         ? formatWithSuffix(absValue / 1e6, "M")
         : absValue >= 1e3
           ? formatWithSuffix(absValue / 1e3, "k")
-          : `${Math.round(absValue * 10) / 10}`;
+          : Math.round(absValue).toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            });
 
   if (displayUnit === "currency") {
     return `${sign}$${compact}`;

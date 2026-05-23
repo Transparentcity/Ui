@@ -2324,6 +2324,10 @@ export interface CityFreshnessMetricRow {
   district_working?: boolean;
   /** map_query or map_config map_query / lat+lon */
   has_map_fields?: boolean;
+  /** Point column or lat/lon — usable for saved-place filtering */
+  has_precise_location?: boolean;
+  /** Whether metric appears on the public city dashboard */
+  show_on_dash?: boolean;
 }
 
 /** City governance / geo / metric wiring (city-health API structure block) */
@@ -3333,6 +3337,18 @@ export function sendOnboardingWelcomeEmail(
   return request<{ success: boolean }>("/api/user/onboarding-welcome-email", "POST", payload, token);
 }
 
+/** Admin-only: force-resend the onboarding welcome email to the signed-in admin. */
+export function resendWelcomeEmail(token: string): Promise<{
+  success: boolean;
+  detail?: string;
+  email_type?: "place" | "city";
+  to_email?: string;
+  place_id?: number;
+  city_id?: number;
+}> {
+  return request("/api/user/resend-welcome-email", "POST", undefined, token);
+}
+
 /** Same request shape as batch comparisons for city/district; used for place dashboard parity. */
 export interface PlaceComparisonsBatchRequest {
   metric_ids: number[];
@@ -3917,6 +3933,8 @@ export interface AnomalyResult {
   difference?: number | null;
   pct_change?: number | null;
   is_anomaly: boolean;
+  /** False when the parent detection run was superseded by a newer run */
+  run_is_active?: boolean;
   chart_payload?: Record<string, any> | null;
   item_noun?: string | null;
   city_name?: string | null;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import { startPasswordlessEmailSignup } from "@/lib/passwordlessSignup";
 
 type EmailSignInLinkProps = {
   /** e.g. "To get updates for San Francisco." When set, used as the form label. */
@@ -24,30 +25,11 @@ export default function EmailSignInLink({ label }: EmailSignInLinkProps) {
     if (!email || !email.includes("@")) return;
 
     setStatus("sending");
-    const currentPath =
-      typeof window !== "undefined"
-        ? window.location.pathname + window.location.search
-        : "/";
-    const returnTo = "/check-email";
-    if (typeof window !== "undefined" && currentPath && currentPath !== "/check-email") {
-      try {
-        sessionStorage.setItem("auth_return_after_check_email", currentPath);
-      } catch {
-        /* ignore */
-      }
-    }
 
     try {
-      const redirectUri =
-        typeof window !== "undefined" ? `${window.location.origin}` : undefined;
-      await loginWithRedirect({
-        authorizationParams: {
-          connection: "email",
-          login_hint: email,
-          scope: "openid profile email offline_access",
-          ...(redirectUri ? { redirect_uri: redirectUri } : {}),
-        },
-        appState: { returnTo },
+      await startPasswordlessEmailSignup(loginWithRedirect, {
+        email,
+        sourceSurface: "email_sign_in_link",
       });
       setStatus("sent");
     } catch (err) {

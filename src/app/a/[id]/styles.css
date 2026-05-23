@@ -139,6 +139,18 @@
   height: 18px;
 }
 
+.anomaly-inactive-banner-full {
+  max-width: 900px;
+  margin: 0 auto 0.5rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.anomaly-page.embedded.thumbnail > :first-child:not(.chart-container),
+.anomaly-page.embedded > :not(.embedded-header):not(.chart-container) {
+  flex-shrink: 0;
+}
+
 /* Article */
 .anomaly-article {
   max-width: 900px;

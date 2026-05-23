@@ -43,6 +43,7 @@ import {
   stripUnsupportedHomeRequest,
 } from "@/lib/onboardingHomeLocation";
 import { recordProductEvent, useProductEvent } from "@/lib/productAnalytics";
+import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
 
@@ -109,6 +110,7 @@ export default function WelcomeModal({
   onCityNotFound,
 }: WelcomeModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
+  const { theme } = useTheme();
   const { startJob, startCityLoading } = usePlaceOnboarding();
   const focusTrapRef = useFocusTrap(isOpen);
   const [step, setStep] = useState<Step>("welcome");
@@ -874,7 +876,7 @@ export default function WelcomeModal({
       ? Math.max(12, Math.floor(15.5 - Math.log2(placeRadius / 100)))
       : 15;
 
-    // Build grey radius circle URL using light-v11 (matches the rest of the product)
+    // Build grey radius circle URL — style follows app theme
     const buildRadiusMapUrl = (): string | null => {
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
       if (!token || !homeCoordinates) return null;
@@ -904,7 +906,8 @@ export default function WelcomeModal({
         ],
       };
       const encoded = encodeURIComponent(JSON.stringify(geojson));
-      return `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/geojson(${encoded})/${lng},${lat},${mapZoom}/400x180@2x?access_token=${token}`;
+      const basemap = theme === "dark" ? "dark-v11" : "light-v11";
+      return `https://api.mapbox.com/styles/v1/mapbox/${basemap}/static/geojson(${encoded})/${lng},${lat},${mapZoom}/400x180@2x?access_token=${token}`;
     };
     const mapUrl = buildRadiusMapUrl();
 
@@ -1018,9 +1021,10 @@ export default function WelcomeModal({
 
     // Simple pin thumbnail for the "My place" row (no radius circle)
     const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    const mapThumbBasemap = theme === "dark" ? "dark-v11" : "light-v11";
     const mapThumbUrl =
       hasPreciseLocation && homeCoordinates && mapboxToken
-        ? `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/pin-s+ad35fa(${homeCoordinates.lng},${homeCoordinates.lat})/${homeCoordinates.lng},${homeCoordinates.lat},15/400x140@2x?access_token=${mapboxToken}`
+        ? `https://api.mapbox.com/styles/v1/mapbox/${mapThumbBasemap}/static/pin-s+ad35fa(${homeCoordinates.lng},${homeCoordinates.lat})/${homeCoordinates.lng},${homeCoordinates.lat},15/400x140@2x?access_token=${mapboxToken}`
         : null;
 
     return (

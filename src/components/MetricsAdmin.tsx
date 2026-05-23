@@ -1302,6 +1302,7 @@ export default function MetricsAdmin() {
           <table className={`${styles.table} ${styles.metricsListTable}`}>
             <thead>
               <tr>
+                <th className={`${styles.th} ${styles.metricIdTh}`}>ID</th>
                 <th className={styles.th}>Metric</th>
                 <th className={`${styles.th} ${styles.hideNarrow}`}>City</th>
                 <th className={`${styles.th} ${styles.hideNarrow}`}>Category</th>
@@ -1317,7 +1318,7 @@ export default function MetricsAdmin() {
             <tbody>
               {loading && (
                 <tr>
-                  <td className={styles.td} colSpan={8}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>Loading…</span>
                   </td>
                 </tr>
@@ -1325,7 +1326,7 @@ export default function MetricsAdmin() {
 
               {tableEmpty && (
                 <tr>
-                  <td className={styles.td} colSpan={8}>
+                  <td className={styles.td} colSpan={9}>
                     <span className={styles.muted}>No metrics found matching the current filters.</span>
                   </td>
                 </tr>
@@ -1340,6 +1341,11 @@ export default function MetricsAdmin() {
                     }`}
                     onClick={(e) => handleMetricRowPointerToggle(e, m.id)}
                   >
+                    <td className={`${styles.td} ${styles.metricsListTd} ${styles.metricIdTd}`}>
+                      <span className={styles.metricIdCell} title={`Metric ID ${m.id}`}>
+                        {m.id}
+                      </span>
+                    </td>
                     <td className={`${styles.td} ${styles.metricsListTd}`}>
                       <div className={styles.metricNameContent}>
                         <div>

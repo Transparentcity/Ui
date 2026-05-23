@@ -8,6 +8,7 @@ import {
   DEFAULT_PLACE_RADIUS_M,
   MAX_PLACE_RADIUS_M,
 } from "@/lib/mapUtils";
+import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./LocationMapSave.module.css";
 
 export interface LocationMapSaveProps {
@@ -63,10 +64,12 @@ function CenterPinnedPanMap({
   lat,
   lng,
   onPositionChange,
+  theme = "light",
 }: {
   lat: number;
   lng: number;
   onPositionChange: (lat: number, lng: number) => void;
+  theme?: "light" | "dark";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<InstanceType<typeof mapboxgl.Map> | null>(null);
@@ -81,9 +84,14 @@ function CenterPinnedPanMap({
       typeof process !== "undefined" ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : undefined;
     if (!el || !token) return;
 
+    const mapStyle =
+      theme === "dark"
+        ? "mapbox://styles/mapbox/dark-v11"
+        : "mapbox://styles/mapbox/light-v11";
+
     const map = new mapboxgl.Map({
       container: el,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: mapStyle,
       center: [lng, lat],
       zoom: 14,
       attributionControl: true,
@@ -107,8 +115,8 @@ function CenterPinnedPanMap({
       map.remove();
       mapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialize map once; `lat`/`lng` sync below
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialize map once; lat/lng/theme sync below
+  }, [theme]); // re-init when theme changes so the basemap style updates
 
   useEffect(() => {
     const map = mapRef.current;
@@ -166,6 +174,8 @@ export default function LocationMapSave({
   const [internalLabel, setInternalLabel] = useState(defaultLabel);
   const [internalRadius, setInternalRadius] = useState(defaultRadiusM);
 
+  const { theme } = useTheme();
+
   const isControlledLabel = valueLabel !== undefined;
   const isControlledRadius = valueRadiusM !== undefined;
   const label = isControlledLabel ? valueLabel : internalLabel;
@@ -181,8 +191,8 @@ export default function LocationMapSave({
   };
 
   const mapUrl = useMemo(
-    () => buildStaticMapUrl(lat, lng, radiusM),
-    [lat, lng, radiusM]
+    () => buildStaticMapUrl(lat, lng, radiusM, undefined, undefined, undefined, theme),
+    [lat, lng, radiusM, theme]
   );
 
   const hasMapboxToken =
@@ -226,7 +236,7 @@ export default function LocationMapSave({
         </span>
       </div>
       {showDraggable ? (
-        <CenterPinnedPanMap lat={lat} lng={lng} onPositionChange={handlePinDrag} />
+        <CenterPinnedPanMap lat={lat} lng={lng} onPositionChange={handlePinDrag} theme={theme} />
       ) : mapUrl ? (
         <img src={mapUrl} alt="Your location and radius" className={styles.mapImg} />
       ) : (

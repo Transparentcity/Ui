@@ -1,0 +1,40 @@
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 45%, transparent);
+  background: color-mix(in srgb, var(--warning, #d97706) 12%, var(--bg-secondary, #f8f4ef));
+  color: var(--text-primary, #222);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.compact {
+  padding: 0.4rem 0.55rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+
+.icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--warning, #d97706);
+}
+
+.compact .icon {
+  font-size: 0.85rem;
+}
+
+.text strong {
+  font-weight: 600;
+}
+
+[data-theme="dark"] .banner {
+  background: color-mix(in srgb, var(--warning, #fbbf24) 15%, var(--bg-secondary, #1e293b));
+  border-color: color-mix(in srgb, var(--warning, #fbbf24) 40%, transparent);
+}

@@ -162,6 +162,18 @@ export async function GET(): Promise<Response> {
     ];
   });
 
+  const getPageEntries: SitemapEntry[] = cities.flatMap((city) => {
+    const citySlug = launchedCitySlug(cities, { cityId: city.id, cityName: city.name });
+    if (!citySlug) return [];
+    return [
+      {
+        loc: `${origin}/get/${citySlug}`,
+        changefreq: "weekly",
+        priority: 0.8,
+      },
+    ];
+  });
+
   const methodologyEntries: SitemapEntry[] = cities.flatMap((city) => {
     const citySlug = launchedCitySlug(cities, { cityId: city.id, cityName: city.name });
     if (!citySlug) return [];
@@ -260,6 +272,7 @@ export async function GET(): Promise<Response> {
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },
     { loc: `${origin}/sitemap`, changefreq: "daily", priority: 0.8 },
     ...cityEntries,
+    ...getPageEntries,
     ...methodologyEntries,
     ...categoryEntries,
     ...metricEntries,

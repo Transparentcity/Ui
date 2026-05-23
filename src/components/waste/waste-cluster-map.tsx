@@ -3,6 +3,7 @@
 import { useMemo, useEffect, useRef, useState } from "react"
 import type { WasteFinding } from "@/lib/apiClient"
 import { escapeHtml } from "./waste-utils"
+import { useTheme } from "@/contexts/ThemeContext"
 import "@/components/AnomalyMap.css"
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""
@@ -115,6 +116,7 @@ export function WasteClusterMap({ findings, cityId }: WasteClusterMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<MapboxMap | null>(null)
   const [mapboxLoaded, setMapboxLoaded] = useState(false)
+  const { theme } = useTheme()
 
   const clusters = useMemo(() => {
     return findings
@@ -167,12 +169,17 @@ export function WasteClusterMap({ findings, cityId }: WasteClusterMapProps) {
       mapInstanceRef.current = null
     }
 
+    const mapStyle =
+      theme === "dark"
+        ? "mapbox://styles/mapbox/dark-v11"
+        : "mapbox://styles/mapbox/light-v11"
+
     const defaults = getCityMapDefaults(cityId)
     let map
     try {
       map = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/light-v11",
+        style: mapStyle,
         center: defaults.center,
         zoom: defaults.zoom,
         attributionControl: false,
@@ -346,7 +353,7 @@ export function WasteClusterMap({ findings, cityId }: WasteClusterMapProps) {
         mapInstanceRef.current = null
       }
     }
-  }, [mapboxLoaded, clusters, cityId])
+  }, [mapboxLoaded, clusters, cityId, theme])
 
   if (clusters.length === 0) {
     return (

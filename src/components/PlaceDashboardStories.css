@@ -1,0 +1,17 @@
+/* Matches block-anomalies / metrics spacing inside the place dashboard tab */
+.place-dashboard-stories {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-primary, #e5e5e5);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.place-dashboard-stories .city-view-section-title {
+  margin-bottom: 16px;
+}
+
+.place-dashboard-stories-list {
+  gap: 16px;
+}
