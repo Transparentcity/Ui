@@ -779,6 +779,7 @@ export default function DashboardPage() {
 
         const token = await getAccessTokenSilently();
         const prefs = await getUserPreferences(token);
+        setUserPreferences(prefs);
         if (!prefs.has_completed_onboarding) {
           const savedCities = await getSavedCities(token);
           if (savedCities.length === 0) {
