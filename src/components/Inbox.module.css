@@ -12,6 +12,33 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Header                                                             */
+/* ------------------------------------------------------------------ */
+
+.inboxHeader {
+  flex-shrink: 0;
+  padding: var(--space-md) var(--space-lg) var(--space-sm);
+}
+
+.inboxTitle {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.inboxSubtitle {
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ------------------------------------------------------------------ */
 /* Billboard (optional top-of-list message, e.g. onboarding welcome) */
 /* ------------------------------------------------------------------ */
 
@@ -281,8 +308,9 @@
   line-height: 1.35;
   margin-top: 4px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* ------------------------------------------------------------------ */

@@ -3,9 +3,8 @@
 /**
  * InboxBillboard — the top-of-inbox welcome card shown after onboarding.
  *
- * When the user just signed up at the place level and the data-pull job is still
- * running, it shows a spinner + "We're pulling data for <place>…" message.
- * Once the job finishes the spinner disappears and the card auto-dismisses.
+ * While the place-level data job runs, shows feed-building status plus context
+ * that prior newsletters appear below. Auto-dismisses when the job completes.
  */
 
 import { useEffect, useState } from "react";
@@ -75,6 +74,7 @@ export default function InboxBillboard({ placeName, defaultRunning, onViewPlace 
     (defaultRunning === true && status !== "completed" && status !== "failed");
 
   const displayName = placeName?.trim() || "your neighborhood";
+  const homeLocation = placeName?.trim() || "your home location";
 
   return (
     <div className={styles.billboard} role="status" aria-live="polite">
@@ -90,9 +90,8 @@ export default function InboxBillboard({ placeName, defaultRunning, onViewPlace 
               Building your feed for {displayName}
             </p>
             <p className={styles.billboardText}>
-              We&rsquo;re pulling city data for {displayName} now — it will be ready shortly.
-              Below are some prior newsletters for your home city and district.
-              We&rsquo;ll see you Sunday with your weekly update.
+              Pulling public data for {homeLocation}. Prior newsletters below.
+              New edition every Sunday.
             </p>
           </>
         ) : (

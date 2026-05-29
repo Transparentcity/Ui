@@ -76,6 +76,13 @@ describe("Inbox", () => {
     vi.clearAllMocks();
   });
 
+  it("shows inbox header", async () => {
+    vi.mocked(listInbox).mockResolvedValue({ items: [], unread_count: 0 });
+    render(<Inbox onOpen={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Newsletters" })).toBeInTheDocument();
+    expect(screen.getByText(/New edition every Sunday/i)).toBeInTheDocument();
+  });
+
   it("shows empty state when no items", async () => {
     vi.mocked(listInbox).mockResolvedValue({ items: [], unread_count: 0 });
     render(<Inbox onOpen={vi.fn()} />);

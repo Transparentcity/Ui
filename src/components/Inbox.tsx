@@ -161,6 +161,11 @@ export default function Inbox({
 
   return (
     <div className={styles.inbox}>
+      <header className={styles.inboxHeader}>
+        <h1 className={styles.inboxTitle}>Newsletters</h1>
+        <p className={styles.inboxSubtitle}>New edition every Sunday</p>
+      </header>
+
       {/* Optional billboard (e.g. onboarding welcome message) */}
       {billboard && (
         <div className={styles.billboardWrapper}>{billboard}</div>
