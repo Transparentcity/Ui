@@ -5,7 +5,13 @@ import { toast } from "sonner";
 
 const FRIENDLY_MESSAGES: Record<string, string> = {
   "the connection was not found":
-    "Email sign-in is temporarily unavailable. Please try again later.",
+    "Email sign-in is not set up for this app yet. In Auth0, enable the Passwordless Email connection for your application (Applications → Connections).",
+  "the connection is not enabled":
+    "Email sign-in is not enabled for this app. In Auth0: Authentication → Passwordless → Email ON, then Applications → your app → Connections → enable Email.",
+  "connection is disabled":
+    "Email sign-in is not enabled for this app. In Auth0: Authentication → Passwordless → Email ON, then Applications → your app → Connections → enable Email.",
+  "no connections enabled":
+    "No sign-in methods are enabled for this app. In Auth0, open Applications → your app → Connections and turn on Email (passwordless) and/or Database.",
 };
 
 function getFriendlyMessage(description: string): string {

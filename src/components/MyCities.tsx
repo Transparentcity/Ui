@@ -37,11 +37,9 @@ interface MyCitiesProps {
   activeDistrict?: string | null;
   /** Whether the section starts expanded (default true). */
   defaultExpanded?: boolean;
-  /** Called when user clicks a section shortcut (Dashboard/Anomalies) under a city. */
-  onCitySectionClick?: (cityId: number, section: "dashboard" | "map") => void;
 }
 
-export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true, onCitySectionClick }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
   const [cities, setCities] = useState<SavedCity[]>([]);
@@ -461,30 +459,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                       })}
                     </div>
                   )}
-                  {/* Section shortcuts: Dashboard + Map on one line */}
-                  {onCitySectionClick && (
-                    <div className={styles.sectionShortcutRow}>
-                      <button
-                        type="button"
-                        className={styles.sectionShortcut}
-                        onClick={() => onCitySectionClick(city.id, "dashboard")}
-                        aria-label={`${city.display_name} Dashboard`}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                        Dashboard
-                      </button>
-                      <span className={styles.sectionShortcutDot}>·</span>
-                      <button
-                        type="button"
-                        className={styles.sectionShortcut}
-                        onClick={() => onCitySectionClick(city.id, "map")}
-                        aria-label={`${city.display_name} Map`}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
-                        Map
-                      </button>
-                    </div>
-                  )}
+                  {/* Dashboard/Map shortcuts removed — access via city view tabs */}
                 </div>
               );
             })

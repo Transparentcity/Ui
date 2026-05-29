@@ -3,11 +3,12 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import styles from "./MobileBottomNav.module.css";
 
-export type MobileTab = "feed" | "my-places" | "more";
+export type MobileTab = "feed" | "my-places" | "inbox" | "more";
 
 interface MobileBottomNavProps {
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
+  inboxUnreadCount?: number;
 }
 
 /**
@@ -38,7 +39,7 @@ function isTextInput(el: Element | null): boolean {
  *
  * The nav reappears immediately when the keyboard closes.
  */
-export default function MobileBottomNav({ activeTab, onTabChange }: MobileBottomNavProps) {
+export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCount = 0 }: MobileBottomNavProps) {
   const [hidden, setHidden] = useState(false);
   // Track whether a text input is focused (keyboard likely open)
   const inputFocusedRef = useRef(false);
@@ -112,9 +113,10 @@ export default function MobileBottomNav({ activeTab, onTabChange }: MobileBottom
       label: "Feed",
       icon: (
         <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 11a9 9 0 0 1 9 9" />
-          <path d="M4 4a16 16 0 0 1 16 16" />
-          <circle cx="5" cy="19" r="1" />
+          <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
+          <path d="M18 14h-8" />
+          <path d="M15 18h-5" />
+          <path d="M10 6h8v4h-8V6Z" />
         </svg>
       ),
     },
@@ -126,6 +128,24 @@ export default function MobileBottomNav({ activeTab, onTabChange }: MobileBottom
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />
         </svg>
+      ),
+    },
+    {
+      id: "inbox",
+      label: "Inbox",
+      icon: (
+        <span className={styles.tabIconWrapper}>
+          <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+            <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+          </svg>
+          {inboxUnreadCount > 0 && (
+            <span
+              className={styles.tabUnreadDot}
+              aria-label={`${inboxUnreadCount} unread`}
+            />
+          )}
+        </span>
       ),
     },
     {
@@ -153,7 +173,11 @@ export default function MobileBottomNav({ activeTab, onTabChange }: MobileBottom
           type="button"
           className={`${styles.tab}${activeTab === tab.id ? ` ${styles.tabActive}` : ""}`}
           onClick={() => onTabChange(tab.id)}
-          aria-label={tab.label}
+          aria-label={
+            tab.id === "inbox" && inboxUnreadCount > 0
+              ? `Inbox, ${inboxUnreadCount} unread`
+              : tab.label
+          }
           aria-current={activeTab === tab.id ? "page" : undefined}
           tabIndex={hidden ? -1 : 0}
         >

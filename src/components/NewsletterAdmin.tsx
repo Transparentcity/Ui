@@ -22,6 +22,7 @@ import {
   getNewsletterPendingDetail,
   sendNewsletterPendingBatch,
   deleteNewsletterPendingBatch,
+  deleteNewsletterSendsBatch,
   archiveNewsletterPendingBatch,
   runScheduleJob,
   getNewsletterGenerationPreview,
@@ -1510,6 +1511,68 @@ function NewsletterDashboardQueue({
 
   // Archive preview: queue rows use getNewsletterPendingDetail directly;
   // direct-send rows use their pending_send_id if available.
+  const handleDeleteArchivePending = async (id: number, subject: string) => {
+    const label = subject?.trim() || `newsletter #${id}`;
+    if (
+      !confirm(
+        `Delete "${label}" from the archive? This permanently removes the stored draft and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const r = await deleteNewsletterPendingBatch([id], token, { fromArchive: true });
+      if (r.deleted < 1) {
+        toast.error("Could not delete — item may already be removed.");
+        return;
+      }
+      toast.success("Removed from archive.");
+      if (archiveExpandedKey === `q-${id}`) {
+        setArchiveExpandedKey(null);
+        setArchivePreviewHtml(null);
+        setArchivePreviewPublicUrl(null);
+      }
+      await loadAll();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleDeleteDirectSend = async (id: number, subject: string | null) => {
+    const label = subject?.trim() || `send record #${id}`;
+    if (
+      !confirm(
+        `Delete "${label}" from the send log? This removes the audit record only and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const r = await deleteNewsletterSendsBatch([id], token);
+      if (r.deleted < 1) {
+        toast.error("Could not delete — item may already be removed.");
+        return;
+      }
+      toast.success("Removed from send log.");
+      if (archiveExpandedKey === `d-${id}`) {
+        setArchiveExpandedKey(null);
+        setArchivePreviewHtml(null);
+        setArchivePreviewPublicUrl(null);
+      }
+      await loadAll();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const handleArchivePreview = async (key: string, pendingId: number) => {
     if (archiveExpandedKey === key) {
       setArchiveExpandedKey(null);
@@ -1933,13 +1996,24 @@ function NewsletterDashboardQueue({
                                 <LlmUsagePill usage={row.llm_usage} />
                               </td>
                               <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
-                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                                   <button
                                     type="button"
                                     className={styles.linkBtn}
                                     onClick={() => handleArchivePreview(aKey, row.id)}
                                   >
                                     {isExpanded ? "Hide" : "Preview"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.linkBtn}
+                                    style={{ color: "var(--red-600, #dc2626)" }}
+                                    disabled={actionBusy}
+                                    onClick={() =>
+                                      handleDeleteArchivePending(row.id, row.subject || "")
+                                    }
+                                  >
+                                    Delete
                                   </button>
                                   {row.session_id?.trim() && (
                                     <JobSessionDebugLink sessionId={row.session_id} />
@@ -2008,7 +2082,7 @@ function NewsletterDashboardQueue({
                                 <LlmUsagePill usage={row.llm_usage} />
                               </td>
                               <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
-                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                                   {typeof row.pending_send_id === "number" && (
                                     <button
                                       type="button"
@@ -2018,6 +2092,15 @@ function NewsletterDashboardQueue({
                                       {isExpanded ? "Hide" : "Preview"}
                                     </button>
                                   )}
+                                  <button
+                                    type="button"
+                                    className={styles.linkBtn}
+                                    style={{ color: "var(--red-600, #dc2626)" }}
+                                    disabled={actionBusy}
+                                    onClick={() => handleDeleteDirectSend(row.id, row.subject)}
+                                  >
+                                    Delete
+                                  </button>
                                   {row.session_id?.trim() && (
                                     <JobSessionDebugLink sessionId={row.session_id} />
                                   )}

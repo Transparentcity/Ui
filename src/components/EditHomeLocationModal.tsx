@@ -66,7 +66,7 @@ export default function EditHomeLocationModal({
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [mounted, setMounted] = useState(false);
-  const [existingPlaces, setExistingPlaces] = useState<UserPlace[]>([]);
+  const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
 
   /** When set, we have city (and optionally coords) for the map step. */
   const [pending, setPending] = useState<{
@@ -82,7 +82,6 @@ export default function EditHomeLocationModal({
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
-  const placesCityIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -93,6 +92,27 @@ export default function EditHomeLocationModal({
     const t = window.setTimeout(() => inputRef.current?.focus(), 50);
     return () => window.clearTimeout(t);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setPlacesLoading(true);
+    setAllUserPlaces([]);
+    void (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const res = await listMyPlaces(token);
+        if (!cancelled) setAllUserPlaces(res.places);
+      } catch {
+        if (!cancelled) setAllUserPlaces([]);
+      } finally {
+        if (!cancelled) setPlacesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, getAccessTokenSilently]);
 
   useEffect(() => {
     return () => {
@@ -118,32 +138,10 @@ export default function EditHomeLocationModal({
     setSelectedIndex(-1);
     setPlaceLabel("My place");
     setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
-    setExistingPlaces([]);
+    setAllUserPlaces([]);
     setPlacesLoading(false);
-    placesCityIdRef.current = null;
     if (geoLoading) setGeoLoading(false);
     onClose();
-  };
-
-  const loadExistingPlaces = async (cityId: number) => {
-    placesCityIdRef.current = cityId;
-    setPlacesLoading(true);
-    setExistingPlaces([]);
-    try {
-      const token = await getAccessTokenSilently();
-      const res = await listMyPlaces(token, { city_id: cityId });
-      if (placesCityIdRef.current === cityId) {
-        setExistingPlaces(res.places);
-      }
-    } catch (e) {
-      if (placesCityIdRef.current === cityId) {
-        setExistingPlaces([]);
-      }
-    } finally {
-      if (placesCityIdRef.current === cityId) {
-        setPlacesLoading(false);
-      }
-    }
   };
 
   const openMapStep = (
@@ -157,7 +155,6 @@ export default function EditHomeLocationModal({
     setPending(nextPending);
     setStep("map");
     setError(null);
-    void loadExistingPlaces(nextPending.city.id);
   };
 
   const persistHomeLocation = async ({
@@ -392,6 +389,70 @@ export default function EditHomeLocationModal({
     }
   };
 
+  const placesForCity =
+    pending?.city != null
+      ? allUserPlaces.filter((p) => p.city_id === pending.city.id)
+      : [];
+
+  const renderSavedPlacesPicker = (
+    places: UserPlace[],
+    options?: { showAddNewHint?: boolean }
+  ) => {
+    if (placesLoading) {
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "var(--text-secondary)",
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
+          <Loader size="sm" color="dark" />
+          <span>Loading saved places…</span>
+        </div>
+      );
+    }
+    if (places.length === 0) return null;
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+          Use one of your saved places
+        </div>
+        {places.map((place) => (
+          <button
+            key={place.id}
+            type="button"
+            className={searchStyles.resultBtn}
+            onClick={() => void handleUseExistingPlace(place)}
+            disabled={saveLoading}
+          >
+            <div className={searchStyles.resultCityRow}>
+              <span className={searchStyles.resultCityName}>{place.label}</span>
+              <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+                {place.radius_m} m radius
+              </span>
+            </div>
+          </button>
+        ))}
+        {options?.showAddNewHint !== false && (
+          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 13 }}>
+            Or add a new location below.
+          </p>
+        )}
+      </div>
+    );
+  };
+
   if (!open || !mounted) return null;
 
   const modalContent = (
@@ -418,6 +479,11 @@ export default function EditHomeLocationModal({
 
         {step === "search" && (
           <>
+            {(placesLoading || allUserPlaces.length > 0) && (
+              <div style={{ padding: "0 20px", paddingTop: 4 }}>
+                {renderSavedPlacesPicker(allUserPlaces)}
+              </div>
+            )}
             <div className={searchStyles.modalSearch}>
               <div className={searchStyles.inputWrap}>
                 <svg className={searchStyles.leadingIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -513,48 +579,9 @@ export default function EditHomeLocationModal({
                 <span>{error}</span>
               </div>
             )}
-            {(placesLoading || existingPlaces.length > 0) && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  marginBottom: 16,
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                  Use one of your saved places
-                </div>
-                {placesLoading ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 13 }}>
-                    <Loader size="sm" color="dark" />
-                    <span>Loading saved places…</span>
-                  </div>
-                ) : (
-                  <>
-                    {existingPlaces.map((place) => (
-                      <button
-                        key={place.id}
-                        type="button"
-                        className={searchStyles.resultBtn}
-                        onClick={() => void handleUseExistingPlace(place)}
-                        disabled={saveLoading}
-                      >
-                        <div className={searchStyles.resultCityRow}>
-                          <span className={searchStyles.resultCityName}>{place.label}</span>
-                          <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>
-                            {place.radius_m} m radius
-                          </span>
-                        </div>
-                      </button>
-                    ))}
-                    <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 13 }}>
-                      Or add a new place below.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
+            {renderSavedPlacesPicker(placesForCity, {
+              showAddNewHint: !pending.coords,
+            })}
             {!pending.coords ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>

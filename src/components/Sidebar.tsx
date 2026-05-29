@@ -32,8 +32,6 @@ interface SidebarProps {
   onClose?: () => void;
   onCityClick?: (cityId: number) => void;
   onDistrictClick?: (cityId: number, district: number) => void;
-  /** Called when user clicks a section shortcut (Dashboard/Map) under a city in My Places. */
-  onCitySectionClick?: (cityId: number, section: "dashboard" | "map") => void;
   activeCityId?: number | null;
   /** Active district when viewing a city (for highlighting in My Places). */
   activeDistrict?: string | number | null;
@@ -68,6 +66,8 @@ interface SidebarProps {
   activeCityName?: string | null;
   /** Called when user clicks a sample question in Recent Questions. */
   onQuestionClick?: (question: string) => void;
+  /** Unread count for the Inbox nav item. Shows a purple dot when > 0. */
+  inboxUnreadCount?: number;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -99,7 +99,6 @@ export default function Sidebar({
   onClose,
   onCityClick,
   onDistrictClick,
-  onCitySectionClick,
   activeCityId,
   activeDistrict,
   userPlaces = [],
@@ -121,6 +120,7 @@ export default function Sidebar({
   chatEnabled = false,
   activeCityName,
   onQuestionClick,
+  inboxUnreadCount = 0,
 }: SidebarProps) {
   const governmentApproved =
     governmentVerified &&
@@ -415,6 +415,42 @@ export default function Sidebar({
             <span>Feed</span>
           </button>
 
+          {/* Inbox */}
+          <button
+            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "inbox" ? styles.navItemActive : ""}`}
+            id="inbox-btn"
+            aria-label={inboxUnreadCount > 0 ? `Inbox, ${inboxUnreadCount} unread` : "Inbox"}
+            aria-current={currentView === "inbox" ? "page" : undefined}
+            onClick={() =>
+              handleActionWithClose(() => {
+                if (onViewChange) {
+                  onViewChange("inbox");
+                }
+              })
+            }
+          >
+            <span className={styles.navInboxIconWrapper}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+              </svg>
+              {inboxUnreadCount > 0 && (
+                <span className={styles.navInboxUnreadDot} aria-hidden="true" />
+              )}
+            </span>
+            <span>Inbox</span>
+          </button>
+
           {/* Chat-enabled items (admin mode) */}
           {chatEnabled && (
             <button
@@ -498,12 +534,6 @@ export default function Sidebar({
             onDistrictRemoved={onDistrictRemoved}
             activeCityId={activeCityId}
             activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
-            onCitySectionClick={onCitySectionClick ? (cityId, section) => {
-              onCitySectionClick(cityId, section);
-              if (isNarrowScreen() && onClose) {
-                onClose();
-              }
-            } : undefined}
           />
 
           {/* Research reports — government-verified or admin */}

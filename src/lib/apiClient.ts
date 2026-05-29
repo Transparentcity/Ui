@@ -4915,9 +4915,22 @@ export function sendNewsletterPendingBatch(
 
 export function deleteNewsletterPendingBatch(
   ids: number[],
+  token: string,
+  options?: { fromArchive?: boolean }
+): Promise<{ deleted: number }> {
+  return request(
+    `/api/admin/newsletter-pending/delete`,
+    "POST",
+    { ids, from_archive: options?.fromArchive === true },
+    token
+  );
+}
+
+export function deleteNewsletterSendsBatch(
+  ids: number[],
   token: string
 ): Promise<{ deleted: number }> {
-  return request(`/api/admin/newsletter-pending/delete`, "POST", { ids }, token);
+  return request(`/api/admin/newsletter-sends/delete`, "POST", { ids }, token);
 }
 
 export function archiveNewsletterPendingBatch(
@@ -7467,6 +7480,94 @@ export function getSignupFunnelSummary(
   return request<SignupFunnelSummary>(
     `/api/admin/signup-analytics/summary${qs ? `?${qs}` : ""}`,
     "GET",
+    undefined,
+    token
+  );
+}
+
+// =============================================================================
+// Inbox
+// =============================================================================
+
+export type InboxItemScope = "place" | "district" | "city";
+export type InboxItemType = "edition" | "pending";
+
+export interface InboxItem {
+  id: string;
+  type: InboxItemType;
+  subject: string;
+  preview: string;
+  cover_image_url: string | null;
+  sent_at: string;
+  is_read: boolean;
+  is_private: boolean;
+  scope: InboxItemScope;
+  city_id: number;
+  city_name: string;
+  city_slug: string | null;
+  city_emoji: string | null;
+  district: string | null;
+  district_label: string | null;
+  place_id: number | null;
+  place_name: string | null;
+  public_url: string | null;
+}
+
+export interface InboxListResponse {
+  items: InboxItem[];
+  unread_count: number;
+}
+
+export interface InboxDetailResponse {
+  id: string;
+  type: InboxItemType;
+  subject: string;
+  sent_at: string;
+  body_html: string;
+  city_id: number;
+  city_name: string;
+  city_slug: string | null;
+  district: string | null;
+  public_url: string | null;
+  place_id: number | null;
+  place_name: string | null;
+}
+
+export function listInbox(
+  token: string,
+  opts?: { limit?: number; offset?: number }
+): Promise<InboxListResponse> {
+  const params = new URLSearchParams();
+  if (opts?.limit != null) params.append("limit", String(opts.limit));
+  if (opts?.offset != null) params.append("offset", String(opts.offset));
+  const qs = params.toString();
+  return request<InboxListResponse>(
+    `/api/newsletter/inbox${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getInboxItem(
+  token: string,
+  id: string
+): Promise<InboxDetailResponse> {
+  return request<InboxDetailResponse>(
+    `/api/newsletter/inbox/${encodeURIComponent(id)}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function markInboxRead(
+  token: string,
+  id: string
+): Promise<{ ok: boolean; item_id: string }> {
+  return request<{ ok: boolean; item_id: string }>(
+    `/api/newsletter/inbox/${encodeURIComponent(id)}/read`,
+    "POST",
     undefined,
     token
   );

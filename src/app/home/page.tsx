@@ -116,8 +116,14 @@ const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: fal
 
 import MobileBottomNav, { type MobileTab } from "@/components/MobileBottomNav";
 import MobileMoreMenu from "@/components/MobileMoreMenu";
+import Inbox from "@/components/Inbox";
+import InboxItemView from "@/components/InboxItemView";
+import InboxBillboard from "@/components/InboxBillboard";
+import type { InboxItem } from "@/lib/apiClient";
+import { recordProductEvent } from "@/lib/productAnalytics";
+import { trackInboxNavClicked } from "@/lib/analytics";
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed" | "inbox";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -210,6 +216,13 @@ export default function DashboardPage() {
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
+  const [selectedInboxId, setSelectedInboxId] = useState<string | null>(null);
+  const [selectedInboxItem, setSelectedInboxItem] = useState<InboxItem | null>(null);
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
+  /** Set after onboarding so the inbox billboard shows the correct place name. */
+  const [inboxOnboardingPlaceName, setInboxOnboardingPlaceName] = useState<string | null>(null);
+  /** Tracks the place + city created during onboarding so the billboard can link to the dashboard. */
+  const [inboxOnboardingPlaceRef, setInboxOnboardingPlaceRef] = useState<{ placeId: number; cityId: number } | null>(null);
   /** One-shot banner after search-cities auto-follow (dismiss clears until next qualifying navigation). */
   const [searchFollowBanner, setSearchFollowBanner] = useState<{
     cityId: number;
@@ -691,6 +704,16 @@ export default function DashboardPage() {
     document.documentElement.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
   }, [sidebarWidth]);
 
+  // Once places load after onboarding, upgrade the billboard placeholder name
+  // to the actual saved place label (e.g. "My Home" or user-chosen label).
+  useEffect(() => {
+    if (inboxOnboardingPlaceName == null || allUserPlaces.length === 0) return;
+    const newest = allUserPlaces[allUserPlaces.length - 1];
+    if (newest?.label) {
+      setInboxOnboardingPlaceName(newest.label);
+    }
+  }, [allUserPlaces, inboxOnboardingPlaceName]);
+
   const handleSidebarWidthChange = useCallback((width: number) => {
     setSidebarWidth(width);
     localStorage.setItem("sidebar-width", String(width));
@@ -940,6 +963,15 @@ export default function DashboardPage() {
       setGpsLocation(null); // Clear GPS location when leaving city view
       setInitialPlaceGps(null);
     }
+    // Clear inbox selection when navigating away from inbox
+    if (nextView !== "inbox") {
+      setSelectedInboxId(null);
+      setSelectedInboxItem(null);
+    } else {
+      // Navigating to inbox from sidebar — fire nav event
+      trackInboxNavClicked({ surface: "desktop_sidebar", unread_count: inboxUnreadCount });
+      recordProductEvent("inbox_nav_clicked", { surface: "desktop_sidebar", unread_count: inboxUnreadCount });
+    }
     // Don't close sidebar when navigating - only close on hamburger click
   };
 
@@ -1051,10 +1083,12 @@ export default function DashboardPage() {
         setPlaceIdPendingPlaceMetricsBootstrap(place.id);
         handlePlaceClick(place.city_id, place.id, place);
         setCurrentView("city");
-        setInitialSection("map");
+        setInitialSection(
+          isAdmin || cityLeadCityIds.includes(place.city_id) ? "map" : null,
+        );
       }
     },
-    [refreshAllUserPlaces, handlePlaceClick]
+    [refreshAllUserPlaces, handlePlaceClick, isAdmin, cityLeadCityIds]
   );
 
   const consumePlaceMetricsBootstrap = useCallback(() => {
@@ -1415,10 +1449,19 @@ export default function DashboardPage() {
     placeId?: number | null;
   }) => {
     setShowWelcomeModal(false);
-    setCurrentView("feed");
+
+    // Land on Inbox after onboarding so the user sees the welcome billboard
+    // and any prior newsletters for their city/district.
+    setCurrentView("inbox");
+    setSelectedInboxId(null);
+    setSelectedInboxItem(null);
+
+    // Record whether this was a place-level signup (for the billboard message).
+    setInboxOnboardingPlaceName(ctx.placeId ? "your neighborhood" : null);
+    setInboxOnboardingPlaceRef(ctx.placeId ? { placeId: ctx.placeId, cityId: ctx.cityId } : null);
+
     // WelcomeModal calls onCitySelected before onComplete, which sets My Places
-    // scope (active city / saved place). Clear it so the left nav only highlights
-    // Feed after onboarding — home scope still comes from preferences below.
+    // scope. Clear it so the left nav highlights Inbox after onboarding.
     setActiveCityId(null);
     setInitialDistrict(null);
     setInitialPlaceId(null);
@@ -1426,7 +1469,6 @@ export default function DashboardPage() {
     setInitialSection(null);
     setCitySelection({ district: null, placeId: null });
     setGpsLocation(null);
-    toast.success("Welcome! We’re building your feed now.");
 
     // Eagerly set home_location so FeedContainer gets the correct homeCityId.
     setUserPreferences((prev) => ({
@@ -1511,6 +1553,9 @@ export default function DashboardPage() {
       const extra = { ...(userPreferences?.extra || {}), preferred_onboarding_type: "citizen" };
       await updateUserPreferences({ has_completed_onboarding: false, extra }, token);
       hasCheckedOnboarding.current = false;
+      // Clear any stale billboard state from a previous onboarding run
+      setInboxOnboardingPlaceName(null);
+      setInboxOnboardingPlaceRef(null);
       await getSavedCities(token);
       setShowWelcomeModal(true);
     } catch (error) {
@@ -1590,6 +1635,7 @@ export default function DashboardPage() {
         onSearchCities={handleSearchCities}
         chatEnabled={isAdmin}
         activeCityName={activeCityName}
+        inboxUnreadCount={inboxUnreadCount}
         onQuestionClick={() => {
           // Toast: chat coming soon
           const toast = document.createElement("div");
@@ -1639,19 +1685,6 @@ export default function DashboardPage() {
         onPlaceRenamed={handlePlaceRenamed}
         onPlaceDeleted={handlePlaceDeleted}
         onDistrictRemoved={handleDistrictRemoved}
-        onCitySectionClick={(cityId, section) => {
-          setActiveCityId(cityId);
-          setInitialDistrict(null);
-          setInitialPlaceId(null);
-          setInitialPlaceGps(null);
-          setInitialSection(section);
-          setCitySelection({ district: null, placeId: null });
-          setCurrentView("city");
-          setCurrentSessionId(null);
-          setIsCurrentSessionJobSession(false);
-          setCurrentResearchId(null);
-          setGpsLocation(null);
-        }}
         activeCityId={activeCityId}
         onResearchClick={(reportId) => {
           setCurrentResearchId(reportId);
@@ -1938,6 +1971,52 @@ export default function DashboardPage() {
             }}>
               <span style={{ fontSize: 18 }}>{"\u23F3"}</span>
               <span>Your government verification is pending review. You&apos;ll get full official access once approved.</span>
+            </div>
+          )}
+
+          {/* Inbox view */}
+          {currentView === "inbox" && !selectedInboxId && (
+            <div id="inbox-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <Inbox
+                surface={typeof window !== "undefined" && window.innerWidth <= 768 ? "mobile_bottom_nav" : "desktop_sidebar"}
+                onOpen={(id, item) => {
+                  setSelectedInboxId(id);
+                  setSelectedInboxItem(item);
+                }}
+                onUnreadCountChange={setInboxUnreadCount}
+                billboard={
+                  inboxOnboardingPlaceName != null ? (
+                    <InboxBillboard
+                      placeName={inboxOnboardingPlaceName}
+                      defaultRunning={true}
+                      onViewPlace={
+                        inboxOnboardingPlaceRef
+                          ? () => {
+                              handlePlaceClick(
+                                inboxOnboardingPlaceRef.cityId,
+                                inboxOnboardingPlaceRef.placeId,
+                              );
+                              setInboxOnboardingPlaceName(null);
+                              setInboxOnboardingPlaceRef(null);
+                            }
+                          : undefined
+                      }
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
+          )}
+          {currentView === "inbox" && selectedInboxId && (
+            <div id="inbox-detail-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <InboxItemView
+                id={selectedInboxId}
+                cachedItem={selectedInboxItem ?? undefined}
+                onBack={() => {
+                  setSelectedInboxId(null);
+                  setSelectedInboxItem(null);
+                }}
+              />
             </div>
           )}
 
@@ -2374,8 +2453,10 @@ export default function DashboardPage() {
           moreMenuOpen ? "more"
             : currentView === "feed" ? "feed"
             : currentView === "city" ? "my-places"
+            : currentView === "inbox" ? "inbox"
             : "more"
         }
+        inboxUnreadCount={inboxUnreadCount}
         onTabChange={(tab: MobileTab) => {
           setMoreMenuOpen(false);
           if (tab === "feed") {
@@ -2388,6 +2469,12 @@ export default function DashboardPage() {
               // No city selected: open the sidebar so user can pick a city
               setSidebarOpen(true);
             }
+          } else if (tab === "inbox") {
+            setSelectedInboxId(null);
+            setSelectedInboxItem(null);
+            setCurrentView("inbox");
+            trackInboxNavClicked({ surface: "mobile_bottom_nav", unread_count: inboxUnreadCount });
+            recordProductEvent("inbox_nav_clicked", { surface: "mobile_bottom_nav", unread_count: inboxUnreadCount });
           } else if (tab === "more") {
             setMoreMenuOpen(true);
           }

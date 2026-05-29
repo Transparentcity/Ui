@@ -573,8 +573,8 @@ export default function FeedAdmin() {
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Views</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Clicks</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Scheduled job</th>
-                  <th className={`${styles.th} ${styles.hideNarrow}`}>Job session</th>
-                  <th className={styles.th} style={{ width: 60 }}>Actions</th>
+                  <th className={styles.th}>Job session</th>
+                  <th className={styles.th} style={{ width: 120 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -630,7 +630,7 @@ export default function FeedAdmin() {
                         </span>
                       )}
                     </td>
-                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                    <td className={styles.td}>
                       {story.job_session_id ? (
                         <JobSessionDebugLink
                           sessionId={story.job_session_id}
@@ -644,6 +644,13 @@ export default function FeedAdmin() {
                       )}
                     </td>
                     <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                      {story.job_session_id ? (
+                        <JobSessionDebugLink
+                          sessionId={story.job_session_id}
+                          label="Session"
+                          className={styles.jobSessionAction}
+                        />
+                      ) : null}
                       <button
                         className={styles.iconBtn}
                         title="Edit story"
@@ -809,23 +816,32 @@ export default function FeedAdmin() {
               <button className={styles.secondaryBtn} onClick={() => setPreviewStory(null)}>
                 Close
               </button>
-              <a
-                className={styles.primaryBtn}
-                href={(() => {
-                  const path = publicStoryPath(previewStory);
-                  return path.startsWith("http") ? path : `${typeof window !== "undefined" ? window.location.origin : ""}${path}`;
-                })()}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-                Visit story
-              </a>
+              <div className={styles.previewFooterActions}>
+                {previewStory.job_session_id ? (
+                  <JobSessionDebugLink
+                    sessionId={previewStory.job_session_id}
+                    label="View job session"
+                    className={styles.jobSessionLink}
+                  />
+                ) : null}
+                <a
+                  className={styles.primaryBtn}
+                  href={(() => {
+                    const path = publicStoryPath(previewStory);
+                    return path.startsWith("http") ? path : `${typeof window !== "undefined" ? window.location.origin : ""}${path}`;
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Visit story
+                </a>
+              </div>
             </div>
           </div>
         </div>

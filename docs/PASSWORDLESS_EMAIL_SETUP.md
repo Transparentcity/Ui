@@ -10,9 +10,22 @@ If users don’t receive the one-time link email when signing up from the city o
 
 ## 2. Connect the Application to the Email Connection
 
-- Go to **Applications** → **Applications** → select your app (the one whose Client ID is in `NEXT_PUBLIC_AUTH0_CLIENT_ID`).
+- Go to **Applications** → **Applications** → select your app (the one whose Client ID matches `NEXT_PUBLIC_AUTH0_CLIENT_ID` in `.env.local`).
 - Open the **Connections** tab (or **Settings** → **Connections**).
-- Ensure the **Passwordless** / **Email** connection is **enabled** for this application.
+- Under **Passwordless**, turn **Email** **ON** for this application.
+
+If Email is missing from the list, the tenant passwordless connection may not be named `email` (Auth0 expects that exact name for the default passwordless email connection).
+
+### Error: “the connection is not enabled”
+
+Auth0 returns this when the app requests `connection=email` but that connection is not enabled for your SPA client. You are redirected to the homepage with a toast.
+
+Fix (both steps):
+
+1. **Authentication** → **Passwordless** → **Email** → enabled (green).
+2. **Applications** → [your SPA] → **Connections** → **Passwordless** → **Email** toggle ON.
+
+Use the same application as your local build (`NEXT_PUBLIC_AUTH0_CLIENT_ID`). Enabling Email on production’s app only does not fix localhost.
 
 ## 3. Allowed Callback URLs
 

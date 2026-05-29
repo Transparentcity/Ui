@@ -3,24 +3,16 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import GovernmentSignupMessage from "@/components/GovernmentSignupMessage";
 import authStyles from "@/components/AuthModal.module.css";
 import styles from "./Header.module.css";
-import {
-  trackSignupStart,
-  trackSignupClick,
-  getFunnelSessionId,
-  recordFunnelEventBackend,
-  type SignupEventContext,
-} from "@/lib/analytics";
+import { startSignup } from "@/lib/signup";
 
 export default function Header() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
-  const signupMenuRef = useRef<HTMLDivElement | null>(null);
-  const [signupMenuOpen, setSignupMenuOpen] = useState(false);
   const [showGovMessage, setShowGovMessage] = useState(false);
 
   // Close gov message modal on Escape
@@ -43,18 +35,6 @@ export default function Header() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!signupMenuOpen) return;
-    const onDocumentClick = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (target && signupMenuRef.current && !signupMenuRef.current.contains(target)) {
-        setSignupMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocumentClick);
-    return () => document.removeEventListener("mousedown", onDocumentClick);
-  }, [signupMenuOpen]);
-
   const handleLogin = async () => {
     if (isAuthenticated) {
       router.push("/home");
@@ -69,29 +49,16 @@ export default function Header() {
     });
   };
 
-  const handleSignup = async (intent: "resident" | "public-servant") => {
-    setSignupMenuOpen(false);
-
-    const ctx: SignupEventContext = {
+  const handleSignup = async () => {
+    await startSignup(loginWithRedirect, "resident", {
       source_surface: "nav_header",
-      signup_intent: intent,
-      landing_path: typeof window !== "undefined" ? window.location.pathname : null,
-      funnel_session_id: getFunnelSessionId(),
-    };
-    trackSignupStart(intent, ctx);
-    trackSignupClick(intent, ctx);
-    recordFunnelEventBackend("signup_start", ctx);
+    });
+  };
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", intent);
-      window.localStorage.setItem("transparentcity.signup_surface", "nav_header");
-    }
-
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "signup",
-      },
-      appState: { returnTo: `/home?signup=${intent}` },
+  const handlePublicServantSignup = async () => {
+    setShowGovMessage(false);
+    await startSignup(loginWithRedirect, "public-servant", {
+      source_surface: "nav_header",
     });
   };
 
@@ -252,40 +219,13 @@ export default function Header() {
             )}
 
             {!isAuthenticated && (
-              <div className={styles.menuWrap} ref={signupMenuRef}>
-                <button
-                  className={styles.buttonSignUp}
-                  onClick={() => setSignupMenuOpen((v) => !v)}
-                  disabled={isLoading}
-                  aria-haspopup="menu"
-                  aria-expanded={signupMenuOpen}
-                >
-                  Sign up
-                </button>
-                {signupMenuOpen && (
-                  <div className={styles.menu} role="menu" aria-label="Sign up options">
-                    <button
-                      className={styles.menuItem}
-                      role="menuitem"
-                      onClick={() => handleSignup("resident")}
-                      disabled={isLoading}
-                    >
-                      <span className={styles.menuItemTitle}>Sign up as citizen</span>
-                    </button>
-                    <button
-                      className={styles.menuItem}
-                      role="menuitem"
-                      onClick={() => {
-                        setSignupMenuOpen(false);
-                        setShowGovMessage(true);
-                      }}
-                      disabled={isLoading}
-                    >
-                      <span className={styles.menuItemTitle}>I&apos;m city staff</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                className={styles.buttonSignUp}
+                onClick={() => void handleSignup()}
+                disabled={isLoading}
+              >
+                Sign up
+              </button>
             )}
           </nav>
         </div>
@@ -314,10 +254,7 @@ export default function Header() {
               </button>
             </div>
             <GovernmentSignupMessage
-              onContinue={() => {
-                setShowGovMessage(false);
-                handleSignup("public-servant");
-              }}
+              onContinue={() => void handlePublicServantSignup()}
               onBack={() => setShowGovMessage(false)}
               disabled={isLoading}
             />

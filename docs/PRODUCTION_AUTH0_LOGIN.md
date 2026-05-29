@@ -138,7 +138,58 @@ npm run verify-auth0
 
 ---
 
-## 4. Checklist summary
+## 4. Sign up should open the Auth0 Sign Up tab (not Log In)
+
+The UI sends `screen_hint=signup` (and `action=signup`) on every signup CTA. You should see them
+on the Auth0 URL, e.g. `https://auth.transparent.city/login?...&screen_hint=signup`.
+
+**Important:** Auth0 uses the name “Universal Login” for both experiences. `screen_hint` only
+works on the **New** experience. **Classic** ignores it even when the dashboard says “Universal Login.”
+
+### How to tell which experience you are on
+
+| Signal | New experience | Classic experience |
+|--------|----------------|-------------------|
+| Signup URL path on custom domain | `/u/signup` works | `/signup` returns **404** |
+| Hosted page cookies | No `/usernamepassword/login` path | Often `Path=/usernamepassword/login` |
+| `screen_hint=signup` in URL | Opens Sign Up | Usually still shows Log In |
+
+If `screen_hint` is already in the URL but you still see Log In, you are almost certainly on
+**Classic** (or a customized Lock page).
+
+### Fixes
+
+1. **Switch to New Universal Login**  
+   Dashboard → **Branding** → **Universal Login** → **Advanced options** → **Experience** → **New**
+   (not Classic). Save, then test in an incognito window.
+
+2. **If you must stay on Classic with “Customize Login Page” enabled**  
+   Edit the Lock template (Universal Login → Login → Customize) and honor the app param:
+
+   ```javascript
+   var mode =
+     (config.extraParams && config.extraParams.action === "signup") ||
+     (config.extraParams && config.extraParams.screen_hint === "signup")
+       ? "signUp"
+       : "login";
+
+   var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
+     initialScreen: mode,
+     // ...rest of your Lock options
+   });
+   ```
+
+3. **Application connections**  
+   Applications → your SPA → **Connections**: enable a **Database** and/or **Passwordless Email**
+   connection. `screen_hint=signup` does nothing useful if only social logins are enabled.
+
+4. **Authentication profile** (if using Identifier First + passwordless)  
+   See `docs/PASSWORDLESS_EMAIL_SETUP.md`. City-page email signup uses `connection=email` instead
+   of `screen_hint`; the header “Sign up” button uses Universal Login + `screen_hint`.
+
+---
+
+## 5. Checklist summary
 
 - [ ] **Allowed Callback URLs** in Auth0 includes `https://app.transparent.city`.
 - [ ] **Allowed Web Origins** includes `https://app.transparent.city`.
@@ -149,7 +200,7 @@ npm run verify-auth0
 
 ---
 
-## 5. If it still hangs
+## 6. If it still hangs
 
 1. **Auth0 Logs**  
    Dashboard → **Monitoring** → **Logs**. Look for failed logins or “invalid redirect_uri” (or similar). That confirms whether the callback URL was rejected.

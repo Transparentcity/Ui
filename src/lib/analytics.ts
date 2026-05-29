@@ -532,3 +532,45 @@ export function trackError(
     event_label: `Error: ${errorMessage}`,
   });
 }
+
+// ============================================================================
+// INBOX TRACKING
+// ============================================================================
+
+export function trackInboxView(props: {
+  surface: string;
+  unread_count: number;
+  total_count: number;
+  place_count?: number;
+  district_count?: number;
+  city_count?: number;
+}): void {
+  trackEvent("inbox_view", { event_category: "inbox", ...props });
+}
+
+export function trackInboxItemOpened(props: {
+  item_id: string;
+  item_type: string;
+  scope: string;
+  is_private: boolean;
+  city_slug: string | null;
+  was_unread: boolean;
+  position?: number;
+}): void {
+  trackEvent("inbox_item_opened", { event_category: "inbox", ...props });
+}
+
+export function trackInboxItemBack(props: {
+  item_id: string;
+  item_type: string;
+  time_in_detail_ms?: number;
+}): void {
+  trackEvent("inbox_item_back", { event_category: "inbox", ...props });
+}
+
+export function trackInboxNavClicked(props: {
+  surface: string;
+  unread_count: number;
+}): void {
+  trackEvent("inbox_nav_clicked", { event_category: "inbox", ...props });
+}

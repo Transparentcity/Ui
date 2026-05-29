@@ -20,6 +20,7 @@ import Loader from "./Loader";
 import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
+import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
 import CompletenessSparkline from "./CompletenessSparkline";
 import styles from "./MetricsAdmin.module.css";
 import "./MetricDetailModal.css";
@@ -53,7 +54,11 @@ export default function MetricDetailModal({
   );
   const timeSeriesQuery = usePublicMetricTimeSeriesSummary(metricId);
   const metric = metricQuery.data;
-  
+  const mapValueField = useMemo(
+    () => (metric ? getMetricAggregationValueField(metric) : null),
+    [metric]
+  );
+
   // Fetch completeness information
   const [completenessDaily, setCompletenessDaily] = useState<DailyCompletenessResponse | null>(null);
   const [completenessLoading, setCompletenessLoading] = useState(false);
@@ -521,6 +526,7 @@ export default function MetricDetailModal({
                       district={null}
                       metricName={metric.metric_name}
                       itemNoun={metric.item_noun}
+                      valueField={mapValueField}
                       dateRange={{
                         start: comparison?.current_period_start || null,
                         end: comparison?.current_period_end || null,
@@ -550,6 +556,7 @@ export default function MetricDetailModal({
                       district={selectedDistrict}
                       metricName={metric.metric_name}
                       itemNoun={metric.item_noun}
+                      valueField={mapValueField}
                       dateRange={{
                         start: comparison?.current_period_start || null,
                         end: comparison?.current_period_end || null,

@@ -20,6 +20,7 @@ import Loader from "./Loader";
 import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
+import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
 import CompletenessSparkline from "./CompletenessSparkline";
 
 interface MetricDetailContentProps {
@@ -52,6 +53,11 @@ export default function MetricDetailContent({
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
   }, []);
+
+  const mapValueField = useMemo(
+    () => getMetricAggregationValueField(metric),
+    [metric]
+  );
 
   const comparisonsQuery = usePublicMetricComparisons(
     metric.id,
@@ -448,6 +454,7 @@ export default function MetricDetailContent({
             district={null}
             metricName={metric.metric_name}
             itemNoun={metric.item_noun}
+            valueField={mapValueField}
             dateRange={{
               start: comparison?.current_period_start || null,
               end: comparison?.current_period_end || null,

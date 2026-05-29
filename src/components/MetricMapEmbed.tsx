@@ -11,6 +11,7 @@ import {
   computeMetricMapEmbedViewSpecs,
   formatMetricMapViewSpecKey,
 } from "@/lib/metricMapEmbedViews";
+import { getMapCaptionTotalCount } from "@/lib/metricMapCaptionTotal";
 import "./MetricMapEmbed.css";
 
 interface MetricMapEmbedProps {
@@ -25,6 +26,8 @@ interface MetricMapEmbedProps {
   itemNoun?: string; // Item noun (e.g., "incidents", "cases") for caption
   dateRange?: { start: string | null; end: string | null }; // Date range from comparison data
   comparisonDateRange?: { start: string | null; end: string | null }; // Comparison period dates (shown as grey dots behind)
+  /** Metric aggregation field (e.g. housingunits); sums on point maps instead of counting rows */
+  valueField?: string | null;
 }
 
 // Convert MapPreviewResponse to SavedMap format for ProgressiveMapView
@@ -62,6 +65,7 @@ export default function MetricMapEmbed({
   itemNoun = "items",
   dateRange,
   comparisonDateRange,
+  valueField,
 }: MetricMapEmbedProps) {
   const { theme } = useTheme();
   const mapBasemapTheme = theme === "dark" ? "dark" : "light";
@@ -192,46 +196,11 @@ export default function MetricMapEmbed({
   const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string =>
     formatDateRangeFromStrings(start, end, { fallback: "" });
 
-  // Total count for caption: use sum of values (YTD-style), not number of districts/points
-  const getTotalCount = (): number | null => {
-    if (!mapData) return null;
-    const aggregations = mapData.map_config?.aggregations as Record<string, { rows?: Array<{ value?: number; count?: number }> }> | undefined;
-    if (aggregations && typeof aggregations === "object") {
-      const keys = Object.keys(aggregations);
-      for (const key of keys) {
-        const agg = aggregations[key];
-        const rows = agg?.rows;
-        if (Array.isArray(rows) && rows.length > 0) {
-          const total = rows.reduce(
-            (sum, row) => sum + (Number(row?.value ?? row?.count ?? 0) || 0),
-            0
-          );
-          if (total > 0) return total;
-        }
-      }
-    }
-    const loc = mapData.location_data;
-    if (Array.isArray(loc) && loc.length > 0) {
-      const first = loc[0] as Record<string, unknown>;
-      if (first && (typeof first.value === "number" || typeof first.count === "number")) {
-        const total = loc.reduce(
-          (sum, p: Record<string, unknown>) =>
-            sum + (Number((p as any)?.value ?? (p as any)?.count ?? 0) || 0),
-          0
-        );
-        if (total > 0) return total;
-      }
-      // Point map: each row is one incident
-      return loc.length;
-    }
-    return null;
-  };
-
   // Build caption text
   const buildCaption = (): string => {
     if (!mapData || !metricName) return "";
     
-    const totalCount = getTotalCount();
+    const totalCount = getMapCaptionTotalCount(mapData, { valueField });
     const locationLabel = district && district > 0 ? `District ${district}` : "citywide";
     
     // Try to get date range from map metadata first, then from props

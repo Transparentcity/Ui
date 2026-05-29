@@ -34,6 +34,22 @@
   gap: 16px;
 }
 
+/* Clickable copy area — any click on the badge/title/subtitle focuses the
+   hero email signup field below. The form itself sits outside this wrapper
+   so inputs/buttons keep their native behavior. */
+.heroLeftCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.heroLeftCopy:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
 .heroBadge {
   display: inline-flex;
   align-items: center;
@@ -164,6 +180,75 @@
   margin: 0;
 }
 
+/* Inline "check your inbox" confirmation that replaces the form once the
+   magic link has been sent. Lives at the same #get-hero-signup anchor so
+   focus-trigger CTAs scroll users to it. */
+.heroSignupSuccess {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-top: 8px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: rgba(173, 53, 250, 0.06);
+  border: 1.5px solid rgba(173, 53, 250, 0.25);
+}
+
+.heroSignupSuccessIcon {
+  font-size: 24px;
+  line-height: 1.1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.heroSignupSuccessBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.heroSignupSuccessTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  margin: 0;
+}
+
+.heroSignupSuccessText {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-secondary, #374151);
+  margin: 0;
+  word-break: break-word;
+}
+
+.heroSignupSuccessEmail {
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.heroSignupSuccessNote {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #6b7280);
+  margin: 0;
+}
+
+.heroSignupResendBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--brand-primary, #ad35fa);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.heroSignupResendBtn:hover {
+  text-decoration: none;
+}
+
 /* Right: newsletter iframe */
 .heroRight {
   position: relative;
@@ -176,11 +261,37 @@
 }
 
 .newsletterFrame {
+  position: relative;
   border-radius: 14px;
   overflow: hidden;
   border: 1.5px solid var(--border-primary);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
   background: var(--bg-primary);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.newsletterFrame:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.newsletterFrame:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: 3px;
+}
+
+/* Transparent layer above the iframe. Captures clicks (bubble up to the
+   frame to open the signup flow) and intercepts wheel/touch gestures
+   which JS forwards to the iframe's contentWindow so the sample stays
+   scrollable. `touch-action: none` keeps the page from panning while we
+   handle the gesture ourselves. */
+.newsletterFrameOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  touch-action: none;
 }
 
 .newsletterIframe {
@@ -188,6 +299,10 @@
   height: 520px;
   border: none;
   display: block;
+  /* Native pointer events are disabled because the overlay above us owns
+     interaction. Scrolling is performed via `contentWindow.scrollBy()`
+     from the overlay's wheel/touch handlers. */
+  pointer-events: none;
 }
 
 @media (max-width: 540px) {
@@ -209,18 +324,6 @@
   color: var(--text-muted, #6b7280);
 }
 
-.newsletterFrameLink {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.newsletterFrameLink:hover {
-  text-decoration: underline;
-}
-
 /* Newsletter placeholder (no edition) */
 .newsletterPlaceholder {
   background: var(--bg-secondary);
@@ -234,6 +337,18 @@
   gap: 8px;
   min-height: 260px;
   justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.newsletterPlaceholder:hover {
+  border-color: rgba(173, 53, 250, 0.45);
+  background: rgba(173, 53, 250, 0.04);
+}
+
+.newsletterPlaceholder:focus-visible {
+  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline-offset: 3px;
 }
 
 .newsletterPlaceholderIcon {

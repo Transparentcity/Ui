@@ -21,6 +21,19 @@ import {
   type SignupEventContext,
 } from "./analytics";
 
+/**
+ * Auth0 authorize params for signup.
+ *
+ * - `screen_hint` + `prompt`: New Universal Login — opens Sign Up tab.
+ * - `action`: Classic Universal Login with a customized Lock page (reads
+ *   `config.extraParams.action` and sets `initialScreen: 'signUp'`).
+ */
+export const SIGNUP_AUTHORIZATION_PARAMS = {
+  screen_hint: "signup",
+  prompt: "login",
+  action: "signup",
+} as const;
+
 interface StartSignupOptions {
   /** Which UI surface is triggering the signup — shown in the dashboard. */
   source_surface: string;
@@ -32,6 +45,8 @@ interface StartSignupOptions {
   returnTo?: string;
   /** Extra query params appended to the default returnTo (e.g. follow_city_slug) */
   returnToParams?: Record<string, string>;
+  /** Pre-fill email on the Auth0 signup form when known. */
+  loginHint?: string;
 }
 
 export async function startSignup(
@@ -83,7 +98,10 @@ export async function startSignup(
   }
 
   await loginWithRedirect({
-    authorizationParams: { screen_hint: "signup" },
+    authorizationParams: {
+      ...SIGNUP_AUTHORIZATION_PARAMS,
+      ...(options.loginHint ? { login_hint: options.loginHint } : {}),
+    },
     appState: { returnTo },
   });
 }

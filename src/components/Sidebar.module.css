@@ -251,6 +251,28 @@
   flex-shrink: 0;
 }
 
+/* Inbox nav item: wrapper for icon + unread dot */
+.navInboxIconWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.navInboxUnreadDot {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  border: 1.5px solid var(--bg-primary);
+}
+
 /* Spacing between sections */
 .navSectionSpacer {
   height: var(--space-xs);

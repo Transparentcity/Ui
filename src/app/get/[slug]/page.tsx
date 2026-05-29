@@ -21,6 +21,7 @@ import PublicFooter from "@/components/PublicFooter";
 import GetLandingClient from "./GetLandingClient";
 import HeroNewsletterEmbed from "./components/HeroNewsletterEmbed";
 import HeroEmailSignup from "./components/HeroEmailSignup";
+import HeroSignupTrigger from "./components/HeroSignupTrigger";
 import HowItWorks from "./components/HowItWorks";
 import PersonalizationSection from "./components/PersonalizationSection";
 import PricingSection from "./components/PricingSection";
@@ -212,18 +213,21 @@ export default async function GetLandingPage({ params }: PageProps) {
             <div className={styles.heroInner}>
               {/* Left: headline + signup */}
               <div className={styles.heroLeft}>
-                <span className={styles.heroBadge}>Free weekly · {cityNameOnly}</span>
+                <HeroSignupTrigger className={styles.heroLeftCopy}>
+                  <span className={styles.heroBadge}>Free weekly · {cityNameOnly}</span>
 
-                <h1 className={styles.heroTitle}>
-                  See {cityNameOnly} clearly, every week.
-                </h1>
+                  <h1 className={styles.heroTitle}>
+                    See {cityNameOnly} clearly, every week.
+                  </h1>
 
-                <p className={styles.heroSubtitle}>
-                  A plain-language briefing built from {cityNameOnly}&rsquo;s official open
-                  data. New businesses, 311 requests, crime and safety, housing, and more,
-                  written so a resident can read it in five minutes. Every number links back
-                  to the dataset it came from. Free for the first month, then $5 a month.
-                </p>
+                  <p className={styles.heroSubtitle}>
+                    A plain-language briefing built from {cityNameOnly}&rsquo;s official
+                    open data. New businesses, 311 requests, crime and safety, housing,
+                    and more, written so a resident can read it in five minutes. Every
+                    number links back to the dataset it came from. Free for the first
+                    month, then $5 a month.
+                  </p>
+                </HeroSignupTrigger>
 
                 <HeroEmailSignup
                   citySlug={slug}
@@ -260,7 +264,10 @@ export default async function GetLandingPage({ params }: PageProps) {
                     editionDate={latestEdition.editionDate}
                   />
                 ) : (
-                  <div className={styles.newsletterPlaceholder}>
+                  <HeroSignupTrigger
+                    className={styles.newsletterPlaceholder}
+                    ariaLabel="Sign up for the weekly briefing"
+                  >
                     <span className={styles.newsletterPlaceholderIcon}>📬</span>
                     <p className={styles.newsletterPlaceholderTitle}>
                       Sample issue coming soon
@@ -269,7 +276,7 @@ export default async function GetLandingPage({ params }: PageProps) {
                       The first {cityNameOnly} weekly is on its way. Sign up and
                       you&rsquo;ll be the first to get it.
                     </p>
-                  </div>
+                  </HeroSignupTrigger>
                 )}
               </div>
             </div>

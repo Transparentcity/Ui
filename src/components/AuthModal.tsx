@@ -2,17 +2,10 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import {
-  trackSignupStart,
-  trackSignupClick,
-  trackLogin,
-  getFunnelSessionId,
-  recordFunnelEventBackend,
-  type SignupEventContext,
-} from "@/lib/analytics";
-import GovernmentSignupMessage from "./GovernmentSignupMessage";
+import { trackLogin } from "@/lib/analytics";
+import { startSignup } from "@/lib/signup";
 import styles from "./AuthModal.module.css";
 
 interface AuthModalProps {
@@ -24,7 +17,6 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
-  const [step, setStep] = useState<"choice" | "gov-message">("choice");
   const focusTrapRef = useFocusTrap(isOpen);
 
   // Redirect authenticated users
@@ -34,11 +26,6 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
       router.push("/home");
     }
   }, [isAuthenticated, isLoading, onClose, router]);
-
-  // Reset step when modal opens
-  useEffect(() => {
-    if (isOpen) setStep("choice");
-  }, [isOpen]);
 
   // Close on Escape key
   useEffect(() => {
@@ -50,26 +37,9 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, onClose]);
 
-  const handleSignup = async (intent: "resident" | "public-servant") => {
-    const ctx: SignupEventContext = {
+  const handleSignup = async () => {
+    await startSignup(loginWithRedirect, "resident", {
       source_surface: "auth_modal",
-      signup_intent: intent,
-      landing_path:
-        typeof window !== "undefined" ? window.location.pathname : null,
-      funnel_session_id: getFunnelSessionId(),
-    };
-    trackSignupStart(intent, ctx);
-    recordFunnelEventBackend("signup_start", ctx);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", intent);
-    }
-    trackSignupClick(intent, ctx);
-
-    await loginWithRedirect({
-      authorizationParams: {
-        screen_hint: "signup",
-      },
-      appState: { returnTo: `/home?signup=${intent}` },
     });
   };
 
@@ -85,42 +55,6 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
   };
 
   if (!isOpen) return null;
-
-  if (step === "gov-message") {
-    return (
-      <div
-        className={styles.overlay}
-        onClick={onClose}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="auth-modal-title"
-        ref={focusTrapRef}
-      >
-        <div
-          className={styles.modal}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          <div className={styles.header}>
-            <span />
-            <button
-              type="button"
-              className={styles.closeBtn}
-              onClick={onClose}
-              aria-label="Close"
-            >
-              &times;
-            </button>
-          </div>
-          <GovernmentSignupMessage
-            onContinue={() => handleSignup("public-servant")}
-            onBack={() => setStep("choice")}
-            disabled={isLoading}
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -166,36 +100,10 @@ export default function AuthModal({ isOpen, onClose, title }: AuthModalProps) {
           <button
             type="button"
             className={`${styles.button} ${styles.buttonPrimary}`}
-            onClick={() => handleSignup("resident")}
+            onClick={() => void handleSignup()}
             disabled={isLoading}
           >
             Sign up
-          </button>
-        </div>
-
-        <div className={styles.signupOptions}>
-          <p className={styles.signupLabel}>I&apos;m a...</p>
-          <button
-            type="button"
-            className={styles.signupItem}
-            onClick={() => handleSignup("resident")}
-            disabled={isLoading}
-          >
-            <div className={styles.signupItemTitle}>Resident</div>
-            <div className={styles.signupItemDesc}>
-              Follow a city, read research, and get the map view.
-            </div>
-          </button>
-          <button
-            type="button"
-            className={styles.signupItem}
-            onClick={() => setStep("gov-message")}
-            disabled={isLoading}
-          >
-            <div className={styles.signupItemTitle}>Public servant</div>
-            <div className={styles.signupItemDesc}>
-              Tools for staff: briefs, context, and operational clarity.
-            </div>
           </button>
         </div>
       </div>

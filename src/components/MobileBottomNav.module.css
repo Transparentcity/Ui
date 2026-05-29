@@ -93,6 +93,26 @@
   white-space: nowrap;
 }
 
+/* Wrapper for icons that need a badge */
+.tabIconWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Unread dot on the Inbox tab icon */
+.tabUnreadDot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+  border: 1.5px solid var(--bg-primary, #ffffff);
+}
+
 /* Dark mode */
 [data-theme="dark"] .bottomNav,
 .dark .bottomNav {

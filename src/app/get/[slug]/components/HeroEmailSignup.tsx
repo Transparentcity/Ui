@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth0 } from "@auth0/auth0-react";
 import { useSignupEmail } from "@/app/c/[slug]/SignupEmailContext";
-import { startPasswordlessEmailSignup } from "@/lib/passwordlessSignup";
+import {
+  PasswordlessSendError,
+  sendPasswordlessEmailLink,
+} from "@/lib/passwordlessSignup";
 import styles from "../get-landing.module.css";
 
 type Props = {
@@ -12,10 +14,13 @@ type Props = {
   cityId?: number | null;
 };
 
+type FormStatus = "idle" | "sending" | "sent" | "error";
+
 export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
-  const { loginWithRedirect } = useAuth0();
   const { email, setEmail } = useSignupEmail();
-  const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
+  const [status, setStatus] = useState<FormStatus>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sentToEmail, setSentToEmail] = useState<string | null>(null);
 
   const buildReturnPath = () => {
     const params = new URLSearchParams({
@@ -27,25 +32,75 @@ export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
     return `/home?${params.toString()}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !email.includes("@")) return;
+  const sendLink = async (targetEmail: string) => {
     setStatus("sending");
-
+    setErrorMessage(null);
     try {
-      await startPasswordlessEmailSignup(loginWithRedirect, {
-        email,
+      await sendPasswordlessEmailLink({
+        email: targetEmail,
         sourceSurface: "city_get_landing",
         citySlug,
         cityName,
         cityId,
         returnAfterCheckEmail: buildReturnPath(),
       });
+      setSentToEmail(targetEmail);
+      setStatus("sent");
     } catch (err) {
-      console.error("[HeroEmailSignup] passwordless signup failed:", err);
+      console.error("[HeroEmailSignup] passwordless send failed:", err);
+      let message = "Something went wrong. Please try again.";
+      if (err instanceof PasswordlessSendError) {
+        message = err.detail ? `${err.message} (${err.detail})` : err.message;
+      }
+      setErrorMessage(message);
       setStatus("error");
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed.includes("@")) return;
+    await sendLink(trimmed);
+  };
+
+  if (status === "sent" && sentToEmail) {
+    return (
+      <div
+        id="get-hero-signup"
+        className={styles.heroSignupSuccess}
+        role="status"
+        aria-live="polite"
+      >
+        <span className={styles.heroSignupSuccessIcon} aria-hidden="true">
+          ✉️
+        </span>
+        <div className={styles.heroSignupSuccessBody}>
+          <p className={styles.heroSignupSuccessTitle}>
+            Check your inbox
+          </p>
+          <p className={styles.heroSignupSuccessText}>
+            We sent a one-time link to{" "}
+            <strong className={styles.heroSignupSuccessEmail}>
+              {sentToEmail}
+            </strong>
+            . Click it to finish signing up for the {cityName} weekly.
+          </p>
+          <p className={styles.heroSignupSuccessNote}>
+            Didn’t get it? Check your spam folder, or{" "}
+            <button
+              type="button"
+              className={styles.heroSignupResendBtn}
+              onClick={() => sendLink(sentToEmail)}
+            >
+              resend the link
+            </button>
+            .
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -73,9 +128,9 @@ export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
           {status === "sending" ? "Sending magic link…" : "Sign up free"}
         </button>
       </div>
-      {status === "error" && (
-        <p className={styles.heroSignupError}>
-          Something went wrong. Please try again.
+      {status === "error" && errorMessage && (
+        <p className={styles.heroSignupError} role="alert">
+          {errorMessage}
         </p>
       )}
       <p className={styles.heroSignupNote}>

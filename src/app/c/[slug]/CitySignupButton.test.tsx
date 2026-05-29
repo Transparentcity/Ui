@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import CitySignupButton from "./CitySignupButton";
@@ -39,7 +39,6 @@ describe("CitySignupButton", () => {
     vi.clearAllMocks();
     mockLoginWithRedirect.mockResolvedValue(undefined);
     mockPrefillEmail = "";
-    // Provide a working localStorage mock for the test environment
     const store: Record<string, string> = {};
     vi.stubGlobal("localStorage", {
       getItem: vi.fn((key: string) => store[key] ?? null),
@@ -58,46 +57,19 @@ describe("CitySignupButton", () => {
   });
 
   describe("sign up flow", () => {
-    it("shows dropdown with citizen and city staff options on click", async () => {
+    it("redirects directly to Auth0 signup on click", async () => {
       const user = userEvent.setup();
       render(<CitySignupButton />);
       await user.click(screen.getByRole("button", { name: /sign up/i }));
-
-      expect(screen.getByRole("menuitem", { name: /citizen/i })).toBeInTheDocument();
-      expect(screen.getByRole("menuitem", { name: /city staff/i })).toBeInTheDocument();
-    });
-
-    it("calls loginWithRedirect with resident intent", async () => {
-      const user = userEvent.setup();
-      render(<CitySignupButton />);
-      await user.click(screen.getByRole("button", { name: /sign up/i }));
-      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
 
       expect(mockLoginWithRedirect).toHaveBeenCalledWith(
         expect.objectContaining({
           authorizationParams: expect.objectContaining({
             screen_hint: "signup",
+            prompt: "login",
+            action: "signup",
           }),
           appState: { returnTo: "/home?signup=resident" },
-        })
-      );
-    });
-
-    it("calls loginWithRedirect with public-servant intent", async () => {
-      const user = userEvent.setup();
-      render(<CitySignupButton />);
-      await user.click(screen.getByRole("button", { name: /sign up/i }));
-      await user.click(screen.getByRole("menuitem", { name: /city staff/i }));
-
-      // GovernmentSignupMessage interstitial is shown first
-      await user.click(screen.getByRole("button", { name: /continue to sign up/i }));
-
-      expect(mockLoginWithRedirect).toHaveBeenCalledWith(
-        expect.objectContaining({
-          authorizationParams: expect.objectContaining({
-            screen_hint: "signup",
-          }),
-          appState: { returnTo: "/home?signup=public-servant" },
         })
       );
     });
@@ -106,7 +78,6 @@ describe("CitySignupButton", () => {
       const user = userEvent.setup();
       render(<CitySignupButton />);
       await user.click(screen.getByRole("button", { name: /sign up/i }));
-      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
 
       expect(window.localStorage.setItem).toHaveBeenCalledWith(
         "transparentcity.signup_intent",
@@ -118,7 +89,6 @@ describe("CitySignupButton", () => {
       const user = userEvent.setup();
       render(<CitySignupButton citySlug="san-francisco" cityName="San Francisco" cityId={42} />);
       await user.click(screen.getByRole("button", { name: /sign up/i }));
-      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
 
       expect(window.localStorage.setItem).toHaveBeenCalledWith(
         "transparentcity.follow_city_slug",
@@ -146,32 +116,17 @@ describe("CitySignupButton", () => {
       const user = userEvent.setup();
       render(<CitySignupButton />);
       await user.click(screen.getByRole("button", { name: /sign up/i }));
-      await user.click(screen.getByRole("menuitem", { name: /citizen/i }));
 
       expect(mockLoginWithRedirect).toHaveBeenCalledWith(
         expect.objectContaining({
           authorizationParams: expect.objectContaining({
+            screen_hint: "signup",
+            prompt: "login",
+            action: "signup",
             login_hint: "shared@example.com",
           }),
         })
       );
-    });
-
-    it("closes dropdown when clicking outside", async () => {
-      const user = userEvent.setup();
-      render(
-        <div>
-          <CitySignupButton />
-          <button>outside</button>
-        </div>
-      );
-      await user.click(screen.getByRole("button", { name: /sign up/i }));
-      expect(screen.getByRole("menu")).toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: "outside" }));
-      await waitFor(() => {
-        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-      });
     });
   });
 

@@ -12,12 +12,12 @@ import type { CityLeader } from "@/lib/apiClient";
 import {
   listMyPlaces,
   getPlaceMetrics,
-  getPlaceAnomalies,
   runPlaceMetricsAndAnomaliesAsJob,
   getJob,
+  getCityStructure,
+  getCityShapeLayers,
   type Job,
   type PlaceTimeSeriesPoint,
-  type PlaceAnomaly,
 } from "@/lib/apiClient";
 import { useUserMetricOrdering } from "@/lib/hooks/useCityAdmin";
 import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEvents";
@@ -38,6 +38,19 @@ import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
 
 type CityViewSection = "dashboard" | "map" | "alerts";
+
+function getVisibleCityViewSections(isAdmin: boolean): CityViewSection[] {
+  return isAdmin ? ["dashboard", "map", "alerts"] : ["dashboard"];
+}
+
+function resolveCityViewSection(
+  section: CityViewSection | null | undefined,
+  isAdmin: boolean,
+): CityViewSection {
+  if (!section || section === "dashboard") return "dashboard";
+  if (!isAdmin) return "dashboard";
+  return section;
+}
 
 interface CityViewProps {
   cityId: number;
@@ -566,9 +579,8 @@ const YTDSparkline = React.memo(function YTDSparkline({
 function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District", onEditMetrics }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
-  // Block (place) scope: metrics and anomalies for selected place
+  // Block (place) scope: metrics for selected place
   const [placeTimeSeries, setPlaceTimeSeries] = useState<PlaceTimeSeriesPoint[]>([]);
-  const [placeAnomalies, setPlaceAnomalies] = useState<PlaceAnomaly[]>([]);
   const [placeDataLoading, setPlaceDataLoading] = useState(false);
   const [placeRunLoading, setPlaceRunLoading] = useState(false);
   /** Live job status while a place metrics refresh is running (server-driven message + progress). */
@@ -632,18 +644,13 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           }
         }
         if (cancelled) return;
-        const [metricsRes, anomaliesRes] = await Promise.all([
-          getPlaceMetrics(selectedPlaceId, token),
-          getPlaceAnomalies(selectedPlaceId, token),
-        ]);
+        const metricsRes = await getPlaceMetrics(selectedPlaceId, token);
         if (cancelled) return;
         setPlaceTimeSeries(metricsRes?.time_series ?? []);
-        setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
       })
       .catch(() => {
         if (!cancelled) {
           setPlaceTimeSeries([]);
-          setPlaceAnomalies([]);
         }
         finishBootstrapOnce();
       })
@@ -659,7 +666,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     };
   }, [selectedPlaceId, getAccessTokenSilently]);
 
-  /** Refresh metrics and anomalies for a single place only (the one passed in). */
+  /** Refresh metrics for a single place only (the one passed in). */
   const refreshPlaceData = useCallback(
     async (placeId: number) => {
       if (!placeId || !getAccessTokenSilently) return;
@@ -683,13 +690,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         );
         // Only update state if we're still viewing this place (user didn't switch)
         if (selectedPlaceId !== placeId) return;
-        const [metricsRes, anomaliesRes] = await Promise.all([
-          getPlaceMetrics(placeId, token),
-          getPlaceAnomalies(placeId, token),
-        ]);
+        const metricsRes = await getPlaceMetrics(placeId, token);
         if (selectedPlaceId !== placeId) return;
         setPlaceTimeSeries(metricsRes?.time_series ?? []);
-        setPlaceAnomalies(anomaliesRes?.anomalies ?? []);
       } finally {
         setPlaceRunLoading(false);
         setPlaceJobProgress(null);
@@ -1687,7 +1690,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 : "Loading personalized dashboard…"}
             </span>
           </div>
-        ) : selectedPlaceId && selectedPlace && !placeDataLoading && !comparisonsLoadingState && (!comparisonsData || Object.keys(comparisonsData).length === 0) && placeAnomalies.length === 0 ? (
+        ) : selectedPlaceId && selectedPlace && !placeDataLoading && !comparisonsLoadingState && (!comparisonsData || Object.keys(comparisonsData).length === 0) ? (
           <div className="block-dashboard-empty block-dashboard-empty--dark">
             {placeRunLoading && placeJobProgress ? (
               <div
@@ -2051,37 +2054,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
             </div>
           );
         })}
-        {selectedPlaceId && (() => {
-          const alertAnomalies = placeAnomalies.filter((a) => a.is_anomaly === true);
-          const formatPeriod = (tp: string | null): string => {
-            if (!tp) return "";
-            try {
-              const d = new Date(tp + "T12:00:00");
-              if (Number.isNaN(d.getTime())) return tp;
-              return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-            } catch {
-              return tp;
-            }
-          };
-          const formatChange = (a: PlaceAnomaly): string => {
-            if (a.pct_change == null) return "Anomaly";
-            if (a.pct_change === 0) return "No change vs prior period";
-            return `${a.pct_change > 0 ? "+" : ""}${a.pct_change.toFixed(1)}% vs prior period`;
-          };
-          return alertAnomalies.length > 0 ? (
-            <div className="block-anomalies-list" style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border-color, #e5e5e5)" }}>
-              <h3 style={{ marginBottom: "8px", fontSize: "1rem" }}>Alerts</h3>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {alertAnomalies.map((a, i) => (
-                  <li key={a.id ?? i} style={{ padding: "6px 0", borderBottom: "1px solid var(--border-color, #eee)" }}>
-                    <span className="block-anomaly-period" style={{ marginRight: "8px", color: "var(--text-secondary)" }}>{formatPeriod(a.time_period)}</span>
-                    <span className="block-anomaly-message">{formatChange(a)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null;
-        })()}
         </>
         )}
       </div>
@@ -2105,6 +2077,10 @@ export default function CityView({
   initialSection,
   onCityChange,
 }: CityViewProps) {
+  const visibleSections = useMemo(
+    () => getVisibleCityViewSections(isAdmin),
+    [isAdmin],
+  );
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   // alertsSectionVisible removed – anomalies section hidden
   const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
@@ -2130,9 +2106,11 @@ export default function CityView({
   const [lastPlaceRefreshAt, setLastPlaceRefreshAt] = useState<string | null>(null);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const dashboardSectionRef = useRef<HTMLDivElement | null>(null);
-  const [activeSection, setActiveSection] = useState<CityViewSection>(initialSection || "dashboard");
+  const [activeSection, setActiveSection] = useState<CityViewSection>(() =>
+    resolveCityViewSection(initialSection, isAdmin),
+  );
   const [alertsTabMounted, setAlertsTabMounted] = useState<boolean>(
-    initialSection === "alerts"
+    initialSection === "alerts" && isAdmin,
   );
   const [isCityDataReady, setIsCityDataReady] = useState(false);
   const previousCityIdRef = useRef<number | null>(null);
@@ -2365,8 +2343,58 @@ export default function CityView({
 
   // Sync activeSection when initialSection prop changes (e.g. sidebar Dashboard/Map shortcut)
   useEffect(() => {
-    if (initialSection) setActiveSection(initialSection);
-  }, [initialSection]);
+    if (initialSection) {
+      setActiveSection(resolveCityViewSection(initialSection, isAdmin));
+    }
+  }, [initialSection, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin && activeSection !== "dashboard") {
+      setActiveSection("dashboard");
+    }
+  }, [isAdmin, activeSection]);
+
+  // Non-admins do not get the map tab; load leaders/shapefiles for district navigation only.
+  useEffect(() => {
+    if (isAdmin || !cityLoaded || !cityId) return;
+
+    let cancelled = false;
+
+    const loadNavData = async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const structureData = await getCityStructure(cityId, token).catch(() => null);
+        if (cancelled) return;
+
+        let layersData: Awaited<ReturnType<typeof getCityShapeLayers>> = [];
+        try {
+          layersData = await getCityShapeLayers(cityId, token, true);
+        } catch {
+          layersData = [];
+        }
+        if (cancelled) return;
+
+        const shapefilesData = layersData
+          .map((layer) => layer.instance)
+          .filter((instance): instance is NonNullable<typeof instance> => !!instance);
+
+        setMapLeaders(structureData?.leaders || []);
+        setMapShapefiles(shapefilesData);
+        setIsCityDataReady(true);
+      } catch {
+        if (!cancelled) {
+          setMapLeaders([]);
+          setMapShapefiles([]);
+          setIsCityDataReady(true);
+        }
+      }
+    };
+
+    void loadNavData();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, cityLoaded, cityId, getAccessTokenSilently]);
 
   // When switching to the Map tab, Mapbox needs a resize event to recalculate
   // its canvas dimensions (the container was display:none while hidden).
@@ -2522,23 +2550,23 @@ export default function CityView({
               />
             </div>
           ) : null}
-          {/* Tab nav: Dashboard | Map | Alerts (admin only) */}
-          <nav className="city-view-tab-nav" aria-label="City view tabs" role="tablist">
-            {((isAdmin
-              ? ["dashboard", "map", "alerts"]
-              : ["dashboard", "map"]) as CityViewSection[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`city-view-tab-btn${activeSection === s ? " city-view-tab-btn-active" : ""}`}
-                onClick={() => setActiveSection(s)}
-                aria-selected={activeSection === s}
-                role="tab"
-              >
-                {s === "dashboard" ? "Dashboard" : s === "map" ? "Map" : "Alerts"}
-              </button>
-            ))}
-          </nav>
+          {/* Tab nav: Dashboard | Map | Alerts (map + alerts admin only) */}
+          {visibleSections.length > 1 ? (
+            <nav className="city-view-tab-nav" aria-label="City view tabs" role="tablist">
+              {visibleSections.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`city-view-tab-btn${activeSection === s ? " city-view-tab-btn-active" : ""}`}
+                  onClick={() => setActiveSection(s)}
+                  aria-selected={activeSection === s}
+                  role="tab"
+                >
+                  {s === "dashboard" ? "Dashboard" : s === "map" ? "Map" : "Alerts"}
+                </button>
+              ))}
+            </nav>
+          ) : null}
         </header>
         {(() => {
           const selectedPlace =
@@ -2557,44 +2585,46 @@ export default function CityView({
 
           return (
             <>
-        {/* Map tab content: always mounted to preserve map state, hidden via CSS when inactive */}
-        <section
-          ref={mapSectionRef}
-          className={`city-view-map-section city-view-tab-content${activeSection !== "map" ? " city-view-tab-hidden" : ""}`}
-          id="map-section"
-          aria-label="Map"
-          role="tabpanel"
-          aria-hidden={activeSection !== "map"}
-        >
-          <div className="city-view-map-date-overlay">
-            <MetricDateRangeSelector
-              value={metricDateRange}
-              onChange={setMetricDateRange}
+        {/* Map tab content (admin only): mounted to preserve map state, hidden via CSS when inactive */}
+        {isAdmin ? (
+          <section
+            ref={mapSectionRef}
+            className={`city-view-map-section city-view-tab-content${activeSection !== "map" ? " city-view-tab-hidden" : ""}`}
+            id="map-section"
+            aria-label="Map"
+            role="tabpanel"
+            aria-hidden={activeSection !== "map"}
+          >
+            <div className="city-view-map-date-overlay">
+              <MetricDateRangeSelector
+                value={metricDateRange}
+                onChange={setMetricDateRange}
+              />
+            </div>
+            <CityMapView
+              cityId={cityId}
+              isAdmin={isAdmin}
+              cityData={cityData}
+              metricDateRange={metricDateRange}
+              gpsLocation={
+                selectedPlaceId != null
+                  ? selectedPlaceGps ?? ((districtGPSLocation || gpsLocation) ?? undefined)
+                  : selectedDistrict != null && selectedDistrict !== 0
+                    ? undefined
+                    : (districtGPSLocation || gpsLocation) ?? undefined
+              }
+              selectedPlaceRadiusM={selectedPlaceId != null ? selectedPlaceRadiusM : undefined}
+              placeLabel={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null) : null}
+              selectedDistrict={selectedDistrict}
+              onDistrictChange={setSelectedDistrict}
+              onDataReady={(data) => {
+                setMapLeaders(data.leaders);
+                setMapShapefiles(data.shapefiles);
+                setIsCityDataReady(true);
+              }}
             />
-          </div>
-          <CityMapView
-            cityId={cityId}
-            isAdmin={isAdmin}
-            cityData={cityData}
-            metricDateRange={metricDateRange}
-            gpsLocation={
-              selectedPlaceId != null
-                ? selectedPlaceGps ?? ((districtGPSLocation || gpsLocation) ?? undefined)
-                : selectedDistrict != null && selectedDistrict !== 0
-                  ? undefined
-                  : (districtGPSLocation || gpsLocation) ?? undefined
-            }
-            selectedPlaceRadiusM={selectedPlaceId != null ? selectedPlaceRadiusM : undefined}
-            placeLabel={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null) : null}
-            selectedDistrict={selectedDistrict}
-            onDistrictChange={setSelectedDistrict}
-            onDataReady={(data) => {
-              setMapLeaders(data.leaders);
-              setMapShapefiles(data.shapefiles);
-              setIsCityDataReady(true);
-            }}
-          />
-        </section>
+          </section>
+        ) : null}
 
         {/* Dashboard tab content: always mounted to preserve scroll position */}
         <section

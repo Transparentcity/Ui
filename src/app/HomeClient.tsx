@@ -12,14 +12,8 @@ import { slugify } from "@/lib/utils";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
 import HomeFeedPreview from "@/components/feed/HomeFeedPreview";
-import {
-  trackSearchReferrer,
-  trackSignupStart,
-  trackSignupClick,
-  getFunnelSessionId,
-  recordFunnelEventBackend,
-  type SignupEventContext,
-} from "@/lib/analytics";
+import { trackSearchReferrer } from "@/lib/analytics";
+import { startSignup } from "@/lib/signup";
 import { useProductEvent } from "@/lib/productAnalytics";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import type { MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
@@ -39,27 +33,9 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
   // First-party landing event for the home page
   useProductEvent("home_page_view");
 
-  const handleSignup = async (intent: "resident" | "public-servant" = "resident") => {
-    const ctx: SignupEventContext = {
+  const handleSignup = async () => {
+    await startSignup(loginWithRedirect, "resident", {
       source_surface: "home_page",
-      signup_intent: intent,
-      landing_path: typeof window !== "undefined" ? window.location.pathname : null,
-      funnel_session_id: getFunnelSessionId(),
-    };
-
-    trackSignupStart(intent, ctx);
-    trackSignupClick(intent, ctx);
-    recordFunnelEventBackend("signup_start", ctx);
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("transparentcity.signup_intent", intent);
-      // Persist surface so home/page.tsx can read it on return from Auth0
-      window.localStorage.setItem("transparentcity.signup_surface", "home_page");
-    }
-
-    await loginWithRedirect({
-      authorizationParams: { screen_hint: "signup" },
-      appState: { returnTo: `/home?signup=${intent}` },
     });
   };
 
@@ -120,7 +96,7 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
                     {heroLaunchedCities.map((c) => (
                       <Link
                         key={c.id}
-                        href={`/c/${slugify(c.name)}`}
+                        href={`/get/${c.slug || slugify(c.name)}`}
                         className={styles.heroCityLink}
                       >
                         {c.emoji ? `${c.emoji} ` : ""}{c.name}

@@ -1,0 +1,451 @@
+/* Inbox list + card styles */
+
+/* ------------------------------------------------------------------ */
+/* Container                                                          */
+/* ------------------------------------------------------------------ */
+
+.inbox {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ */
+/* Billboard (optional top-of-list message, e.g. onboarding welcome) */
+/* ------------------------------------------------------------------ */
+
+.billboardWrapper {
+  padding: var(--space-md) var(--space-lg) 0;
+  flex-shrink: 0;
+}
+
+.billboard {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--brand-primary-light);
+  border: 1px solid rgba(173, 53, 250, 0.2);
+  border-radius: var(--radius-md);
+}
+
+.billboardLoader {
+  flex-shrink: 0;
+  width: 24px !important;
+  height: 24px !important;
+  margin-top: 1px;
+}
+
+.billboardIcon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.billboardBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.billboardTitle {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  line-height: 1.35;
+}
+
+.billboardText {
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.billboardLink {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.billboardLink:hover {
+  text-decoration: underline;
+}
+
+.inboxList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* ------------------------------------------------------------------ */
+/* Loading / empty / error states                                     */
+/* ------------------------------------------------------------------ */
+
+.centeredState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--space-2xl);
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.emptyIcon {
+  width: 40px;
+  height: 40px;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.emptyTitle {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.emptyText {
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------------ */
+/* Card                                                                */
+/* ------------------------------------------------------------------ */
+
+.card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto;
+  gap: 0 var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: var(--transition);
+  outline: none;
+  position: relative;
+}
+
+.card:hover,
+.card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-secondary);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--brand-primary-light);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Card line 1: meta row                                              */
+/* ------------------------------------------------------------------ */
+
+.cardMeta {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.unreadDot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  transition: opacity var(--transition);
+}
+
+.unreadDotRead {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scopeIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.scopeIconSvg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+}
+
+.districtBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.scopeLabel {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.privatePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(173, 53, 250, 0.10);
+  color: var(--brand-primary);
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.privatePillIcon {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.cardDate {
+  margin-left: auto;
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-left: var(--space-xs);
+}
+
+/* ------------------------------------------------------------------ */
+/* Card line 2: subject                                               */
+/* ------------------------------------------------------------------ */
+
+.cardSubject {
+  grid-column: 1;
+  grid-row: 2;
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Card line 3: preview                                               */
+/* ------------------------------------------------------------------ */
+
+.cardPreview {
+  grid-column: 1;
+  grid-row: 3;
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 2px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ------------------------------------------------------------------ */
+/* Card thumbnail (right side, rows 2–3)                              */
+/* ------------------------------------------------------------------ */
+
+.cardThumbnail {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  align-self: start;
+  margin-top: 4px;
+  background: var(--bg-tertiary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark mode overrides                                                */
+/* ------------------------------------------------------------------ */
+
+[data-theme="dark"] .card,
+.dark .card {
+  background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .privatePill,
+.dark .privatePill {
+  background: rgba(173, 53, 250, 0.20);
+}
+
+/* ------------------------------------------------------------------ */
+/* Detail view                                                        */
+/* ------------------------------------------------------------------ */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  z-index: 10;
+}
+
+.backButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--brand-primary);
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 4px var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  outline: none;
+  flex-shrink: 0;
+}
+
+.backButton:hover,
+.backButton:focus-visible {
+  background: var(--brand-secondary);
+}
+
+.backButton:focus-visible {
+  outline: 2px solid var(--brand-primary-light);
+  outline-offset: 2px;
+}
+
+.backIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.detailBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+}
+
+/* Inherit newsletter body styles for body_html content */
+.detailBodyHtml {
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.detailBodyHtml h1,
+.detailBodyHtml h2,
+.detailBodyHtml h3 {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.detailBodyHtml img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  display: block;
+}
+
+.detailBodyHtml a {
+  color: var(--brand-primary);
+}
+
+.detailBodyHtml p {
+  margin-bottom: var(--space-md);
+}
+
+.detailPublicLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--brand-primary);
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.detailPublicLink:hover {
+  background: var(--brand-secondary);
+  border-color: var(--brand-primary);
+}
