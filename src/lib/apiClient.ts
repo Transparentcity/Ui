@@ -5124,6 +5124,13 @@ export function listNewsletterEditionsAdmin(
   );
 }
 
+export function deleteNewsletterEditionsBatch(
+  ids: number[],
+  token: string
+): Promise<{ deleted: number }> {
+  return request(`/api/admin/newsletter-editions/delete`, "POST", { ids }, token);
+}
+
 /** Manual run of a system schedule (e.g. weekly_newsletter). */
 export function runScheduleJob(
   token: string,

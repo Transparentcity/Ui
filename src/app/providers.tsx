@@ -7,22 +7,70 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
-import {
-  clearStaleAuth0Transactions,
-  findAuth0TransactionByState,
-  getAuth0CookieDomain,
-} from "@/lib/auth0TransactionStorage";
 import { queryClient } from "@/lib/queryClient";
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+const AUTH0_TXN_KEY_PREFIX = "a0.spajs.txs";
+
+function getAuth0TransactionStorages(): Storage[] {
+  if (typeof window === "undefined") return [];
+  const storages: Storage[] = [];
+  try {
+    storages.push(sessionStorage);
+  } catch {
+    /* ignore */
+  }
+  try {
+    storages.push(localStorage);
+  } catch {
+    /* ignore */
+  }
+  return storages;
+}
+
+/**
+ * Clear stale Auth0 transaction state from browser storage.
+ * This prevents "Invalid state" errors when users click the back button
+ * during or after an auth flow.
+ */
+function clearStaleAuth0State() {
+  if (typeof window === "undefined") return;
+
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+
+  getAuth0TransactionStorages().forEach((storage) => {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && key.startsWith(AUTH0_TXN_KEY_PREFIX)) {
+        // Check if the transaction is stale (older than 5 minutes)
+        try {
+          const value = storage.getItem(key);
+          if (value) {
+            const parsed = JSON.parse(value);
+            const createdAt = parsed?.created_at || 0;
+            if (createdAt < fiveMinutesAgo) {
+              keysToRemove.push(key);
+            }
+          }
+        } catch {
+          // If we can't parse it, remove it
+          keysToRemove.push(key);
+        }
+      }
+    }
+    keysToRemove.forEach((key) => storage.removeItem(key));
+  });
+}
+
 /**
  * Check if URL has Auth0 callback params but we might have an invalid state.
  * Returns true if we should skip the redirect callback.
  */
-function shouldSkipRedirectCallback(clientId?: string): boolean {
+function shouldSkipRedirectCallback(): boolean {
   if (typeof window === "undefined") return false;
 
   const url = new URL(window.location.href);
@@ -36,11 +84,32 @@ function shouldSkipRedirectCallback(clientId?: string): boolean {
   }
 
   // If we have code and state params (callback from Auth0),
-  // check if we have a matching transaction (localStorage, sessionStorage, or cookie)
+  // check if we have a matching transaction in localStorage
   if (hasCode && hasState) {
     const state = url.searchParams.get("state");
-    const hasMatchingTransaction =
-      !!state && findAuth0TransactionByState(state, clientId);
+    let hasMatchingTransaction = false;
+
+    getAuth0TransactionStorages().forEach((storage) => {
+      if (hasMatchingTransaction) return;
+
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && key.startsWith(AUTH0_TXN_KEY_PREFIX)) {
+          try {
+            const value = storage.getItem(key);
+            if (value) {
+              const parsed = JSON.parse(value);
+              if (parsed?.state === state) {
+                hasMatchingTransaction = true;
+                break;
+              }
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+    });
 
     // If no matching transaction, skip the callback to prevent errors
     if (!hasMatchingTransaction) {
@@ -58,16 +127,17 @@ function shouldSkipRedirectCallback(clientId?: string): boolean {
 export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
   const [skipRedirect, setSkipRedirect] = useState(false);
-  const domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
-  const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
-  const audience = getAuth0ApiAudience();
 
   // On mount, clear stale state and check if we should skip redirect
   useEffect(() => {
-    clearStaleAuth0Transactions();
-    const shouldSkip = shouldSkipRedirectCallback(clientId);
+    clearStaleAuth0State();
+    const shouldSkip = shouldSkipRedirectCallback();
     setSkipRedirect(shouldSkip);
-  }, [clientId]);
+  }, []);
+
+  const domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
+  const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
+  const audience = getAuth0ApiAudience();
 
   if (!domain || !clientId) {
     if (typeof window !== "undefined") {
@@ -91,9 +161,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     router.push(appState?.returnTo || "/home");
   };
 
-  const cookieDomain =
-    typeof window !== "undefined" ? getAuth0CookieDomain() : undefined;
-
   return (
     <Auth0Provider
       domain={domain || "auth.transparent.city"}
@@ -106,8 +173,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }}
       cacheLocation="localstorage"
       useRefreshTokens
-      useCookiesForTransactions
-      {...(cookieDomain ? { cookieDomain } : {})}
       onRedirectCallback={onRedirectCallback}
       skipRedirectCallback={skipRedirect}
     >

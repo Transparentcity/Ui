@@ -5,9 +5,10 @@
  *  1. `startPasswordlessEmailSignup` – legacy path that uses Auth0
  *     Universal Login (`loginWithRedirect`). Kept for surfaces that
  *     still need Auth0's hosted login chrome.
- *  2. `sendPasswordlessEmailLink` – preferred path. Calls Auth0's
- *     `/passwordless/start` endpoint directly so the user stays on the
- *     current page and we can show an inline "check your inbox"
+ *  2. `sendPasswordlessEmailLink` – preferred path. Calls a same-origin
+ *     proxy endpoint (`/api/auth/passwordless-start`) that forwards to
+ *     Auth0 `/passwordless/start`, so the user stays on the current page
+ *     and we can show an inline "check your inbox"
  *     confirmation. The magic link in the email lands back at the SPA
  *     and auth0-spa-js's `handleRedirectCallback` finishes the flow
  *     using the transaction we plant in sessionStorage.
@@ -19,10 +20,6 @@
  */
 
 import { getAuth0ApiAudience } from "./auth0ApiAudience";
-import {
-  persistAuth0LoginTransaction,
-  type Auth0LoginTransaction,
-} from "./auth0TransactionStorage";
 import {
   getFunnelSessionId,
   recordFunnelEventBackend,
@@ -38,6 +35,12 @@ const POST_LOGIN_RETURN_KEY = "auth_return_after_check_email";
  * connection in our tenant and Auth0 will reject the authorize call. */
 const PASSWORDLESS_SCOPE = "openid profile email";
 
+/** auth0-spa-js stores per-client transaction state under this prefix in
+ * sessionStorage. We plant a compatible record so `handleRedirectCallback`
+ * can complete the PKCE exchange when the magic-link click returns to the
+ * SPA. */
+const AUTH0_TXN_STORAGE_PREFIX = "a0.spajs.txs";
+
 export type PasswordlessSignupOptions = {
   email: string;
   sourceSurface: string;
@@ -52,28 +55,6 @@ export type PasswordlessSignupOptions = {
 function isValidEmail(email: string): boolean {
   const trimmed = email.trim();
   return trimmed.length > 0 && trimmed.includes("@");
-}
-
-/**
- * Inline magic links need Auth0's passwordless session cookie in the browser.
- * That cookie is only set reliably when /passwordless/start runs with
- * credentials on a host that is same-site with auth.*.transparent.city.
- * localhost and preview hosts are cross-site → use Auth0 hosted passwordless.
- */
-export function requiresHostedPasswordlessFlow(): boolean {
-  if (typeof window === "undefined") return false;
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") return true;
-  if (host.endsWith(".localhost")) return true;
-  if (host.endsWith(".vercel.app")) return true;
-  return false;
-}
-
-/** Production *.transparent.city can use credentialed /passwordless/start. */
-function shouldPasswordlessStartUseCredentials(): boolean {
-  if (typeof window === "undefined") return false;
-  const host = window.location.hostname;
-  return host === "transparent.city" || host.endsWith(".transparent.city");
 }
 
 export function persistPasswordlessSignupContext(
@@ -135,19 +116,13 @@ export async function startPasswordlessEmailSignup(
 
   persistPasswordlessSignupContext(options);
 
-  const returnTo =
-    options.returnAfterCheckEmail ??
-    (typeof window !== "undefined"
-      ? window.location.pathname + window.location.search
-      : "/check-email");
-
   await loginWithRedirect({
     authorizationParams: {
       connection: "email",
       login_hint: email,
-      scope: PASSWORDLESS_SCOPE,
+      scope: "openid profile email",
     },
-    appState: { returnTo },
+    appState: { returnTo: "/check-email" },
   });
 }
 
@@ -210,7 +185,18 @@ async function sha256(input: string): Promise<ArrayBuffer> {
   return window.crypto.subtle.digest("SHA-256", data);
 }
 
-function readAuth0Config(): { domain: string; clientId: string } {
+type Auth0LoginTransaction = {
+  nonce: string;
+  code_verifier: string;
+  scope: string;
+  audience: string;
+  redirect_uri: string;
+  state: string;
+  response_type: "code";
+  appState?: unknown;
+};
+
+function readAuth0Config(): { clientId: string } {
   const domain = (process.env.NEXT_PUBLIC_AUTH0_DOMAIN ?? "").trim();
   const clientId = (process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID ?? "").trim();
   if (!domain || !clientId) {
@@ -220,12 +206,13 @@ function readAuth0Config(): { domain: string; clientId: string } {
       "NEXT_PUBLIC_AUTH0_DOMAIN and NEXT_PUBLIC_AUTH0_CLIENT_ID must be set."
     );
   }
-  return { domain, clientId };
+  return { clientId };
 }
 
 /**
- * Send a passwordless magic-link email directly from the browser via
- * Auth0's `/passwordless/start` endpoint. The user stays on the current
+ * Send a passwordless magic-link email from the browser via a same-origin
+ * Next.js API route that forwards to Auth0 `/passwordless/start`. The user
+ * stays on the current
  * page; the caller is responsible for rendering a "check your inbox"
  * confirmation.
  *
@@ -251,15 +238,7 @@ export async function sendPasswordlessEmailLink(
     );
   }
 
-  if (requiresHostedPasswordlessFlow()) {
-    throw new PasswordlessSendError(
-      "hosted_required",
-      "On localhost, use the Auth0 email sign-in page so your magic link works in this browser.",
-      "Call startPasswordlessEmailSignup instead of sendPasswordlessEmailLink."
-    );
-  }
-
-  const { domain, clientId } = readAuth0Config();
+  const { clientId } = readAuth0Config();
   const audience = getAuth0ApiAudience();
   const redirectUri = window.location.origin;
 
@@ -287,7 +266,15 @@ export async function sendPasswordlessEmailLink(
     response_type: "code",
     appState: { returnTo },
   };
-  persistAuth0LoginTransaction(clientId, transaction);
+  try {
+    sessionStorage.setItem(
+      `${AUTH0_TXN_STORAGE_PREFIX}.${clientId}`,
+      JSON.stringify(transaction)
+    );
+  } catch {
+    /* sessionStorage may be unavailable in private mode; the magic link will
+       still authenticate via the Auth0 session cookie on return. */
+  }
 
   const body = {
     client_id: clientId,
@@ -306,39 +293,21 @@ export async function sendPasswordlessEmailLink(
     },
   };
 
-  const auth0Endpoint = `https://${domain}/passwordless/start`;
-  const proxyEndpoint = "/api/auth/passwordless-start";
-  const useCredentials = shouldPasswordlessStartUseCredentials();
+  const endpoint = "/api/auth/passwordless-start";
 
   let response: Response;
   try {
-    response = await fetch(auth0Endpoint, {
+    response = await fetch(endpoint, {
       method: "POST",
-      credentials: useCredentials ? "include" : "omit",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch (err) {
-    if (useCredentials) {
-      throw new PasswordlessSendError(
-        "cors_config",
-        "Could not reach Auth0 with a secure session. Add this site to Auth0 Allowed Web Origins, or use “Send link via secure sign-in page”.",
-        err instanceof Error ? err.message : String(err)
-      );
-    }
-    try {
-      response = await fetch(proxyEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch (proxyErr) {
-      throw new PasswordlessSendError(
-        "network_error",
-        "We couldn’t reach Auth0 to send your link. Please try again.",
-        proxyErr instanceof Error ? proxyErr.message : String(proxyErr)
-      );
-    }
+    throw new PasswordlessSendError(
+      "network_error",
+      "We couldn’t reach Auth0 to send your link. Please try again.",
+      err instanceof Error ? err.message : String(err)
+    );
   }
 
   // Read the raw body once so we can parse it for both success and error
@@ -369,7 +338,7 @@ export async function sendPasswordlessEmailLink(
     console.groupCollapsed(
       `[passwordless] /passwordless/start → ${response.status}`
     );
-    console.log("endpoint:", auth0Endpoint, "or", proxyEndpoint);
+    console.log("endpoint:", endpoint);
     console.log("request:", body);
     console.log("response status:", response.status);
     console.log("response body:", parsed ?? rawBody);

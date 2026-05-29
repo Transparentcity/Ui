@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useSignupEmail } from "@/app/c/[slug]/SignupEmailContext";
-import {
-  focusGetLandingHeroSignup,
-  startPasswordlessEmailSignup,
-} from "@/lib/passwordlessSignup";
+import { startSignup } from "@/lib/signup";
 import styles from "../get-landing.module.css";
 
 type Props = {
@@ -30,23 +27,18 @@ export default function GetLandingNavSignup({
 
   const handleSignUp = async () => {
     const trimmed = sharedEmail.trim();
-    if (!trimmed || !trimmed.includes("@")) {
-      focusGetLandingHeroSignup();
-      return;
-    }
-
     setStatus("sending");
     try {
-      await startPasswordlessEmailSignup(loginWithRedirect, {
-        email: trimmed,
-        sourceSurface,
-        citySlug,
-        cityName,
-        cityId,
-        returnAfterCheckEmail: overrideReturnPath,
+      await startSignup(loginWithRedirect, "resident", {
+        source_surface: sourceSurface,
+        city_slug: citySlug,
+        city_name: cityName,
+        city_id: typeof cityId === "number" ? cityId : null,
+        returnTo: overrideReturnPath,
+        loginHint: trimmed.includes("@") ? trimmed : undefined,
       });
     } catch (err) {
-      console.error("[GetLandingNavSignup] passwordless signup failed:", err);
+      console.error("[GetLandingNavSignup] Auth0 signup redirect failed:", err);
       setStatus("error");
     }
   };

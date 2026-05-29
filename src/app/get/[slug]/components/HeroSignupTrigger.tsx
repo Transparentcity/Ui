@@ -1,9 +1,12 @@
 "use client";
 
 import { KeyboardEvent, MouseEvent, ReactNode } from "react";
-import { focusGetLandingHeroSignup } from "@/lib/passwordlessSignup";
+import {
+  useGetLandingSignup,
+  type GetLandingSignupOptions,
+} from "./useGetLandingSignup";
 
-type Props = {
+type Props = GetLandingSignupOptions & {
   children: ReactNode;
   className?: string;
   /**
@@ -14,28 +17,30 @@ type Props = {
 };
 
 /**
- * Wrap non-form regions of the /get landing hero so any click within them
- * scrolls the email signup field into view and focuses it. We treat this
- * as a UX convenience: real keyboard users still tab directly to the email
- * input that lives inside this hero, so we only attach role="button"
- * semantics when an explicit ariaLabel is given.
+ * Wrap non-form regions of the /get landing hero so clicks open Auth0 signup.
+ * Interactive descendants (links, buttons, the email form) keep their own behavior.
  */
-export default function HeroSignupTrigger({ children, className, ariaLabel }: Props) {
+export default function HeroSignupTrigger({
+  children,
+  className,
+  ariaLabel,
+  ...signupOptions
+}: Props) {
+  const { triggerSignup } = useGetLandingSignup(signupOptions);
+
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-    // Ignore clicks that originated from interactive descendants (links,
-    // buttons, inputs, etc.) so the form keeps its own behavior.
     const target = event.target as HTMLElement | null;
     if (target?.closest("a, button, input, textarea, select, label, form")) {
       return;
     }
-    focusGetLandingHeroSignup();
+    void triggerSignup();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!ariaLabel) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      focusGetLandingHeroSignup();
+      void triggerSignup();
     }
   };
 

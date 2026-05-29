@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import styles from "../get-landing.module.css";
-import { focusGetLandingHeroSignup } from "@/lib/passwordlessSignup";
+import { startSignup } from "@/lib/signup";
 
 const DISMISS_KEY = "transparentcity.get_landing_bar_dismissed";
 
@@ -14,7 +14,7 @@ type Props = {
 };
 
 export default function GetLandingMobileCTA({ citySlug, cityName, cityId }: Props) {
-  const { isLoading } = useAuth0();
+  const { isLoading, loginWithRedirect } = useAuth0();
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === "undefined") return false;
     return sessionStorage.getItem(DISMISS_KEY) === "1";
@@ -22,8 +22,22 @@ export default function GetLandingMobileCTA({ citySlug, cityName, cityId }: Prop
 
   if (isLoading || dismissed) return null;
 
-  const handleClick = () => {
-    focusGetLandingHeroSignup();
+  const handleClick = async () => {
+    const returnToParams: Record<string, string> = {
+      follow_city_slug: citySlug,
+      follow_city_name: cityName,
+    };
+    if (typeof cityId === "number") {
+      returnToParams.follow_city_id = String(cityId);
+    }
+
+    await startSignup(loginWithRedirect, "resident", {
+      source_surface: "city_get_landing_mobile_bar",
+      city_slug: citySlug,
+      city_name: cityName,
+      city_id: typeof cityId === "number" ? cityId : null,
+      returnToParams,
+    });
   };
 
   return (
@@ -53,7 +67,7 @@ export default function GetLandingMobileCTA({ citySlug, cityName, cityId }: Prop
           <button
             type="button"
             className={styles.mobileCTAButton}
-            onClick={handleClick}
+            onClick={() => void handleClick()}
           >
             Sign up
           </button>

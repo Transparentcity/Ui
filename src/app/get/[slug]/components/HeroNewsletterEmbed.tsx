@@ -1,11 +1,14 @@
 "use client";
 
 import { KeyboardEvent, useEffect, useRef } from "react";
-import { focusGetLandingHeroSignup } from "@/lib/passwordlessSignup";
 import styles from "../get-landing.module.css";
+import { useGetLandingSignup } from "./useGetLandingSignup";
 
 type Props = {
   slug: string;
+  cityName: string;
+  cityId?: number | null;
+  returnTo: string;
   /** Public edition short hash (city newsletter archive). */
   shortHash?: string;
   district?: number;
@@ -45,12 +48,22 @@ function wheelDeltaY(event: WheelEvent, viewportHeight: number): number {
 
 export default function HeroNewsletterEmbed({
   slug,
+  cityName,
+  cityId,
+  returnTo,
   shortHash,
   district = 0,
   editionDate,
   featuredPendingId,
   captionLabel,
 }: Props) {
+  const { triggerSignup } = useGetLandingSignup({
+    citySlug: slug,
+    cityName,
+    cityId,
+    returnTo,
+    sourceSurface: "city_get_landing_hero_newsletter",
+  });
   const embedSrc = featuredPendingId
     ? `/get/${slug}/featured/${featuredPendingId}/embed`
     : `/c/${slug}/newsletter/${shortHash}/embed`;
@@ -159,7 +172,7 @@ export default function HeroNewsletterEmbed({
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      focusGetLandingHeroSignup();
+      void triggerSignup();
     }
   };
 
@@ -170,7 +183,7 @@ export default function HeroNewsletterEmbed({
         role="button"
         tabIndex={0}
         aria-label="Sign up to get this weekly briefing"
-        onClick={focusGetLandingHeroSignup}
+        onClick={() => void triggerSignup()}
         onKeyDown={handleKeyDown}
       >
         <iframe

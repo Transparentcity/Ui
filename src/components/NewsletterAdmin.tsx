@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import {
   adminGenerateSharedNewsletter,
+  deleteResearch,
   listCities,
   listNewsletterReports,
   generateSampleNewsletter,
@@ -21,6 +22,7 @@ import {
   listNewsletterSends,
   getNewsletterPendingDetail,
   sendNewsletterPendingBatch,
+  deleteNewsletterEditionsBatch,
   deleteNewsletterPendingBatch,
   deleteNewsletterSendsBatch,
   archiveNewsletterPendingBatch,
@@ -370,6 +372,8 @@ export default function NewsletterAdmin() {
 
   // Dashboard expanded city
   const [expandedCityId, setExpandedCityId] = useState<number | null>(null);
+  const [deletingReportIds, setDeletingReportIds] = useState<Set<number>>(new Set());
+  const [deletingEditionIds, setDeletingEditionIds] = useState<Set<number>>(new Set());
 
   // Generate modal
   const [genCityId, setGenCityId] = useState<number | null>(null);
@@ -646,6 +650,149 @@ export default function NewsletterAdmin() {
     }
   }, [testCityId, testDistrict, promptFrequency, promptText, getAccessTokenSilently]);
 
+  const handleDeleteDashboardReport = useCallback(async (cityId: number, report: NewsletterReport) => {
+    const scope =
+      !report.district || report.district === "0"
+        ? "City-wide"
+        : `District ${report.district}`;
+    const confirmed = window.confirm(
+      `Delete this ${scope.toLowerCase()} newsletter?\n\n` +
+      `${report.title || "Untitled"}\n` +
+      "This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setDeletingReportIds((prev) => {
+      const next = new Set(prev);
+      next.add(report.id);
+      return next;
+    });
+
+    try {
+      const token = await getAccessTokenSilently();
+      await deleteResearch(report.id, token);
+
+      setCityStatuses((prev) =>
+        prev.map((cs) => {
+          if (cs.city.city_id !== cityId) return cs;
+          const nextReports = cs.reports.filter((r) => r.id !== report.id);
+          if (nextReports.length === cs.reports.length) return cs;
+
+          const nextDistricts = new Set<string>();
+          let nextLatestDate: string | null = null;
+
+          for (const r of nextReports) {
+            if (r.district) nextDistricts.add(r.district);
+            if (r.created_at && (!nextLatestDate || r.created_at > nextLatestDate)) {
+              nextLatestDate = r.created_at;
+            }
+          }
+
+          const cityEditions = editionsByCityId[cs.city.city_id] || [];
+          for (const ed of cityEditions) {
+            if (ed.created_at && (!nextLatestDate || ed.created_at > nextLatestDate)) {
+              nextLatestDate = ed.created_at;
+            }
+          }
+
+          return {
+            ...cs,
+            reports: nextReports,
+            latestDate: nextLatestDate,
+            totalCount: nextReports.length,
+            districts: nextDistricts,
+          };
+        })
+      );
+      setBrowseReports((prev) => prev.filter((r) => r.id !== report.id));
+      setExpandedReportId((prev) => (prev === report.id ? null : prev));
+      toast.success("Newsletter deleted.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete newsletter";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setDeletingReportIds((prev) => {
+        const next = new Set(prev);
+        next.delete(report.id);
+        return next;
+      });
+    }
+  }, [editionsByCityId, getAccessTokenSilently]);
+
+  const handleDeleteDashboardEdition = useCallback(
+    async (cityId: number, edition: NewsletterEditionAdminItem) => {
+      const scope =
+        edition.district > 0 ? `District ${edition.district}` : "City-wide";
+      const confirmed = window.confirm(
+        `Delete this ${scope.toLowerCase()} shared edition permalink?\n\n` +
+          `${edition.summary_headline || "Untitled"}\n` +
+          "The public newsletter page will no longer be available. This cannot be undone."
+      );
+      if (!confirmed) return;
+
+      setError(null);
+      setDeletingEditionIds((prev) => {
+        const next = new Set(prev);
+        next.add(edition.id);
+        return next;
+      });
+
+      try {
+        const token = await getAccessTokenSilently();
+        const result = await deleteNewsletterEditionsBatch([edition.id], token);
+        if (!result.deleted) {
+          throw new Error("Edition not found or already deleted");
+        }
+
+        setEditionsByCityId((prev) => {
+          const cityEditions = prev[cityId];
+          if (!cityEditions) return prev;
+          const nextEditions = cityEditions.filter((e) => e.id !== edition.id);
+          if (nextEditions.length === cityEditions.length) return prev;
+          return { ...prev, [cityId]: nextEditions };
+        });
+
+        setCityStatuses((prev) =>
+          prev.map((cs) => {
+            if (cs.city.city_id !== cityId) return cs;
+            const remainingEditions = (editionsByCityId[cityId] || []).filter(
+              (e) => e.id !== edition.id
+            );
+            let nextLatestDate: string | null = null;
+
+            for (const r of cs.reports) {
+              if (r.created_at && (!nextLatestDate || r.created_at > nextLatestDate)) {
+                nextLatestDate = r.created_at;
+              }
+            }
+            for (const ed of remainingEditions) {
+              if (ed.created_at && (!nextLatestDate || ed.created_at > nextLatestDate)) {
+                nextLatestDate = ed.created_at;
+              }
+            }
+
+            return { ...cs, latestDate: nextLatestDate };
+          })
+        );
+        toast.success("Shared edition deleted.");
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to delete shared edition";
+        setError(message);
+        toast.error(message);
+      } finally {
+        setDeletingEditionIds((prev) => {
+          const next = new Set(prev);
+          next.delete(edition.id);
+          return next;
+        });
+      }
+    },
+    [editionsByCityId, getAccessTokenSilently]
+  );
+
   const handleExport = useCallback(() => {
     const toExport = filteredBrowse;
     const city = cities.find((c) => c.city_id === browseCity);
@@ -738,11 +885,15 @@ export default function NewsletterAdmin() {
           setWorkloadEstimateModelKey={setWorkloadEstimateModelKey}
           workloadModelOptions={workloadModelOptions}
           setWorkloadModelOptions={setWorkloadModelOptions}
+          deletingReportIds={deletingReportIds}
+          deletingEditionIds={deletingEditionIds}
           onToggleExpand={(id) => setExpandedCityId(expandedCityId === id ? null : id)}
           onGenerate={(cityId) => {
             setGenCityId(cityId);
             setGenModelKey(workloadEstimateModelKey);
           }}
+          onDeleteReport={handleDeleteDashboardReport}
+          onDeleteEdition={handleDeleteDashboardEdition}
         />
       )}
 
@@ -2214,8 +2365,12 @@ function DashboardTab({
   setWorkloadEstimateModelKey,
   workloadModelOptions,
   setWorkloadModelOptions,
+  deletingReportIds,
+  deletingEditionIds,
   onToggleExpand,
   onGenerate,
+  onDeleteReport,
+  onDeleteEdition,
 }: {
   stats: { totalNewsletters: number; citiesWithNewsletters: number; thisWeek: number; avgWords: number; totalCities: number };
   cityStatuses: CityNewsletterStatus[];
@@ -2225,8 +2380,12 @@ function DashboardTab({
   setWorkloadEstimateModelKey: Dispatch<SetStateAction<string>>;
   workloadModelOptions: Array<{ key: string; name: string }>;
   setWorkloadModelOptions: Dispatch<SetStateAction<Array<{ key: string; name: string }>>>;
+  deletingReportIds: Set<number>;
+  deletingEditionIds: Set<number>;
   onToggleExpand: (id: number) => void;
   onGenerate: (cityId: number) => void;
+  onDeleteReport: (cityId: number, report: NewsletterReport) => void;
+  onDeleteEdition: (cityId: number, edition: NewsletterEditionAdminItem) => void;
 }) {
   return (
     <>
@@ -2311,8 +2470,12 @@ function DashboardTab({
                     editions={editionsByCityId[cs.city.city_id] ?? []}
                     fb={fb}
                     isExpanded={isExpanded}
+                    deletingReportIds={deletingReportIds}
+                    deletingEditionIds={deletingEditionIds}
                     onToggle={() => onToggleExpand(cs.city.city_id)}
                     onGenerate={() => onGenerate(cs.city.city_id)}
+                    onDeleteReport={(report) => onDeleteReport(cs.city.city_id, report)}
+                    onDeleteEdition={(edition) => onDeleteEdition(cs.city.city_id, edition)}
                   />
                 );
               })}
@@ -2329,15 +2492,23 @@ function CityRow({
   editions,
   fb,
   isExpanded,
+  deletingReportIds,
+  deletingEditionIds,
   onToggle,
   onGenerate,
+  onDeleteReport,
+  onDeleteEdition,
 }: {
   cs: CityNewsletterStatus;
   editions: NewsletterEditionAdminItem[];
   fb: { cls: string; label: string };
   isExpanded: boolean;
+  deletingReportIds: Set<number>;
+  deletingEditionIds: Set<number>;
   onToggle: () => void;
   onGenerate: () => void;
+  onDeleteReport: (report: NewsletterReport) => void;
+  onDeleteEdition: (edition: NewsletterEditionAdminItem) => void;
 }) {
   // Group reports by district
   const byDistrict = useMemo(() => {
@@ -2396,6 +2567,7 @@ function CityRow({
                       <th>Date</th>
                       <th>Words</th>
                       <th>Link</th>
+                      <th style={{ width: 90 }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2416,6 +2588,26 @@ function CityRow({
                                 View
                               </a>
                             </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={styles.secondaryBtn}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onDeleteReport(r);
+                                }}
+                                disabled={deletingReportIds.has(r.id)}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "4px 8px",
+                                  color: "var(--danger-700, #b91c1c)",
+                                  borderColor: "var(--danger-300, #fca5a5)",
+                                }}
+                              >
+                                {deletingReportIds.has(r.id) ? "Deleting..." : "Delete"}
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -2435,6 +2627,7 @@ function CityRow({
                         <th>Edition Date</th>
                         <th>Headline</th>
                         <th>Link</th>
+                        <th style={{ width: 90 }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2460,6 +2653,26 @@ function CityRow({
                               ) : (
                                 "\u2014"
                               )}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={styles.secondaryBtn}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onDeleteEdition(ed);
+                                }}
+                                disabled={deletingEditionIds.has(ed.id)}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "4px 8px",
+                                  color: "var(--danger-700, #b91c1c)",
+                                  borderColor: "var(--danger-300, #fca5a5)",
+                                }}
+                              >
+                                {deletingEditionIds.has(ed.id) ? "Deleting..." : "Delete"}
+                              </button>
                             </td>
                           </tr>
                         );

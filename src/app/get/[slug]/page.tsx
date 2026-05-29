@@ -219,7 +219,14 @@ export default async function GetLandingPage({ params }: PageProps) {
             <div className={styles.heroInner}>
               {/* Left: headline + signup */}
               <div className={styles.heroLeft}>
-                <HeroSignupTrigger className={styles.heroLeftCopy}>
+                <HeroSignupTrigger
+                  className={styles.heroLeftCopy}
+                  citySlug={slug}
+                  cityName={cityNameOnly}
+                  cityId={city?.id}
+                  returnTo={overrideReturnPath}
+                  sourceSurface="city_get_landing_hero_copy"
+                >
                   <span className={styles.heroBadge}>Free weekly · {cityNameOnly}</span>
 
                   <h1 className={styles.heroTitle}>
@@ -273,6 +280,11 @@ export default async function GetLandingPage({ params }: PageProps) {
                   <HeroSignupTrigger
                     className={styles.newsletterPlaceholder}
                     ariaLabel="Sign up for the weekly briefing"
+                    citySlug={slug}
+                    cityName={cityNameOnly}
+                    cityId={city?.id}
+                    returnTo={overrideReturnPath}
+                    sourceSurface="city_get_landing_hero_placeholder"
                   >
                     <span className={styles.newsletterPlaceholderIcon}>📬</span>
                     <p className={styles.newsletterPlaceholderTitle}>
