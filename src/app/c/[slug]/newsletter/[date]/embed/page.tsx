@@ -86,8 +86,14 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
           }
         }
 
+        /* Lock the iframe viewport and scroll inside the article wrapper.
+           App globals set html/body { height: 100% }, which prevents the
+           document from gaining scroll range; overflow on .embed-article
+           gives the hero overlay wheel/touch forwarding a target. */
         html, body {
           margin: 0;
+          height: 100% !important;
+          overflow: hidden;
           background: var(--c-bg);
           color: var(--c-text);
           font-family: "IBM Plex Sans", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -98,6 +104,11 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
 
         /* ── Article wrapper ────────────────────────────── */
         .embed-article {
+          box-sizing: border-box;
+          height: 100%;
+          overflow-x: hidden;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
           padding: 20px 24px 48px;
           max-width: 720px;
           margin: 0 auto;

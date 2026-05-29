@@ -69,14 +69,58 @@ describe("InboxCard", () => {
     expect(screen.getByLabelText("D6")).toBeInTheDocument();
   });
 
-  it("shows Private pill for private items", () => {
+  it("shows Personalized Edition pill for private items", () => {
     render(<InboxCard item={makeItem({ is_private: true })} onClick={vi.fn()} />);
-    expect(screen.getByText("Private")).toBeInTheDocument();
+    expect(screen.getByText("Personalized Edition")).toBeInTheDocument();
+    expect(screen.getByLabelText("Private")).toBeInTheDocument();
   });
 
-  it("does not show Private pill for non-private items", () => {
+  it("does not show Personalized Edition pill for non-private items", () => {
     render(<InboxCard item={makeItem({ is_private: false })} onClick={vi.fn()} />);
-    expect(screen.queryByText("Private")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personalized Edition")).not.toBeInTheDocument();
+  });
+
+  it("shows Citywide Edition for non-private city-scope items", () => {
+    render(
+      <InboxCard
+        item={makeItem({ is_private: false, scope: "city" })}
+        onClick={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Citywide Edition")).toBeInTheDocument();
+    expect(screen.getByLabelText("Citywide editions are public")).toBeInTheDocument();
+  });
+
+  it("does not show Citywide Edition for private items", () => {
+    render(
+      <InboxCard
+        item={makeItem({ is_private: true, scope: "city" })}
+        onClick={vi.fn()}
+      />
+    );
+    expect(screen.queryByText("Citywide Edition")).not.toBeInTheDocument();
+  });
+
+  it("does not show Citywide Edition for district-scope items", () => {
+    render(
+      <InboxCard
+        item={makeItem({
+          is_private: false,
+          scope: "district",
+          district: "6",
+          district_label: "D6",
+        })}
+        onClick={vi.fn()}
+      />
+    );
+    expect(screen.queryByText("Citywide Edition")).not.toBeInTheDocument();
+  });
+
+  it("does not open the card when the edition lock is clicked", () => {
+    const handleClick = vi.fn();
+    render(<InboxCard item={makeItem({ is_private: true })} onClick={handleClick} />);
+    fireEvent.click(screen.getByLabelText("Private"));
+    expect(handleClick).not.toHaveBeenCalled();
   });
 
   it("renders thumbnail image when cover_image_url is set", () => {
@@ -118,6 +162,25 @@ describe("InboxCard", () => {
       />
     );
     expect(screen.getByText("My Block")).toBeInTheDocument();
+  });
+
+  it("shows place pin and name when place_name is set even if scope is district", () => {
+    const { container } = render(
+      <InboxCard
+        item={makeItem({
+          scope: "district",
+          district: "6",
+          district_label: "D6",
+          place_id: 5,
+          place_name: "Glen Park",
+          is_private: true,
+        })}
+        onClick={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Glen Park")).toBeInTheDocument();
+    expect(screen.queryByLabelText("D6")).not.toBeInTheDocument();
+    expect(container.querySelector("svg")).not.toBeNull();
   });
 
   it("shows relative date for recent items", () => {

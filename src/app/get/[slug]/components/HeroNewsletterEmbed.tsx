@@ -23,6 +23,26 @@ type Props = {
  */
 const TOUCH_SCROLL_THRESHOLD = 6;
 
+/** Scroll the iframe's embed container (not window — see embed page CSS). */
+function scrollIframeContent(win: Window, deltaX: number, deltaY: number): void {
+  const container =
+    win.document.querySelector<HTMLElement>(".embed-article") ??
+    win.document.scrollingElement ??
+    win.document.documentElement;
+  container.scrollTop += deltaY;
+  container.scrollLeft += deltaX;
+}
+
+function wheelDeltaY(event: WheelEvent, viewportHeight: number): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * 16;
+  }
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * viewportHeight;
+  }
+  return event.deltaY;
+}
+
 export default function HeroNewsletterEmbed({
   slug,
   shortHash,
@@ -57,20 +77,25 @@ export default function HeroNewsletterEmbed({
   // onClick handler.
   useEffect(() => {
     const overlay = overlayRef.current;
-    if (!overlay) return;
+    const iframe = iframeRef.current;
+    if (!overlay || !iframe) return;
 
     const getContentWindow = (): Window | null =>
-      iframeRef.current?.contentWindow ?? null;
+      iframe.contentWindow ?? null;
 
     const handleWheel = (event: WheelEvent) => {
       const win = getContentWindow();
       if (!win) return;
       event.preventDefault();
-      win.scrollBy({
-        top: event.deltaY,
-        left: event.deltaX,
-        behavior: "auto",
-      });
+      event.stopPropagation();
+      const dy = wheelDeltaY(event, win.innerHeight);
+      let dx = event.deltaX;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        dx *= 16;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        dx *= win.innerWidth;
+      }
+      scrollIframeContent(win, dx, dy);
     };
 
     let touchStartY = 0;
@@ -109,17 +134,25 @@ export default function HeroNewsletterEmbed({
       lastTouchY = touch.clientY;
       lastTouchX = touch.clientX;
 
-      win.scrollBy({ top: dy, left: dx, behavior: "auto" });
+      scrollIframeContent(win, dx, dy);
     };
 
-    overlay.addEventListener("wheel", handleWheel, { passive: false });
-    overlay.addEventListener("touchstart", handleTouchStart, { passive: true });
-    overlay.addEventListener("touchmove", handleTouchMove, { passive: false });
+    const bind = () => {
+      overlay.addEventListener("wheel", handleWheel, { passive: false });
+      overlay.addEventListener("touchstart", handleTouchStart, { passive: true });
+      overlay.addEventListener("touchmove", handleTouchMove, { passive: false });
+    };
 
-    return () => {
+    const unbind = () => {
       overlay.removeEventListener("wheel", handleWheel);
       overlay.removeEventListener("touchstart", handleTouchStart);
       overlay.removeEventListener("touchmove", handleTouchMove);
+    };
+
+    bind();
+
+    return () => {
+      unbind();
     };
   }, []);
 
@@ -144,7 +177,7 @@ export default function HeroNewsletterEmbed({
           ref={iframeRef}
           src={embedSrc}
           title={`Sample weekly briefing — ${label}`}
-          loading="lazy"
+          loading="eager"
           className={styles.newsletterIframe}
           scrolling="yes"
           tabIndex={-1}

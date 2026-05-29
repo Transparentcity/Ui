@@ -35,9 +35,20 @@ Use the same application as your local build (`NEXT_PUBLIC_AUTH0_CLIENT_ID`). En
   - Production: `https://your-domain.com`
 - Add one line per origin (e.g. `http://localhost:3001` and your production URL). No path is required for the SPA; the SDK uses the origin only.
 
-## 4. Allowed Web Origins (optional but recommended)
+## 4. Allowed Web Origins (required for inline magic-link signup)
 
-- In the same **Application URIs** section, set **Allowed Web Origins** to the same origins as above (e.g. `http://localhost:3001`, `https://your-domain.com`). This avoids CORS issues when Auth0 talks to your app.
+- In the same **Application URIs** section, set **Allowed Web Origins** to the same origins as above (e.g. `http://localhost:3001`, `https://transparent.city`, `https://app.transparent.city`).
+- City/get landing pages call Auth0 `/passwordless/start` from the browser with `credentials: include`. Auth0 must allow your origin in **Allowed Web Origins** or the passwordless session cookie is not stored and users see *“The link must be opened on the same device and browser…”* when they click the email link.
+
+## 4b. Magic links and browser/device
+
+Auth0 ties each magic link to the browser that requested it. The link must be opened in the **same browser** (not only the same device). Common failures:
+
+- Requesting the link in Chrome but the mail app opens it in Safari (common on iOS).
+- Requesting on a laptop but opening the email on a phone.
+- Private/incognito windows that block cross-site cookies.
+
+The SPA enables `useCookiesForTransactions` and sends `/passwordless/start` with credentials so PKCE state survives when the email opens a new tab on the same browser.
 
 ## 5. Authentication Profile (Universal Login)
 

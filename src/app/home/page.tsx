@@ -66,6 +66,7 @@ import {
   type ImpersonationState,
 } from "@/lib/impersonation";
 import { slugify } from "@/lib/utils";
+import { userNeedsOnboardingWelcome } from "@/lib/onboardingGate";
 import { cityKeys } from "@/lib/hooks/useCities";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
@@ -510,130 +511,165 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isAuthenticated || isLoading || !user) return;
 
-    // Read current selection from ref so we don't reset to feed when user has already opened a city
-    const currentActiveCityId = activeCityIdRef.current;
+    let cancelled = false;
 
-    // Check if this is a signup completion (from URL params, or localStorage fallback
-    // if Auth0 lost the appState during the redirect)
-    const urlParams = new URLSearchParams(window.location.search);
-    const signupIntentParam = urlParams.get("signup") as "resident" | "public-servant" | "subscriber" | null;
-    const signupIntentLS = window.localStorage.getItem("transparentcity.signup_intent") as "resident" | "public-servant" | "subscriber" | null;
-    const signupIntent = signupIntentParam || signupIntentLS;
-    // Clean up signup intent from localStorage (consumed; prevents repeat triggers on next login)
-    if (signupIntentLS) {
-      window.localStorage.removeItem("transparentcity.signup_intent");
-    }
+    const runSignupLoginEffect = async () => {
+      // Read current selection from ref so we don't reset to feed when user has already opened a city
+      const currentActiveCityId = activeCityIdRef.current;
 
-    // Check for follow-city intent (from URL params or localStorage, set by FollowCityButton)
-    const followCityIdParam = urlParams.get("follow_city_id");
-    const followCityIdLS = typeof window !== "undefined" ? window.localStorage.getItem("transparentcity.follow_city_id") : null;
-    const followCityId = followCityIdParam ? parseInt(followCityIdParam, 10) : (followCityIdLS ? parseInt(followCityIdLS, 10) : NaN);
+      // Check if this is a signup completion (from URL params, or localStorage fallback
+      // if Auth0 lost the appState during the redirect)
+      const urlParams = new URLSearchParams(window.location.search);
+      const signupIntentParam = urlParams.get("signup") as "resident" | "public-servant" | "subscriber" | null;
+      const signupIntentLS = window.localStorage.getItem("transparentcity.signup_intent") as "resident" | "public-servant" | "subscriber" | null;
+      const signupIntent = signupIntentParam || signupIntentLS;
+      // Clean up signup intent from localStorage (consumed; prevents repeat triggers on next login)
+      if (signupIntentLS) {
+        window.localStorage.removeItem("transparentcity.signup_intent");
+      }
 
-    if (Number.isFinite(followCityId)) {
-      // User arrived via "Follow this city" - save the city AND show onboarding.
-      // The followed city goes into My Places regardless of what address the
-      // user enters during onboarding (e.g. Boston page → lives in Somerville).
-      const followCityName = urlParams.get("follow_city_name") || window.localStorage.getItem("transparentcity.follow_city_name") || "";
-      const followCitySlug = urlParams.get("follow_city_slug") || window.localStorage.getItem("transparentcity.follow_city_slug") || slugify(followCityName);
+      const stripSignupQueryFromUrl = () => {
+        const params = new URLSearchParams(window.location.search);
+        params.delete("signup");
+        params.delete("follow_city_id");
+        params.delete("follow_city_name");
+        params.delete("follow_city_slug");
+        const qs = params.toString();
+        const next = qs
+          ? `${window.location.pathname}?${qs}`
+          : window.location.pathname;
+        window.history.replaceState({}, "", next);
+      };
+
+      let needsWelcome = false;
       if (signupIntent) {
-        const persistedSurfaceFollow =
-          window.localStorage.getItem("transparentcity.signup_surface") || "city_header";
+        try {
+          const token = await getAccessTokenSilently();
+          const prefs = await getUserPreferences(token);
+          if (cancelled) return;
+          setUserPreferences(prefs);
+          const savedCities = prefs.has_completed_onboarding
+            ? []
+            : await getSavedCities(token);
+          if (cancelled) return;
+          needsWelcome = userNeedsOnboardingWelcome(prefs, savedCities.length);
+        } catch (error) {
+          console.error("Error checking onboarding before signup redirect:", error);
+          // Let effect 2 retry; do not block on hasCheckedOnboarding
+          return;
+        }
+      }
+
+      // Check for follow-city intent (from URL params or localStorage, set by FollowCityButton)
+      const followCityIdParam = urlParams.get("follow_city_id");
+      const followCityIdLS = typeof window !== "undefined" ? window.localStorage.getItem("transparentcity.follow_city_id") : null;
+      const followCityId = followCityIdParam ? parseInt(followCityIdParam, 10) : (followCityIdLS ? parseInt(followCityIdLS, 10) : NaN);
+
+      if (Number.isFinite(followCityId)) {
+        // User arrived via "Follow this city" - save the city AND maybe show onboarding.
+        const followCityName = urlParams.get("follow_city_name") || window.localStorage.getItem("transparentcity.follow_city_name") || "";
+        const followCitySlug = urlParams.get("follow_city_slug") || window.localStorage.getItem("transparentcity.follow_city_slug") || slugify(followCityName);
+        if (signupIntent && needsWelcome) {
+          const persistedSurfaceFollow =
+            window.localStorage.getItem("transparentcity.signup_surface") || "city_header";
+          window.localStorage.removeItem("transparentcity.signup_surface");
+
+          const completionCtx: SignupEventContext = {
+            city_id: Number.isFinite(followCityId) ? followCityId : null,
+            city_slug: followCitySlug || null,
+            city_name: followCityName || null,
+            signup_intent: signupIntent,
+            source_surface: persistedSurfaceFollow,
+            funnel_session_id: getFunnelSessionId(),
+          };
+          trackSignupAuthReturn(completionCtx);
+          trackSignupComplete(signupIntent, user.sub, completionCtx);
+          trackUserActivation("signup_complete");
+        } else {
+          trackLogin(user.sub);
+        }
+        if (cancelled) return;
+        setActiveCityId(followCityId);
+        setCurrentView("city");
+        hasAutoSelectedCity.current = true;
+        autoSelectedCityRef.current = { id: followCityId, name: followCityName, slug: followCitySlug };
+        stripSignupQueryFromUrl();
+        window.localStorage.removeItem("transparentcity.follow_city_slug");
+        window.localStorage.removeItem("transparentcity.follow_city_id");
+        window.localStorage.removeItem("transparentcity.follow_city_name");
+        void (async () => {
+          try {
+            const token = await getAccessTokenSilently();
+            await saveCity(followCityId, token);
+            trackCitySaved(followCityId, autoSelectedCityRef.current?.name || "Unknown");
+            if (signupIntent && needsWelcome) {
+              const completionCtxRef: SignupEventContext = {
+                city_id: Number.isFinite(followCityId) ? followCityId : null,
+                city_slug: followCitySlug || null,
+                city_name: followCityName || null,
+                signup_intent: signupIntent,
+                source_surface: "city_header",
+                funnel_session_id: getFunnelSessionId(),
+              };
+              recordFunnelEventBackend("signup_auth_return", completionCtxRef, token);
+              recordFunnelEventBackend("signup_complete", completionCtxRef, token);
+            }
+          } catch {
+            // Non-blocking
+          }
+        })();
+        if (signupIntent) {
+          hasCheckedOnboarding.current = true;
+          if (needsWelcome) {
+            setShowWelcomeModal(true);
+          }
+        }
+      } else if (signupIntent) {
+        const persistedSurface =
+          window.localStorage.getItem("transparentcity.signup_surface") || "auth_modal";
         window.localStorage.removeItem("transparentcity.signup_surface");
 
-        const completionCtx: SignupEventContext = {
-          city_id: Number.isFinite(followCityId) ? followCityId : null,
-          city_slug: followCitySlug || null,
-          city_name: followCityName || null,
-          signup_intent: signupIntent,
-          source_surface: persistedSurfaceFollow,
-          funnel_session_id: getFunnelSessionId(),
-        };
-        trackSignupAuthReturn(completionCtx);
-        trackSignupComplete(signupIntent, user.sub, completionCtx);
-        trackUserActivation("signup_complete");
+        if (needsWelcome) {
+          const baseCtx: SignupEventContext = {
+            signup_intent: signupIntent,
+            source_surface: persistedSurface,
+            funnel_session_id: getFunnelSessionId(),
+            landing_path: window.location.pathname,
+          };
+          trackSignupAuthReturn(baseCtx);
+          trackSignupComplete(signupIntent, user.sub, baseCtx);
+          trackUserActivation("signup_complete");
+          void (async () => {
+            try {
+              const token = await getAccessTokenSilently();
+              recordFunnelEventBackend("signup_auth_return", baseCtx, token);
+              recordFunnelEventBackend("signup_complete", baseCtx, token);
+            } catch {
+              // Non-blocking
+            }
+          })();
+        } else {
+          trackLogin(user.sub);
+        }
+        if (cancelled) return;
+        setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
+        stripSignupQueryFromUrl();
+        hasCheckedOnboarding.current = true;
+        if (needsWelcome) {
+          setShowWelcomeModal(true);
+        }
       } else {
         trackLogin(user.sub);
+        if (cancelled) return;
+        setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
       }
-      setActiveCityId(followCityId);
-      setCurrentView("city");
-      hasAutoSelectedCity.current = true;
-      autoSelectedCityRef.current = { id: followCityId, name: followCityName, slug: followCitySlug };
-      // Clean up URL params and localStorage
-      window.history.replaceState({}, "", window.location.pathname);
-      window.localStorage.removeItem("transparentcity.follow_city_slug");
-      window.localStorage.removeItem("transparentcity.follow_city_id");
-      window.localStorage.removeItem("transparentcity.follow_city_name");
-      // Save city + record first-party funnel events in the background
-      void (async () => {
-        try {
-          const token = await getAccessTokenSilently();
-          await saveCity(followCityId, token);
-          trackCitySaved(followCityId, autoSelectedCityRef.current?.name || "Unknown");
-          if (signupIntent) {
-            const completionCtxRef: SignupEventContext = {
-              city_id: Number.isFinite(followCityId) ? followCityId : null,
-              city_slug: followCitySlug || null,
-              city_name: followCityName || null,
-              signup_intent: signupIntent,
-              source_surface: "city_header",
-              funnel_session_id: getFunnelSessionId(),
-            };
-            recordFunnelEventBackend("signup_auth_return", completionCtxRef, token);
-            recordFunnelEventBackend("signup_complete", completionCtxRef, token);
-          }
-        } catch {
-          // Non-blocking
-        }
-      })();
-      // For new signups, show onboarding immediately so the user can enter
-      // their address. Returning users (who already completed onboarding)
-      // will be caught by the hasCheckedOnboarding guard in effect 2.
-      if (signupIntent) {
-        hasCheckedOnboarding.current = true;
-        setShowWelcomeModal(true);
-      }
-    } else if (signupIntent) {
-      // User just completed signup without a follow intent.
-      // Read the surface that was stored before the Auth0 redirect so we
-      // don't misattribute home-page signups as "auth_modal".
-      const persistedSurface =
-        window.localStorage.getItem("transparentcity.signup_surface") || "auth_modal";
-      window.localStorage.removeItem("transparentcity.signup_surface");
+    };
 
-      const baseCtx: SignupEventContext = {
-        signup_intent: signupIntent,
-        source_surface: persistedSurface,
-        funnel_session_id: getFunnelSessionId(),
-        landing_path: window.location.pathname,
-      };
-      trackSignupAuthReturn(baseCtx);
-      trackSignupComplete(signupIntent, user.sub, baseCtx);
-      trackUserActivation("signup_complete");
-      // Record first-party backend events (non-blocking, requires auth token)
-      void (async () => {
-        try {
-          const token = await getAccessTokenSilently();
-          recordFunnelEventBackend("signup_auth_return", baseCtx, token);
-          recordFunnelEventBackend("signup_complete", baseCtx, token);
-        } catch {
-          // Non-blocking
-        }
-      })();
-      setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, "", newUrl);
-
-      // Show the onboarding modal immediately for new signups instead of
-      // waiting for the admin permissions check to finish (which can take 15s+).
-      // A brand-new user has no saved cities and is not an admin.
-      hasCheckedOnboarding.current = true;
-      setShowWelcomeModal(true);
-    } else {
-      // Regular login: default to feed for all users
-      trackLogin(user.sub);
-      setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
-    }
-  }, [isAuthenticated, isLoading, user]);
+    void runSignupLoginEffect();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoading, user, getAccessTokenSilently]);
 
   // Migrate pending metric order from localStorage to user account when user signs in
   useEffect(() => {

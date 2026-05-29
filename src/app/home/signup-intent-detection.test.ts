@@ -13,6 +13,7 @@
  *  4. Every signup entry point sets the right localStorage keys
  */
 import { describe, it, expect, beforeEach } from "vitest";
+import { userNeedsOnboardingWelcome } from "@/lib/onboardingGate";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,7 +56,13 @@ function resolveSignupIntent(
 function simulateSignupLoginEffect(opts: {
   urlSearch: string;
   storage: Record<string, string>;
+  hasCompletedOnboarding?: boolean;
+  savedCitiesCount?: number;
 }): EffectResult {
+  const needsWelcome = userNeedsOnboardingWelcome(
+    { has_completed_onboarding: opts.hasCompletedOnboarding ?? false },
+    opts.savedCitiesCount ?? 0,
+  );
   const urlParams = new URLSearchParams(opts.urlSearch);
 
   // Resolve signup intent
@@ -89,16 +96,19 @@ function simulateSignupLoginEffect(opts: {
     result.saveCityCalled = true;
     result.currentView = "city";
 
-    // New signups with follow intent also get onboarding
     if (signupIntent) {
       result.hasCheckedOnboarding = true;
-      result.showWelcomeModal = true;
+      if (needsWelcome) {
+        result.showWelcomeModal = true;
+      }
     }
   } else if (signupIntent) {
     // Signup-only branch (no follow city)
     result.branch = "signup-only";
     result.hasCheckedOnboarding = true;
-    result.showWelcomeModal = true;
+    if (needsWelcome) {
+      result.showWelcomeModal = true;
+    }
   } else {
     // Regular login
     result.branch = "regular-login";
@@ -317,6 +327,31 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
       expect(r.showWelcomeModal).toBe(false);
       expect(r.hasCheckedOnboarding).toBe(false);
       expect(r.saveCityCalled).toBe(true);
+    });
+  });
+
+  describe("returning user with stale signup param (e.g. passwordless magic link)", () => {
+    it("does NOT show WelcomeModal when onboarding is already complete", () => {
+      const r = simulateSignupLoginEffect({
+        urlSearch: "?signup=resident",
+        storage: {},
+        hasCompletedOnboarding: true,
+      });
+      expect(r.branch).toBe("signup-only");
+      expect(r.showWelcomeModal).toBe(false);
+      expect(r.hasCheckedOnboarding).toBe(true);
+    });
+
+    it("does NOT show WelcomeModal when user has saved cities", () => {
+      const r = simulateSignupLoginEffect({
+        urlSearch: "?signup=resident&follow_city_id=42",
+        storage: {},
+        hasCompletedOnboarding: false,
+        savedCitiesCount: 1,
+      });
+      expect(r.branch).toBe("follow-city");
+      expect(r.showWelcomeModal).toBe(false);
+      expect(r.hasCheckedOnboarding).toBe(true);
     });
   });
 

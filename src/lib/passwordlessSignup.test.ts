@@ -112,6 +112,7 @@ describe("sendPasswordlessEmailLink", () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://auth.test.example/passwordless/start");
     expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("include");
 
     const body = JSON.parse(init.body as string);
     expect(body.client_id).toBe("test-client-id");
@@ -126,7 +127,9 @@ describe("sendPasswordlessEmailLink", () => {
     expect(typeof body.authParams.code_challenge).toBe("string");
     expect(body.authParams.redirect_uri).toBe(window.location.origin);
 
-    const stored = sessionStorage.getItem("a0.spajs.txs.test-client-id");
+    const stored =
+      localStorage.getItem("a0.spajs.txs.test-client-id") ??
+      sessionStorage.getItem("a0.spajs.txs.test-client-id");
     expect(stored).not.toBeNull();
     const transaction = JSON.parse(stored as string);
     expect(transaction.response_type).toBe("code");

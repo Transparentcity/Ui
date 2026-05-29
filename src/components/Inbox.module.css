@@ -163,10 +163,14 @@
 /* ------------------------------------------------------------------ */
 
 .card {
+  --scope-leading: 18px;
+  --scope-gap: var(--space-xs);
+
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-rows: auto auto auto;
-  gap: 0 var(--space-sm);
+  column-gap: var(--space-sm);
+  row-gap: 0;
   padding: var(--space-md);
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
@@ -191,26 +195,16 @@
   outline-offset: 2px;
 }
 
-/* ------------------------------------------------------------------ */
-/* Card line 1: meta row                                              */
-/* ------------------------------------------------------------------ */
-
-.cardMeta {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  min-width: 0;
-}
-
 .unreadDot {
-  flex-shrink: 0;
+  position: absolute;
+  left: calc(-1 * var(--space-sm) - 4px);
+  top: calc(var(--space-md) + 7px);
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--brand-primary);
   transition: opacity var(--transition);
+  flex-shrink: 0;
 }
 
 .unreadDotRead {
@@ -218,11 +212,25 @@
   pointer-events: none;
 }
 
+/* ------------------------------------------------------------------ */
+/* Card line 1: meta row                                              */
+/* ------------------------------------------------------------------ */
+
+.cardMeta {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--scope-gap);
+  min-width: 0;
+}
+
 .scopeIcon {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: var(--scope-leading);
   font-size: 14px;
   line-height: 1;
 }
@@ -260,27 +268,88 @@
   min-width: 0;
 }
 
-.privatePill {
+.editionPill {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(173, 53, 250, 0.10);
-  color: var(--brand-primary);
   font-family: var(--font-heading, "Inter", sans-serif);
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   flex-shrink: 0;
   white-space: nowrap;
 }
 
-.privatePillIcon {
+.editionPillPersonalized {
+  background: rgba(173, 53, 250, 0.10);
+  color: var(--brand-primary);
+}
+
+.editionPillCitywide {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.editionLock {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: help;
+  outline: none;
+  border-radius: 2px;
+}
+
+.editionLock:focus-visible {
+  outline: 2px solid var(--brand-primary-light);
+  outline-offset: 1px;
+}
+
+.editionLockIcon {
   width: 10px;
   height: 10px;
   flex-shrink: 0;
+}
+
+.editionLockTooltip {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition), visibility var(--transition);
+  z-index: 5;
+}
+
+.editionLock:hover .editionLockTooltip,
+.editionLock:focus-visible .editionLockTooltip,
+.editionLockPinned .editionLockTooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.editionLockTooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--text-primary);
 }
 
 .cardDate {
@@ -338,6 +407,7 @@
 .cardThumbnail {
   grid-column: 2;
   grid-row: 2 / span 2;
+  justify-self: end;
   width: 68px;
   height: 68px;
   border-radius: var(--radius-sm);
@@ -357,8 +427,8 @@
   background: var(--bg-secondary);
 }
 
-[data-theme="dark"] .privatePill,
-.dark .privatePill {
+[data-theme="dark"] .editionPillPersonalized,
+.dark .editionPillPersonalized {
   background: rgba(173, 53, 250, 0.20);
 }
 

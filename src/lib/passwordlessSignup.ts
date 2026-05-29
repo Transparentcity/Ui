@@ -20,6 +20,10 @@
 
 import { getAuth0ApiAudience } from "./auth0ApiAudience";
 import {
+  persistAuth0LoginTransaction,
+  type Auth0LoginTransaction,
+} from "./auth0TransactionStorage";
+import {
   getFunnelSessionId,
   recordFunnelEventBackend,
   trackSignupClick,
@@ -33,12 +37,6 @@ const POST_LOGIN_RETURN_KEY = "auth_return_after_check_email";
  * `offline_access` – refresh tokens are not enabled for the email
  * connection in our tenant and Auth0 will reject the authorize call. */
 const PASSWORDLESS_SCOPE = "openid profile email";
-
-/** auth0-spa-js stores per-client transaction state under this prefix in
- * sessionStorage. We plant a compatible record so `handleRedirectCallback`
- * can complete the PKCE exchange when the magic-link click returns to the
- * SPA. */
-const AUTH0_TXN_STORAGE_PREFIX = "a0.spajs.txs";
 
 export type PasswordlessSignupOptions = {
   email: string;
@@ -184,17 +182,6 @@ async function sha256(input: string): Promise<ArrayBuffer> {
   return window.crypto.subtle.digest("SHA-256", data);
 }
 
-type Auth0LoginTransaction = {
-  nonce: string;
-  code_verifier: string;
-  scope: string;
-  audience: string;
-  redirect_uri: string;
-  state: string;
-  response_type: "code";
-  appState?: unknown;
-};
-
 function readAuth0Config(): { domain: string; clientId: string } {
   const domain = (process.env.NEXT_PUBLIC_AUTH0_DOMAIN ?? "").trim();
   const clientId = (process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID ?? "").trim();
@@ -264,15 +251,7 @@ export async function sendPasswordlessEmailLink(
     response_type: "code",
     appState: { returnTo },
   };
-  try {
-    sessionStorage.setItem(
-      `${AUTH0_TXN_STORAGE_PREFIX}.${clientId}`,
-      JSON.stringify(transaction)
-    );
-  } catch {
-    /* sessionStorage may be unavailable in private mode; the magic link will
-       still authenticate via the Auth0 session cookie on return. */
-  }
+  persistAuth0LoginTransaction(clientId, transaction);
 
   const body = {
     client_id: clientId,
@@ -297,6 +276,7 @@ export async function sendPasswordlessEmailLink(
   try {
     response = await fetch(endpoint, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });

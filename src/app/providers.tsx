@@ -7,6 +7,11 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
+import {
+  clearStaleAuth0Transactions,
+  findAuth0TransactionByState,
+  getAuth0CookieDomain,
+} from "@/lib/auth0TransactionStorage";
 import { queryClient } from "@/lib/queryClient";
 
 interface AuthProviderProps {
@@ -14,42 +19,10 @@ interface AuthProviderProps {
 }
 
 /**
- * Clear stale Auth0 transaction state from localStorage.
- * This prevents "Invalid state" errors when users click the back button
- * during or after an auth flow.
- */
-function clearStaleAuth0State() {
-  if (typeof window === "undefined") return;
-
-  const keysToRemove: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith("a0.spajs.txs")) {
-      // Check if the transaction is stale (older than 5 minutes)
-      try {
-        const value = localStorage.getItem(key);
-        if (value) {
-          const parsed = JSON.parse(value);
-          const createdAt = parsed?.created_at || 0;
-          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-          if (createdAt < fiveMinutesAgo) {
-            keysToRemove.push(key);
-          }
-        }
-      } catch {
-        // If we can't parse it, remove it
-        keysToRemove.push(key);
-      }
-    }
-  }
-  keysToRemove.forEach((key) => localStorage.removeItem(key));
-}
-
-/**
  * Check if URL has Auth0 callback params but we might have an invalid state.
  * Returns true if we should skip the redirect callback.
  */
-function shouldSkipRedirectCallback(): boolean {
+function shouldSkipRedirectCallback(clientId?: string): boolean {
   if (typeof window === "undefined") return false;
 
   const url = new URL(window.location.href);
@@ -63,28 +36,11 @@ function shouldSkipRedirectCallback(): boolean {
   }
 
   // If we have code and state params (callback from Auth0),
-  // check if we have a matching transaction in localStorage
+  // check if we have a matching transaction (localStorage, sessionStorage, or cookie)
   if (hasCode && hasState) {
     const state = url.searchParams.get("state");
-    let hasMatchingTransaction = false;
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("a0.spajs.txs")) {
-        try {
-          const value = localStorage.getItem(key);
-          if (value) {
-            const parsed = JSON.parse(value);
-            if (parsed?.state === state) {
-              hasMatchingTransaction = true;
-              break;
-            }
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      }
-    }
+    const hasMatchingTransaction =
+      !!state && findAuth0TransactionByState(state, clientId);
 
     // If no matching transaction, skip the callback to prevent errors
     if (!hasMatchingTransaction) {
@@ -102,17 +58,16 @@ function shouldSkipRedirectCallback(): boolean {
 export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
   const [skipRedirect, setSkipRedirect] = useState(false);
-
-  // On mount, clear stale state and check if we should skip redirect
-  useEffect(() => {
-    clearStaleAuth0State();
-    const shouldSkip = shouldSkipRedirectCallback();
-    setSkipRedirect(shouldSkip);
-  }, []);
-
   const domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
   const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
   const audience = getAuth0ApiAudience();
+
+  // On mount, clear stale state and check if we should skip redirect
+  useEffect(() => {
+    clearStaleAuth0Transactions();
+    const shouldSkip = shouldSkipRedirectCallback(clientId);
+    setSkipRedirect(shouldSkip);
+  }, [clientId]);
 
   if (!domain || !clientId) {
     if (typeof window !== "undefined") {
@@ -136,6 +91,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     router.push(appState?.returnTo || "/home");
   };
 
+  const cookieDomain =
+    typeof window !== "undefined" ? getAuth0CookieDomain() : undefined;
+
   return (
     <Auth0Provider
       domain={domain || "auth.transparent.city"}
@@ -148,6 +106,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }}
       cacheLocation="localstorage"
       useRefreshTokens
+      useCookiesForTransactions
+      {...(cookieDomain ? { cookieDomain } : {})}
       onRedirectCallback={onRedirectCallback}
       skipRedirectCallback={skipRedirect}
     >
