@@ -22,6 +22,7 @@ type Props = {
   stories: PublicFeedStory[];
   metrics?: PublicCityMetricItem[];
   comparisonsMap?: Record<number, PublicMetricComparisons>;
+  showWelcomeCard?: boolean;
   welcomeNewsletters?: WelcomeNewsletterLink[];
 };
 
@@ -177,6 +178,7 @@ export default function FeaturedStories({
   stories,
   metrics,
   comparisonsMap,
+  showWelcomeCard = true,
   welcomeNewsletters = [],
 }: Props) {
   const metricCards = buildMetricCards(slug, cityDisplayName, cityEmoji, metrics, comparisonsMap);
@@ -236,7 +238,9 @@ export default function FeaturedStories({
         </header>
 
         <div className="featured-stories-grid">
-          <WelcomeFeedCard slug={slug} newsletters={welcomeNewsletters} />
+          {showWelcomeCard && (
+            <WelcomeFeedCard slug={slug} newsletters={welcomeNewsletters} />
+          )}
 
           {/* Metric summary cards */}
           {metricCards.map((mc) => (

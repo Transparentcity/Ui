@@ -14,6 +14,10 @@ type Props = {
   cityEmoji?: string;
   metrics?: PublicCityMetricItem[];
   comparisonsMap?: Record<number, PublicMetricComparisons>;
+  /** Show the dismissible FTUX welcome card at the top. Defaults to true.
+   * Set to false on landing-style routes (e.g. /get/[slug]) where this
+   * feed appears as marketing content, not the user's inbox. */
+  showWelcomeCard?: boolean;
 };
 
 /**
@@ -28,6 +32,7 @@ export default async function FeaturedStoriesAsync({
   cityEmoji,
   metrics,
   comparisonsMap,
+  showWelcomeCard = true,
 }: Props) {
   const [feedRes, newsletterEditions] = await Promise.all([
     listPublicFeedStories({
@@ -36,18 +41,20 @@ export default async function FeaturedStoriesAsync({
       limit: 10,
       order_by: "published_at",
     }).catch(() => ({ stories: [], count: 0 })),
-    listNewsletterEditionsForSitemap(),
+    showWelcomeCard ? listNewsletterEditionsForSitemap() : Promise.resolve([]),
   ]);
 
   const stories = (feedRes.stories ?? []).filter(
     (s) => !/^upcoming civic meetings\b/i.test(s.headline ?? "")
   );
 
-  const welcomeNewsletters: WelcomeNewsletterLink[] = newsletterEditions
-    .filter((e) => e.city_slug === slug && (e.district ?? 0) === 0)
-    .sort((a, b) => b.edition_date.localeCompare(a.edition_date))
-    .slice(0, 3)
-    .map((e) => ({ shortHash: e.short_hash, editionDate: e.edition_date }));
+  const welcomeNewsletters: WelcomeNewsletterLink[] = showWelcomeCard
+    ? newsletterEditions
+        .filter((e) => e.city_slug === slug && (e.district ?? 0) === 0)
+        .sort((a, b) => b.edition_date.localeCompare(a.edition_date))
+        .slice(0, 3)
+        .map((e) => ({ shortHash: e.short_hash, editionDate: e.edition_date }))
+    : [];
 
   return (
     <FeaturedStories
@@ -57,6 +64,7 @@ export default async function FeaturedStoriesAsync({
       stories={stories}
       metrics={metrics}
       comparisonsMap={comparisonsMap}
+      showWelcomeCard={showWelcomeCard}
       welcomeNewsletters={welcomeNewsletters}
     />
   );
