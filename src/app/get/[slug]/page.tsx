@@ -254,6 +254,9 @@ export default async function GetLandingPage({ params }: PageProps) {
                 {featuredPending && featuredPendingId ? (
                   <HeroNewsletterEmbed
                     slug={slug}
+                    cityName={cityNameOnly}
+                    cityId={city?.id}
+                    returnTo={overrideReturnPath}
                     featuredPendingId={featuredPendingId}
                     editionDate={featuredPending.created_at ?? undefined}
                     captionLabel={
@@ -272,6 +275,9 @@ export default async function GetLandingPage({ params }: PageProps) {
                 ) : latestEdition ? (
                   <HeroNewsletterEmbed
                     slug={slug}
+                    cityName={cityNameOnly}
+                    cityId={city?.id}
+                    returnTo={overrideReturnPath}
                     shortHash={latestEdition.shortHash}
                     district={latestEdition.district}
                     editionDate={latestEdition.editionDate}
