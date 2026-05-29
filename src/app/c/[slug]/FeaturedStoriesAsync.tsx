@@ -3,6 +3,8 @@ import {
   type PublicCityMetricItem,
   type PublicMetricComparisons,
 } from "@/lib/publicApiClient";
+import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
+import type { WelcomeNewsletterLink } from "@/components/feed/WelcomeFeedCard";
 import FeaturedStories from "./FeaturedStories";
 
 type Props = {
@@ -27,16 +29,25 @@ export default async function FeaturedStoriesAsync({
   metrics,
   comparisonsMap,
 }: Props) {
-  const feedRes = await listPublicFeedStories({
-    city_id: cityId,
-    district: 0,
-    limit: 10,
-    order_by: "published_at",
-  }).catch(() => ({ stories: [], count: 0 }));
+  const [feedRes, newsletterEditions] = await Promise.all([
+    listPublicFeedStories({
+      city_id: cityId,
+      district: 0,
+      limit: 10,
+      order_by: "published_at",
+    }).catch(() => ({ stories: [], count: 0 })),
+    listNewsletterEditionsForSitemap(),
+  ]);
 
   const stories = (feedRes.stories ?? []).filter(
     (s) => !/^upcoming civic meetings\b/i.test(s.headline ?? "")
   );
+
+  const welcomeNewsletters: WelcomeNewsletterLink[] = newsletterEditions
+    .filter((e) => e.city_slug === slug && (e.district ?? 0) === 0)
+    .sort((a, b) => b.edition_date.localeCompare(a.edition_date))
+    .slice(0, 3)
+    .map((e) => ({ shortHash: e.short_hash, editionDate: e.edition_date }));
 
   return (
     <FeaturedStories
@@ -46,6 +57,7 @@ export default async function FeaturedStoriesAsync({
       stories={stories}
       metrics={metrics}
       comparisonsMap={comparisonsMap}
+      welcomeNewsletters={welcomeNewsletters}
     />
   );
 }
