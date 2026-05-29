@@ -312,6 +312,7 @@ export default async function GetLandingPage({ params }: PageProps) {
                 cityEmoji={city.emoji ?? undefined}
                 metrics={cityDetail?.metrics}
                 comparisonsMap={comparisonsMap}
+                showWelcomeCard={false}
               />
             </Suspense>
           </div>
