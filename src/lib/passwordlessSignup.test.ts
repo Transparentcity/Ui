@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   persistPasswordlessSignupContext,
   PasswordlessSendError,
+  requiresHostedPasswordlessFlow,
   sendPasswordlessEmailLink,
   startPasswordlessEmailSignup,
 } from "./passwordlessSignup";
@@ -41,7 +42,7 @@ describe("passwordlessSignup", () => {
         login_hint: "user@example.com",
         scope: "openid profile email",
       },
-      appState: { returnTo: "/check-email" },
+      appState: { returnTo: "/home?signup=resident" },
     });
     expect(localStorage.getItem("transparentcity.signup_intent")).toBe("resident");
     expect(localStorage.getItem("transparentcity.follow_city_slug")).toBe("cincinnati");
@@ -63,22 +64,63 @@ describe("passwordlessSignup", () => {
   });
 });
 
+describe("requiresHostedPasswordlessFlow", () => {
+  const originalHostname = window.location.hostname;
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, hostname: originalHostname },
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("returns true on localhost", () => {
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, hostname: "localhost" },
+      configurable: true,
+      writable: true,
+    });
+    expect(requiresHostedPasswordlessFlow()).toBe(true);
+  });
+
+  it("returns false on transparent.city", () => {
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, hostname: "transparent.city" },
+      configurable: true,
+      writable: true,
+    });
+    expect(requiresHostedPasswordlessFlow()).toBe(false);
+  });
+});
+
 describe("sendPasswordlessEmailLink", () => {
   const ORIGINAL_DOMAIN = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
   const ORIGINAL_CLIENT = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
   const ORIGINAL_FETCH = global.fetch;
+  const ORIGINAL_HOSTNAME = window.location.hostname;
 
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
     process.env.NEXT_PUBLIC_AUTH0_DOMAIN = "auth.test.example";
     process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID = "test-client-id";
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, hostname: "transparent.city" },
+      configurable: true,
+      writable: true,
+    });
   });
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_AUTH0_DOMAIN = ORIGINAL_DOMAIN;
     process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID = ORIGINAL_CLIENT;
     global.fetch = ORIGINAL_FETCH;
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, hostname: ORIGINAL_HOSTNAME },
+      configurable: true,
+      writable: true,
+    });
   });
 
   it("rejects invalid email without contacting Auth0", async () => {

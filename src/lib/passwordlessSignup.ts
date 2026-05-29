@@ -54,6 +54,28 @@ function isValidEmail(email: string): boolean {
   return trimmed.length > 0 && trimmed.includes("@");
 }
 
+/**
+ * Inline magic links need Auth0's passwordless session cookie in the browser.
+ * That cookie is only set reliably when /passwordless/start runs with
+ * credentials on a host that is same-site with auth.*.transparent.city.
+ * localhost and preview hosts are cross-site → use Auth0 hosted passwordless.
+ */
+export function requiresHostedPasswordlessFlow(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return true;
+  if (host.endsWith(".localhost")) return true;
+  if (host.endsWith(".vercel.app")) return true;
+  return false;
+}
+
+/** Production *.transparent.city can use credentialed /passwordless/start. */
+function shouldPasswordlessStartUseCredentials(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "transparent.city" || host.endsWith(".transparent.city");
+}
+
 export function persistPasswordlessSignupContext(
   options: PasswordlessSignupOptions
 ): SignupEventContext {
@@ -113,13 +135,19 @@ export async function startPasswordlessEmailSignup(
 
   persistPasswordlessSignupContext(options);
 
+  const returnTo =
+    options.returnAfterCheckEmail ??
+    (typeof window !== "undefined"
+      ? window.location.pathname + window.location.search
+      : "/check-email");
+
   await loginWithRedirect({
     authorizationParams: {
       connection: "email",
       login_hint: email,
-      scope: "openid profile email",
+      scope: PASSWORDLESS_SCOPE,
     },
-    appState: { returnTo: "/check-email" },
+    appState: { returnTo },
   });
 }
 
@@ -223,6 +251,14 @@ export async function sendPasswordlessEmailLink(
     );
   }
 
+  if (requiresHostedPasswordlessFlow()) {
+    throw new PasswordlessSendError(
+      "hosted_required",
+      "On localhost, use the Auth0 email sign-in page so your magic link works in this browser.",
+      "Call startPasswordlessEmailSignup instead of sendPasswordlessEmailLink."
+    );
+  }
+
   const { domain, clientId } = readAuth0Config();
   const audience = getAuth0ApiAudience();
   const redirectUri = window.location.origin;
@@ -270,22 +306,39 @@ export async function sendPasswordlessEmailLink(
     },
   };
 
-  const endpoint = `https://${domain}/passwordless/start`;
+  const auth0Endpoint = `https://${domain}/passwordless/start`;
+  const proxyEndpoint = "/api/auth/passwordless-start";
+  const useCredentials = shouldPasswordlessStartUseCredentials();
 
   let response: Response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(auth0Endpoint, {
       method: "POST",
-      credentials: "include",
+      credentials: useCredentials ? "include" : "omit",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch (err) {
-    throw new PasswordlessSendError(
-      "network_error",
-      "We couldn’t reach Auth0 to send your link. Please try again.",
-      err instanceof Error ? err.message : String(err)
-    );
+    if (useCredentials) {
+      throw new PasswordlessSendError(
+        "cors_config",
+        "Could not reach Auth0 with a secure session. Add this site to Auth0 Allowed Web Origins, or use “Send link via secure sign-in page”.",
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+    try {
+      response = await fetch(proxyEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (proxyErr) {
+      throw new PasswordlessSendError(
+        "network_error",
+        "We couldn’t reach Auth0 to send your link. Please try again.",
+        proxyErr instanceof Error ? proxyErr.message : String(proxyErr)
+      );
+    }
   }
 
   // Read the raw body once so we can parse it for both success and error
@@ -316,7 +369,7 @@ export async function sendPasswordlessEmailLink(
     console.groupCollapsed(
       `[passwordless] /passwordless/start → ${response.status}`
     );
-    console.log("endpoint:", endpoint);
+    console.log("endpoint:", auth0Endpoint, "or", proxyEndpoint);
     console.log("request:", body);
     console.log("response status:", response.status);
     console.log("response body:", parsed ?? rawBody);

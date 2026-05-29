@@ -1,10 +1,13 @@
 "use client";
 
+import { useAuth0 } from "@auth0/auth0-react";
 import { useState } from "react";
 import { useSignupEmail } from "@/app/c/[slug]/SignupEmailContext";
 import {
   PasswordlessSendError,
+  requiresHostedPasswordlessFlow,
   sendPasswordlessEmailLink,
+  startPasswordlessEmailSignup,
 } from "@/lib/passwordlessSignup";
 import styles from "../get-landing.module.css";
 
@@ -17,6 +20,7 @@ type Props = {
 type FormStatus = "idle" | "sending" | "sent" | "error";
 
 export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
+  const { loginWithRedirect } = useAuth0();
   const { email, setEmail } = useSignupEmail();
   const [status, setStatus] = useState<FormStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -35,15 +39,20 @@ export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
   const sendLink = async (targetEmail: string) => {
     setStatus("sending");
     setErrorMessage(null);
+    const signupOptions = {
+      email: targetEmail,
+      sourceSurface: "city_get_landing",
+      citySlug,
+      cityName,
+      cityId,
+      returnAfterCheckEmail: buildReturnPath(),
+    };
     try {
-      await sendPasswordlessEmailLink({
-        email: targetEmail,
-        sourceSurface: "city_get_landing",
-        citySlug,
-        cityName,
-        cityId,
-        returnAfterCheckEmail: buildReturnPath(),
-      });
+      if (requiresHostedPasswordlessFlow()) {
+        await startPasswordlessEmailSignup(loginWithRedirect, signupOptions);
+        return;
+      }
+      await sendPasswordlessEmailLink(signupOptions);
       setSentToEmail(targetEmail);
       setStatus("sent");
     } catch (err) {
@@ -53,6 +62,27 @@ export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
         message = err.detail ? `${err.message} (${err.detail})` : err.message;
       }
       setErrorMessage(message);
+      setStatus("error");
+    }
+  };
+
+  const sendViaAuth0Page = async () => {
+    const trimmed = (sentToEmail ?? email).trim();
+    if (!trimmed.includes("@")) return;
+    setStatus("sending");
+    setErrorMessage(null);
+    try {
+      await startPasswordlessEmailSignup(loginWithRedirect, {
+        email: trimmed,
+        sourceSurface: "city_get_landing",
+        citySlug,
+        cityName,
+        cityId,
+        returnAfterCheckEmail: buildReturnPath(),
+      });
+    } catch (err) {
+      console.error("[HeroEmailSignup] hosted passwordless failed:", err);
+      setErrorMessage("Could not open the sign-in page. Please try again.");
       setStatus("error");
     }
   };
@@ -87,7 +117,8 @@ export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
             . Click it to finish signing up for the {cityName} weekly.
           </p>
           <p className={styles.heroSignupSuccessNote}>
-            Didn’t get it? Check your spam folder, or{" "}
+            Open the link in this browser (Chrome, Safari, etc.) — not a
+            different app or device. Didn’t get it? Check spam, or{" "}
             <button
               type="button"
               className={styles.heroSignupResendBtn}
@@ -129,9 +160,16 @@ export default function HeroEmailSignup({ citySlug, cityName, cityId }: Props) {
         </button>
       </div>
       {status === "error" && errorMessage && (
-        <p className={styles.heroSignupError} role="alert">
-          {errorMessage}
-        </p>
+        <div className={styles.heroSignupError} role="alert">
+          <p>{errorMessage}</p>
+          <button
+            type="button"
+            className={styles.heroSignupResendBtn}
+            onClick={() => void sendViaAuth0Page()}
+          >
+            Send link via secure sign-in page
+          </button>
+        </div>
       )}
       <p className={styles.heroSignupNote}>
         We&rsquo;ll email you a magic link. No password, no credit card.
