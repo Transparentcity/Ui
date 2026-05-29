@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
 import { sendEmail, isSendGridConfigured } from "@/lib/email-sender";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import { slugify } from "@/lib/utils";
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  const apiBase = getApiBaseUrl();
+  const apiBase = getUpstreamApiBaseUrl();
   const siteOrigin = getSiteOrigin();
 
   // Fetch stories

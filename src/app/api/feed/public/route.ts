@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
 
 export const revalidate = 300; // Revalidate every 5 minutes
 
@@ -8,7 +8,7 @@ export const revalidate = 300; // Revalidate every 5 minutes
  * Used by the logged-out homepage to show recent research/feed items.
  */
 export async function GET(request: NextRequest): Promise<Response> {
-  const apiBase = getApiBaseUrl();
+  const apiBase = getUpstreamApiBaseUrl();
   const { searchParams } = new URL(request.url);
 
   const upstreamUrl = new URL(`${apiBase}/api/feed/public`);

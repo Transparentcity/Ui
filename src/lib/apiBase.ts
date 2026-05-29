@@ -89,6 +89,15 @@ export function getApiBaseUrlForAssets(): string {
   return "http://localhost:8001";
 }
 
+/**
+ * FastAPI origin for server-side route handlers that proxy to the backend.
+ * Never use getApiBaseUrl() here — in production it resolves to the site origin
+ * and causes /api/* handlers to call themselves (502 loop).
+ */
+export function getUpstreamApiBaseUrl(): string {
+  return getApiBaseUrlForAssets();
+}
+
 export const API_BASE_FOR_ASSETS = getApiBaseUrlForAssets();
 
 // Default city used by CRM pages; configurable via env.

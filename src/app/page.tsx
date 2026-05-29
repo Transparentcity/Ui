@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import HomeClient from "./HomeClient";
 import "./landing.css";
-import { getApiBaseUrl } from "@/lib/apiBase";
+import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
 import { enrichStory, isCoherentMultiMetric, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { pickFeaturedStories } from "@/lib/feed/pickFeaturedStories";
 import type { FeedStory } from "@/lib/hooks/useFeed";
@@ -43,7 +43,7 @@ async function fetchFeaturedStories(
   launchedCityIds: Set<number>,
 ): Promise<EnrichedFeedStory[]> {
   try {
-    const apiBase = getApiBaseUrl();
+    const apiBase = getUpstreamApiBaseUrl();
     const url = `${apiBase}/api/feed/public?limit=100&order_by=published_at`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
