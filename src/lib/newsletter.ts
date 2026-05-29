@@ -1,4 +1,11 @@
-import { getApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl, getUpstreamApiBaseUrl } from "./apiBase";
+
+function resolveNewsletterApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return getUpstreamApiBaseUrl();
+  }
+  return getApiBaseUrl();
+}
 
 export type NewsletterEditionData = {
   id: number;
@@ -28,7 +35,7 @@ export async function getNewsletterEdition(
   slug: string,
   shortHash: string
 ): Promise<NewsletterEditionData> {
-  const url = `${getApiBaseUrl()}/api/newsletter/editions/by-hash/${encodeURIComponent(shortHash)}`;
+  const url = `${resolveNewsletterApiBaseUrl()}/api/newsletter/editions/by-hash/${encodeURIComponent(shortHash)}`;
 
   const res = await fetch(url, {
     method: "GET",
@@ -109,7 +116,7 @@ export type FeaturedPendingNewsletterData = {
 export async function getFeaturedPendingNewsletter(
   pendingId: number
 ): Promise<FeaturedPendingNewsletterData> {
-  const url = `${getApiBaseUrl()}/api/newsletter/featured-pending/${pendingId}`;
+  const url = `${resolveNewsletterApiBaseUrl()}/api/newsletter/featured-pending/${pendingId}`;
 
   const res = await fetch(url, {
     method: "GET",
@@ -126,7 +133,7 @@ export async function getFeaturedPendingNewsletter(
 }
 
 export async function listNewsletterEditionsForSitemap(): Promise<NewsletterEditionSitemapItem[]> {
-  const url = `${getApiBaseUrl()}/api/newsletter/editions/sitemap`;
+  const url = `${resolveNewsletterApiBaseUrl()}/api/newsletter/editions/sitemap`;
 
   try {
     const res = await fetch(url, {

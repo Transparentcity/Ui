@@ -116,6 +116,7 @@ export default async function GetLandingPage({ params }: PageProps) {
       })
     | null = null;
   let citiesFetched = false;
+  let redirectTo: string | null = null;
 
   try {
     const cities = await listPublicCitiesForSitemap();
@@ -124,15 +125,20 @@ export default async function GetLandingPage({ params }: PageProps) {
     if (match) {
       const canonicalSlug = getCanonicalCitySlug(match);
       if (canonicalSlug && slug !== canonicalSlug) {
-        redirect(`/get/${canonicalSlug}`);
+        redirectTo = `/get/${canonicalSlug}`;
+      } else {
+        const display = match.state
+          ? `${match.name}, ${match.state}`
+          : match.name;
+        city = { ...match, display };
       }
-      const display = match.state
-        ? `${match.name}, ${match.state}`
-        : match.name;
-      city = { ...match, display };
     }
   } catch {
     /* render gracefully if backend is down */
+  }
+
+  if (redirectTo) {
+    redirect(redirectTo);
   }
 
   if (citiesFetched && !city) notFound();

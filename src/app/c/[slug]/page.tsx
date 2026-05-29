@@ -165,6 +165,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     | null = null;
 
   let citiesFetched = false;
+  let redirectTo: string | null = null;
   try {
     const cities = await listPublicCitiesForSitemap();
     citiesFetched = true;
@@ -178,21 +179,26 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         canonicalSlug &&
         ((typeof id === "number" && Number.isFinite(id)) || slug !== canonicalSlug)
       ) {
-        redirect(`/c/${canonicalSlug}`);
+        redirectTo = `/c/${canonicalSlug}`;
+      } else {
+        const display =
+          match.state && match.country && match.country !== "United States"
+            ? `${match.name}, ${match.state}, ${match.country}`
+            : match.state
+              ? `${match.name}, ${match.state}`
+              : match.country && match.country !== "United States"
+                ? `${match.name}, ${match.country}`
+                : match.name;
+        city = { ...match, display };
       }
-      const display =
-        match.state && match.country && match.country !== "United States"
-          ? `${match.name}, ${match.state}, ${match.country}`
-          : match.state
-            ? `${match.name}, ${match.state}`
-            : match.country && match.country !== "United States"
-              ? `${match.name}, ${match.country}`
-              : match.name;
-      city = { ...match, display };
     }
   } catch {
     // If we can't reach the API, fall through rather than 404-ing
     // (crawlers will retry on the next revalidation).
+  }
+
+  if (redirectTo) {
+    redirect(redirectTo);
   }
 
   // If we successfully fetched cities but found no match, this is an

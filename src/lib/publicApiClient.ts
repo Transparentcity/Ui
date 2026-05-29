@@ -1,4 +1,16 @@
-import { getApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl, getUpstreamApiBaseUrl } from "./apiBase";
+
+/**
+ * Browser: same-origin /api/* (Next rewrites). Server (SSR): FastAPI origin
+ * directly — never the public site URL, which causes Vercel serverless
+ * self-requests and empty/failed city lists.
+ */
+function resolvePublicApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return getUpstreamApiBaseUrl();
+  }
+  return getApiBaseUrl();
+}
 
 // ============================================================================
 // REQUEST DEDUPLICATION CACHE
@@ -48,7 +60,7 @@ function getCachedOrFetch<T>(
 }
 
 async function requestPublic<T>(path: string): Promise<T> {
-  const url = `${getApiBaseUrl()}${path}`;
+  const url = `${resolvePublicApiBaseUrl()}${path}`;
 
   try {
     const res = await fetch(url, {
@@ -95,7 +107,7 @@ async function requestPublic<T>(path: string): Promise<T> {
     if (error instanceof TypeError && error.message.includes("fetch")) {
       // Network error - API might be unreachable
       throw new Error(
-        `Failed to connect to API at ${getApiBaseUrl()}. Please check if the API server is running and accessible.`
+        `Failed to connect to API at ${resolvePublicApiBaseUrl()}. Please check if the API server is running and accessible.`
       );
     }
     // Re-throw if it's already an Error we created
@@ -112,7 +124,7 @@ async function requestPublicPost<T>(
   body: object,
   fetchOptions?: { cache?: RequestCache }
 ): Promise<T> {
-  const url = `${getApiBaseUrl()}${path}`;
+  const url = `${resolvePublicApiBaseUrl()}${path}`;
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -154,7 +166,7 @@ async function requestPublicPost<T>(
   } catch (error) {
     if (error instanceof TypeError && error.message.includes("fetch")) {
       throw new Error(
-        `Failed to connect to API at ${getApiBaseUrl()}. Please check if the API server is running and accessible.`
+        `Failed to connect to API at ${resolvePublicApiBaseUrl()}. Please check if the API server is running and accessible.`
       );
     }
     if (error instanceof Error) throw error;
@@ -944,7 +956,7 @@ export async function getMetricMapPreview(
   metricId: number,
   request: MapPreviewRequest
 ): Promise<MapPreviewResponse> {
-  const url = `${getApiBaseUrl()}/api/public/metrics/${metricId}/map-preview`;
+  const url = `${resolvePublicApiBaseUrl()}/api/public/metrics/${metricId}/map-preview`;
   
   const res = await fetch(url, {
     method: "POST",
@@ -989,7 +1001,7 @@ export async function saveMetricMap(
   metricId: number,
   request: MapPreviewRequest
 ): Promise<MapSaveResponse> {
-  const url = `${getApiBaseUrl()}/api/public/metrics/${metricId}/map-save`;
+  const url = `${resolvePublicApiBaseUrl()}/api/public/metrics/${metricId}/map-save`;
   
   const res = await fetch(url, {
     method: "POST",
@@ -1039,7 +1051,7 @@ export async function saveDeltaMap(
   metricId: number,
   request: DeltaMapSaveRequest
 ): Promise<MapSaveResponse> {
-  const url = `${getApiBaseUrl()}/api/public/metrics/${metricId}/delta-map-save`;
+  const url = `${resolvePublicApiBaseUrl()}/api/public/metrics/${metricId}/delta-map-save`;
 
   const res = await fetch(url, {
     method: "POST",
