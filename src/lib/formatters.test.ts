@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import { formatMetricValue } from "./formatters";
 
 describe("formatMetricValue", () => {
-  it("formats thousands with one decimal place", () => {
-    expect(formatMetricValue(1_000)).toBe("1.0k");
+  it("formats thousands with one decimal place only when needed", () => {
+    expect(formatMetricValue(1_000)).toBe("1k");
     expect(formatMetricValue(1_250)).toBe("1.3k");
+    expect(formatMetricValue(12_000)).toBe("12k");
     expect(formatMetricValue(-1_250)).toBe("-1.3k");
   });
 

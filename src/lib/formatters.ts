@@ -38,7 +38,10 @@ export function formatMetricValue(
     scaled: number,
     suffix: string,
     fractionDigits = 0
-  ) => `${scaled.toFixed(fractionDigits)}${suffix}`;
+  ) =>
+    `${scaled.toLocaleString(undefined, {
+      maximumFractionDigits: fractionDigits,
+    })}${suffix}`;
 
   const compact =
     absValue >= 1e9
