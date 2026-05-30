@@ -34,16 +34,22 @@ export function formatMetricValue(
 
   const absValue = Math.abs(value);
   const sign = value < 0 ? "-" : "";
-  const formatWithSuffix = (scaled: number, suffix: string) =>
-    `${Math.round(scaled)}${suffix}`;
+  const formatWithSuffix = (
+    scaled: number,
+    suffix: string,
+    fractionDigits = 0
+  ) =>
+    `${scaled.toLocaleString(undefined, {
+      maximumFractionDigits: fractionDigits,
+    })}${suffix}`;
 
   const compact =
     absValue >= 1e9
       ? formatWithSuffix(absValue / 1e9, "B")
       : absValue >= 1e6
-        ? formatWithSuffix(absValue / 1e6, "M")
+        ? formatWithSuffix(Math.round(absValue / 1e6), "M")
         : absValue >= 1e3
-          ? formatWithSuffix(absValue / 1e3, "k")
+          ? formatWithSuffix(absValue / 1e3, "k", 1)
           : Math.round(absValue).toLocaleString(undefined, {
               maximumFractionDigits: 0,
             });
