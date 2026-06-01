@@ -73,15 +73,56 @@ export interface ProductEventContext {
 }
 
 // ---------------------------------------------------------------------------
+// Daily caps (UTC) — one active ping per user / visitor per day
+// ---------------------------------------------------------------------------
+
+/** UTC date key for daily caps (YYYY-MM-DD). */
+export function utcDateKey(d = new Date()): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** True the first time per UTC day for a given storage key prefix. */
+export function shouldFireDaily(storageKey: string): boolean {
+  if (typeof window === "undefined") return false;
+  const today = utcDateKey();
+  const fullKey = `${storageKey}:${today}`;
+  if (sessionStorage.getItem(fullKey) === "1") return false;
+  sessionStorage.setItem(fullKey, "1");
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Optional auth — attach JWT when logged in (for DAU/WAU/MAU attribution)
+// ---------------------------------------------------------------------------
+
+let tokenGetter: (() => Promise<string | undefined>) | null = null;
+
+/** Register from Auth0Provider tree (see ProductAnalyticsTracker). */
+export function registerProductAnalyticsTokenGetter(
+  fn: () => Promise<string | undefined>
+): void {
+  tokenGetter = fn;
+}
+
+// ---------------------------------------------------------------------------
 // Internal send function
 // ---------------------------------------------------------------------------
 
-function _send(
+async function _send(
   eventName: string,
   ctx: ProductEventContext = {},
-  token?: string
-): void {
+  explicitToken?: string
+): Promise<void> {
   if (typeof window === "undefined") return;
+
+  let token = explicitToken;
+  if (!token && tokenGetter) {
+    try {
+      token = await tokenGetter();
+    } catch {
+      // Auth not ready — event still records as anonymous
+    }
+  }
 
   const { city_id, city_slug, ...rest } = ctx;
   const utm = captureUtm();
@@ -126,7 +167,7 @@ export function recordProductEvent(
   ctx: ProductEventContext = {},
   token?: string
 ): void {
-  _send(eventName, ctx, token);
+  void _send(eventName, ctx, token);
 }
 
 /**
@@ -148,7 +189,7 @@ export function useProductEvent(
   useEffect(() => {
     if (fired.current) return;
     fired.current = true;
-    _send(eventName, ctx, token);
+    void _send(eventName, ctx, token);
     // We intentionally don't include ctx/token in the deps array — this hook
     // is designed to fire once on mount with the values available at that time.
     // eslint-disable-next-line react-hooks/exhaustive-deps

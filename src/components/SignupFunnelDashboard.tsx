@@ -199,9 +199,22 @@ const SECTION: React.CSSProperties = { marginBottom: "28px" };
 const SECTION_TITLE: React.CSSProperties = { fontSize: "12px", fontWeight: 700, color: "var(--text-secondary, #666)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "12px" };
 const CARD_WRAP: React.CSSProperties = { background: "var(--bg-secondary, #f9f9f9)", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "10px", overflow: "hidden" };
 
-export default function SignupFunnelDashboard() {
+export interface SignupFunnelDashboardProps {
+  /** Hide header and date presets — parent controls range via `days`. */
+  embedded?: boolean;
+  hideNewsletterCohort?: boolean;
+  hideLandingSources?: boolean;
+  days?: number;
+}
+
+export default function SignupFunnelDashboard({
+  embedded = false,
+  hideNewsletterCohort = false,
+  hideLandingSources = false,
+  days: controlledDays,
+}: SignupFunnelDashboardProps = {}) {
   const { getAccessTokenSilently } = useAuth0();
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(controlledDays ?? 30);
   const [onboarding, setOnboarding] = useState<OnboardingFunnel | null>(null);
   const [summary, setSummary] = useState<SignupFunnelSummary | null>(null);
   const [landingSources, setLandingSources] = useState<ProductEventFunnelLandingSource[]>([]);
@@ -242,7 +255,18 @@ export default function SignupFunnelDashboard() {
     }
   }, [getAccessTokenSilently, days, selectedCityId]);
 
-  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (controlledDays != null) setDays(controlledDays);
+  }, [controlledDays]);
+
+  useEffect(() => {
+    void load(controlledDays ?? days, selectedCityId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (controlledDays == null) return;
+    void load(controlledDays, selectedCityId);
+  }, [controlledDays, selectedCityId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDaysChange = (d: number) => { setDays(d); void load(d, selectedCityId); };
   const handleCityClick = (row: CityFunnelRow) => {
@@ -288,39 +312,40 @@ export default function SignupFunnelDashboard() {
   return (
     <div style={{ padding: "0 0 32px" }}>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
-        <div>
-          <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary, #111)", margin: 0 }}>
-            Onboarding Funnel{selectedCityName ? ` — ${selectedCityName}` : ""}
-          </h2>
-          {onboarding && (
-            <div style={{ fontSize: "11px", color: "var(--text-secondary, #666)", marginTop: "2px" }}>
-              {onboarding.date_from} → {onboarding.date_to}
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-          {selectedCityId != null && (
-            <button style={{ padding: "5px 11px", fontSize: "12px", border: "1px solid var(--brand-primary, #ad35fa)", borderRadius: "6px", color: "var(--brand-primary, #ad35fa)", background: "transparent", cursor: "pointer" }}
-              onClick={() => { setSelectedCityId(null); setSelectedCityName(null); void load(days, null); }}>
-              ← All cities
+      {!embedded && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
+          <div>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary, #111)", margin: 0 }}>
+              Onboarding Funnel{selectedCityName ? ` — ${selectedCityName}` : ""}
+            </h2>
+            {onboarding && (
+              <div style={{ fontSize: "11px", color: "var(--text-secondary, #666)", marginTop: "2px" }}>
+                {onboarding.date_from} → {onboarding.date_to}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+            {selectedCityId != null && (
+              <button style={{ padding: "5px 11px", fontSize: "12px", border: "1px solid var(--brand-primary, #ad35fa)", borderRadius: "6px", color: "var(--brand-primary, #ad35fa)", background: "transparent", cursor: "pointer" }}
+                onClick={() => { setSelectedCityId(null); setSelectedCityName(null); void load(days, null); }}>
+                ← All cities
+              </button>
+            )}
+            {PRESETS.map(p => (
+              <button key={p.days}
+                style={{ padding: "5px 11px", fontSize: "12px", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "6px", background: days === p.days ? "var(--bg-tertiary, #e8e8e8)" : "transparent", fontWeight: days === p.days ? 700 : 400, cursor: "pointer", color: "var(--text-primary, #111)" }}
+                onClick={() => handleDaysChange(p.days)}>
+                {p.label}
+              </button>
+            ))}
+            <button
+              style={{ padding: "5px 11px", fontSize: "12px", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "6px", background: "transparent", cursor: loading ? "not-allowed" : "pointer", color: "var(--text-secondary, #666)" }}
+              onClick={() => void load()} disabled={loading}>
+              {loading ? "Loading…" : "↻ Refresh"}
             </button>
-          )}
-          {PRESETS.map(p => (
-            <button key={p.days}
-              style={{ padding: "5px 11px", fontSize: "12px", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "6px", background: days === p.days ? "var(--bg-tertiary, #e8e8e8)" : "transparent", fontWeight: days === p.days ? 700 : 400, cursor: "pointer", color: "var(--text-primary, #111)" }}
-              onClick={() => handleDaysChange(p.days)}>
-              {p.label}
-            </button>
-          ))}
-          <button
-            style={{ padding: "5px 11px", fontSize: "12px", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "6px", background: "transparent", cursor: loading ? "not-allowed" : "pointer", color: "var(--text-secondary, #666)" }}
-            onClick={() => void load()} disabled={loading}>
-            {loading ? "Loading…" : "↻ Refresh"}
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && (
         <div style={{ padding: "10px 14px", background: "#fff0f0", border: "1px solid #ffcccc", borderRadius: "8px", color: "#cc0000", fontSize: "13px", marginBottom: "20px" }}>
@@ -399,7 +424,7 @@ export default function SignupFunnelDashboard() {
       )}
 
       {/* Landing sources */}
-      {landingSources.length > 0 && (
+      {!hideLandingSources && landingSources.length > 0 && (
         <div style={SECTION}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
             <div style={SECTION_TITLE}>Landing sources</div>
@@ -447,7 +472,7 @@ export default function SignupFunnelDashboard() {
       )}
 
       {/* Newsletter cohort summary */}
-      {summary && summary.newsletter_funnel_cohort_available === true && (
+      {!hideNewsletterCohort && summary && summary.newsletter_funnel_cohort_available === true && (
         <div style={SECTION}>
           <div style={SECTION_TITLE}>Weekly update — signup cohort</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px" }}>

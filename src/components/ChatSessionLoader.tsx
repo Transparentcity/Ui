@@ -30,6 +30,7 @@ interface Session {
   total_tokens_used?: number;
   llm_call_count?: number;
   total_execution_time_ms?: number;
+  estimated_cost_usd?: number;
   intermediate_steps?: Array<{
     type: string;
     content?: string;

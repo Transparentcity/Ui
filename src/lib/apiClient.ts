@@ -7396,6 +7396,179 @@ export function getOnboardingFunnel(
   );
 }
 
+// ============================================================================
+// PRODUCT ANALYTICS OVERVIEW (unified admin dashboard)
+// ============================================================================
+
+export interface ProductAnalyticsActiveUsers {
+  date_from: string;
+  date_to: string;
+  dau_logged_in: number;
+  wau_logged_in: number;
+  mau_logged_in: number;
+  dau_visitors: number;
+  wau_visitors: number;
+  mau_visitors: number;
+  retention_d7_rate: number | null;
+  retention_d28_rate: number | null;
+  daily_logged_in: OnboardingFunnelDailyCount[];
+  daily_visitors: OnboardingFunnelDailyCount[];
+  daily_dau: OnboardingFunnelDailyCount[];
+  daily_wau: OnboardingFunnelDailyCount[];
+  daily_mau: OnboardingFunnelDailyCount[];
+  daily_visitor_dau: OnboardingFunnelDailyCount[];
+  daily_visitor_wau: OnboardingFunnelDailyCount[];
+  daily_visitor_mau: OnboardingFunnelDailyCount[];
+}
+
+export interface ProductAnalyticsGrowthDay {
+  date: string;
+  new: number;
+  returning: number;
+  resurrecting: number;
+  dormant: number;
+}
+
+export interface ProductAnalyticsRetentionLagCell {
+  lag: number;
+  count: number;
+  rate: number | null;
+}
+
+export interface ProductAnalyticsRetentionLagRow {
+  date: string;
+  active: number;
+  cells: ProductAnalyticsRetentionLagCell[];
+}
+
+export interface ProductAnalyticsRetentionLagTable {
+  date_from: string;
+  date_to: string;
+  rows: ProductAnalyticsRetentionLagRow[];
+}
+
+export interface ProductAnalyticsLandingMatrixRow {
+  source: string;
+  total: number;
+  counts: number[];
+}
+
+export interface ProductAnalyticsLandingMatrix {
+  date_from: string;
+  date_to: string;
+  granularity: string;
+  period_labels: string[];
+  rows: ProductAnalyticsLandingMatrixRow[];
+}
+
+export interface ProductAnalyticsFeatureUsage {
+  event_name: string;
+  count: number;
+  unique_users: number;
+  unique_sessions: number;
+}
+
+export interface ProductAnalyticsIntegrationHealth {
+  first_party_events_24h: number;
+  signup_events_24h: number;
+  token_usage_24h: number;
+  ga4_configured: boolean;
+  ga4_available: boolean;
+  ga4_sessions_7d: number | null;
+  langsmith_configured: boolean;
+  langsmith_project: string | null;
+  analytics_note: string;
+}
+
+export interface ProductAnalyticsRetentionCohort {
+  cohort_week: string;
+  cohort_size: number;
+  rates: (number | null)[];
+  counts: (number | null)[];
+}
+
+export interface ProductAnalyticsRetentionMatrix {
+  date_from: string;
+  date_to: string;
+  period_labels: string[];
+  cohorts: ProductAnalyticsRetentionCohort[];
+}
+
+export interface ProductAnalyticsOverview {
+  active_users: ProductAnalyticsActiveUsers;
+  growth_window_days: number;
+  growth_accounting: ProductAnalyticsGrowthDay[];
+  retention_lag: ProductAnalyticsRetentionLagTable;
+  retention_matrix: ProductAnalyticsRetentionMatrix;
+  feature_usage: ProductAnalyticsFeatureUsage[];
+  feature_usage_logged_in: ProductAnalyticsFeatureUsage[];
+  feature_usage_logged_out?: ProductAnalyticsFeatureUsage[];
+  integration_health: ProductAnalyticsIntegrationHealth;
+  landing_sources: ProductEventFunnelLandingSource[];
+  landing_matrix: ProductAnalyticsLandingMatrix | null;
+  total_page_views: number;
+  total_signup_starts: number;
+  total_signup_completes: number;
+}
+
+export function getProductAnalyticsOverview(
+  token: string,
+  options?: { days?: number }
+): Promise<ProductAnalyticsOverview> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.append("days", String(options.days));
+  const qs = params.toString();
+  return request<ProductAnalyticsOverview>(
+    `/api/admin/product-analytics/overview${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface TokenUsageDailyRow {
+  date: string;
+  tokens: number;
+  cost_usd: number;
+  calls: number;
+}
+
+export interface TokenUsageSourceRow {
+  source: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+}
+
+export interface TokenUsageDailySeries {
+  date_from: string;
+  date_to: string;
+  days: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  llm_call_count: number;
+  by_model: Record<string, { input_tokens: number; output_tokens: number; cost_usd: number; calls: number }>;
+  by_source: TokenUsageSourceRow[];
+  daily: TokenUsageDailyRow[];
+}
+
+export function getTokenUsageDailySeries(
+  token: string,
+  options?: { days?: number }
+): Promise<TokenUsageDailySeries> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.append("days", String(options.days));
+  const qs = params.toString();
+  return request<TokenUsageDailySeries>(
+    `/api/admin/token-usage/daily-series${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 /** Fire-and-forget: record a signup funnel event (no auth required). */
 export function recordSignupFunnelEvent(
   payload: SignupFunnelEventPayload,

@@ -46,10 +46,10 @@ export default function PrivacyPage() {
 
           <h3>Analytics</h3>
           <p>
-            We use PostHog and Vercel Analytics to understand how people use the
-            site. These tools collect anonymized usage data such as pages
-            visited, browser type, and general location. We also use Google
-            Analytics for aggregate traffic data.
+            We use first-party product analytics (stored on our servers), Vercel
+            Analytics, and Google Analytics to understand how people use the
+            site. These tools collect usage data such as pages visited, browser
+            type, and general location.
           </p>
 
           <h3>Cookies</h3>
@@ -83,9 +83,6 @@ export default function PrivacyPage() {
           <h2>5. Third-Party Services</h2>
           <p>We use the following services that may process some of your data:</p>
           <ul>
-            <li>
-              <strong>PostHog</strong> for product analytics
-            </li>
             <li>
               <strong>Vercel</strong> for hosting and performance analytics
             </li>

@@ -6,6 +6,8 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { Auth0RecoveryProvider } from "@/components/Auth0RecoveryProvider";
+import ProductAnalyticsTracker from "@/components/ProductAnalyticsTracker";
 import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
 import { queryClient } from "@/lib/queryClient";
 
@@ -176,12 +178,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       onRedirectCallback={onRedirectCallback}
       skipRedirectCallback={skipRedirect}
     >
-      <QueryClientProvider client={queryClient}>
-        {children}
-        {process.env.NODE_ENV === "development" && (
-          <ReactQueryDevtools initialIsOpen={false} />
-        )}
-      </QueryClientProvider>
+      <Auth0RecoveryProvider>
+        <QueryClientProvider client={queryClient}>
+          <ProductAnalyticsTracker />
+          {children}
+          {process.env.NODE_ENV === "development" && (
+            <ReactQueryDevtools initialIsOpen={false} />
+          )}
+        </QueryClientProvider>
+      </Auth0RecoveryProvider>
     </Auth0Provider>
   );
 }

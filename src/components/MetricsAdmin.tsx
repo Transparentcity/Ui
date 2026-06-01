@@ -15,6 +15,7 @@ import {
   invalidateAdminMetricMapCache,
   getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
+import { isRecoverableAuth0TokenError } from "@/lib/auth0AccessToken";
 import {
   ADMIN_API_ACCESS_TOKEN_QUERY_KEY,
   useMetrics,
@@ -49,22 +50,7 @@ function isLikelySessionOrTokenAuthError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const e = error as { status?: number; message?: unknown; error?: string };
   if (e.status === 401) return true;
-  if (typeof e.error === "string") {
-    const code = e.error.toLowerCase();
-    if (
-      code === "login_required" ||
-      code === "consent_required" ||
-      code === "missing_refresh_token"
-    ) {
-      return true;
-    }
-  }
-  const msg = String(e.message ?? "").toLowerCase();
-  return (
-    msg.includes("login_required") ||
-    msg.includes("consent_required") ||
-    msg.includes("missing_refresh_token")
-  );
+  return isRecoverableAuth0TokenError(error);
 }
 
 function formatDateTime(value?: string | null): string {
@@ -261,9 +247,10 @@ export default function MetricsAdmin() {
   const firstError = summaryQuery.error || categoriesQuery.error ||
                      typesQuery.error || citiesQuery.error || metricsQuery.error || null;
   const isAuthError = isLikelySessionOrTokenAuthError(firstError);
-  const error = firstError
-    ? firstError.message || "Failed to load data"
-    : null;
+  const error =
+    firstError && !isAuthError
+      ? firstError.message || "Failed to load data"
+      : null;
 
   // Modals
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -379,7 +366,7 @@ export default function MetricsAdmin() {
         if (!cancelled) setAdminToken(token);
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (!cancelled && !isRecoverableAuth0TokenError(err)) {
           console.warn("Unable to load admin token for cross-city chart", err);
           setAdminToken(null);
         }

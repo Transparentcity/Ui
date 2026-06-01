@@ -14,6 +14,16 @@ export function formatCategoryName(raw: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Compact thousands: 13.1k, but 13k not 13.0k. */
+function formatThousandsCompact(absValue: number): string {
+  const scaled = absValue / 1e3;
+  const rounded = Math.round(scaled * 10) / 10;
+  if (Number.isInteger(rounded)) {
+    return `${rounded}k`;
+  }
+  return `${rounded.toFixed(1)}k`;
+}
+
 /**
  * Format a metric value based on its display unit.
  * - percentage: "49%"
@@ -43,7 +53,7 @@ export function formatMetricValue(
       : absValue >= 1e6
         ? formatWithSuffix(absValue / 1e6, "M")
         : absValue >= 1e3
-          ? formatWithSuffix(absValue / 1e3, "k")
+          ? formatThousandsCompact(absValue)
           : Math.round(absValue).toLocaleString(undefined, {
               maximumFractionDigits: 0,
             });

@@ -110,7 +110,7 @@ const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false
 const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
 const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
 const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { ssr: false });
-const SignupFunnelDashboard = dynamic(() => import("@/components/SignupFunnelDashboard"), { ssr: false });
+const ProductAnalyticsDashboard = dynamic(() => import("@/components/ProductAnalyticsDashboard"), { ssr: false });
 
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
@@ -1987,8 +1987,8 @@ export default function DashboardPage() {
 
           {currentView === "system-stats" && isAdmin && (
             <div id="system-stats-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <div className={styles.adminContainer}>
-                <SignupFunnelDashboard />
+              <div className={styles.analyticsAdminContainer}>
+                <ProductAnalyticsDashboard />
               </div>
             </div>
           )}
@@ -2426,9 +2426,9 @@ export default function DashboardPage() {
                     <div className={styles.settingsSectionCard}>
                       <div className={styles.settingsRow}>
                         <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowTitle}>Dashboard</div>
+                          <div className={styles.settingsRowTitle}>Product analytics</div>
                           <div className={styles.settingsRowDescription}>
-                            Landings, bounce rate, signup starts &amp; completes, city and district breakdowns.
+                            DAU/WAU/MAU, growth accounting, retention, marketing & signup funnel, LLM costs, and integration QA.
                           </div>
                         </div>
                         <div className={styles.settingsRowControl}>

@@ -12,7 +12,6 @@ import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { ToasterProvider } from "@/components/providers/toaster-provider";
 import AuthErrorToast from "@/components/AuthErrorToast";
 import { SiteStructuredData } from "@/components/StructuredData";
-import PostHogProvider from "@/components/PostHogProvider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -114,13 +113,11 @@ export default function RootLayout({
         <GoogleAnalytics />
         <Analytics />
         <SpeedInsights />
-        <PostHogProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <JobWebSocketProvider>{children}</JobWebSocketProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </PostHogProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <JobWebSocketProvider>{children}</JobWebSocketProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

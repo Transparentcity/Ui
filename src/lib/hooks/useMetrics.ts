@@ -8,10 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import {
-  AUTH0_API_ACCESS_TOKEN_OPTIONS,
-  getAuth0ApiAudience,
-} from "@/lib/auth0ApiAudience";
+import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
 import {
   listAdminMetrics,
   getAdminMetric,
@@ -107,9 +104,7 @@ async function fetchCoalescedAdminApiAccessToken(
   return queryClient.fetchQuery({
     queryKey: ADMIN_API_ACCESS_TOKEN_QUERY_KEY,
     queryFn: async () => {
-      const token = await getAccessTokenSilently({
-        ...AUTH0_API_ACCESS_TOKEN_OPTIONS,
-      });
+      const token = await getAccessTokenSilently();
       if (!token?.trim()) {
         throw new Error("Not authenticated: no access token. Log in and try again.");
       }

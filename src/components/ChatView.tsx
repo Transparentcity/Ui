@@ -291,22 +291,23 @@ export default function ChatView({
     }
 
     // CRITICAL: Always ensure we have stats when we have a sessionId
-    // Check if we need to set placeholder stats first
-    setSessionStats((prevStats) => {
-      // If we don't have stats for this session, set placeholder immediately
-      if (!prevStats || prevStats.session_id !== currentSessionId) {
-        return {
-          session_id: currentSessionId,
-          total_tokens_used: 0,
-          llm_call_count: 0,
-          total_execution_time_ms: 0,
-          model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
-          last_message_at: null,
-          created_at: new Date().toISOString(),
-        };
-      }
-      return prevStats;
-    });
+    // Skip placeholder zeros if session loader already populated stats.
+    if (statsSetFromSessionLoadRef.current !== currentSessionId) {
+      setSessionStats((prevStats) => {
+        if (!prevStats || prevStats.session_id !== currentSessionId) {
+          return {
+            session_id: currentSessionId,
+            total_tokens_used: 0,
+            llm_call_count: 0,
+            total_execution_time_ms: 0,
+            model_key: selectedModel || PREFERRED_DEFAULT_MODEL_KEY,
+            last_message_at: null,
+            created_at: new Date().toISOString(),
+          };
+        }
+        return prevStats;
+      });
+    }
 
     // Fetch stats for the current session to ensure they're up to date
     // But preserve existing stats if the fetch fails
@@ -385,10 +386,30 @@ export default function ChatView({
       model_key: modelKeyForStats,
       last_message_at: session.last_message_at || null,
       created_at: session.created_at || new Date().toISOString(),
+      estimated_cost_usd: session.estimated_cost_usd ?? 0,
     };
-    
-    // Always set stats when session loads - this ensures header shows for old conversations
-    setSessionStats(stats);
+
+    // Never let a stale session fetch wipe live streaming totals (DB can lag).
+    setSessionStats((prevStats) => {
+      if (!prevStats || prevStats.session_id !== session.session_id) {
+        return stats;
+      }
+      return {
+        ...stats,
+        total_tokens_used: Math.max(
+          prevStats.total_tokens_used ?? 0,
+          stats.total_tokens_used
+        ),
+        llm_call_count: Math.max(
+          prevStats.llm_call_count ?? 0,
+          stats.llm_call_count
+        ),
+        estimated_cost_usd: Math.max(
+          prevStats.estimated_cost_usd ?? 0,
+          stats.estimated_cost_usd ?? 0
+        ),
+      };
+    });
     // Mark that we've set stats from session load to prevent them from being cleared
     statsSetFromSessionLoadRef.current = session.session_id;
     
