@@ -12,7 +12,13 @@ This is separate from the platform repo's full sweep (`scripts/qa/run_qa.sh` at 
 | `slow-3g-banner.mjs` | Post-signup "Looking for stories" banner: 30s success contract, or explicit failure message by 60s under Slow-3G throttle | yes |
 | `user-states.mjs` | D1 unlaunched-area signup (auth), D2 no-district city render (no auth), D6 delaunched-returning-user stub | partial |
 | `get-landing-pages.mjs` | `/get/{slug}` landing page for every launched city: page loads, most recent Sunday's newsletter date renders, Sign in button reaches Auth0 login | no |
+| `content-render.mjs` | Rendered DOM + render health: em/en dashes & " - " punctuation in visible text, leaked tokens (undefined/null/NaN/{{}}/raw entities/markdown), failed first-party requests, broken images, console errors, error boundaries, React hydration mismatches (CR8) | no |
+| `headline-sense.mjs` | LLM judge (claude-sonnet-4-6) flagging rendered headlines with a broken/template string: broken grammar, truncation, placeholder/leaked tokens, nonsense. Judges each headline in isolation (cross-story data consistency is the platform's job); has a product glossary + headlinese rules so "your weekly" and implied-subject headlines aren't flagged | needs LLM key |
+| `chart-render.mjs` | Newsletter-embed chart images render (not broken) inside the `/get` iframe; any top-level recharts/canvas actually drew | no |
+| `link-crawl.mjs` | Internal links from seed pages: HTTP status + client render (error boundary / blank page) that a status-only crawl misses | no |
 | `run-qa.sh` | Orchestrator |
+
+These read the **rendered DOM and runtime behavior**, which is what makes them additive to the platform suite — that one reads the story CSV (source data) and can't see anything the rendering layer introduces, transforms, or fails to load (marketing-copy dashes, broken chart images, hydration mismatches, client-only nav errors).
 
 ## Setup
 
@@ -21,14 +27,19 @@ cd ~/Documents/Coding/TransparentCITY/Ui
 npx playwright install chromium firefox webkit
 ```
 
-For checks that need auth, set the QA sandbox creds:
+Credentials and keys go in `scripts/qa/.env.local` (gitignored; `run-qa.sh`
+sources it automatically):
 
 ```bash
 export QA_AUTH0_EMAIL="awerbach+QA@gmail.com"
 export QA_AUTH0_PASSWORD="..."
+export QA_ANTHROPIC_API_KEY="sk-ant-..."   # for headline-sense.mjs
 ```
 
-Without them, `user-states.mjs` skips D1 and `slow-3g-banner.mjs` skips itself entirely.
+Without the Auth0 creds, `user-states.mjs` skips D1 and `slow-3g-banner.mjs`
+skips itself. Without an LLM key (`QA_ANTHROPIC_API_KEY`, falling back to
+`ANTHROPIC_API_KEY`), `headline-sense.mjs` skips itself. None of these
+block the rest of the sweep.
 
 ## Running
 

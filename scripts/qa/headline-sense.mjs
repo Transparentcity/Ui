@@ -8,15 +8,17 @@
  * card component) and which includes headlines the CSV doesn't export.
  *
  * Collects every headline (h1-h4 + story card titles) from the public
- * pages, dedupes, and asks Claude to flag only CLEAR problems:
+ * pages, dedupes, and asks Claude to flag only CLEAR render/template
+ * problems with the headline STRING:
  *   - grammatically broken / sentence fragments that read as errors
  *   - truncated mid-word or mid-number
  *   - placeholder / leaked template text ("undefined", "{{city}}", "Lorem")
- *   - internally contradictory or impossible data ("up 0%", "increased by
- *     -5%", "fell to 12 from 12")
  *   - nonsense / word salad
  * Marketing section headers ("See Cincinnati clearly, every week.") and
- * normal data headlines are NOT flagged.
+ * normal data headlines are NOT flagged. Each headline is judged in
+ * isolation; data-value consistency across stories is the platform suite's
+ * job (check_number_reconciliation / check_cross_story_consistency), not
+ * this one.
  *
  * Needs an API key: QA_ANTHROPIC_API_KEY or ANTHROPIC_API_KEY. Skips
  * cleanly (exit 0) if neither is set, so it never blocks a sweep.
@@ -102,7 +104,11 @@ const { createAnthropic } = await import("@ai-sdk/anthropic");
 const { generateObject } = await import("ai");
 const { z } = await import("zod");
 
-const anthropic = createAnthropic({ apiKey: API_KEY });
+// Pin the v1 base URL explicitly. A bare ANTHROPIC_BASE_URL in the
+// environment (e.g. "https://api.anthropic.com" with no /v1, which some
+// dev shells export) otherwise gets "/messages" appended and 404s.
+const BASE_URL = process.env.QA_ANTHROPIC_BASE_URL ?? "https://api.anthropic.com/v1";
+const anthropic = createAnthropic({ apiKey: API_KEY, baseURL: BASE_URL });
 
 const schema = z.object({
   flagged: z
@@ -110,7 +116,7 @@ const schema = z.object({
       z.object({
         headline: z.string().describe("the exact headline text, copied verbatim"),
         problem: z
-          .enum(["broken_grammar", "truncated", "placeholder", "contradictory_data", "nonsense"])
+          .enum(["broken_grammar", "truncated", "placeholder", "nonsense"])
           .describe("the single best-fitting problem category"),
         why: z.string().describe("one concise sentence explaining the problem"),
       }),
@@ -121,13 +127,25 @@ const schema = z.object({
 const system = [
   "You are a QA reviewer for a civic-data newsletter product.",
   "You are given a list of headlines rendered on the live website.",
+  "",
+  "Product glossary (these are correct, never flag them as broken/truncated):",
+  "- 'weekly' is a NOUN here: the name of the newsletter. 'Get your weekly', 'your weekly', 'the weekly', 'Your Cincinnati weekly' are all complete and correct.",
+  "- 'Seymour' is the name of the product's AI analyst.",
+  "- '311' is a municipal service-request line; '311 calls' / 'Noise Complaints (311)' are correct.",
+  "- 'ShotSpotter' is a gunshot-detection product name.",
+  "- Terse marketing CTAs and section headers ('Explore', 'Get involved', 'Ongoing', 'First month', 'Contact') are intentional and complete.",
+  "",
   "Flag ONLY headlines with a clear, objective problem a reader would notice:",
   "- broken_grammar: reads as a grammatical error or a broken sentence fragment (not just terse).",
   "- truncated: cut off mid-word or mid-number, or ends abruptly like it lost its tail.",
   "- placeholder: leaked template/placeholder text (undefined, null, NaN, {{...}}, Lorem ipsum, [object Object], a bare variable name).",
-  "- contradictory_data: states something impossible or self-contradictory (e.g. 'up 0%', 'increased by -5%', 'fell to 12 from 12', 'down 100% to 4,500').",
   "- nonsense: word salad, or words that don't form a coherent claim.",
-  "Do NOT flag: marketing section headers, terse-but-valid headlines, stylistic choices, capitalization, or anything you merely dislike.",
+  "Headlinese conventions (these are correct, never flag as broken_grammar):",
+  "- Headlines routinely DROP the subject and articles. An implied actor (the city, the agency, the department) is normal: 'Closed 493 Vehicle Noise Calls', 'Cleared 7 Times', 'Filed 550 Complaints', 'Logged 100,000 Calls' all read as '[the agency] closed/cleared/filed/logged N ...' and are coherent.",
+  "- 'closed/cleared a call/complaint/case' means the agency resolved it; this is standard civic-data phrasing, not a broken claim.",
+  "- Noun stacks like 'Vehicle Noise Calls', 'Yard Waste Complaints', 'New Housing Permits' are normal.",
+  "Do NOT flag: marketing section headers, terse-but-valid headlines, implied-subject headlinese, stylistic choices, capitalization, or anything you merely dislike.",
+  "Judge each headline IN ISOLATION. Do NOT compare headlines against each other: two headlines citing different percentages for a similar topic are almost always different metrics or time windows (YTD vs monthly vs week), not a contradiction. Cross-headline consistency is handled by a separate system.",
   "Be conservative. When in doubt, do not flag. A normal data headline like 'Noise Complaints (311) up 217% year-to-date' is FINE.",
 ].join("\n");
 

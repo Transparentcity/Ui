@@ -82,8 +82,15 @@ async function checkPath(browser, path) {
   const page = await context.newPage();
 
   const consoleErrors = [];
+  const hydrationMsgs = [];
+  const HYDRATION_RE =
+    /hydrat|did not match|text content does not match|server.rendered HTML|418|423|425/i;
   page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(m.text().slice(0, 120));
+    const t = m.text();
+    if (m.type() === "error") consoleErrors.push(t.slice(0, 120));
+    // Hydration mismatches surface as console errors OR warnings; capture
+    // both. SSR/client divergence is invisible to a source-data check.
+    if (HYDRATION_RE.test(t)) hydrationMsgs.push(t.slice(0, 160));
   });
 
   // Real request failures only. Two traps to avoid:
@@ -216,6 +223,13 @@ async function checkPath(browser, path) {
       record("CR7-error-boundary", path, true);
     } else {
       record("CR7-error-boundary", path, false, "error-boundary / crash text visible on page");
+    }
+
+    // CR8 — React hydration mismatch (SSR vs client divergence)
+    if (hydrationMsgs.length === 0) {
+      record("CR8-hydration", path, true);
+    } else {
+      record("CR8-hydration", path, false, `${hydrationMsgs.length} hydration message(s); e.g. ${JSON.stringify(hydrationMsgs[0])}`);
     }
   } finally {
     await context.close();

@@ -98,6 +98,15 @@ run_step "content_render" \
 run_step "headline_sense" \
   node headline-sense.mjs --site "$SITE"
 
+# Chart render: newsletter-embed chart images + any interactive charts.
+run_step "chart_render" \
+  node chart-render.mjs --site "$SITE"
+
+# Internal-link crawl: status + client-render (error boundary / blank)
+# beyond the platform's static status-only crawl.
+run_step "link_crawl" \
+  node link-crawl.mjs --site "$SITE"
+
 run_step "user_states" \
   node user-states.mjs --site "$SITE"
 
