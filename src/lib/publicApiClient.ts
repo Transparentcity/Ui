@@ -1,14 +1,7 @@
-import { getApiBaseUrl, getUpstreamApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl } from "./apiBase";
 
-/**
- * Browser: same-origin /api/* (Next rewrites). Server (SSR): FastAPI origin
- * directly — never the public site URL, which causes Vercel serverless
- * self-requests and empty/failed city lists.
- */
+/** Browser and SSR/ISR: same-origin /api/* via Next rewrites in production. */
 function resolvePublicApiBaseUrl(): string {
-  if (typeof window === "undefined") {
-    return getUpstreamApiBaseUrl();
-  }
   return getApiBaseUrl();
 }
 

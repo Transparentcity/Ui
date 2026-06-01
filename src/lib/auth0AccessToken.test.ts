@@ -77,6 +77,20 @@ describe("getApiAccessTokenSilently", () => {
     );
   });
 
+  it("does not redirect when shouldRenewSession returns false", async () => {
+    const getAccessTokenSilently = vi.fn().mockRejectedValue({
+      error: "login_required",
+    });
+    const loginWithRedirect = vi.fn();
+
+    await expect(
+      getApiAccessTokenSilently(getAccessTokenSilently, loginWithRedirect, {
+        shouldRenewSession: () => false,
+      })
+    ).rejects.toMatchObject({ error: "login_required" });
+    expect(loginWithRedirect).not.toHaveBeenCalled();
+  });
+
   it("uses prompt consent when Auth0 returns Consent required", async () => {
     const getAccessTokenSilently = vi
       .fn()

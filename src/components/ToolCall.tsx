@@ -379,11 +379,12 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
             <TimeSeriesChart
               data={aggregated}
               metadata={chartData?.metadata}
-              height={320}
+              height={360}
               defaultPeriod={displayPeriod}
               fullBleed={true}
               hidePeriodSelector={false}
               showExternalTitle={false}
+              embeddedMode={true}
             />
           ) : (
             <div className={styles.timeSeriesLoading}>

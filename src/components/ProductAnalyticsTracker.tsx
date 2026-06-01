@@ -23,8 +23,15 @@ function TrackerInner() {
   const dbUserIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    registerProductAnalyticsTokenGetter(() => getAccessTokenSilently());
-  }, [getAccessTokenSilently]);
+    registerProductAnalyticsTokenGetter(async () => {
+      if (!isAuthenticated) return undefined;
+      try {
+        return await getAccessTokenSilently();
+      } catch {
+        return undefined;
+      }
+    });
+  }, [getAccessTokenSilently, isAuthenticated]);
 
   useEffect(() => {
     if (isLoading) return;

@@ -28,7 +28,10 @@ export function Auth0RecoveryProvider({ children }: { children: ReactNode }) {
       getApiAccessTokenSilently(
         (opts) => authRef.current.getAccessTokenSilently(opts),
         (opts) => authRef.current.loginWithRedirect(opts),
-        options
+        {
+          ...options,
+          shouldRenewSession: () => authRef.current.isAuthenticated,
+        }
       ),
     []
   );

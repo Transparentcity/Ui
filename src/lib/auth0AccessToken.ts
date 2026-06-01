@@ -94,20 +94,31 @@ async function redirectToRenewSession(
  * Fetch an API access token, renewing the Auth0 session when refresh tokens
  * are missing or expired instead of surfacing a silent-auth error to the UI.
  */
+export type GetApiAccessTokenSilentlyOptions = GetTokenSilentlyOptions & {
+  /**
+   * When provided, session renewal redirect runs only if this returns true.
+   * Prevents sending anonymous visitors to Universal Login when a caller
+   * probes for an optional token (e.g. product analytics on the public home page).
+   */
+  shouldRenewSession?: () => boolean;
+};
+
 export async function getApiAccessTokenSilently(
   getAccessTokenSilently: (
     options?: GetTokenSilentlyOptions
   ) => Promise<string>,
   loginWithRedirect: (opts: object) => Promise<void>,
-  options?: GetTokenSilentlyOptions
+  options?: GetApiAccessTokenSilentlyOptions
 ): Promise<string> {
+  const { shouldRenewSession, ...tokenOptions } = options ?? {};
+
   try {
     const token = await getAccessTokenSilently({
       ...AUTH0_API_ACCESS_TOKEN_OPTIONS,
-      ...options,
+      ...tokenOptions,
       authorizationParams: {
         ...AUTH0_API_ACCESS_TOKEN_OPTIONS.authorizationParams,
-        ...options?.authorizationParams,
+        ...tokenOptions.authorizationParams,
       },
     });
     if (!token?.trim()) {
@@ -118,7 +129,11 @@ export async function getApiAccessTokenSilently(
     return token;
   } catch (error) {
     const code = getAuth0TokenErrorCode(error);
-    if (code && RECOVERABLE_ERROR_CODES.has(code)) {
+    if (
+      code &&
+      RECOVERABLE_ERROR_CODES.has(code) &&
+      (!shouldRenewSession || shouldRenewSession())
+    ) {
       return redirectToRenewSession(loginWithRedirect, code);
     }
     throw error;

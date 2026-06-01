@@ -4,6 +4,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./TimeSeriesChart.module.css";
+import {
+  formatYtdHoverLabel,
+  formatYtdLegendLabel,
+  getYtdAvgLineStyle,
+  isDenseMultiGroupYtd,
+  maxYtdSevenDayAverage,
+  niceYAxisMax,
+  trailingSevenDayAverage,
+} from "./timeSeriesChartYtd";
 
 // Dynamically import Plotly to avoid SSR issues
 const Plot = dynamic(
@@ -78,6 +87,10 @@ export interface TimeSeriesChartProps {
   forcedTheme?: "light" | "dark";
   /** Number of days the data lags behind today; marks the last N days of YTD current-year data as "Incomplete" */
   staleness_days?: number;
+  /** Iframe / inline embed surfaces (feeds, tool cards) — enables compact multi-group layout. */
+  embeddedMode?: boolean;
+  /** Override automatic compact layout for dense multi-group YTD charts. */
+  layoutDensity?: "auto" | "default" | "compact";
 }
 
 /**
@@ -821,6 +834,8 @@ export default function TimeSeriesChart({
   onPeriodChange,
   forcedTheme,
   staleness_days,
+  embeddedMode = false,
+  layoutDensity = "auto",
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -844,6 +859,7 @@ export default function TimeSeriesChart({
   const [showPartialInfo, setShowPartialInfo] = useState(false);
   // Default to stacked when chart has multiple categories; one-click toggle to "by series"
   const [stackedView, setStackedView] = useState(true);
+  const [showPriorYear, setShowPriorYear] = useState(true);
 
   const handlePeriodChange = (newPeriod: PeriodType) => {
     setPeriodType(newPeriod);
@@ -872,6 +888,21 @@ export default function TimeSeriesChart({
     }
     return false;
   }, [aggregatedByGroup]);
+
+  const denseMultiGroupYtd = useMemo(
+    () => isDenseMultiGroupYtd(periodType, Array.from(aggregatedByGroup.keys())),
+    [aggregatedByGroup, periodType],
+  );
+
+  const useCompactLayout = useMemo(() => {
+    if (layoutDensity === "compact") return true;
+    if (layoutDensity === "default") return false;
+    return denseMultiGroupYtd || (embeddedMode && hasGroups && periodType === "ytd");
+  }, [layoutDensity, denseMultiGroupYtd, embeddedMode, hasGroups, periodType]);
+
+  useEffect(() => {
+    setShowPriorYear(!useCompactLayout);
+  }, [useCompactLayout, periodType]);
 
   // Prepare traces for Plotly - one trace per group
   const traces = useMemo(() => {
@@ -905,25 +936,48 @@ export default function TimeSeriesChart({
         
         // Create traces for each original group
         let colorIndex = 0;
+        const legendYearGroupsSeen = new Set<string>();
         for (const [originalGroup, yearGroups] of groupedByOriginalGroup.entries()) {
           const groupColor = SERIES_COLORS[colorIndex % SERIES_COLORS.length];
           colorIndex++;
-          
-          // Sort years descending
-          const sortedYears = Array.from(yearGroups.keys()).sort((a, b) => parseInt(b) - parseInt(a));
+
+          const sortedYears = Array.from(yearGroups.keys()).sort(
+            (a, b) => parseInt(b, 10) - parseInt(a, 10),
+          );
           const limitedYears = sortedYears.filter((yearStr) => {
             const year = parseInt(yearStr, 10);
-            return isYearInYtdWindow(year, currentYear);
+            if (!isYearInYtdWindow(year, currentYear)) return false;
+            if (useCompactLayout && !showPriorYear && year < currentYear) {
+              return false;
+            }
+            return true;
           });
-          
+
           for (const yearStr of limitedYears) {
             const points = yearGroups.get(yearStr)!;
             if (points.length === 0) continue;
 
             const year = parseInt(yearStr, 10);
-            /** Match citywide YTD: emphasize this year per series; prior years in neutral grey. */
-            const lineColor = year === currentYear ? groupColor : "#888888";
-            const x = points.map((point) => parseInt(point.time_period));
+            const lineColor =
+              year === currentYear ? groupColor : useCompactLayout ? groupColor : "#888888";
+            const avgLineStyle = getYtdAvgLineStyle(
+              year,
+              currentYear,
+              groupColor,
+              useCompactLayout,
+            );
+            const legendName = formatYtdLegendLabel(
+              originalGroup,
+              yearStr,
+              useCompactLayout,
+            );
+            const hoverSeriesName = formatYtdHoverLabel(
+              originalGroup,
+              yearStr,
+              useCompactLayout,
+              useCompactLayout ? "" : " 7-Day Avg",
+            );
+            const x = points.map((point) => parseInt(point.time_period, 10));
             const y = points.map((point) => point.numeric_value);
 
             const uniqueDays = new Set(x).size;
@@ -946,17 +1000,32 @@ export default function TimeSeriesChart({
             const incompleteY =
               showIncomplete && cutoffIdx >= 0 ? y.slice(cutoffIdx) : [];
 
+            const legendMeta =
+              useCompactLayout && !legendYearGroupsSeen.has(yearStr)
+                ? {
+                    legendgroup: yearStr,
+                    legendgrouptitle: { text: yearStr },
+                  }
+                : useCompactLayout
+                  ? { legendgroup: yearStr }
+                  : {};
+
+            if (legendMeta.legendgroup) {
+              legendYearGroupsSeen.add(yearStr);
+            }
+
             if (isSparseData) {
               traces.push({
                 x: completeX,
                 y: completeY,
                 type: "scatter",
                 mode: "lines+markers",
-                name: `${originalGroup} ${yearStr}`,
-                line: { color: lineColor, width: 2 },
-                marker: { color: lineColor, size: 5 },
+                name: legendName,
+                line: avgLineStyle,
+                marker: { color: avgLineStyle.color, size: useCompactLayout ? 4 : 5 },
                 showlegend: true,
-                hovertemplate: `${originalGroup} ${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                ...legendMeta,
+                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", {
@@ -967,17 +1036,19 @@ export default function TimeSeriesChart({
               });
               if (incompleteX.length > 1) {
                 ytdIncompleteForLegend = true;
-                if (incompleteLegendLineColor == null) incompleteLegendLineColor = lineColor;
+                if (incompleteLegendLineColor == null) {
+                  incompleteLegendLineColor = avgLineStyle.color;
+                }
                 traces.push({
                   x: incompleteX,
                   y: incompleteY,
                   type: "scatter",
                   mode: "lines+markers",
-                  name: `${originalGroup} ${yearStr} (incomplete)`,
-                  line: { color: lineColor, width: 2, dash: "dot" },
-                  marker: { color: lineColor, size: 5 },
+                  name: `${legendName} (incomplete)`,
+                  line: { ...avgLineStyle, dash: "dot" },
+                  marker: { color: avgLineStyle.color, size: useCompactLayout ? 4 : 5 },
                   showlegend: false,
-                  hovertemplate: `${originalGroup} ${yearStr} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
                     return date.toLocaleDateString("en-US", {
@@ -988,38 +1059,38 @@ export default function TimeSeriesChart({
                 });
               }
             } else {
-              const avg7 = y.map((_, idx) => {
-                const start = Math.max(0, idx - 6);
-                const window = y.slice(start, idx + 1);
-                const sum = window.reduce((acc, v) => acc + v, 0);
-                return sum / window.length;
-              });
+              const avg7 = trailingSevenDayAverage(y);
 
               const completeAvg7 = avg7.slice(0, cutoffIdx + 1);
               const incompleteAvg7 =
                 showIncomplete && cutoffIdx >= 0 ? avg7.slice(cutoffIdx) : [];
 
-              traces.push({
-                x: completeX,
-                y: completeY,
-                type: "scatter",
-                mode: "lines",
-                name: `${originalGroup} ${yearStr}`,
-                line: { color: lineColor, width: 0.75 },
-                opacity: 0.2,
-                showlegend: false,
-                hoverinfo: "skip",
-              });
+              if (!useCompactLayout) {
+                traces.push({
+                  x: completeX,
+                  y: completeY,
+                  type: "scatter",
+                  mode: "lines",
+                  name: `${originalGroup} ${yearStr}`,
+                  line: { color: lineColor, width: 0.75 },
+                  opacity: 0.2,
+                  showlegend: false,
+                  hoverinfo: "skip",
+                });
+              }
 
               traces.push({
                 x: completeX,
                 y: completeAvg7,
                 type: "scatter",
                 mode: "lines",
-                name: `${originalGroup} ${yearStr} 7-Day Avg`,
-                line: { color: lineColor, width: 2 },
+                name: useCompactLayout
+                  ? legendName
+                  : `${originalGroup} ${yearStr} 7-Day Avg`,
+                line: avgLineStyle,
                 showlegend: true,
-                hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                ...legendMeta,
+                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", {
@@ -1031,27 +1102,31 @@ export default function TimeSeriesChart({
 
               if (incompleteX.length > 1) {
                 ytdIncompleteForLegend = true;
-                if (incompleteLegendLineColor == null) incompleteLegendLineColor = lineColor;
-                traces.push({
-                  x: incompleteX,
-                  y: incompleteY,
-                  type: "scatter",
-                  mode: "lines",
-                  name: `${originalGroup} ${yearStr} (incomplete)`,
-                  line: { color: lineColor, width: 0.75 },
-                  opacity: 0.2,
-                  showlegend: false,
-                  hoverinfo: "skip",
-                });
+                if (incompleteLegendLineColor == null) {
+                  incompleteLegendLineColor = avgLineStyle.color;
+                }
+                if (!useCompactLayout) {
+                  traces.push({
+                    x: incompleteX,
+                    y: incompleteY,
+                    type: "scatter",
+                    mode: "lines",
+                    name: `${originalGroup} ${yearStr} (incomplete)`,
+                    line: { color: lineColor, width: 0.75 },
+                    opacity: 0.2,
+                    showlegend: false,
+                    hoverinfo: "skip",
+                  });
+                }
                 traces.push({
                   x: incompleteX,
                   y: incompleteAvg7,
                   type: "scatter",
                   mode: "lines",
-                  name: `${originalGroup} ${yearStr} 7-Day Avg (incomplete)`,
-                  line: { color: lineColor, width: 2, dash: "dot" },
+                  name: `${legendName} (incomplete)`,
+                  line: { ...avgLineStyle, dash: "dot" },
                   showlegend: false,
-                  hovertemplate: `${originalGroup} ${yearStr} 7-Day Avg (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
                     return date.toLocaleDateString("en-US", {
@@ -1363,6 +1438,8 @@ export default function TimeSeriesChart({
     metadata,
     stackedView,
     staleness_days,
+    useCompactLayout,
+    showPriorYear,
   ]);
 
   const chartTitleText =
@@ -1371,8 +1448,9 @@ export default function TimeSeriesChart({
     metadata?.field_name ||
     "Time Series";
   
-  // Hide internal title when showing external title
-  const chartTitle = showExternalTitle ? "" : chartTitleText;
+  // Hide internal title when parent chrome or compact layout already labels the chart
+  const chartTitle =
+    showExternalTitle || useCompactLayout ? "" : chartTitleText;
 
   const cityName = metadata?.city_name;
 
@@ -1402,6 +1480,14 @@ export default function TimeSeriesChart({
 
   // Calculate maximum Y value for Y-axis range (stacked: max period total; otherwise max single value)
   const maxYValue = useMemo(() => {
+    if (periodType === "ytd" && useCompactLayout) {
+      const currentYear = new Date().getFullYear();
+      const displayMax = maxYtdSevenDayAverage(aggregatedByGroup, {
+        currentYear,
+        showPriorYear,
+      });
+      return niceYAxisMax(displayMax);
+    }
     if (stackedView && hasGroups && periodType !== "ytd") {
       const groupValues = Array.from(aggregatedByGroup.keys()).sort();
       if (groupValues.length <= 1) {
@@ -1431,7 +1517,14 @@ export default function TimeSeriesChart({
       }
     }
     return max > 0 ? max * 1.1 : 10;
-  }, [aggregatedByGroup, stackedView, hasGroups, periodType]);
+  }, [
+    aggregatedByGroup,
+    stackedView,
+    hasGroups,
+    periodType,
+    useCompactLayout,
+    showPriorYear,
+  ]);
 
   // Use lighter, more visible colors in dark mode
   const textColor = resolvedTheme === "dark" ? "#f8fafc" : "#222222";
@@ -1534,28 +1627,82 @@ export default function TimeSeriesChart({
           },
         },
         showlegend: true,
-        legend: {
-          orientation: "h" as const,
-          x: 0.5,
-          y: -0.18,
-          xanchor: "center" as const,
-          yanchor: "top" as const,
-          font: {
-            family: PLOT_AXIS_FONT_FAMILY,
-            size: 10,
-            color: textColor,
-          },
-          bgcolor: "transparent",
-          bordercolor: "transparent",
-          borderwidth: 0,
-          itemsizing: "constant" as const,
-          itemwidth: 30,
-        },
+        legend: useCompactLayout
+          ? isMobile
+            ? {
+                orientation: "h" as const,
+                x: 0.5,
+                y: -0.28,
+                xanchor: "center" as const,
+                yanchor: "top" as const,
+                font: {
+                  family: PLOT_AXIS_FONT_FAMILY,
+                  size: 8,
+                  color: textColor,
+                },
+                bgcolor: "transparent",
+                bordercolor: "transparent",
+                borderwidth: 0,
+                itemsizing: "constant" as const,
+                itemwidth: 28,
+                tracegroupgap: 6,
+              }
+            : {
+                orientation: "v" as const,
+                x: 1.02,
+                y: 1,
+                xanchor: "left" as const,
+                yanchor: "top" as const,
+                font: {
+                  family: PLOT_AXIS_FONT_FAMILY,
+                  size: 9,
+                  color: textColor,
+                },
+                bgcolor: "transparent",
+                bordercolor: "transparent",
+                borderwidth: 0,
+                itemsizing: "constant" as const,
+                itemwidth: 28,
+                tracegroupgap: 4,
+              }
+          : {
+              orientation: "h" as const,
+              x: 0.5,
+              y: -0.18,
+              xanchor: "center" as const,
+              yanchor: "top" as const,
+              font: {
+                family: PLOT_AXIS_FONT_FAMILY,
+                size: 10,
+                color: textColor,
+              },
+              bgcolor: "transparent",
+              bordercolor: "transparent",
+              borderwidth: 0,
+              itemsizing: "constant" as const,
+              itemwidth: 30,
+            },
         margin: {
-          t: cityName && chartTitle ? (isMobile ? 50 : 75) : (isMobile ? 35 : 55),
-          b: isMobile ? 70 : 95,
-          l: isMobile ? 35 : 50,
-          r: isMobile ? 15 : 45,
+          t: useCompactLayout
+            ? isMobile
+              ? 28
+              : 36
+            : cityName && chartTitle
+              ? isMobile
+                ? 50
+                : 75
+              : isMobile
+                ? 35
+                : 55,
+          b: useCompactLayout
+            ? isMobile
+              ? 88
+              : 48
+            : isMobile
+              ? 70
+              : 95,
+          l: isMobile ? 40 : 52,
+          r: useCompactLayout && !isMobile ? 118 : isMobile ? 12 : 45,
         },
         paper_bgcolor: "transparent",
         plot_bgcolor: "transparent",
@@ -1666,7 +1813,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout]);
 
   const config = {
     responsive: true,
@@ -1736,6 +1883,16 @@ export default function TimeSeriesChart({
               <option value="ytd">Year-to-Date</option>
             </select>
           </div>
+          {useCompactLayout && periodType === "ytd" && (
+            <label className={styles.priorYearToggle}>
+              <input
+                type="checkbox"
+                checked={showPriorYear}
+                onChange={(e) => setShowPriorYear(e.target.checked)}
+              />
+              <span>Compare to prior year</span>
+            </label>
+          )}
           {hasGroups && periodType !== "ytd" && (
             <div className={styles.viewToggle}>
               <span className={styles.viewToggleLabel}>View:</span>
@@ -1770,6 +1927,14 @@ export default function TimeSeriesChart({
           style={{ width: "100%", height: `${height}px` }}
         />
       </div>
+      {useCompactLayout && periodType === "ytd" && (
+        <p className={styles.compactChartHint}>
+          7-day average trends by category
+          {showPriorYear
+            ? ". Dashed lines are the prior year in the same color."
+            : ". Turn on prior year to compare seasons."}
+        </p>
+      )}
       {partialPeriodInfo && (partialPeriodInfo.excludedStart || partialPeriodInfo.excludedEnd) && (
         <div className={styles.partialPeriodNotice}>
           <button

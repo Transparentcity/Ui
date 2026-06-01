@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import HomeClient from "./HomeClient";
 import "./landing.css";
-import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
+import { getApiBaseUrl } from "@/lib/apiBase";
 import { enrichStory, isCoherentMultiMetric, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { pickFeaturedStories } from "@/lib/feed/pickFeaturedStories";
 import type { FeedStory } from "@/lib/hooks/useFeed";
@@ -43,7 +43,7 @@ async function fetchFeaturedStories(
   launchedCityIds: Set<number>,
 ): Promise<EnrichedFeedStory[]> {
   try {
-    const apiBase = getUpstreamApiBaseUrl();
+    const apiBase = getApiBaseUrl();
     const url = `${apiBase}/api/feed/public?limit=100&order_by=published_at`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -120,7 +120,12 @@ async function fetchHomeMetricCards(
 }
 
 export default async function HomePage() {
-  const cities = await listPublicCitiesForSitemap().catch(() => []);
+  let cities: PublicCitySitemapItem[] = [];
+  try {
+    cities = await listPublicCitiesForSitemap();
+  } catch (err) {
+    console.error("[HomePage] Failed to load public cities sitemap:", err);
+  }
   const launched = cities
     .filter((c) => c.is_launched === true)
     .sort((a, b) => a.name.localeCompare(b.name))

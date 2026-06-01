@@ -697,9 +697,9 @@ export default function ProductAnalyticsDashboard() {
               detail={
                 health?.ga4_configured
                   ? health.ga4_available
-                    ? `${fmt(health.ga4_sessions_7d)} sessions in last 7d · GA_PROPERTY_ID + service account`
-                    : "GA_PROPERTY_ID set but Data API call failed — check GOOGLE_APPLICATION_CREDENTIALS"
-                  : "GA_PROPERTY_ID not set on API server"
+                    ? `${fmt(health.ga4_sessions_7d)} sessions in last 7d · numeric GA_PROPERTY_ID + service account`
+                    : "Data API call failed — use numeric GA Property ID (not G- Measurement ID), GOOGLE_APPLICATION_CREDENTIALS, and Viewer access for the service account on that property"
+                  : "Set numeric GA_PROPERTY_ID and GOOGLE_APPLICATION_CREDENTIALS on the API server"
               }
             />
             <StatusPill

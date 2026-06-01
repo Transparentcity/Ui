@@ -60,6 +60,32 @@
   margin-left: 0;
 }
 
+.priorYearToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary, #374151);
+  cursor: pointer;
+  user-select: none;
+}
+
+.priorYearToggle input {
+  accent-color: var(--brand-primary, #ad35fa);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.compactChartHint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-tertiary, #6b7280);
+  font-family: "IBM Plex Sans", var(--font-body, sans-serif);
+}
+
 .periodSelector label {
   font-weight: 500;
   color: var(--text-primary, #222222);

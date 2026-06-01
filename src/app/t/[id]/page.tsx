@@ -639,13 +639,14 @@ function TimeSeriesChartPageContent() {
               key={`${metadata.chart_id}-${displayPeriod}`}
               data={aggregated}
               metadata={metadata}
-              height={380}
+              height={400}
               defaultPeriod={displayPeriod}
               fullBleed={true}
               hidePeriodSelector={false}
               showExternalTitle={false}
               forcedTheme={forcedTheme}
               staleness_days={staleness_days}
+              embeddedMode={true}
               onPeriodChange={onPeriodChange}
             />
           </ChartRefreshOverlay>

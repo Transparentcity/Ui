@@ -5,9 +5,12 @@ import { useAuth0 } from "@auth0/auth0-react";
 import PublicFooter from "@/components/PublicFooter";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-import type { PublicCitySitemapItem } from "@/lib/publicApiClient";
+import {
+  listPublicCitiesForSitemap,
+  type PublicCitySitemapItem,
+} from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
 import Loader from "@/components/Loader";
 import Header from "@/components/Header";
@@ -27,8 +30,38 @@ interface HomeClientProps {
 export default function HomeClient({ stories, metricCards, launchedCities = [] }: HomeClientProps) {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const router = useRouter();
+  const [cityList, setCityList] = useState(launchedCities);
 
-  const heroLaunchedCities = launchedCities.filter((c) => c.is_launched === true);
+  useEffect(() => {
+    setCityList(launchedCities);
+  }, [launchedCities]);
+
+  // SSR/ISR can cache an empty list when the API is unreachable at build time.
+  // Load launched cities in the browser so hero chips and CTA links still appear.
+  useEffect(() => {
+    if (cityList.length > 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cities = await listPublicCitiesForSitemap();
+        if (cancelled) return;
+        const launched = cities
+          .filter((c) => c.is_launched === true)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(0, 10);
+        if (launched.length > 0) setCityList(launched);
+      } catch {
+        /* optional — page works without city links */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cityList.length]);
+
+  const heroLaunchedCities = cityList.filter((c) => c.is_launched === true);
 
   // First-party landing event for the home page
   useProductEvent("home_page_view");
@@ -90,20 +123,23 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
                   Get the Free Weekly
                 </button>
 
-                {heroLaunchedCities.length > 0 && (
-                  <div className={styles.heroExplore}>
+                <div className={styles.heroExplore}>
+                  {heroLaunchedCities.length > 0 && (
                     <span className={styles.heroExploreLabel}>or explore:</span>
-                    {heroLaunchedCities.map((c) => (
-                      <Link
-                        key={c.id}
-                        href={`/get/${c.slug || slugify(c.name)}`}
-                        className={styles.heroCityLink}
-                      >
-                        {c.emoji ? `${c.emoji} ` : ""}{c.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
+                  )}
+                  {heroLaunchedCities.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/get/${c.slug || slugify(c.name)}`}
+                      className={styles.heroCityLink}
+                    >
+                      {c.emoji ? `${c.emoji} ` : ""}{c.name}
+                    </Link>
+                  ))}
+                  <Link href="/sitemap" className={styles.heroCityLink}>
+                    {heroLaunchedCities.length > 0 ? "All cities →" : "Browse all cities →"}
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -163,6 +199,25 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
               <p className={styles.ctaDescription}>
                 Sign up in 30 seconds to see how your city is working for your block and neighborhood.
               </p>
+              <div className="cta-cities">
+                <p className="cta-cities-label">
+                  {heroLaunchedCities.length > 0 ? "Explore a city" : "Browse cities"}
+                </p>
+                <div className="cta-city-chips">
+                  {heroLaunchedCities.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/get/${c.slug || slugify(c.name)}`}
+                      className="cta-city-chip"
+                    >
+                      {c.emoji ? `${c.emoji} ` : ""}{c.name}
+                    </Link>
+                  ))}
+                  <Link href="/sitemap" className="cta-city-chip">
+                    Site map →
+                  </Link>
+                </div>
+              </div>
               <div className={styles.ctaButtons}>
                 <button
                   type="button"
