@@ -75,6 +75,9 @@ run_step() {
 run_step "onboarding" \
   node onboarding-multi-engine.mjs --site "$SITE" --engines "$ENGINES"
 
+run_step "get_landing_pages" \
+  node get-landing-pages.mjs --site "$SITE"
+
 run_step "user_states" \
   node user-states.mjs --site "$SITE"
 

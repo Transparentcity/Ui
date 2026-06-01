@@ -11,6 +11,7 @@ This is separate from the platform repo's full sweep (`scripts/qa/run_qa.sh` at 
 | `onboarding-multi-engine.mjs` | Sign-up CTA visibility, Auth0 reachability, gov interstitial across Chromium + Firefox + WebKit at desktop / tablet / mobile widths | no |
 | `slow-3g-banner.mjs` | Post-signup "Looking for stories" banner: 30s success contract, or explicit failure message by 60s under Slow-3G throttle | yes |
 | `user-states.mjs` | D1 unlaunched-area signup (auth), D2 no-district city render (no auth), D6 delaunched-returning-user stub | partial |
+| `get-landing-pages.mjs` | `/get/{slug}` landing page for every launched city: page loads, most recent Sunday's newsletter date renders, Sign in button reaches Auth0 login | no |
 | `run-qa.sh` | Orchestrator |
 
 ## Setup
