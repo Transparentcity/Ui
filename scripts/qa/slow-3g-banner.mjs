@@ -16,6 +16,7 @@
  * Exits 1 on contract violation, 0 on success or skip-no-creds.
  */
 import { chromium } from "playwright";
+import { login } from "./_login.mjs";
 
 function parseArgs(argv) {
   const out = {};
@@ -47,36 +48,6 @@ const SLOW_3G = {
   latency: 400,
 };
 
-async function login(page) {
-  await page.goto(`${SITE}/`, { waitUntil: "networkidle", timeout: 30000 });
-  await page.waitForTimeout(1500);
-  await page.locator("button:has-text('Sign up')").first().click();
-  await page.waitForTimeout(800);
-  await Promise.all([
-    page.waitForNavigation({ timeout: 20000 }),
-    page.locator("text=/Sign up as citizen/i").first().click(),
-  ]);
-  await page.waitForSelector(
-    'input[name="email"], input[name="username"], input[type="email"]',
-    { timeout: 20000 },
-  );
-  for (const sel of ['input[name="email"]', 'input[name="username"]', 'input[type="email"]']) {
-    if ((await page.locator(sel).count()) > 0) {
-      await page.fill(sel, EMAIL, { timeout: 10000 });
-      break;
-    }
-  }
-  if ((await page.locator('input[type="password"]').count()) > 0) {
-    await page.fill('input[type="password"]', PASSWORD, { timeout: 10000 });
-  } else {
-    await page.locator('button[type="submit"]').first().click();
-    await page.waitForSelector('input[type="password"]', { timeout: 15000 });
-    await page.fill('input[type="password"]', PASSWORD, { timeout: 10000 });
-  }
-  await page.locator('button[type="submit"]').first().click();
-  await page.waitForURL("**/home*", { timeout: 30000 });
-}
-
 const findings = [];
 
 const browser = await chromium.launch({ headless: true });
@@ -89,7 +60,7 @@ const page = await context.newPage();
 try {
   // Log in BEFORE throttling — running the auth flow itself over Slow-3G
   // is flaky for unrelated reasons.
-  await login(page);
+  await login(page, { site: SITE, email: EMAIL, password: PASSWORD });
 
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.enable");

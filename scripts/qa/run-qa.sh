@@ -50,6 +50,15 @@ done
 QA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$QA_DIR"
 
+# Load gitignored local creds for auth'd checks if present.
+# Expected: QA_AUTH0_EMAIL, QA_AUTH0_PASSWORD.
+if [[ -f "$QA_DIR/.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$QA_DIR/.env.local"
+  set +a
+fi
+
 LOG_DIR="${LOG_DIR:-/tmp/ui_qa_logs}"
 mkdir -p "$LOG_DIR"
 rm -f "$LOG_DIR"/*.log 2>/dev/null || true
@@ -102,6 +111,18 @@ for i in "${!STEPS[@]}"; do
     ANY_ERROR=1
   fi
 done
+
+# Build the PDF report from the per-step logs. Always runs (so you have a
+# report even on a failing sweep). Set NO_PDF=1 to skip.
+if [[ "${NO_PDF:-0}" != "1" ]]; then
+  echo
+  echo "==> pdf"
+  TODAY="$(date '+%Y-%m-%d')"
+  REPO_ROOT="$(cd "$QA_DIR/../.." && pwd)"
+  PDF_OUT="${PDF_OUT:-$REPO_ROOT/qa_reports/ui-qa-${TODAY}.pdf}"
+  LOG_DIR="$LOG_DIR" node build-pdf.mjs --out "$PDF_OUT" || \
+    echo "  (pdf builder exited non-zero; sweep results above are still authoritative)" >&2
+fi
 
 if [[ "$ANY_ERROR" == "1" ]]; then exit 2; fi
 if [[ "$ANY_FAIL" == "1" ]]; then exit 1; fi
