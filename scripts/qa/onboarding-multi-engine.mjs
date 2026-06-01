@@ -54,38 +54,26 @@ function record(rule, tag, ok, detail = "") {
 
 function viewportFor(width) {
   if (width >= 1200) return { width, height: 900 };
-  if (width >= 900) return { width, height: 1366 };
+  if (width >= 700) return { width, height: 1024 };
   return { width, height: 812 };
 }
 
 function viewportTag(width) {
   if (width >= 1200) return "desktop";
-  if (width >= 900) return "tablet";
+  if (width >= 700) return "tablet";
   return "mobile";
-}
-
-async function openSignupDropdown(page) {
-  await page.waitForTimeout(2500);
-  await page.locator("button:has-text('Sign up')").first().click();
-  await page.waitForTimeout(800);
 }
 
 async function checkSignupCta(page, tag) {
   // Landing page
   await page.goto(`${SITE}/`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.waitForTimeout(1500);
   try {
-    await openSignupDropdown(page);
-    const citizen = await page.locator("text=/Sign up as citizen/i").count();
-    const staff = await page.locator("text=/I'm city staff/i").count();
-    if (citizen >= 1 && staff >= 1) {
+    const count = await page.locator("button:has-text('Sign up'), a:has-text('Sign up')").count();
+    if (count >= 1) {
       record("C30-signup-cta-landing", tag, true);
     } else {
-      record(
-        "C30-signup-cta-landing",
-        tag,
-        false,
-        `landing dropdown: citizen=${citizen}, staff=${staff} (expected both >= 1)`,
-      );
+      record("C30-signup-cta-landing", tag, false, "no 'Sign up' button on landing page");
     }
   } catch (e) {
     record("C30-signup-cta-landing", tag, false, `on landing: ${e.message}`);
@@ -93,18 +81,19 @@ async function checkSignupCta(page, tag) {
 
   // City dashboard
   await page.goto(`${SITE}/c/${CITY}`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.waitForTimeout(1500);
   try {
-    await openSignupDropdown(page);
-    const citizen = await page.locator("text=/Sign up as citizen/i").count();
-    const staff = await page.locator("text=/I'm city staff/i").count();
-    if (citizen >= 1 && staff >= 1) {
+    const count = await page
+      .locator("button:has-text('Sign up'), a:has-text('Sign up'), button:has-text('Get started')")
+      .count();
+    if (count >= 1) {
       record("C30b-signup-cta-city", tag, true);
     } else {
       record(
         "C30b-signup-cta-city",
         tag,
         false,
-        `city /c/${CITY}: citizen=${citizen}, staff=${staff}; residents can't self-register from city pages`,
+        `no signup affordance on /c/${CITY}; visitors arriving via a city page can't self-register`,
       );
     }
   } catch (e) {
@@ -114,16 +103,26 @@ async function checkSignupCta(page, tag) {
 
 async function checkAuth0Reachable(page, tag) {
   await page.goto(`${SITE}/`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.waitForTimeout(1500);
   try {
-    await openSignupDropdown(page);
-    const cit = page.locator("text=/Sign up as citizen/i").first();
-    if ((await cit.count()) === 0) {
-      record("C31-auth0", tag, false, "no 'Sign up as citizen' option in dropdown");
+    const btn = page.locator("button:has-text('Sign up'), a:has-text('Sign up')").first();
+    if ((await btn.count()) === 0) {
+      record("C31-auth0", tag, false, "no 'Sign up' button on landing");
       return;
     }
-    await Promise.all([page.waitForNavigation({ timeout: 20000 }), cit.click()]);
+    // Sign up now navigates straight to Auth0 (the prior citizen/staff
+    // dropdown was removed). Some browsers fire navigation faster than the
+    // expect_navigation handler can register, so race a manual URL check
+    // against the navigation event.
+    await btn.click();
+    try {
+      await page.waitForURL(/auth0|auth\.|\/login|authorize|\/u\/signup/, { timeout: 20000 });
+    } catch {
+      // Give the page one more beat in case navigation is JS-driven.
+      await page.waitForTimeout(2000);
+    }
     const url = page.url();
-    if (url.includes("auth0") || url.includes("/login") || url.includes("authorize")) {
+    if (/auth0|auth\.|\/login|authorize|\/u\/signup/.test(url)) {
       record("C31-auth0", tag, true, `reached ${url.slice(0, 80)}`);
     } else {
       record("C31-auth0", tag, false, `after click, landed on ${url.slice(0, 120)}`);
