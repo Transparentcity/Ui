@@ -87,6 +87,17 @@ run_step "onboarding" \
 run_step "get_landing_pages" \
   node get-landing-pages.mjs --site "$SITE"
 
+# Rendered-content + render-health scan (dashes, leaked tokens, failed
+# first-party requests, broken images, console errors, error boundaries).
+# Catches the class of bugs the platform CSV-based content suite can't see.
+run_step "content_render" \
+  node content-render.mjs --site "$SITE"
+
+# LLM judge: rendered headlines that don't make sense. Skips cleanly if
+# no QA_ANTHROPIC_API_KEY / ANTHROPIC_API_KEY is set.
+run_step "headline_sense" \
+  node headline-sense.mjs --site "$SITE"
+
 run_step "user_states" \
   node user-states.mjs --site "$SITE"
 

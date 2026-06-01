@@ -189,7 +189,7 @@ export default function HeroNewsletterEmbed({
         <iframe
           ref={iframeRef}
           src={embedSrc}
-          title={`Sample weekly briefing — ${label}`}
+          title={`Sample weekly briefing: ${label}`}
           loading="eager"
           className={styles.newsletterIframe}
           scrolling="yes"

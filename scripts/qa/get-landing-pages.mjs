@@ -96,7 +96,10 @@ async function checkSlug(browser, slug) {
   try {
     let response;
     try {
-      response = await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+      // domcontentloaded, not networkidle — the embedded newsletter iframe
+      // + analytics keep connections open and make networkidle flaky
+      // (NYC in particular times out intermittently).
+      response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
     } catch (e) {
       record("GLP1-page-load", slug, false, `navigation failed: ${e.message}`);
       return;
@@ -109,7 +112,7 @@ async function checkSlug(browser, slug) {
       return;
     }
 
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
     const body = await page.content();
 
     // GLP2 — the previous Sunday's date should appear in the body, in any
