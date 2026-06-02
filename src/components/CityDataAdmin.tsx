@@ -120,6 +120,7 @@ interface Metric {
   metric_key: string;
   category?: string;
   subcategory?: string;
+  show_on_dash?: boolean;
   last_execution_status?: string;
   last_execution_at?: string | null;
   most_recent_data_date?: string | null;
@@ -1118,6 +1119,12 @@ export default function CityDataAdmin({
     }
     return map;
   }, [orderingData]);
+
+  /** Metrics flagged for the public dashboard — used by the reorder dialog only. */
+  const dashboardMetricsForOrdering = useMemo(
+    () => (cityDataTyped?.metrics ?? []).filter((m) => m.show_on_dash === true),
+    [cityDataTyped?.metrics]
+  );
 
   const sortedTemplateInstantiationRows = useMemo(() => {
     const raw = templateStatusQuery.data?.templates;
@@ -4409,11 +4416,11 @@ export default function CityDataAdmin({
             </div>
           )}
 
-          {/* Metric Order Editor */}
-          {cityDataTyped.metrics && cityDataTyped.metrics.length > 0 && (
+          {/* Metric Order Editor — dashboard metrics only (show_on_dash=true) */}
+          {dashboardMetricsForOrdering.length > 0 && (
             <MetricOrderEditor
               cityId={cityId}
-              metrics={cityDataTyped.metrics}
+              metrics={dashboardMetricsForOrdering}
             />
           )}
           

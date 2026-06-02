@@ -191,8 +191,11 @@ export default function MetricOrderEditor({
       const category = ordering?.categoryName || metric.category || "Uncategorized";
       const categoryOrder = ordering?.categoryOrder ?? 1000;
       const metricOrder = ordering?.metricOrder ?? 1000;
-      // Use ordering's subcategory if set (allows cross-subcategory moves to persist)
-      const overrideSubcategory = ordering?.subcategoryName;
+      // Use ordering's subcategory only when explicitly set (non-empty); null means "use metric default"
+      const overrideSubcategory =
+        ordering?.subcategoryName != null && String(ordering.subcategoryName).trim()
+          ? String(ordering.subcategoryName).trim()
+          : undefined;
       
       if (!grouped[category]) {
         grouped[category] = { metrics: [], categoryOrder };
@@ -226,12 +229,17 @@ export default function MetricOrderEditor({
       const subcategoryMap = new Map<string | null, Array<{ metric: Metric; order: number }>>();
       
       sortedMetrics.forEach((metricItem) => {
-        // Use saved subcategory override if defined, otherwise use metric's native subcategory
-        // Support both subcategory and sub_category (metrics table column is subcategory)
-        const rawSub = metricItem.overrideSubcategory !== undefined
-          ? metricItem.overrideSubcategory
-          : (metricItem.metric.subcategory ?? metricItem.metric.sub_category ?? null);
-        const subcat = (rawSub && String(rawSub).trim()) || null;
+        // Match CityView: saved subcategory override only when non-empty; else metric.subcategory
+        const fromOrdering = metricItem.overrideSubcategory;
+        const fromMetric =
+          metricItem.metric.subcategory ?? metricItem.metric.sub_category ?? null;
+        const rawSub =
+          fromOrdering != null && String(fromOrdering).trim()
+            ? String(fromOrdering).trim()
+            : fromMetric != null && String(fromMetric).trim()
+              ? String(fromMetric).trim()
+              : null;
+        const subcat = rawSub || null;
         if (!subcategoryMap.has(subcat)) {
           subcategoryMap.set(subcat, []);
         }
