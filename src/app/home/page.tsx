@@ -542,28 +542,26 @@ export default function DashboardPage() {
       };
 
       let needsWelcome = false;
-      if (signupIntent) {
+
+      // Check for follow-city intent (from URL params or localStorage, set by FollowCityButton)
+      const followCityIdParam = urlParams.get("follow_city_id");
+      const followCityIdLS = typeof window !== "undefined" ? window.localStorage.getItem("transparentcity.follow_city_id") : null;
+      const followCityId = followCityIdParam ? parseInt(followCityIdParam, 10) : (followCityIdLS ? parseInt(followCityIdLS, 10) : NaN);
+
+      if (signupIntent || Number.isFinite(followCityId)) {
         try {
           const token = await getAccessTokenSilently();
           const prefs = await getUserPreferences(token);
           if (cancelled) return;
           setUserPreferences(prefs);
-          const savedCities = prefs.has_completed_onboarding
-            ? []
-            : await getSavedCities(token);
           if (cancelled) return;
-          needsWelcome = userNeedsOnboardingWelcome(prefs, savedCities.length);
+          needsWelcome = userNeedsOnboardingWelcome(prefs);
         } catch (error) {
           console.error("Error checking onboarding before signup redirect:", error);
           // Let effect 2 retry; do not block on hasCheckedOnboarding
           return;
         }
       }
-
-      // Check for follow-city intent (from URL params or localStorage, set by FollowCityButton)
-      const followCityIdParam = urlParams.get("follow_city_id");
-      const followCityIdLS = typeof window !== "undefined" ? window.localStorage.getItem("transparentcity.follow_city_id") : null;
-      const followCityId = followCityIdParam ? parseInt(followCityIdParam, 10) : (followCityIdLS ? parseInt(followCityIdLS, 10) : NaN);
 
       if (Number.isFinite(followCityId)) {
         // User arrived via "Follow this city" - save the city AND maybe show onboarding.
@@ -618,11 +616,9 @@ export default function DashboardPage() {
             // Non-blocking
           }
         })();
-        if (signupIntent) {
-          hasCheckedOnboarding.current = true;
-          if (needsWelcome) {
-            setShowWelcomeModal(true);
-          }
+        hasCheckedOnboarding.current = true;
+        if (needsWelcome) {
+          setShowWelcomeModal(true);
         }
       } else if (signupIntent) {
         const persistedSurface =
@@ -840,32 +836,29 @@ export default function DashboardPage() {
         const prefs = await getUserPreferences(token);
         setUserPreferences(prefs);
         if (!prefs.has_completed_onboarding) {
-          const savedCities = await getSavedCities(token);
-          if (savedCities.length === 0) {
-            const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-            const signup = urlParams?.get("signup");
-            const preferredType = prefs.extra?.preferred_onboarding_type as string | undefined;
-            const isGovernmentFlow =
-              signup === "government" ||
-              signup === "public-servant" ||
-              preferredType === "government";
+          const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+          const signup = urlParams?.get("signup");
+          const preferredType = prefs.extra?.preferred_onboarding_type as string | undefined;
+          const isGovernmentFlow =
+            signup === "government" ||
+            signup === "public-servant" ||
+            preferredType === "government";
 
-            // Record government signup intent for analytics (non-blocking)
-            if (isGovernmentFlow) {
-              try {
-                await recordSignupIntent(
-                  { source: signup === "government" ? "claim_profile" : "public-servant" },
-                  token
-                );
-              } catch {
-                // Non-blocking
-              }
+          // Record government signup intent for analytics (non-blocking)
+          if (isGovernmentFlow) {
+            try {
+              await recordSignupIntent(
+                { source: signup === "government" ? "claim_profile" : "public-servant" },
+                token
+              );
+            } catch {
+              // Non-blocking
             }
-
-            // All signup types (resident and government) use the same
-            // WelcomeModal: address/city/zip -> preferences.
-            setShowWelcomeModal(true);
           }
+
+          // All signup types (resident and government) use the same
+          // WelcomeModal: address/city/zip -> preferences.
+          setShowWelcomeModal(true);
         }
       } catch (error) {
         // Reset so the check retries on next effect trigger (e.g. after

@@ -2,13 +2,12 @@ import type { UserPreferences } from "@/lib/apiClient";
 
 /**
  * Whether the user should see the WelcomeModal onboarding flow.
- * Matches the guard in home/page.tsx effect 2: completed flag or any saved city
- * means onboarding is done.
+ * Only `has_completed_onboarding` gates onboarding — not saved-city count.
+ * Get-page and city-page signups auto-follow the city before onboarding runs,
+ * so checking saved cities would incorrectly skip the welcome flow.
  */
 export function userNeedsOnboardingWelcome(
   prefs: Pick<UserPreferences, "has_completed_onboarding">,
-  savedCitiesCount: number,
 ): boolean {
-  if (prefs.has_completed_onboarding) return false;
-  return savedCitiesCount === 0;
+  return !prefs.has_completed_onboarding;
 }

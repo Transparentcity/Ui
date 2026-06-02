@@ -57,12 +57,10 @@ function simulateSignupLoginEffect(opts: {
   urlSearch: string;
   storage: Record<string, string>;
   hasCompletedOnboarding?: boolean;
-  savedCitiesCount?: number;
 }): EffectResult {
-  const needsWelcome = userNeedsOnboardingWelcome(
-    { has_completed_onboarding: opts.hasCompletedOnboarding ?? false },
-    opts.savedCitiesCount ?? 0,
-  );
+  const needsWelcome = userNeedsOnboardingWelcome({
+    has_completed_onboarding: opts.hasCompletedOnboarding ?? false,
+  });
   const urlParams = new URLSearchParams(opts.urlSearch);
 
   // Resolve signup intent
@@ -101,6 +99,9 @@ function simulateSignupLoginEffect(opts: {
       if (needsWelcome) {
         result.showWelcomeModal = true;
       }
+    } else if (needsWelcome) {
+      result.hasCheckedOnboarding = true;
+      result.showWelcomeModal = true;
     }
   } else if (signupIntent) {
     // Signup-only branch (no follow city)
@@ -124,7 +125,6 @@ function simulateSignupLoginEffect(opts: {
 async function simulateOnboardingCheck(opts: {
   apiThrows: boolean;
   hasCompletedOnboarding: boolean;
-  savedCitiesCount: number;
 }): Promise<{ modalShown: boolean; flagAllowsRetry: boolean }> {
   const flag = { current: false };
   let modalShown = false;
@@ -133,9 +133,7 @@ async function simulateOnboardingCheck(opts: {
     flag.current = true;
     if (opts.apiThrows) throw new Error("Network error");
     if (!opts.hasCompletedOnboarding) {
-      if (opts.savedCitiesCount === 0) {
-        modalShown = true;
-      }
+      modalShown = true;
     }
   } catch {
     flag.current = false;
@@ -318,14 +316,27 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
   });
 
   describe("follow-city without signup intent (returning user)", () => {
-    it("does NOT show onboarding modal for returning user following a city", () => {
+    it("does NOT show onboarding modal for returning user who completed onboarding", () => {
       const r = simulateSignupLoginEffect({
         urlSearch: "?follow_city_id=42&follow_city_slug=boston",
         storage: {},
+        hasCompletedOnboarding: true,
       });
       expect(r.branch).toBe("follow-city");
       expect(r.showWelcomeModal).toBe(false);
       expect(r.hasCheckedOnboarding).toBe(false);
+      expect(r.saveCityCalled).toBe(true);
+    });
+
+    it("shows WelcomeModal for first-time user who signed in from get page", () => {
+      const r = simulateSignupLoginEffect({
+        urlSearch: "?follow_city_id=42&follow_city_slug=cincinnati&follow_city_name=Cincinnati",
+        storage: {},
+        hasCompletedOnboarding: false,
+      });
+      expect(r.branch).toBe("follow-city");
+      expect(r.showWelcomeModal).toBe(true);
+      expect(r.hasCheckedOnboarding).toBe(true);
       expect(r.saveCityCalled).toBe(true);
     });
   });
@@ -342,15 +353,14 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
       expect(r.hasCheckedOnboarding).toBe(true);
     });
 
-    it("does NOT show WelcomeModal when user has saved cities", () => {
+    it("shows WelcomeModal even when city was auto-saved before onboarding check", () => {
       const r = simulateSignupLoginEffect({
         urlSearch: "?signup=resident&follow_city_id=42",
         storage: {},
         hasCompletedOnboarding: false,
-        savedCitiesCount: 1,
       });
       expect(r.branch).toBe("follow-city");
-      expect(r.showWelcomeModal).toBe(false);
+      expect(r.showWelcomeModal).toBe(true);
       expect(r.hasCheckedOnboarding).toBe(true);
     });
   });
@@ -381,9 +391,9 @@ describe("Signup/login effect: onboarding triggers on every new signup", () => {
 // ---------------------------------------------------------------------------
 
 describe("Onboarding check resilience (effect 2 fallback)", () => {
-  it("shows modal for new user with no saved cities", async () => {
+  it("shows modal for new user regardless of saved cities", async () => {
     const r = await simulateOnboardingCheck({
-      apiThrows: false, hasCompletedOnboarding: false, savedCitiesCount: 0,
+      apiThrows: false, hasCompletedOnboarding: false,
     });
     expect(r.modalShown).toBe(true);
     expect(r.flagAllowsRetry).toBe(false);
@@ -391,21 +401,21 @@ describe("Onboarding check resilience (effect 2 fallback)", () => {
 
   it("skips modal for user who completed onboarding", async () => {
     const r = await simulateOnboardingCheck({
-      apiThrows: false, hasCompletedOnboarding: true, savedCitiesCount: 0,
+      apiThrows: false, hasCompletedOnboarding: true,
     });
     expect(r.modalShown).toBe(false);
   });
 
-  it("skips modal for user with saved cities (even if not marked complete)", async () => {
+  it("shows modal for user with auto-saved city who has not completed onboarding", async () => {
     const r = await simulateOnboardingCheck({
-      apiThrows: false, hasCompletedOnboarding: false, savedCitiesCount: 3,
+      apiThrows: false, hasCompletedOnboarding: false,
     });
-    expect(r.modalShown).toBe(false);
+    expect(r.modalShown).toBe(true);
   });
 
   it("resets flag on API failure so the check can retry", async () => {
     const r = await simulateOnboardingCheck({
-      apiThrows: true, hasCompletedOnboarding: false, savedCitiesCount: 0,
+      apiThrows: true, hasCompletedOnboarding: false,
     });
     expect(r.modalShown).toBe(false);
     expect(r.flagAllowsRetry).toBe(true);
@@ -413,12 +423,12 @@ describe("Onboarding check resilience (effect 2 fallback)", () => {
 
   it("retry after API failure shows modal on success", async () => {
     const a1 = await simulateOnboardingCheck({
-      apiThrows: true, hasCompletedOnboarding: false, savedCitiesCount: 0,
+      apiThrows: true, hasCompletedOnboarding: false,
     });
     expect(a1.flagAllowsRetry).toBe(true);
 
     const a2 = await simulateOnboardingCheck({
-      apiThrows: false, hasCompletedOnboarding: false, savedCitiesCount: 0,
+      apiThrows: false, hasCompletedOnboarding: false,
     });
     expect(a2.modalShown).toBe(true);
   });
@@ -628,10 +638,21 @@ describe("Boston page signup, lives in Somerville scenario", () => {
 // ---------------------------------------------------------------------------
 
 describe("Edge cases", () => {
-  it("follow_city_id without signup_intent does NOT show onboarding (returning user)", () => {
+  it("follow_city_id without signup_intent shows onboarding for first-time users", () => {
     const r = simulateSignupLoginEffect({
       urlSearch: "?follow_city_id=42",
       storage: {},
+      hasCompletedOnboarding: false,
+    });
+    expect(r.showWelcomeModal).toBe(true);
+    expect(r.saveCityCalled).toBe(true);
+  });
+
+  it("follow_city_id without signup_intent skips onboarding for returning users", () => {
+    const r = simulateSignupLoginEffect({
+      urlSearch: "?follow_city_id=42",
+      storage: {},
+      hasCompletedOnboarding: true,
     });
     expect(r.showWelcomeModal).toBe(false);
     expect(r.saveCityCalled).toBe(true);
