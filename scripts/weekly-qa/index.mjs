@@ -22,7 +22,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { dirname, join } from "path";
 import { chromium } from "playwright";
 
@@ -118,7 +118,7 @@ function fmtDate(dateStr) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function fmtNum(n) {
+export function fmtNum(n) {
   if (n === null || n === undefined) return "—";
   return Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
@@ -690,6 +690,43 @@ function failure(city, metric, failureType, onPageValues) {
 // HTML report builder
 // ---------------------------------------------------------------------------
 
+// Markers delimit the fact-check section so factcheck.mjs can replace it in
+// place once web-search verdicts are available, without re-running the audit.
+export const FACTCHECK_MARKER_START = "<!--FACTCHECK_SECTION_START-->";
+export const FACTCHECK_MARKER_END   = "<!--FACTCHECK_SECTION_END-->";
+
+// Renders the "Fact-check candidates" section. Shared by index.mjs (pending
+// verdicts) and factcheck.mjs (resolved verdicts). Returns "" when empty.
+export function buildFactCheckSection(candidates = []) {
+  if (!candidates || candidates.length === 0) return "";
+  const anyChecked = candidates.some((c) => c.status !== "pending");
+  let h = `<h2>Fact-check candidates</h2>`;
+  h += `<p class="note">Three healthy (non-failing) metrics per city, selected at random this week for independent web-search verification${anyChecked ? " (verified by Claude with web search)" : " — verdicts are filled in by the fact-check step"}.</p>`;
+  h += `<table><thead><tr><th>City</th><th>Metric</th><th>Current YTD</th><th>Window</th><th>Verdict</th><th>Notes / sources</th></tr></thead><tbody>`;
+  for (const c of candidates) {
+    const verdictClass =
+      c.verdict === "consistent"  ? "pass" :
+      c.verdict === "discrepancy" ? "fail" : "note";
+    const verdictLabel = c.verdict
+      ? esc(c.verdict)
+      : (c.status === "pending" ? '<span class="note">pending</span>' : esc(c.status));
+    const srcLinks = (c.sources || [])
+      .filter(Boolean)
+      .map((s, i) => `<a href="${esc(s)}">[${i + 1}]</a>`)
+      .join(" ");
+    h += `<tr>
+      <td>${esc(c.city)}</td>
+      <td><a href="${esc(c.cardUrl)}">${esc(c.metricName)}</a></td>
+      <td>${esc(fmtNum(c.currentValue))}</td>
+      <td>${esc(c.currentWindow)}</td>
+      <td class="${verdictClass}">${verdictLabel}</td>
+      <td class="note">${esc(c.notes || "")}${c.notes && srcLinks ? " — " : ""}${srcLinks}</td>
+    </tr>`;
+  }
+  h += `</tbody></table>`;
+  return h;
+}
+
 function buildHtml({ title, runDate, totalCards, totalFailures, passing, failures, resolvedOutages, resolvedLags, missingTargets, extraLaunched, factCheckCandidates = [], state }) {
   const ts = runDate.toLocaleString("en-US", {
     timeZone:   "America/Los_Angeles",
@@ -784,32 +821,8 @@ function buildHtml({ title, runDate, totalCards, totalFailures, passing, failure
   }
 
   // Fact-check candidates (3 healthy metrics per city, for web-search verification).
-  if (factCheckCandidates.length > 0) {
-    const anyChecked = factCheckCandidates.some((c) => c.status !== "pending");
-    h += `<h2>Fact-check candidates</h2>`;
-    h += `<p class="note">Three healthy (non-failing) metrics per city, selected at random this week for independent web-search verification${anyChecked ? "" : ". Verdicts are filled in by the fact-check step"}.</p>`;
-    h += `<table><thead><tr><th>City</th><th>Metric</th><th>Current YTD</th><th>Window</th><th>Verdict</th><th>Notes / sources</th></tr></thead><tbody>`;
-    for (const c of factCheckCandidates) {
-      const verdictClass =
-        c.verdict === "consistent"  ? "pass" :
-        c.verdict === "discrepancy" ? "fail" : "note";
-      const verdictLabel = c.verdict
-        ? esc(c.verdict)
-        : (c.status === "pending" ? '<span class="note">pending</span>' : esc(c.status));
-      const srcLinks = (c.sources || [])
-        .map((s) => `<a href="${esc(s)}">source</a>`)
-        .join(", ");
-      h += `<tr>
-        <td>${esc(c.city)}</td>
-        <td><a href="${esc(c.cardUrl)}">${esc(c.metricName)}</a></td>
-        <td>${esc(fmtNum(c.currentValue))}</td>
-        <td>${esc(c.currentWindow)}</td>
-        <td class="${verdictClass}">${verdictLabel}</td>
-        <td class="note">${esc(c.notes || "")}${c.notes && srcLinks ? " — " : ""}${srcLinks}</td>
-      </tr>`;
-    }
-    h += `</tbody></table>`;
-  }
+  // Wrapped in markers so factcheck.mjs can swap the section in place after verdicts land.
+  h += FACTCHECK_MARKER_START + buildFactCheckSection(factCheckCandidates) + FACTCHECK_MARKER_END;
 
   // Appendix A.
   h += `<h2>Appendix A: Known Data Outages</h2>`;
@@ -853,7 +866,7 @@ function buildHtml({ title, runDate, totalCards, totalFailures, passing, failure
   return h;
 }
 
-function esc(str) {
+export function esc(str) {
   if (str === null || str === undefined) return "";
   return String(str)
     .replace(/&/g, "&amp;")
@@ -863,10 +876,16 @@ function esc(str) {
 }
 
 // ---------------------------------------------------------------------------
-// Entry point
+// Entry point — only run the audit when executed directly, not when imported
+// (factcheck.mjs imports buildFactCheckSection / esc / fmtNum from this module).
 // ---------------------------------------------------------------------------
 
-main().catch((err) => {
-  console.error("QA script failed:", err);
-  process.exit(1);
-});
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error("QA script failed:", err);
+    process.exit(1);
+  });
+}
