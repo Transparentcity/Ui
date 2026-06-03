@@ -1231,8 +1231,20 @@ export default function ScheduledJobsPanel({
               <div className={styles.formRow}>
                 <label className={styles.label}>Custom prompt template (optional)</label>
                 <p className={styles.promptVariablesNote}>
-                  Placeholders: <code>{`{user_places}`}</code>, <code>{`{user_id}`}</code>,{" "}
-                  <code>{`{story_types}`}</code>. Leave empty for built-in per-user instructions.
+                  Leave empty to use the built-in slim template (recommended). The server
+                  injects investigation and writing rules via system sections automatically.
+                </p>
+                <p className={styles.promptVariablesNote}>
+                  Placeholders replaced at run time:{" "}
+                  <code>{`{last_run}`}</code> — ISO timestamp of previous run (or &quot;Never&quot;);{" "}
+                  <code>{`{now}`}</code> — ISO timestamp of this run;{" "}
+                  <code>{`{user_id}`}</code> — subscriber auth0 ID;{" "}
+                  <code>{`{user_places}`}</code> — one line per saved place (place_id, label, city_id, lat, lng, radius_m);{" "}
+                  <code>{`{story_types}`}</code> — comma-separated story types from the field above.
+                </p>
+                <p className={styles.promptVariablesNote} style={{ color: "#b45309" }}>
+                  <strong>Limit:</strong> at most 1 story per saved place per run. Detailed rules
+                  (pipeline, voice, visuals) live in the system prompt — keep this template short.
                 </p>
                 <textarea
                   className={styles.promptInput}
@@ -1240,8 +1252,19 @@ export default function ScheduledJobsPanel({
                   onChange={(e) =>
                     setEditForm({ ...editForm, question: e.target.value })
                   }
-                  rows={8}
+                  rows={10}
                   spellCheck={false}
+                  placeholder={
+                    "Leave empty to use built-in template, or paste a custom override:\n\n" +
+                    "Last run: {last_run}\nNow: {now}\n\n" +
+                    "Generate weekly personalized feed stories for user_id={user_id}.\n\n" +
+                    "Saved places:\n{user_places}\n\n" +
+                    "Story types: {story_types}\n\n" +
+                    "Hard limits:\n" +
+                    "- At most ONE create_feed_story per place_id this run (0 if nothing notable).\n" +
+                    "- Place-scoped data only; use each place's label in copy, not generic \"your block.\"\n" +
+                    "- Follow system sections: personalized_feed_producer_tools, feed_story_authoring."
+                  }
                   aria-label="Personalized feed producer prompt template"
                 />
               </div>

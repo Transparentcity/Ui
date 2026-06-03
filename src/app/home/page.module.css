@@ -286,7 +286,7 @@
 }
 
 .settingsPanelInner {
-  padding: 28px 32px 32px;
+  padding: 20px 24px 28px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -296,8 +296,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
-  padding-bottom: 20px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border-primary);
 }
 
@@ -336,7 +336,7 @@
 }
 
 .settingsSection {
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 
 .settingsSection:last-of-type {
@@ -344,13 +344,12 @@
 }
 
 .settingsSectionTitle {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 12px 0;
-  letter-spacing: 0.01em;
+  color: var(--text-tertiary);
+  margin: 0 0 8px 0;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: 0.9;
 }
 
 .settingsSectionCard {
@@ -364,8 +363,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 16px 20px;
+  gap: 16px;
+  padding: 13px 16px;
   border-bottom: 1px solid var(--border-primary);
 }
 
@@ -525,6 +524,145 @@
 .settingsSecondaryBtn:hover {
   background: var(--button-secondary-hover);
   border-color: var(--border-secondary);
+}
+
+.settingsPrimaryBtn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-primary, #ad35fa);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.settingsPrimaryBtn:hover {
+  background: var(--brand-primary-dark, #9125d6);
+}
+
+.settingsPrimaryBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settingsLinkBtn {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-primary, #ad35fa);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.settingsLinkBtn:hover {
+  color: var(--brand-primary-dark, #9125d6);
+}
+
+.settingsInlineInput {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 120px;
+  flex: 1;
+}
+
+.settingsInlineInput:focus {
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+/* Compact profile identity block */
+.settingsProfileBlock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.settingsAvatarLabel {
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settingsAvatarCircle {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+  border: 2px solid var(--border-primary);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  transition: border-color 0.15s ease;
+}
+
+.settingsAvatarLabel:hover .settingsAvatarCircle {
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.settingsAvatarOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border-radius: 50%;
+}
+
+.settingsAvatarLabel:hover .settingsAvatarOverlay {
+  opacity: 1;
+}
+
+.settingsAvatarOverlayActive {
+  opacity: 1 !important;
+}
+
+.settingsNameGroup {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settingsNameInput {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settingsNameInput:focus {
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+}
+
+.settingsProfileMsg {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 0 16px 10px;
 }
 
 /* Feed: city-only home — upsell refine location */

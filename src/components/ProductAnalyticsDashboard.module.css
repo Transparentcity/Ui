@@ -370,6 +370,59 @@
   word-break: break-word;
 }
 
+.subRowToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--text-primary, #111827);
+  text-align: left;
+}
+
+.subRowToggle:hover {
+  color: var(--brand-primary, #5b8def);
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 0.625rem;
+  transition: transform 0.15s;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.subRowsWrap {
+  padding: 0;
+}
+
+.subTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-subtle, #f9fafb);
+}
+
+.subTd {
+  padding: 5px 12px 5px 28px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #4b5563);
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.subTdRight {
+  padding: 5px 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #4b5563);
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .statusRow {
   display: flex;
   align-items: flex-start;

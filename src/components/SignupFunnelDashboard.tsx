@@ -303,11 +303,26 @@ export default function SignupFunnelDashboard({
   const chartData = (summary?.daily ?? []).map(d => ({
     day: shortDate(d.date),
     "Starts": d.signup_starts,
-    "Completes": d.signup_completes,
+    "New users": d.signup_completes,
     ...(Object.keys(step2Daily).length > 0 ? { "Step 2": step2Daily[d.date] ?? 0 } : {}),
     ...(Object.keys(step3Daily).length > 0 ? { "Step 3": step3Daily[d.date] ?? 0 } : {}),
     ...(Object.keys(completeDaily).length > 0 ? { "Completed (new)": completeDaily[d.date] ?? 0 } : {}),
   }));
+
+  const [hiddenLines, setHiddenLines] = useState<Set<string>>(
+    () => new Set(["Starts", "Step 2", "Step 3", "Completed (new)"])
+  );
+
+  const handleLegendClick = (data: { dataKey?: string | number | ((obj: unknown) => unknown) }) => {
+    if (!data.dataKey || typeof data.dataKey !== "string") return;
+    const key: string = data.dataKey;
+    setHiddenLines(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <div style={{ padding: "0 0 32px" }}>
@@ -372,6 +387,29 @@ export default function SignupFunnelDashboard({
         />
       </div>
 
+      {/* Daily trend */}
+      {chartData.length > 0 && (
+        <div style={SECTION}>
+          <div style={SECTION_TITLE}>New users by day</div>
+          <div style={{ ...CARD_WRAP, padding: "16px" }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary, #e5e5e5)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ background: "var(--bg-primary, #fff)", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "8px", fontSize: "12px" }} />
+                <Legend iconSize={9} wrapperStyle={{ fontSize: 11, cursor: "pointer" }} onClick={handleLegendClick} />
+                <Line type="monotone" dataKey="Starts" stroke="#888" strokeWidth={1.5} dot={false} hide={hiddenLines.has("Starts")} />
+                <Line type="monotone" dataKey="New users" stroke="#ad35fa" strokeWidth={2} dot={false} hide={hiddenLines.has("New users")} />
+                {Object.keys(step2Daily).length > 0 && <Line type="monotone" dataKey="Step 2" stroke="#5B8DEF" strokeWidth={1.5} dot={false} hide={hiddenLines.has("Step 2")} />}
+                {Object.keys(step3Daily).length > 0 && <Line type="monotone" dataKey="Step 3" stroke="#f59e0b" strokeWidth={1.5} dot={false} hide={hiddenLines.has("Step 3")} />}
+                {Object.keys(completeDaily).length > 0 && <Line type="monotone" dataKey="Completed (new)" stroke="#10b981" strokeWidth={1.5} dot={false} strokeDasharray="4 2" hide={hiddenLines.has("Completed (new)")} />}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Step-by-step funnel bars */}
       <div style={SECTION}>
         <div style={SECTION_TITLE}>Step-by-step funnel</div>
@@ -399,29 +437,6 @@ export default function SignupFunnelDashboard({
           )}
         </div>
       </div>
-
-      {/* Daily trend */}
-      {chartData.length > 0 && (
-        <div style={SECTION}>
-          <div style={SECTION_TITLE}>Daily trend — onboarding steps</div>
-          <div style={{ ...CARD_WRAP, padding: "16px" }}>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary, #e5e5e5)" />
-                <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip contentStyle={{ background: "var(--bg-primary, #fff)", border: "1px solid var(--border-primary, #e5e5e5)", borderRadius: "8px", fontSize: "12px" }} />
-                <Legend iconSize={9} wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="Starts" stroke="#888" strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="Completes" stroke="#ad35fa" strokeWidth={2} dot={false} />
-                {Object.keys(step2Daily).length > 0 && <Line type="monotone" dataKey="Step 2" stroke="#5B8DEF" strokeWidth={1.5} dot={false} />}
-                {Object.keys(step3Daily).length > 0 && <Line type="monotone" dataKey="Step 3" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
-                {Object.keys(completeDaily).length > 0 && <Line type="monotone" dataKey="Completed (new)" stroke="#10b981" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
 
       {/* Landing sources */}
       {!hideLandingSources && landingSources.length > 0 && (

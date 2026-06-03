@@ -22,6 +22,13 @@ export default function FeedSettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
+  // Profile name fields
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [initialFirstName, setInitialFirstName] = useState("");
+  const [initialLastName, setInitialLastName] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+
   // Load user preferences
   useEffect(() => {
     if (!isAuthenticated || authLoading) return;
@@ -45,6 +52,12 @@ export default function FeedSettingsPage() {
             setInteractionCount(profile.interest_model.interaction_count || 0);
             setLastUpdated(profile.interest_model.last_updated || null);
           }
+          const fn = profile.first_name || "";
+          const ln = profile.last_name || "";
+          setFirstName(fn);
+          setLastName(ln);
+          setInitialFirstName(fn);
+          setInitialLastName(ln);
         }
       } catch (err) {
         console.error("Failed to load preferences:", err);
@@ -75,6 +88,41 @@ export default function FeedSettingsPage() {
     }
     return false;
   })();
+
+  const profileHasChanges =
+    firstName.trim() !== initialFirstName || lastName.trim() !== initialLastName;
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    setSaveMessage(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await fetch("/api/user/me/profile", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        setInitialFirstName(firstName.trim());
+        setInitialLastName(lastName.trim());
+        setSaveMessage("Profile updated.");
+      } else {
+        setSaveMessage("Failed to save. Please try again.");
+      }
+    } catch (err) {
+      console.error("Failed to save profile:", err);
+      setSaveMessage("Failed to save. Please try again.");
+    } finally {
+      setSavingProfile(false);
+      setTimeout(() => setSaveMessage(null), 4000);
+    }
+  };
 
   const handleSaveCategories = async () => {
     setSaving(true);
@@ -190,6 +238,53 @@ export default function FeedSettingsPage() {
               <p>Loading preferences...</p>
             ) : (
               <>
+                {/* Profile */}
+                <section className={styles.section}>
+                  <h2 className={styles.sectionTitle}>Your Profile</h2>
+                  <p className={styles.sectionDescription}>
+                    How your name appears in emails and your account.
+                  </p>
+                  <div className={styles.fieldRow}>
+                    <div className={styles.field}>
+                      <label className={styles.fieldLabel} htmlFor="firstName">
+                        First name
+                      </label>
+                      <input
+                        id="firstName"
+                        type="text"
+                        className={styles.textInput}
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="First name"
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.fieldLabel} htmlFor="lastName">
+                        Last name
+                      </label>
+                      <input
+                        id="lastName"
+                        type="text"
+                        className={styles.textInput}
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Last name"
+                        maxLength={100}
+                      />
+                    </div>
+                  </div>
+                  {profileHasChanges && (
+                    <button
+                      className={styles.primaryBtn}
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile}
+                    >
+                      {savingProfile ? "Saving..." : "Save"}
+                    </button>
+                  )}
+                </section>
+
                 {/* Category Selection */}
                 <section className={styles.section}>
                   <h2 className={styles.sectionTitle}>Topics You Follow</h2>

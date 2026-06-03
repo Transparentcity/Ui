@@ -15,8 +15,8 @@ type PlaceDashboardStoriesProps = {
   isAdmin?: boolean;
 };
 
-function sectionTitle(placeLabel?: string | null): string {
-  return `Stories for ${placeLabel ?? "this place"}`;
+function sectionTitle(): string {
+  return "Stories for My Place";
 }
 
 export default function PlaceDashboardStories({
@@ -69,7 +69,7 @@ export default function PlaceDashboardStories({
     return null;
   }
 
-  const title = sectionTitle(placeLabel);
+  const title = sectionTitle();
 
   if (isLoading) {
     return (
@@ -96,8 +96,8 @@ export default function PlaceDashboardStories({
         <h2 className="city-view-section-title">{title}</h2>
         <div className="ytd-placeholder">
           <p>
-            No stories for {placeLabel ?? "this place"} yet. New stories appear
-            as your block data updates.
+            No stories for My Place yet. New stories appear as your block data
+            updates.
           </p>
         </div>
       </div>

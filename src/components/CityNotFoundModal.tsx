@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
+  sendOnboardingWelcomeEmail,
   submitCityLeadInterest,
   updateUserPreferences,
   getUserPreferences,
@@ -38,7 +39,7 @@ export default function CityNotFoundModal({
   onComplete,
   onBackToSearch,
 }: CityNotFoundModalProps) {
-  const { getAccessTokenSilently, user } = useAuth0();
+  const { getAccessTokenSilently } = useAuth0();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loggedUnsupportedRef = useRef(false);
@@ -85,18 +86,13 @@ export default function CityNotFoundModal({
 
   const cityDisplayName = state ? `${cityName}, ${state}` : cityName;
 
-  const sendWelcomeEmail = () => {
-    const email = user?.email;
-    if (!email) return;
-    fetch("/api/welcome-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    })
-      .then((res) => {
-        if (!res.ok) console.error("[CityNotFoundModal] welcome email returned", res.status);
-      })
-      .catch((err) => console.error("[CityNotFoundModal] welcome email failed:", err));
+  const sendWelcomeEmail = (token: string) => {
+    sendOnboardingWelcomeEmail(token, {
+      scope: "unsupported",
+      unsupported_city_name: cityName,
+      unsupported_state: state,
+      unsupported_country: country,
+    }).catch((err) => console.error("[CityNotFoundModal] welcome email failed:", err));
   };
 
   const handleBrowseFeed = async () => {
@@ -123,7 +119,7 @@ export default function CityNotFoundModal({
         await updateUserPreferences({ has_completed_onboarding: true }, token);
       }
 
-      sendWelcomeEmail();
+      sendWelcomeEmail(token);
       onComplete();
     } catch (err) {
       console.error("Error submitting interest:", err);

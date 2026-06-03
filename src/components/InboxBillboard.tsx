@@ -52,7 +52,7 @@ interface InboxBillboardProps {
   onViewPlace?: () => void;
 }
 
-export default function InboxBillboard({ placeName, defaultRunning, onViewPlace }: InboxBillboardProps) {
+export default function InboxBillboard({ defaultRunning, onViewPlace }: InboxBillboardProps) {
   const { status } = usePlaceOnboarding();
   const [visible, setVisible] = useState(true);
 
@@ -73,9 +73,6 @@ export default function InboxBillboard({ placeName, defaultRunning, onViewPlace 
     status === "found_rep" ||
     (defaultRunning === true && status !== "completed" && status !== "failed");
 
-  const displayName = placeName?.trim() || "your neighborhood";
-  const homeLocation = placeName?.trim() || "your home location";
-
   return (
     <div className={styles.billboard} role="status" aria-live="polite">
       {isRunning ? (
@@ -87,18 +84,18 @@ export default function InboxBillboard({ placeName, defaultRunning, onViewPlace 
         {isRunning ? (
           <>
             <p className={styles.billboardTitle}>
-              Building your feed for {displayName}
+              Building your My Place dashboard
             </p>
             <p className={styles.billboardText}>
-              Pulling public data for {homeLocation}. Prior newsletters below.
+              Pulling public data for My Place. Prior newsletters below.
               New edition every Sunday.
             </p>
           </>
         ) : (
           <>
-            <p className={styles.billboardTitle}>Your feed is ready</p>
+            <p className={styles.billboardTitle}>Your My Place dashboard is ready</p>
             <p className={styles.billboardText}>
-              We&rsquo;ve finished pulling data for {displayName}.
+              We&rsquo;ve finished building your My Place dashboard.
               {onViewPlace && (
                 <>
                   {" "}

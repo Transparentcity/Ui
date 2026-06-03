@@ -29,6 +29,7 @@ import {
   getTokenUsageDailySeries,
   type ProductAnalyticsOverview,
   type TokenUsageDailySeries,
+  type TokenUsageSourceRow,
 } from "@/lib/apiClient";
 import styles from "./ProductAnalyticsDashboard.module.css";
 
@@ -106,6 +107,95 @@ function ChartLegend({
           {item.label}
         </span>
       ))}
+    </div>
+  );
+}
+
+function BySourceTable({
+  rows,
+  fmt,
+  money,
+  styles,
+}: {
+  rows: TokenUsageSourceRow[];
+  fmt: (n: number | null | undefined) => string;
+  money: (n: number | null | undefined) => string;
+  styles: Record<string, string>;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (source: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) next.delete(source);
+      else next.add(source);
+      return next;
+    });
+
+  return (
+    <div className={styles.section}>
+      <div className={styles.sectionTitle}>By use / job</div>
+      <div className={styles.card}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              {["Source", "Calls", "Tokens in", "Tokens out", "Cost"].map((h, i) => (
+                <th key={h} className={i > 0 ? styles.thRight : styles.th}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const hasSubRows = (row.sub_rows?.length ?? 0) > 0;
+              const isOpen = expanded.has(row.source);
+              return (
+                <>
+                  <tr key={row.source}>
+                    <td className={styles.td}>
+                      {hasSubRows ? (
+                        <button
+                          className={styles.subRowToggle}
+                          onClick={() => toggle(row.source)}
+                          aria-expanded={isOpen}
+                        >
+                          <span className={`${styles.chevron}${isOpen ? ` ${styles.chevronOpen}` : ""}`}>▶</span>
+                          {row.source}
+                        </button>
+                      ) : (
+                        row.source
+                      )}
+                    </td>
+                    <td className={styles.tdRight}>{fmt(row.calls)}</td>
+                    <td className={styles.tdRight}>{fmt(row.input_tokens)}</td>
+                    <td className={styles.tdRight}>{fmt(row.output_tokens)}</td>
+                    <td className={styles.tdRight}>{money(row.cost_usd)}</td>
+                  </tr>
+                  {hasSubRows && isOpen && (
+                    <tr key={`${row.source}__sub`}>
+                      <td colSpan={5} className={styles.subRowsWrap}>
+                        <table className={styles.subTable}>
+                          <tbody>
+                            {row.sub_rows!.map((sub) => (
+                              <tr key={sub.user}>
+                                <td className={styles.subTd}>{sub.user}</td>
+                                <td className={styles.subTdRight}>{fmt(sub.calls)}</td>
+                                <td className={styles.subTdRight}>{fmt(sub.input_tokens)}</td>
+                                <td className={styles.subTdRight}>{fmt(sub.output_tokens)}</td>
+                                <td className={styles.subTdRight}>{money(sub.cost_usd)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -437,19 +527,12 @@ export default function ProductAnalyticsDashboard() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary, #e5e5e5)" />
                     <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                    <YAxis yAxisId="left" tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 10 }}
-                      allowDecimals={false}
-                      width={28}
-                    />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
                     <Tooltip contentStyle={{ fontSize: "12px" }} />
-                    <Bar yAxisId="left" dataKey="New" stackId="active" fill="#10b981" />
-                    <Bar yAxisId="left" dataKey="Returning" stackId="active" fill="#ad35fa" />
-                    <Bar yAxisId="left" dataKey="Resurrecting" stackId="active" fill="#5B8DEF" />
-                    <Line yAxisId="right" type="monotone" dataKey="Dormant" stroke="#9ca3af" strokeWidth={2} dot={false} />
+                    <Bar dataKey="New" stackId="active" fill="#10b981" />
+                    <Bar dataKey="Returning" stackId="active" fill="#ad35fa" />
+                    <Bar dataKey="Resurrecting" stackId="active" fill="#5B8DEF" />
+                    <Line type="monotone" dataKey="Dormant" stroke="#9ca3af" strokeWidth={2} dot={false} />
                   </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -640,33 +723,7 @@ export default function ProductAnalyticsDashboard() {
             </div>
           )}
           {(tokenSeries.by_source ?? []).length > 0 && (
-            <div className={styles.section}>
-              <div className={styles.sectionTitle}>By use / job</div>
-              <div className={styles.card}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      {["Source", "Calls", "Tokens in", "Tokens out", "Cost"].map((h, i) => (
-                        <th key={h} className={i > 0 ? styles.thRight : styles.th}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(tokenSeries.by_source ?? []).map((row) => (
-                      <tr key={row.source}>
-                        <td className={styles.td}>{row.source}</td>
-                        <td className={styles.tdRight}>{fmt(row.calls)}</td>
-                        <td className={styles.tdRight}>{fmt(row.input_tokens)}</td>
-                        <td className={styles.tdRight}>{fmt(row.output_tokens)}</td>
-                        <td className={styles.tdRight}>{money(row.cost_usd)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <BySourceTable rows={tokenSeries.by_source ?? []} fmt={fmt} money={money} styles={styles} />
           )}
         </>
       )}

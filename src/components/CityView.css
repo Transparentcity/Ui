@@ -1088,6 +1088,47 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* Full-section billboard shown while a place data job is running (replaces dashboard + stories) */
+.city-view-place-job-billboard {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  background: var(--brand-primary-light);
+  border: 1px solid rgba(173, 53, 250, 0.2);
+  border-radius: 8px;
+  margin: 16px 0;
+}
+
+.city-view-place-job-billboard__loader {
+  flex-shrink: 0;
+  width: 24px !important;
+  height: 24px !important;
+  margin-top: 1px;
+}
+
+.city-view-place-job-billboard__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.city-view-place-job-billboard__title {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  line-height: 1.35;
+}
+
+.city-view-place-job-billboard__text {
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.55;
+}
+
 /* In-place progress while place metrics job runs (values on screen are stale until done) */
 .place-refresh-job-banner {
   display: flex;

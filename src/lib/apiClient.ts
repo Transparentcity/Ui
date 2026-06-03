@@ -3323,18 +3323,78 @@ export function runPlaceMetricsAndAnomaliesAsJob(
 }
 
 /**
- * Trigger the personalized onboarding welcome email for users who completed
- * onboarding at city or district level (no saved place / precise home address).
+ * Trigger the personalized onboarding welcome email (email 1) for all sign-up types.
+ * Covers city, district, place-level, and unsupported/unlaunched cities.
  * Idempotent — safe to call even if the email was already sent.
  */
 export function sendOnboardingWelcomeEmail(
   token: string,
-  opts: { city_id: number; district?: number | null; weekly_newsletter?: boolean | null }
+  opts: {
+    city_id?: number | null;
+    district?: number | null;
+    place_id?: number | null;
+    weekly_newsletter?: boolean | null;
+    scope?: "place" | "district" | "city" | "unsupported" | null;
+    unsupported_city_name?: string | null;
+    unsupported_state?: string | null;
+    unsupported_country?: string | null;
+  }
 ): Promise<{ success: boolean }> {
-  const payload: Record<string, unknown> = { city_id: opts.city_id };
+  const payload: Record<string, unknown> = {};
+  if (opts.city_id != null && opts.city_id > 0) payload.city_id = opts.city_id;
   if (opts.district != null && opts.district > 0) payload.district = opts.district;
+  if (opts.place_id != null && opts.place_id > 0) payload.place_id = opts.place_id;
   if (opts.weekly_newsletter != null) payload.weekly_newsletter = opts.weekly_newsletter;
+  if (opts.scope != null) payload.scope = opts.scope;
+  if (opts.unsupported_city_name) payload.unsupported_city_name = opts.unsupported_city_name;
+  if (opts.unsupported_state) payload.unsupported_state = opts.unsupported_state;
+  if (opts.unsupported_country) payload.unsupported_country = opts.unsupported_country;
   return request<{ success: boolean }>("/api/user/onboarding-welcome-email", "POST", payload, token);
+}
+
+/** Fetch the user's DB profile (includes picture, first_name, last_name). */
+export interface DbUserProfile {
+  picture?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  onboarding_complete?: boolean;
+  user_role_type?: string;
+  has_places?: boolean;
+}
+
+export function getDbUserProfile(token: string): Promise<DbUserProfile> {
+  return request<DbUserProfile>("/api/user/profile", "GET", undefined, token);
+}
+
+/** Update the user's first name and last name. */
+export function updateUserProfile(
+  token: string,
+  opts: { first_name?: string | null; last_name?: string | null }
+): Promise<{ success: boolean; first_name?: string; last_name?: string; name?: string; picture?: string }> {
+  const payload: Record<string, unknown> = {};
+  if (opts.first_name !== undefined) payload.first_name = opts.first_name ?? "";
+  if (opts.last_name !== undefined) payload.last_name = opts.last_name ?? "";
+  return request("/api/user/me/profile", "PATCH", payload, token);
+}
+
+/** Upload a profile avatar image (max 2 MB, jpeg/png/webp). */
+export async function uploadAvatar(
+  token: string,
+  file: File
+): Promise<{ success: boolean; picture_url: string }> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/api/user/me/avatar`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Avatar upload failed (${res.status}): ${text}`);
+  }
+  return res.json();
 }
 
 /** Admin-only: force-resend the onboarding welcome email to the signed-in admin. */
@@ -7533,6 +7593,15 @@ export interface TokenUsageDailyRow {
   calls: number;
 }
 
+export interface TokenUsageSourceSubRow {
+  user: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+}
+
 export interface TokenUsageSourceRow {
   source: string;
   calls: number;
@@ -7540,6 +7609,7 @@ export interface TokenUsageSourceRow {
   output_tokens: number;
   total_tokens: number;
   cost_usd: number;
+  sub_rows?: TokenUsageSourceSubRow[];
 }
 
 export interface TokenUsageDailySeries {

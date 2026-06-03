@@ -29,6 +29,9 @@ import {
   runPlaceMetricsAndAnomaliesAsJob,
   getCityLeaders,
   followRepresentative,
+  getDbUserProfile,
+  updateUserProfile,
+  uploadAvatar,
   type GovernmentVerificationStatus,
   type UserPreferences,
   type UserPreferencesUpdateRequest,
@@ -251,6 +254,18 @@ export default function DashboardPage() {
   const [loadingPreferences, setLoadingPreferences] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [govModeToggling, setGovModeToggling] = useState(false);
+
+  // Profile editing (name + picture)
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [profileInitialFirstName, setProfileInitialFirstName] = useState("");
+  const [profileInitialLastName, setProfileInitialLastName] = useState("");
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
+  const [profileAvatarPreview, setProfileAvatarPreview] = useState<string | null>(null);
+  const [savingProfileName, setSavingProfileName] = useState(false);
+  const [uploadingProfileAvatar, setUploadingProfileAvatar] = useState(false);
+  const [profileSaveMsg, setProfileSaveMsg] = useState<string | null>(null);
   
   // Editable preference state
   const [editableAnomalyAlerts, setEditableAnomalyAlerts] = useState(false);
@@ -1157,9 +1172,56 @@ export default function DashboardPage() {
     }
   };
 
+  const handleProfileAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfileAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setProfileAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    // Auto-upload immediately on select
+    setUploadingProfileAvatar(true);
+    setProfileSaveMsg(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await uploadAvatar(token, file);
+      setProfilePicture(res.picture_url);
+      setProfileAvatarFile(null);
+      setProfileAvatarPreview(null);
+      window.dispatchEvent(
+        new CustomEvent("tc:avatar-updated", { detail: { picture_url: res.picture_url } })
+      );
+      setProfileSaveMsg("Photo updated.");
+    } catch {
+      setProfileSaveMsg("Upload failed. Please try again.");
+    } finally {
+      setUploadingProfileAvatar(false);
+      setTimeout(() => setProfileSaveMsg(null), 4000);
+    }
+  };
+
+  const handleSaveProfileName = async () => {
+    setSavingProfileName(true);
+    setProfileSaveMsg(null);
+    try {
+      const token = await getAccessTokenSilently();
+      await updateUserProfile(token, {
+        first_name: profileFirstName.trim() || null,
+        last_name: profileLastName.trim() || null,
+      });
+      setProfileInitialFirstName(profileFirstName.trim());
+      setProfileInitialLastName(profileLastName.trim());
+      setProfileSaveMsg("Name saved.");
+    } catch {
+      setProfileSaveMsg("Failed to save. Please try again.");
+    } finally {
+      setSavingProfileName(false);
+      setTimeout(() => setProfileSaveMsg(null), 4000);
+    }
+  };
+
   const handleOpenSettings = async () => {
     setSettingsOpen(true);
-    // Load user preferences and info when opening settings
     await loadUserSettings();
   };
 
@@ -1199,6 +1261,20 @@ export default function DashboardPage() {
       } catch (err) {
         console.error("Error fetching user email:", err);
         setUserEmail(user?.email || null);
+      }
+
+      // Fetch DB profile for name + picture
+      try {
+        const dbProfile = await getDbUserProfile(token);
+        const fn = dbProfile.first_name || "";
+        const ln = dbProfile.last_name || "";
+        setProfileFirstName(fn);
+        setProfileLastName(ln);
+        setProfileInitialFirstName(fn);
+        setProfileInitialLastName(ln);
+        if (dbProfile.picture) setProfilePicture(dbProfile.picture);
+      } catch (err) {
+        console.error("Error fetching DB profile:", err);
       }
       
       // Fetch home city if we have a home location
@@ -2113,6 +2189,69 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className={styles.settingsBody}>
+                  {/* Profile */}
+                  <section className={styles.settingsSection}>
+                    <h3 className={styles.settingsSectionTitle}>Profile</h3>
+                    <div className={styles.settingsSectionCard}>
+                      {/* Compact identity row: avatar + name inputs */}
+                      <div className={styles.settingsProfileBlock}>
+                        <label className={styles.settingsAvatarLabel} title="Change photo">
+                          <div className={styles.settingsAvatarCircle}>
+                            {(profileAvatarPreview || profilePicture)
+                              ? <img src={profileAvatarPreview || profilePicture!} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              : <span>{((profileFirstName || profileLastName || user?.name || "?")[0]).toUpperCase()}</span>
+                            }
+                            <span className={`${styles.settingsAvatarOverlay}${uploadingProfileAvatar ? ` ${styles.settingsAvatarOverlayActive}` : ""}`} aria-hidden>
+                              {uploadingProfileAvatar
+                                ? <Loader size="sm" color="white" />
+                                : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                              }
+                            </span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            style={{ display: "none" }}
+                            onChange={handleProfileAvatarChange}
+                          />
+                        </label>
+                        <div className={styles.settingsNameGroup}>
+                          <input
+                            type="text"
+                            value={profileFirstName}
+                            onChange={(e) => setProfileFirstName(e.target.value)}
+                            placeholder="First name"
+                            maxLength={100}
+                            className={styles.settingsNameInput}
+                            autoComplete="given-name"
+                          />
+                          <input
+                            type="text"
+                            value={profileLastName}
+                            onChange={(e) => setProfileLastName(e.target.value)}
+                            placeholder="Last name"
+                            maxLength={100}
+                            className={styles.settingsNameInput}
+                            autoComplete="family-name"
+                          />
+                        </div>
+                        {(profileFirstName.trim() !== profileInitialFirstName || profileLastName.trim() !== profileInitialLastName) && (
+                          <button
+                            type="button"
+                            className={styles.settingsPrimaryBtn}
+                            onClick={handleSaveProfileName}
+                            disabled={savingProfileName}
+                          >
+                            {savingProfileName ? "Saving…" : "Save"}
+                          </button>
+                        )}
+                      </div>
+                      {profileSaveMsg && (
+                        <div className={styles.settingsProfileMsg}>{profileSaveMsg}</div>
+                      )}
+                    </div>
+                  </section>
+
                   {/* Account */}
                   <section className={styles.settingsSection}>
                     <h3 className={styles.settingsSectionTitle}>Account</h3>

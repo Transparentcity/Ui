@@ -147,6 +147,8 @@ interface DashboardMetricsSectionProps {
   geographicUnitLabel?: string;
   /** Called when the user clicks "Edit" on the customized metrics banner. */
   onEditMetrics?: () => void;
+  /** Called with true when a place metrics job starts, false when it finishes. */
+  onJobRunningChange?: (running: boolean) => void;
 }
 
 // Time series data point for sparkline
@@ -576,7 +578,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District", onEditMetrics }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District", onEditMetrics, onJobRunningChange }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   // Block (place) scope: metrics for selected place
@@ -700,6 +702,13 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     },
     [selectedPlaceId, getAccessTokenSilently]
   );
+
+  // Notify parent whenever the place job starts or stops
+  const onJobRunningChangeRef = useRef(onJobRunningChange);
+  onJobRunningChangeRef.current = onJobRunningChange;
+  useEffect(() => {
+    onJobRunningChangeRef.current?.(placeRunLoading);
+  }, [placeRunLoading]);
 
   // New state for explicit period selection
   type CurrentPeriodType = 'this_year' | 'this_month';
@@ -1413,7 +1422,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   // Build the dashboard title based on selected leader or place
   const dashboardTitle = useMemo(() => {
     if (selectedPlaceId && selectedPlace) {
-      return `${selectedPlace.label} (${selectedPlace.radius_m}m map box) personalized dashboard`;
+      return "My Place personalized dashboard";
     }
     if (selectedLeader) {
       const districtText = selectedLeader.district
@@ -1551,7 +1560,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         <div className="dashboard-header-left">
           <span className="dashboard-scope-label" aria-hidden="true">
             {selectedPlaceId && selectedPlace
-              ? selectedPlace.label
+              ? "My Place"
               : district === 0 || district === null
                 ? "Citywide"
                 : `${geographicUnitLabel} ${district}`}
@@ -1702,7 +1711,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 <Loader size="sm" color="white" />
                 <div className="place-refresh-job-banner__body">
                   <div className="place-refresh-job-banner__title">
-                    Refreshing metrics for {selectedPlace?.label ?? "this place"}
+                    Refreshing metrics for My Place
                   </div>
                   <div className="place-refresh-job-banner__message">
                     {placeJobProgress.statusMessage}
@@ -1761,7 +1770,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
               <Loader size="sm" color="dark" />
               <div className="place-refresh-job-banner__body">
                 <div className="place-refresh-job-banner__title">
-                  Refreshing metrics for {selectedPlace?.label ?? "this place"}
+                  Refreshing metrics for My Place
                 </div>
                 <div className="place-refresh-job-banner__message">
                   {placeJobProgress.statusMessage}
@@ -2104,6 +2113,7 @@ export default function CityView({
   const [selectedMetricDistrict, setSelectedMetricDistrict] = useState<number | null>(null);
   const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
   const [lastPlaceRefreshAt, setLastPlaceRefreshAt] = useState<string | null>(null);
+  const [isPlaceJobRunning, setIsPlaceJobRunning] = useState(false);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const dashboardSectionRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<CityViewSection>(() =>
@@ -2635,50 +2645,69 @@ export default function CityView({
           role="tabpanel"
           aria-hidden={activeSection !== "dashboard"}
         >
-          {/* "Dashboard" heading removed – the tab already says Dashboard */}
-          <DashboardMetricsSection
-            metrics={cityData.metrics || []}
-            cityId={cityId}
-            cityName={cityData.name}
-            selectedDistrict={selectedDistrict}
-            leaders={isCityDataReady ? effectiveLeaders : []}
-            shapefiles={isCityDataReady ? mapShapefiles : []}
-            onDistrictChange={(d) => {
-              setSelectedDistrict(d);
-              setSelectedPlaceId(null);
-            }}
-            onGPSLocation={setDistrictGPSLocation}
-            onMetricClick={(metricId: number, district?: number | null) => {
-              setSelectedMetricId(metricId);
-              setSelectedMetricDistrict(district ?? selectedDistrict);
-            }}
-            leaderFollowerCounts={leaderFollowerCounts}
-            newsletterQueriesEnabled={cityLoaded}
-            userPlaces={userPlaces}
-            selectedPlaceId={selectedPlaceId}
-            onPlaceSelect={(id) => {
-              setSelectedPlaceId(id);
-              if (id != null) {
-                setSelectedDistrict(null);
-              }
-            }}
-            onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
-            openDistrictTrigger={openDistrictTrigger}
-            bootstrapPlaceMetricsForPlaceId={bootstrapPlaceMetricsForPlaceId}
-            onConsumePlaceMetricsBootstrap={onConsumePlaceMetricsBootstrap}
-            lastRefreshAt={lastPlaceRefreshAt}
-            geographicUnitLabel={geographicUnitLabel}
-            onEditMetrics={() => setUserOrderDialogOpen(true)}
-          />
-          {selectedPlaceId != null && (
-            <PlaceDashboardStories
-              placeId={selectedPlaceId}
-              placeLabel={
-                userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null
-              }
-              isAdmin={isAdmin}
-            />
+          {/* Place job running: replace dashboard + stories with billboard-style indicator */}
+          {isPlaceJobRunning && selectedPlaceId != null && (
+              <div className="city-view-place-job-billboard" role="status" aria-live="polite">
+                <Loader size="sm" color="purple" className="city-view-place-job-billboard__loader" />
+                <div className="city-view-place-job-billboard__body">
+                  <p className="city-view-place-job-billboard__title">
+                    Building your My Place dashboard
+                  </p>
+                  <p className="city-view-place-job-billboard__text">
+                    Pulling public data for My Place. Prior newsletters below. New edition every Sunday.
+                  </p>
+                </div>
+              </div>
           )}
+
+          {/* "Dashboard" heading removed – the tab already says Dashboard */}
+          {/* DashboardMetricsSection stays mounted while job runs so polling continues */}
+          <div style={isPlaceJobRunning && selectedPlaceId != null ? { display: "none" } : undefined}>
+            <DashboardMetricsSection
+              metrics={cityData.metrics || []}
+              cityId={cityId}
+              cityName={cityData.name}
+              selectedDistrict={selectedDistrict}
+              leaders={isCityDataReady ? effectiveLeaders : []}
+              shapefiles={isCityDataReady ? mapShapefiles : []}
+              onDistrictChange={(d) => {
+                setSelectedDistrict(d);
+                setSelectedPlaceId(null);
+              }}
+              onGPSLocation={setDistrictGPSLocation}
+              onMetricClick={(metricId: number, district?: number | null) => {
+                setSelectedMetricId(metricId);
+                setSelectedMetricDistrict(district ?? selectedDistrict);
+              }}
+              leaderFollowerCounts={leaderFollowerCounts}
+              newsletterQueriesEnabled={cityLoaded}
+              userPlaces={userPlaces}
+              selectedPlaceId={selectedPlaceId}
+              onPlaceSelect={(id) => {
+                setSelectedPlaceId(id);
+                if (id != null) {
+                  setSelectedDistrict(null);
+                }
+              }}
+              onPlaceSaved={() => setPlacesRefreshKey((k) => k + 1)}
+              openDistrictTrigger={openDistrictTrigger}
+              bootstrapPlaceMetricsForPlaceId={bootstrapPlaceMetricsForPlaceId}
+              onConsumePlaceMetricsBootstrap={onConsumePlaceMetricsBootstrap}
+              lastRefreshAt={lastPlaceRefreshAt}
+              geographicUnitLabel={geographicUnitLabel}
+              onEditMetrics={() => setUserOrderDialogOpen(true)}
+              onJobRunningChange={setIsPlaceJobRunning}
+            />
+            {selectedPlaceId != null && (
+              <PlaceDashboardStories
+                placeId={selectedPlaceId}
+                placeLabel={
+                  userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null
+                }
+                isAdmin={isAdmin}
+              />
+            )}
+          </div>
         </section>
 
         {/* Alerts tab content (admin only) – lazy-mounted the first time the tab is opened */}

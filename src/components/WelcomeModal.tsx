@@ -21,6 +21,8 @@ import {
   createPlace,
   runPlaceMetricsAndAnomaliesAsJob,
   sendOnboardingWelcomeEmail,
+  updateUserProfile,
+  uploadAvatar,
   followRepresentative,
   unfollowRepresentative,
   subscribeNewsletter,
@@ -64,7 +66,7 @@ interface WelcomeModalProps {
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
 }
 
-type Step = "welcome" | "place" | "preferences";
+type Step = "profile" | "welcome" | "place" | "preferences";
 type WelcomeLoadingAction = "search" | "gps" | null;
 
 /** Default saved place label on onboarding step 2 (createPlace only when location is precise). */
@@ -113,7 +115,7 @@ export default function WelcomeModal({
   const { theme } = useTheme();
   const { startJob, startCityLoading } = usePlaceOnboarding();
   const focusTrapRef = useFocusTrap(isOpen);
-  const [step, setStep] = useState<Step>("welcome");
+  const [step, setStep] = useState<Step>("profile");
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<WelcomeLoadingAction>(null);
   const [leadersLoading, setLeadersLoading] = useState(false);
@@ -124,6 +126,15 @@ export default function WelcomeModal({
   const [hasPreciseLocation, setHasPreciseLocation] = useState(false);
   const [placeLabel, setPlaceLabel] = useState(ONBOARDING_PLACE_LABEL_DEFAULT);
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
+
+  // Profile step state
+  const [profileFirstName, setProfileFirstName] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return "";  // Will be pre-filled in reset effect below from Auth0 user
+  });
+  const [profileLastName, setProfileLastName] = useState("");
+  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
+  const [profileAvatarPreview, setProfileAvatarPreview] = useState<string | null>(null);
 
   // Leader follow toggles (default: follow both, applied at submit)
   const [mayorFollowed, setMayorFollowed] = useState(true);
@@ -149,7 +160,7 @@ export default function WelcomeModal({
     let cancelled = false;
 
     if (isOpen) {
-      setStep("welcome");
+      setStep("profile");
       setLoading(false);
       setLoadingAction(null);
       setLocationInput("");
@@ -169,6 +180,16 @@ export default function WelcomeModal({
       setWeeklyNewsletterOptIn(true);
       setNewsletterDescription("");
       setShowAdvancedNewsletterSettings(false);
+
+      // Pre-fill avatar from Auth0 but leave name fields blank
+      setProfileFirstName("");
+      setProfileLastName("");
+      if (user) {
+        setProfileAvatarPreview(user.picture || null);
+      } else {
+        setProfileAvatarPreview(null);
+      }
+      setProfileAvatarFile(null);
 
       const loadSavedNewsletterPreferences = async () => {
         try {
@@ -196,6 +217,7 @@ export default function WelcomeModal({
   useEffect(() => {
     if (!isOpen) return;
     const eventMap: Record<Step, string> = {
+      profile: "onboarding_profile_viewed",
       welcome: "onboarding_step1_viewed",
       place: "onboarding_step2_viewed",
       preferences: "onboarding_step3_viewed",
@@ -734,7 +756,7 @@ export default function WelcomeModal({
 
   // Render step indicator
   const renderStepIndicator = () => {
-    const steps = ["welcome", "place", "preferences"];
+    const steps: Step[] = ["profile", "welcome", "place", "preferences"];
     const currentIndex = steps.indexOf(step);
 
     return (
@@ -759,6 +781,139 @@ export default function WelcomeModal({
       <line x1="20" y1="12" x2="22" y2="12" />
     </svg>
   );
+
+  // Render step 1: Profile (skippable)
+  const renderProfileStep = () => {
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setProfileAvatarFile(file);
+      const reader = new FileReader();
+      reader.onload = (ev) => setProfileAvatarPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    };
+
+    const initials = [profileFirstName, profileLastName]
+      .filter(Boolean)
+      .map((s) => s[0].toUpperCase())
+      .join("") || (user?.name?.[0]?.toUpperCase() ?? "?");
+
+    const handleProfileContinue = async () => {
+      const hasAnyData = profileFirstName.trim() || profileLastName.trim() || profileAvatarFile;
+      if (hasAnyData) {
+        try {
+          const token = await getAccessTokenSilently();
+          if (profileAvatarFile) {
+            const res = await uploadAvatar(token, profileAvatarFile).catch((err) => {
+              console.error("[WelcomeModal] avatar upload failed:", err);
+              return null;
+            });
+            if (res?.picture_url) {
+              // Notify UserProfile nav to refresh its avatar without a page reload
+              window.dispatchEvent(
+                new CustomEvent("tc:avatar-updated", { detail: { picture_url: res.picture_url } })
+              );
+            }
+          }
+          if (profileFirstName.trim() || profileLastName.trim()) {
+            await updateUserProfile(token, {
+              first_name: profileFirstName.trim() || null,
+              last_name: profileLastName.trim() || null,
+            }).catch((err) =>
+              console.error("[WelcomeModal] profile update failed:", err)
+            );
+          }
+          recordProductEvent("onboarding_profile_saved", {});
+        } catch (err) {
+          console.error("[WelcomeModal] profile save error:", err);
+        }
+      }
+      setStep("welcome");
+    };
+
+    const handleProfileSkip = () => {
+      recordProductEvent("onboarding_profile_skipped", {});
+      setStep("welcome");
+    };
+
+    return (
+      <div className={styles.stepContent}>
+        <div className={styles.brandLogo}>
+          <Loader size="lg" color="purple" className="loaderStatic" />
+        </div>
+
+        <h1 className={styles.title}>Welcome to Transparent.city</h1>
+        <p className={styles.subtitle}>
+          Tell us a bit about yourself so we can personalize your experience.
+          You can always update this later in Settings.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px", marginTop: "24px" }}>
+          {/* Avatar picker */}
+          <label style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: "50%",
+              background: profileAvatarPreview ? "transparent" : "#ad35fa",
+              overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 28, fontWeight: 700, color: "#fff", border: "3px solid #e5e7eb",
+            }}>
+              {profileAvatarPreview
+                ? <img src={profileAvatarPreview} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : initials}
+            </div>
+            <span style={{ fontSize: 13, color: "#ad35fa", fontWeight: 600 }}>
+              {profileAvatarFile ? "Photo selected" : "Upload photo"}
+            </span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: "none" }}
+              onChange={handleAvatarChange}
+            />
+          </label>
+
+          {/* Name fields */}
+          <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+            <input
+              type="text"
+              placeholder="First name"
+              value={profileFirstName}
+              onChange={(e) => setProfileFirstName(e.target.value)}
+              className={styles.textInput}
+              style={{ flex: 1 }}
+              autoComplete="given-name"
+            />
+            <input
+              type="text"
+              placeholder="Last name"
+              value={profileLastName}
+              onChange={(e) => setProfileLastName(e.target.value)}
+              className={styles.textInput}
+              style={{ flex: 1 }}
+              autoComplete="family-name"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className={styles.primaryButton}
+          style={{ marginTop: "24px" }}
+          onClick={handleProfileContinue}
+        >
+          Continue
+        </button>
+        <button
+          type="button"
+          className={styles.skipLink || styles.textButton}
+          style={{ marginTop: "12px", background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 14 }}
+          onClick={handleProfileSkip}
+        >
+          Skip for now
+        </button>
+      </div>
+    );
+  };
 
   // Render combined welcome + location step
   const renderWelcomeStep = () => (
@@ -1395,18 +1550,18 @@ export default function WelcomeModal({
             console.error("Newsletter subscription sync failed:", subscriptionErr);
           }
 
-          // Send the personalized backend welcome email for city/district-level
-          // sign-ups (no precise place). For users with a precise address the
-          // place metrics job sends the welcome email when it completes.
-          if (!hasPreciseLocation) {
-            sendOnboardingWelcomeEmail(token, {
-              city_id: cityId,
-              district: homeDistrictSnapshot ?? null,
-              weekly_newsletter: weeklyNewsletterOptIn,
-            }).catch((err) =>
-              console.error("[WelcomeModal] onboarding welcome email failed:", err)
-            );
-          }
+          // Send the personalized backend welcome email for all sign-up types.
+          // For place-level users this is Email 1 (city/district welcome + "building your
+          // block dashboard" copy). Email 2 fires from the place metrics job.
+          sendOnboardingWelcomeEmail(token, {
+            city_id: cityId,
+            district: homeDistrictSnapshot ?? null,
+            place_id: createdPlaceId ?? null,
+            weekly_newsletter: weeklyNewsletterOptIn,
+            scope: hasPreciseLocation ? "place" : (homeDistrictSnapshot ? "district" : "city"),
+          }).catch((err) =>
+            console.error("[WelcomeModal] onboarding welcome email failed:", err)
+          );
         } catch (err) {
           console.error("Error saving preferences in background:", err);
         }
@@ -1443,6 +1598,7 @@ export default function WelcomeModal({
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         {renderStepIndicator()}
 
+        {step === "profile" && renderProfileStep()}
         {step === "welcome" && renderWelcomeStep()}
         {step === "place" && renderPlaceStep()}
         {step === "preferences" && renderPreferencesStep()}
