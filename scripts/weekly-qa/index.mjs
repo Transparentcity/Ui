@@ -4,13 +4,12 @@
  *
  * Fetches all YTD metric comparisons via the public API for each of the 9
  * launched city dashboards, runs arithmetic and data-quality checks, and
- * emails a structured HTML report to the recipient below.
+ * prints the report to stdout.
  *
  * Persistent appendix state (known outages, known lags) lives in state.json
  * and is committed back to the repo by the GitHub Actions workflow.
  */
 
-import sgMail from "@sendgrid/mail";
 import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -20,13 +19,6 @@ const STATE_FILE = join(__dirname, "state.json");
 
 const API_BASE = "https://api.transparent.city";
 const SITE_BASE = "https://transparent.city";
-const RECIPIENT = "adam@planet10b.com";
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || "noreply@transparent.city";
-const FROM_NAME = "Transparent City QA";
-
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-}
 
 // Target cities to audit each run.
 // slugPatterns are matched against the city sitemap (slug and name fields).
@@ -183,12 +175,12 @@ async function main() {
     );
   }
 
-  // 4. Build and send email
+  // 4. Build and print report
   const failures = cityReports.filter((cr) => cr.report.failures.length > 0);
   const passing = cityReports.filter((cr) => cr.report.failures.length === 0).map((cr) => cr.city.label);
   const totalFailures = cityReports.reduce((s, cr) => s + cr.report.failures.length, 0);
 
-  const subject =
+  const title =
     totalFailures === 0
       ? `Transparent City QA: all clear — ${runDateStr}`
       : `Transparent City QA: ${totalFailures} metric issue${totalFailures === 1 ? "" : "s"} across ${resolvedCities.length} cities`;
@@ -206,19 +198,8 @@ async function main() {
     state,
   });
 
-  if (!process.env.SENDGRID_API_KEY) {
-    console.warn("SENDGRID_API_KEY not set — printing report to stdout.");
-    console.log(`\n--- SUBJECT: ${subject} ---\n`);
-    console.log(html);
-  } else {
-    await sgMail.send({
-      to: RECIPIENT,
-      from: { email: FROM_EMAIL, name: FROM_NAME },
-      subject,
-      html,
-    });
-    console.log(`Sent: "${subject}"`);
-  }
+  console.log(`\n=== ${title} ===\n`);
+  console.log(html);
 
   // 5. Persist appendix state
   state.lastRunDate = runDateStr;

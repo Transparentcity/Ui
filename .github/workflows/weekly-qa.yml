@@ -26,9 +26,6 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Run QA
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
         run: node scripts/weekly-qa/index.mjs
 
       - name: Commit updated appendix state
