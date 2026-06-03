@@ -24,12 +24,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+import { chromium } from "playwright";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const STATE_FILE   = join(__dirname, "state.json");
-const REPORT_FILE  = join(__dirname, "report-latest.html");
-const REPORTS_DIR  = join(__dirname, "reports");
+const STATE_FILE     = join(__dirname, "state.json");
+const REPORT_FILE    = join(__dirname, "report-latest.html");
+const REPORTS_DIR    = join(__dirname, "reports");
+const FACTCHECK_FILE = join(__dirname, "factcheck-queue.json");
 
 const API_BASE  = "https://api.transparent.city";
 const SITE_BASE = "https://transparent.city";
@@ -334,6 +335,10 @@ async function main() {
       ? `Transparent City QA: all clear — ${runDateStr}`
       : `Transparent City QA: ${totalFailures} metric issue${totalFailures === 1 ? "" : "s"} across ${resolvedCities.length} cities`;
 
+  // Pick 3 healthy (non-failing) metrics per city for web-search fact-checking.
+  const factCheckCandidates = selectFactCheckCandidates(cityReports, runDateStr, 3);
+  writeFileSync(FACTCHECK_FILE, JSON.stringify({ runDate: runDateStr, candidates: factCheckCandidates }, null, 2) + "\n", "utf8");
+
   const html = buildHtml({
     title,
     runDate,
@@ -345,6 +350,7 @@ async function main() {
     resolvedLags,
     missingTargets,
     extraLaunched,
+    factCheckCandidates,
     state,
   });
 
@@ -366,7 +372,8 @@ async function main() {
       }
     }
   }
-  console.log(`\nReport written to: ${REPORT_FILE}`);
+  console.log(`\nFact-check candidates queued: ${factCheckCandidates.length} (${FACTCHECK_FILE})`);
+  console.log(`Report written to: ${REPORT_FILE}`);
 
   // 8. Persist appendix state.
   state.lastRunDate = runDateStr;
@@ -379,12 +386,14 @@ async function main() {
 
 async function auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLags) {
   const failures = [];
+  // Per-metric records, used downstream to pick healthy fact-check candidates.
+  const metrics  = [];
 
   const cityDetail  = await apiFetch(`/api/public/cities/${city.cityId}?include_metrics=true`);
   const allMetrics  = cityDetail.metrics || [];
   const dashMetrics = allMetrics.filter((m) => m.show_on_dash !== false);
 
-  if (dashMetrics.length === 0) return { failures, cardCount: 0 };
+  if (dashMetrics.length === 0) return { failures, cardCount: 0, metrics };
 
   // Check 1: every dashboard metric has a display name (not a raw slug).
   for (const m of dashMetrics) {
@@ -430,6 +439,19 @@ async function auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLa
     const curStart = toDateStr(comp.current_period_start);
     const curEnd   = toDateStr(comp.current_period_end);
     const priorEnd = toDateStr(comp.comparison_period_end);
+
+    // Record this metric for downstream fact-check candidate selection.
+    metrics.push({
+      metricId:   m.id,
+      metricName: name,
+      metricKey:  m.metric_key,
+      cardUrl,
+      cur,
+      prior,
+      curStart,
+      curEnd,
+      priorEnd,
+    });
 
     // Check 2: current YTD value present.
     if (cur === null || cur === undefined) {
@@ -568,7 +590,85 @@ async function auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLa
     }
   }
 
-  return { failures, cardCount: dashMetrics.length };
+  return { failures, cardCount: dashMetrics.length, metrics };
+}
+
+// ---------------------------------------------------------------------------
+// Fact-check candidate selection
+// ---------------------------------------------------------------------------
+
+// Deterministic per-run RNG so the same week always picks the same candidates
+// (idempotent across CI re-runs) but the set rotates week to week.
+function makeRng(seedStr) {
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
+function pickRandom(arr, n, rng) {
+  // Fisher–Yates shuffle on a copy, then take the first n.
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+// Build up to `count` fact-check candidates per city. A metric is eligible only
+// if we believe it is rendering correctly: it produced no failure this run and
+// both YTD values are present numbers. (Per spec: don't fact-check anything we
+// already think is broken.)
+function selectFactCheckCandidates(cityReports, runDateStr, count = 3) {
+  const rng        = makeRng(`factcheck-${runDateStr}`);
+  const candidates = [];
+
+  for (const { city, report } of cityReports) {
+    // metricIds that failed any API check this run.
+    const failedIds = new Set(
+      (report.failures || [])
+        .map((f) => f.metricId)
+        .filter((id) => id !== null && id !== undefined && id !== "")
+    );
+    // If the dashboard itself failed to render, skip the whole city.
+    const cityRenderFailed = (report.failures || []).some(
+      (f) => f.failureType && f.failureType.startsWith("Dashboard did not render")
+    );
+    if (cityRenderFailed) continue;
+
+    const eligible = (report.metrics || []).filter(
+      (md) =>
+        !failedIds.has(md.metricId) &&
+        md.cur !== null && md.cur !== undefined &&
+        md.prior !== null && md.prior !== undefined
+    );
+
+    for (const md of pickRandom(eligible, count, rng)) {
+      candidates.push({
+        city:          city.label,
+        metricName:    md.metricName,
+        metricKey:     md.metricKey,
+        cardUrl:       md.cardUrl,
+        currentValue:  md.cur,
+        currentWindow: `${fmtDate(md.curStart)} – ${fmtDate(md.curEnd)}`,
+        priorValue:    md.prior,
+        status:        "pending",   // filled in by the web-search fact-check step
+        verdict:       null,        // "consistent" | "discrepancy" | "inconclusive"
+        notes:         null,
+        sources:       [],
+      });
+    }
+  }
+
+  return candidates;
 }
 
 // ---------------------------------------------------------------------------
@@ -590,7 +690,7 @@ function failure(city, metric, failureType, onPageValues) {
 // HTML report builder
 // ---------------------------------------------------------------------------
 
-function buildHtml({ title, runDate, totalCards, totalFailures, passing, failures, resolvedOutages, resolvedLags, missingTargets, extraLaunched, state }) {
+function buildHtml({ title, runDate, totalCards, totalFailures, passing, failures, resolvedOutages, resolvedLags, missingTargets, extraLaunched, factCheckCandidates = [], state }) {
   const ts = runDate.toLocaleString("en-US", {
     timeZone:   "America/Los_Angeles",
     weekday:    "long",
@@ -681,6 +781,34 @@ function buildHtml({ title, runDate, totalCards, totalFailures, passing, failure
       }
       h += `</ul>`;
     }
+  }
+
+  // Fact-check candidates (3 healthy metrics per city, for web-search verification).
+  if (factCheckCandidates.length > 0) {
+    const anyChecked = factCheckCandidates.some((c) => c.status !== "pending");
+    h += `<h2>Fact-check candidates</h2>`;
+    h += `<p class="note">Three healthy (non-failing) metrics per city, selected at random this week for independent web-search verification${anyChecked ? "" : ". Verdicts are filled in by the fact-check step"}.</p>`;
+    h += `<table><thead><tr><th>City</th><th>Metric</th><th>Current YTD</th><th>Window</th><th>Verdict</th><th>Notes / sources</th></tr></thead><tbody>`;
+    for (const c of factCheckCandidates) {
+      const verdictClass =
+        c.verdict === "consistent"  ? "pass" :
+        c.verdict === "discrepancy" ? "fail" : "note";
+      const verdictLabel = c.verdict
+        ? esc(c.verdict)
+        : (c.status === "pending" ? '<span class="note">pending</span>' : esc(c.status));
+      const srcLinks = (c.sources || [])
+        .map((s) => `<a href="${esc(s)}">source</a>`)
+        .join(", ");
+      h += `<tr>
+        <td>${esc(c.city)}</td>
+        <td><a href="${esc(c.cardUrl)}">${esc(c.metricName)}</a></td>
+        <td>${esc(fmtNum(c.currentValue))}</td>
+        <td>${esc(c.currentWindow)}</td>
+        <td class="${verdictClass}">${verdictLabel}</td>
+        <td class="note">${esc(c.notes || "")}${c.notes && srcLinks ? " — " : ""}${srcLinks}</td>
+      </tr>`;
+    }
+    h += `</tbody></table>`;
   }
 
   // Appendix A.
