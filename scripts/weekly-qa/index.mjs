@@ -2,26 +2,43 @@
 /**
  * Weekly Transparent City dashboard QA.
  *
- * Fetches all YTD metric comparisons via the public API for each of the 9
- * launched city dashboards, runs arithmetic and data-quality checks, and
- * prints the report to stdout.
+ * Two-pass audit for each of the 9 launched city dashboards:
+ *
+ *  Pass 1 – API  : fetches metric YTD comparisons, runs arithmetic / data-quality
+ *                  checks, and updates the known-outages / known-lags appendix.
+ *
+ *  Pass 2 – Browser (Playwright/Chromium): visits the logged-out dashboard URL,
+ *                  waits for JS rendering to settle, and checks visual correctness —
+ *                  cards rendered as titled tiles (not raw slugs), "As of" date
+ *                  present, no "Loading…" spinners remaining after settling.
+ *
+ * Output:
+ *   - scripts/weekly-qa/report-latest.html   (always overwritten — the canonical report)
+ *   - scripts/weekly-qa/reports/qa-YYYY-MM-DD.html  (dated archive copy)
+ *   - stdout: one-line title + concise pass/fail summary
  *
  * Persistent appendix state (known outages, known lags) lives in state.json
  * and is committed back to the repo by the GitHub Actions workflow.
  */
 
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const STATE_FILE = join(__dirname, "state.json");
+const STATE_FILE   = join(__dirname, "state.json");
+const REPORT_FILE  = join(__dirname, "report-latest.html");
+const REPORTS_DIR  = join(__dirname, "reports");
 
-const API_BASE = "https://api.transparent.city";
+const API_BASE  = "https://api.transparent.city";
 const SITE_BASE = "https://transparent.city";
 
-// Target cities to audit each run.
-// slugPatterns are matched against the city sitemap (slug and name fields).
+// How long to wait for the dashboard JS to settle (ms).
+const BROWSER_SETTLE_MS = 6000;
+// Overall page-load timeout for Playwright (ms).
+const PAGE_TIMEOUT_MS   = 30000;
+
 const TARGET_CITIES = [
   { label: "SF",         slugPatterns: ["sf", "san-francisco"] },
   { label: "Oakland",    slugPatterns: ["oakland"] },
@@ -34,9 +51,9 @@ const TARGET_CITIES = [
   { label: "Seattle",    slugPatterns: ["seattle"] },
 ];
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // State helpers
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 function loadState() {
   try {
@@ -50,9 +67,9 @@ function saveState(state) {
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + "\n");
 }
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // API helpers
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -72,11 +89,10 @@ async function apiPost(path, body) {
   return res.json();
 }
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Date / number helpers
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
-// Normalize API dates: "2026-06-01T00:00:00" or "2026-06-01" → "2026-06-01"
 function toDateStr(dateStr) {
   if (!dateStr) return null;
   return String(dateStr).slice(0, 10);
@@ -84,7 +100,7 @@ function toDateStr(dateStr) {
 
 function monthDay(dateStr) {
   const d = toDateStr(dateStr);
-  return d ? d.slice(5) : null; // "YYYY-MM-DD" → "MM-DD"
+  return d ? d.slice(5) : null;
 }
 
 function daysBetween(earlier, later) {
@@ -111,9 +127,9 @@ function pctChange(cur, prior) {
   return ((cur - prior) / Math.abs(prior)) * 100;
 }
 
-// -----------------------------------------------------------------------------
-// City matching helper
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// City matching
+// ---------------------------------------------------------------------------
 
 function matchCity(sitemapCity, target) {
   const slug = (sitemapCity.slug || "").toLowerCase();
@@ -123,17 +139,84 @@ function matchCity(sitemapCity, target) {
   );
 }
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Pass 2: Playwright visual check
+// ---------------------------------------------------------------------------
+
+async function playwrightCheck(browser, citySlug) {
+  const url  = `${SITE_BASE}/c/${citySlug}`;
+  const findings = {
+    url,
+    renderFailed:  false,
+    stillLoading:  false,
+    missingAsOf:   false,
+    rawSlugs:      [],
+    error:         null,
+  };
+
+  const context = await browser.newContext({
+    // Logged-out: no stored auth state, no cookies.
+    storageState: undefined,
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_TIMEOUT_MS });
+
+    // Wait for at least one card-like element to appear, then let JS settle.
+    await page
+      .waitForSelector('[class*="stat"], [class*="card"], [class*="metric"], main', {
+        timeout: 15000,
+      })
+      .catch(() => {
+        findings.renderFailed = true;
+      });
+
+    if (!findings.renderFailed) {
+      await page.waitForTimeout(BROWSER_SETTLE_MS);
+    }
+
+    const bodyText = await page.evaluate(() => document.body.innerText || "");
+
+    // Check 1: any "Loading city dashboard" text remaining after settle?
+    findings.stillLoading =
+      /loading city dashboard/i.test(bodyText) ||
+      /loading…/i.test(bodyText);
+
+    if (findings.stillLoading) findings.renderFailed = true;
+
+    // Check 2: raw URL slugs appearing as visible text (card rendering failure).
+    // These look like "/c/oakland/metrics/oakland_stolen_vehicles" in body text.
+    const slugPattern = /\/c\/[\w-]+\/metrics\/[\w_-]+/g;
+    const rawInText   = bodyText.match(slugPattern) || [];
+    // Only flag if the slug itself is visible as a standalone line / heading,
+    // not just embedded in a longer sentence or as part of "View metric →" links.
+    findings.rawSlugs = [...new Set(rawInText)];
+
+    // Check 3: "As of" date visible?
+    findings.missingAsOf = !/\bas of\b/i.test(bodyText);
+
+  } catch (err) {
+    findings.error        = err.message;
+    findings.renderFailed = true;
+  } finally {
+    await context.close();
+  }
+
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // Main
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 async function main() {
-  const runDate = new Date();
+  const runDate    = new Date();
   const runDateStr = runDate.toISOString().slice(0, 10);
-  const state = loadState();
+  const state      = loadState();
 
-  // 1. Resolve target cities from the live sitemap
-  const sitemap = await apiFetch("/api/public/cities/sitemap");
+  // 1. Resolve target cities from the live sitemap.
+  const sitemap  = await apiFetch("/api/public/cities/sitemap");
   const launched = sitemap.filter((c) => c.is_launched);
 
   const resolvedCities = [];
@@ -144,26 +227,84 @@ async function main() {
     if (!found) {
       missingTargets.push(target.label);
     } else {
-      resolvedCities.push({ ...target, cityId: found.id, slug: found.slug || "", cityName: found.name });
+      resolvedCities.push({
+        ...target,
+        cityId:   found.id,
+        slug:     found.slug || "",
+        cityName: found.name,
+      });
     }
   }
 
-  // Detect newly launched cities not in our target list
-  const extraLaunched = launched.filter((c) => !TARGET_CITIES.some((t) => matchCity(c, t)));
+  const extraLaunched = launched.filter(
+    (c) => !TARGET_CITIES.some((t) => matchCity(c, t))
+  );
 
-  // 2. Audit each city
-  const cityReports = [];
-  let totalCards = 0;
+  // 2. Launch Playwright browser (single instance for all cities).
+  const browser = await chromium.launch({ headless: true });
+
+  // 3. Audit each city (API pass + browser pass).
+  const cityReports     = [];
+  let   totalCards      = 0;
   const resolvedOutages = [];
-  const resolvedLags = [];
+  const resolvedLags    = [];
 
   for (const city of resolvedCities) {
-    const report = await auditCity(city, state, runDateStr, resolvedOutages, resolvedLags);
-    totalCards += report.cardCount;
-    cityReports.push({ city, report });
+    process.stdout.write(`  Auditing ${city.label}…`);
+
+    const [apiReport, pwFindings] = await Promise.all([
+      auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLags),
+      playwrightCheck(browser, city.slug),
+    ]);
+
+    // Translate browser findings into failure records.
+    const pwFailures = [];
+    const dashUrl    = `${SITE_BASE}/c/${city.slug}`;
+
+    if (pwFindings.renderFailed) {
+      pwFailures.push({
+        metricName:  "City dashboard",
+        metricKey:   "",
+        cardUrl:     dashUrl,
+        failureType: "Dashboard did not render — loading spinners remained after settle",
+        onPageValues: pwFindings.error || "Page shows 'Loading city dashboard…' after JS settle period",
+      });
+    }
+
+    // Raw slug cards — only flag those not already identified by the API check.
+    if (!pwFindings.renderFailed && pwFindings.rawSlugs.length > 0) {
+      pwFailures.push({
+        metricName:  "One or more metric cards",
+        metricKey:   "",
+        cardUrl:     dashUrl,
+        failureType: "Card(s) rendering as raw URL slug instead of titled tile",
+        onPageValues: pwFindings.rawSlugs.slice(0, 5).join("; "),
+      });
+    }
+
+    if (!pwFindings.renderFailed && pwFindings.missingAsOf) {
+      pwFailures.push({
+        metricName:  "City dashboard",
+        metricKey:   "",
+        cardUrl:     dashUrl,
+        failureType: '"As of" date text not found on dashboard',
+        onPageValues: `Dashboard URL: ${dashUrl}`,
+      });
+    }
+
+    const allFailures = [...pwFailures, ...apiReport.failures];
+    totalCards += apiReport.cardCount;
+
+    console.log(
+      ` ${allFailures.length === 0 ? "✓ clean" : `✗ ${allFailures.length} issue(s)`}`
+    );
+
+    cityReports.push({ city, report: { ...apiReport, failures: allFailures } });
   }
 
-  // 3. Remove resolved items from state
+  await browser.close();
+
+  // 4. Remove resolved items from state.
   for (const r of resolvedOutages) {
     state.knownOutages = state.knownOutages.filter(
       (o) => !(o.metricId === r.metricId && o.city === r.city)
@@ -175,9 +316,11 @@ async function main() {
     );
   }
 
-  // 4. Build and print report
-  const failures = cityReports.filter((cr) => cr.report.failures.length > 0);
-  const passing = cityReports.filter((cr) => cr.report.failures.length === 0).map((cr) => cr.city.label);
+  // 5. Build report.
+  const failures      = cityReports.filter((cr) => cr.report.failures.length > 0);
+  const passing       = cityReports
+    .filter((cr) => cr.report.failures.length === 0)
+    .map((cr) => cr.city.label);
   const totalFailures = cityReports.reduce((s, cr) => s + cr.report.failures.length, 0);
 
   const title =
@@ -186,6 +329,7 @@ async function main() {
       : `Transparent City QA: ${totalFailures} metric issue${totalFailures === 1 ? "" : "s"} across ${resolvedCities.length} cities`;
 
   const html = buildHtml({
+    title,
     runDate,
     totalCards,
     totalFailures,
@@ -198,79 +342,90 @@ async function main() {
     state,
   });
 
-  console.log(`\n=== ${title} ===\n`);
-  console.log(html);
+  // 6. Write HTML report file.
+  mkdirSync(REPORTS_DIR, { recursive: true });
+  writeFileSync(REPORT_FILE, html, "utf8");
+  const archivePath = join(REPORTS_DIR, `qa-${runDateStr}.html`);
+  writeFileSync(archivePath, html, "utf8");
 
-  // 5. Persist appendix state
+  // 7. Print concise stdout summary.
+  console.log(`\n=== ${title} ===`);
+  console.log(`Cards checked: ${totalCards}  |  Failures: ${totalFailures}`);
+  if (passing.length > 0) console.log(`Passing: ${passing.join(", ")}`);
+  if (failures.length > 0) {
+    for (const { city, report } of failures) {
+      console.log(`\n${city.label} (${report.failures.length} issue${report.failures.length === 1 ? "" : "s"}):`);
+      for (const f of report.failures) {
+        console.log(`  • [${f.failureType}] ${f.metricName}`);
+      }
+    }
+  }
+  console.log(`\nReport written to: ${REPORT_FILE}`);
+
+  // 8. Persist appendix state.
   state.lastRunDate = runDateStr;
   saveState(state);
-  console.log(`State saved. Outages: ${state.knownOutages.length}, Lags: ${state.knownLags.length}`);
 }
 
-// -----------------------------------------------------------------------------
-// City auditor
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Pass 1: API-based city auditor
+// ---------------------------------------------------------------------------
 
-async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags) {
+async function auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLags) {
   const failures = [];
 
-  // Get city detail (includes metric list with show_on_dash flag)
-  const cityDetail = await apiFetch(`/api/public/cities/${city.cityId}?include_metrics=true`);
-  const allMetrics = cityDetail.metrics || [];
-  // Include metrics not explicitly excluded from the dashboard
+  const cityDetail  = await apiFetch(`/api/public/cities/${city.cityId}?include_metrics=true`);
+  const allMetrics  = cityDetail.metrics || [];
   const dashMetrics = allMetrics.filter((m) => m.show_on_dash !== false);
 
-  if (dashMetrics.length === 0) {
-    return { failures, cardCount: 0 };
-  }
+  if (dashMetrics.length === 0) return { failures, cardCount: 0 };
 
-  // Check 1: every dashboard metric has a display name (not a raw slug)
+  // Check 1: every dashboard metric has a display name (not a raw slug).
   for (const m of dashMetrics) {
     if (!m.metric_name || m.metric_name.trim() === "") {
       failures.push(failure(city, m, "Card renders as raw slug — metric_name missing", `metric_key shown: ${m.metric_key}`));
     }
   }
 
-  // Batch-fetch YTD comparisons
+  // Batch-fetch YTD comparisons.
   const metricIds = dashMetrics.map((m) => m.id);
-  const rawBatch = await apiPost("/api/public/metrics/comparisons/batch", {
-    metric_ids: metricIds,
-    district: 0,
+  const rawBatch  = await apiPost("/api/public/metrics/comparisons/batch", {
+    metric_ids:       metricIds,
+    district:         0,
     comparison_types: ["ytd"],
   });
 
-  // Normalize: rawBatch keys may be strings; values are Record<type, comparison>
   const compById = {};
   for (const [idStr, compMap] of Object.entries(rawBatch)) {
     compById[Number(idStr)] = compMap;
   }
 
-  // Compute consensus end date for this city (most common current_period_end, normalized to YYYY-MM-DD)
-  const endDates = dashMetrics
+  // Consensus end date (most common current_period_end across this city's metrics).
+  const endDates   = dashMetrics
     .map((m) => toDateStr(compById[m.id]?.["ytd"]?.current_period_end))
     .filter(Boolean);
   const endDateFreq = {};
   for (const d of endDates) endDateFreq[d] = (endDateFreq[d] || 0) + 1;
   const consensusEnd = Object.entries(endDateFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
-  // Per-metric checks
+  // Per-metric checks.
   for (const m of dashMetrics) {
-    const name = m.metric_name || m.metric_key;
+    const name    = m.metric_name || m.metric_key;
     const cardUrl = `${SITE_BASE}/c/${city.slug}/metrics/${m.metric_key}`;
-    const comp = compById[m.id]?.["ytd"];
+    const comp    = compById[m.id]?.["ytd"];
 
     if (!comp) {
       failures.push(failure(city, m, "No YTD comparison data returned by API", "API returned empty for this metric"));
       continue;
     }
 
-    const cur = comp.current_period_value;
-    const prior = comp.comparison_period_value;
+    const cur      = comp.current_period_value;
+    const prior    = comp.comparison_period_value;
     const curStart = toDateStr(comp.current_period_start);
-    const curEnd = toDateStr(comp.current_period_end);
+    const curEnd   = toDateStr(comp.current_period_end);
     const priorEnd = toDateStr(comp.comparison_period_end);
 
-    // Check 2: current YTD value present
+    // Check 2: current YTD value present.
     if (cur === null || cur === undefined) {
       failures.push(failure(city, m,
         "Missing current-year YTD value",
@@ -278,7 +433,7 @@ async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags)
       ));
     }
 
-    // Check 3: prior YTD value present (known-outage handling)
+    // Check 3: prior YTD value present (known-outage handling).
     if (prior === null || prior === undefined) {
       const known = state.knownOutages.find((o) => o.metricId === m.id && o.city === city.label);
       if (!known) {
@@ -287,28 +442,28 @@ async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags)
           `Current: ${fmtNum(cur)} | Prior: No data | Window ends: ${fmtDate(curEnd)}`
         ));
         state.knownOutages.push({
-          city: city.label,
-          metricName: name,
-          metricKey: m.metric_key,
-          metricId: m.id,
+          city:          city.label,
+          metricName:    name,
+          metricKey:     m.metric_key,
+          metricId:      m.id,
           cardUrl,
           missingWindow: "prior-year YTD",
-          reason: "reason unconfirmed",
-          addedDate: runDateStr,
+          reason:        "reason unconfirmed",
+          addedDate:     runDateStr,
         });
       }
-      // else: expected outage still present — remains in appendix, nothing to flag
     } else {
-      // Prior data is present — check if a known outage has resolved
-      const knownIdx = state.knownOutages.findIndex((o) => o.metricId === m.id && o.city === city.label);
+      const knownIdx = state.knownOutages.findIndex(
+        (o) => o.metricId === m.id && o.city === city.label
+      );
       if (knownIdx >= 0) {
         resolvedOutages.push({ city: city.label, metricId: m.id, metricName: name, cardUrl });
       }
     }
 
-    // Check 4: YTD window consistency — both years should end on the same month-day
+    // Check 4: YTD window consistency — both years should end on the same month-day.
     if (curEnd && priorEnd) {
-      const curMD = monthDay(curEnd);
+      const curMD   = monthDay(curEnd);
       const priorMD = monthDay(priorEnd);
       if (curMD !== priorMD) {
         failures.push(failure(city, m,
@@ -318,48 +473,44 @@ async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags)
       }
     }
 
-    // Check 5: Data lag vs city consensus
+    // Check 5: Data lag vs city consensus.
     if (curEnd && consensusEnd && curEnd !== consensusEnd) {
-      const lagDays = daysBetween(curEnd, consensusEnd);
+      const lagDays  = daysBetween(curEnd, consensusEnd);
       if (lagDays !== null && lagDays > 7) {
         const knownLag = state.knownLags.find((l) => l.metricId === m.id && l.city === city.label);
         if (knownLag) {
-          const [minLag, maxLag] = knownLag.normalLagRange || [0, 30];
+          const [, maxLag] = knownLag.normalLagRange || [0, 30];
           if (lagDays > maxLag + 7) {
             failures.push(failure(city, m,
               `Data lag exceeds normal range — possible stalled feed (${lagDays}d lag, expected ≤${maxLag}d)`,
               `Metric ends: ${fmtDate(curEnd)} | City consensus: ${fmtDate(consensusEnd)}`
             ));
           }
-          // lag within range and nearly caught up → resolve
           if (lagDays <= 3) {
             resolvedLags.push({ city: city.label, metricId: m.id, metricName: name, cardUrl });
           }
         } else {
-          // New lag pattern — flag once and seed Appendix B
           failures.push(failure(city, m,
             `Data lag detected (${lagDays}d behind city consensus) — added to Appendix B`,
             `Metric ends: ${fmtDate(curEnd)} | City consensus: ${fmtDate(consensusEnd)}`
           ));
           state.knownLags.push({
-            city: city.label,
-            metricName: name,
-            metricKey: m.metric_key,
-            metricId: m.id,
+            city:           city.label,
+            metricName:     name,
+            metricKey:      m.metric_key,
+            metricId:       m.id,
             cardUrl,
             normalLagRange: [Math.max(0, lagDays - 4), lagDays + 4],
-            source: "unconfirmed",
-            addedDate: runDateStr,
+            source:         "unconfirmed",
+            addedDate:      runDateStr,
           });
         }
       }
     }
 
-    // Check 6: Arithmetic consistency — verify percent change from raw values
+    // Check 6: Arithmetic — verify percent change is finite.
     if (cur !== null && cur !== undefined && prior !== null && prior !== undefined && prior !== 0) {
       const expectedPct = pctChange(cur, prior);
-      // The API does not return a pre-computed pct_change; we just confirm the
-      // underlying values are self-consistent (non-NaN, finite).
       if (!isFinite(expectedPct)) {
         failures.push(failure(city, m,
           "Arithmetic error: percent change is non-finite given these values",
@@ -368,7 +519,7 @@ async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags)
       }
     }
 
-    // Check 7: Plausibility — negative counts
+    // Check 7: Plausibility — negative counts.
     if ((cur !== null && cur < 0) || (prior !== null && prior < 0)) {
       failures.push(failure(city, m,
         "Implausible value: negative YTD count",
@@ -376,10 +527,10 @@ async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags)
       ));
     }
 
-    // Check 8: Staleness — "As of" more than 90 days old after accounting for known lag
+    // Check 8: Staleness — "As of" more than 90 days old after accounting for known lag.
     if (curEnd) {
-      const staleDays = daysBetween(curEnd, runDateStr);
-      const knownLag = state.knownLags.find((l) => l.metricId === m.id && l.city === city.label);
+      const staleDays  = daysBetween(curEnd, runDateStr);
+      const knownLag   = state.knownLags.find((l) => l.metricId === m.id && l.city === city.label);
       const maxExpected = (knownLag?.normalLagRange?.[1] ?? 0) + 60;
       if (staleDays !== null && staleDays > maxExpected) {
         failures.push(failure(city, m,
@@ -393,110 +544,126 @@ async function auditCity(city, state, runDateStr, resolvedOutages, resolvedLags)
   return { failures, cardCount: dashMetrics.length };
 }
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Failure record builder
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 function failure(city, metric, failureType, onPageValues) {
   return {
-    metricName: metric.metric_name || metric.metric_key,
-    metricKey: metric.metric_key,
-    metricId: metric.id,
-    cardUrl: `${SITE_BASE}/c/${city.slug}/metrics/${metric.metric_key}`,
+    metricName:   metric.metric_name || metric.metric_key,
+    metricKey:    metric.metric_key,
+    metricId:     metric.id,
+    cardUrl:      `${SITE_BASE}/c/${city.slug}/metrics/${metric.metric_key}`,
     failureType,
     onPageValues,
   };
 }
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // HTML report builder
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
-function buildHtml({ runDate, totalCards, totalFailures, passing, failures, resolvedOutages, resolvedLags, missingTargets, extraLaunched, state }) {
+function buildHtml({ title, runDate, totalCards, totalFailures, passing, failures, resolvedOutages, resolvedLags, missingTargets, extraLaunched, state }) {
   const ts = runDate.toLocaleString("en-US", {
-    timeZone: "America/Los_Angeles",
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
-    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    timeZone:   "America/Los_Angeles",
+    weekday:    "long",
+    month:      "long",
+    day:        "numeric",
+    year:       "numeric",
+    hour:       "numeric",
+    minute:     "2-digit",
+    timeZoneName: "short",
   });
 
   const css = `
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; max-width: 860px; margin: 0 auto; padding: 24px; }
-    h2 { font-size: 1.1rem; margin: 28px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
-    h3 { font-size: 0.95rem; margin: 20px 0 6px; color: #374151; }
-    p { margin: 6px 0; font-size: 0.9rem; }
-    table { border-collapse: collapse; width: 100%; margin: 10px 0 20px; font-size: 0.85rem; }
-    th { background: #f3f4f6; text-align: left; padding: 7px 10px; font-weight: 600; border: 1px solid #e5e7eb; }
-    td { padding: 7px 10px; border: 1px solid #e5e7eb; vertical-align: top; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 28px 20px; line-height: 1.5; }
+    h1 { font-size: 1.15rem; margin: 0 0 4px; }
+    h2 { font-size: 1rem; margin: 28px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+    h3 { font-size: 0.9rem; margin: 18px 0 6px; color: #374151; text-transform: uppercase; letter-spacing: 0.04em; }
+    p, li { font-size: 0.875rem; margin: 5px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px; font-size: 0.825rem; }
+    th { background: #f3f4f6; text-align: left; padding: 6px 10px; font-weight: 600; border: 1px solid #e5e7eb; }
+    td { padding: 6px 10px; border: 1px solid #e5e7eb; vertical-align: top; }
     tr:nth-child(even) td { background: #fafafa; }
     a { color: #2563eb; text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .pass { color: #16a34a; }
-    .fail { color: #dc2626; }
-    .note { font-size: 0.8rem; color: #6b7280; }
+    .pass { color: #16a34a; font-weight: 600; }
+    .fail { color: #dc2626; font-weight: 600; }
+    .note { font-size: 0.78rem; color: #6b7280; }
+    .summary { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 20px; font-size: 0.875rem; }
   `;
 
-  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>`;
+  let h = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>`;
+  h += `<h1>${esc(title)}</h1>`;
 
-  // 1. Summary
-  html += `<p><strong>Run:</strong> ${ts} &nbsp;|&nbsp; <strong>Cards checked:</strong> ${totalCards} &nbsp;|&nbsp; <strong>Failures:</strong> ${totalFailures === 0 ? '<span class="pass">0 — all clear</span>' : `<span class="fail">${totalFailures}</span>`}</p>`;
+  // Summary box.
+  h += `<div class="summary">`;
+  h += `<strong>Run:</strong> ${esc(ts)} &nbsp;|&nbsp; `;
+  h += `<strong>Cards checked:</strong> ${totalCards} &nbsp;|&nbsp; `;
+  h += `<strong>Failures:</strong> ${
+    totalFailures === 0
+      ? '<span class="pass">0 — all clear</span>'
+      : `<span class="fail">${totalFailures}</span>`
+  }`;
+  h += `</div>`;
 
   if (missingTargets.length > 0) {
-    html += `<p class="note">⚠ Could not resolve target cities in sitemap: ${missingTargets.join(", ")}. Check slugs.</p>`;
+    h += `<p class="note">⚠ Could not resolve in sitemap: ${esc(missingTargets.join(", "))}. Check slugs in TARGET_CITIES.</p>`;
   }
   if (extraLaunched.length > 0) {
-    html += `<p class="note">ℹ New launched cities not in target list: ${extraLaunched.map((c) => `${c.name} (${c.slug})`).join(", ")} — consider adding to TARGET_CITIES.</p>`;
+    h += `<p class="note">ℹ New launched cities not in target list: ${esc(extraLaunched.map((c) => `${c.name} (${c.slug})`).join(", "))} — consider adding to TARGET_CITIES.</p>`;
   }
 
-  // 2. Passing cities
-  html += `<h2>Passing cities</h2>`;
-  html += passing.length > 0
-    ? `<p class="pass">${passing.join(", ")}</p>`
-    : `<p class="note">None — all cities had issues.</p>`;
+  // Passing cities.
+  h += `<h2>Passing cities</h2>`;
+  h += passing.length > 0
+    ? `<p class="pass">${esc(passing.join(", "))}</p>`
+    : `<p class="note">None — all cities had at least one issue.</p>`;
 
-  // 3. Failures by city
+  // Failures by city.
   if (failures.length > 0) {
-    html += `<h2>Failures</h2>`;
+    h += `<h2>Failures</h2>`;
     for (const { city, report } of failures) {
-      html += `<h3>${city.label}</h3>`;
-      html += `<table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody>`;
+      h += `<h3>${esc(city.label)}</h3>`;
+      h += `<table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody>`;
       for (const f of report.failures) {
-        html += `<tr>
-          <td><a href="${esc(f.cardUrl)}">${esc(f.metricName)}</a></td>
+        h += `<tr>
+          <td>${f.cardUrl ? `<a href="${esc(f.cardUrl)}">${esc(f.metricName)}</a>` : esc(f.metricName)}</td>
           <td>${esc(f.failureType)}</td>
-          <td>${esc(f.onPageValues)}</td>
+          <td class="note">${esc(f.onPageValues)}</td>
         </tr>`;
       }
-      html += `</tbody></table>`;
+      h += `</tbody></table>`;
     }
   }
 
-  // 4. Resolved items
+  // Resolved items.
   if (resolvedOutages.length > 0 || resolvedLags.length > 0) {
-    html += `<h2>Resolved items</h2>`;
+    h += `<h2>Resolved items</h2>`;
     if (resolvedOutages.length > 0) {
-      html += `<p><strong>Data outages now resolved (prior-year data present):</strong></p><ul>`;
+      h += `<p><strong>Data outages now resolved (prior-year data present):</strong></p><ul>`;
       for (const r of resolvedOutages) {
-        html += `<li>${esc(r.city)} — <a href="${esc(r.cardUrl)}">${esc(r.metricName)}</a></li>`;
+        h += `<li>${esc(r.city)} — <a href="${esc(r.cardUrl)}">${esc(r.metricName)}</a></li>`;
       }
-      html += `</ul>`;
+      h += `</ul>`;
     }
     if (resolvedLags.length > 0) {
-      html += `<p><strong>Lagging feeds that have caught up:</strong></p><ul>`;
+      h += `<p><strong>Lagging feeds that have caught up:</strong></p><ul>`;
       for (const r of resolvedLags) {
-        html += `<li>${esc(r.city)} — <a href="${esc(r.cardUrl)}">${esc(r.metricName)}</a></li>`;
+        h += `<li>${esc(r.city)} — <a href="${esc(r.cardUrl)}">${esc(r.metricName)}</a></li>`;
       }
-      html += `</ul>`;
+      h += `</ul>`;
     }
   }
 
-  // 5. Appendix A: Known Data Outages
-  html += `<h2>Appendix A: Known Data Outages</h2>`;
+  // Appendix A.
+  h += `<h2>Appendix A: Known Data Outages</h2>`;
   if (state.knownOutages.length === 0) {
-    html += `<p class="note">None on record.</p>`;
+    h += `<p class="note">None on record.</p>`;
   } else {
-    html += `<table><thead><tr><th>City</th><th>Metric</th><th>Missing window</th><th>Reason</th><th>Added</th></tr></thead><tbody>`;
+    h += `<table><thead><tr><th>City</th><th>Metric</th><th>Missing window</th><th>Reason</th><th>Added</th></tr></thead><tbody>`;
     for (const o of state.knownOutages) {
-      html += `<tr>
+      h += `<tr>
         <td>${esc(o.city)}</td>
         <td><a href="${esc(o.cardUrl)}">${esc(o.metricName)}</a></td>
         <td>${esc(o.missingWindow)}</td>
@@ -504,30 +671,31 @@ function buildHtml({ runDate, totalCards, totalFailures, passing, failures, reso
         <td>${esc(o.addedDate)}</td>
       </tr>`;
     }
-    html += `</tbody></table>`;
+    h += `</tbody></table>`;
   }
 
-  // 6. Appendix B: Known Data Lag
-  html += `<h2>Appendix B: Known Data Lag</h2>`;
+  // Appendix B.
+  h += `<h2>Appendix B: Known Data Lag</h2>`;
   if (state.knownLags.length === 0) {
-    html += `<p class="note">None on record.</p>`;
+    h += `<p class="note">None on record.</p>`;
   } else {
-    html += `<table><thead><tr><th>City</th><th>Metric</th><th>Normal lag range</th><th>Source</th><th>Added</th></tr></thead><tbody>`;
+    h += `<table><thead><tr><th>City</th><th>Metric</th><th>Normal lag range (days)</th><th>Source</th><th>Added</th></tr></thead><tbody>`;
     for (const l of state.knownLags) {
       const [min, max] = l.normalLagRange || [0, 0];
-      html += `<tr>
+      h += `<tr>
         <td>${esc(l.city)}</td>
         <td><a href="${esc(l.cardUrl)}">${esc(l.metricName)}</a></td>
-        <td>${min}–${max} days</td>
+        <td>${min}–${max}</td>
         <td>${esc(l.source)}</td>
         <td>${esc(l.addedDate)}</td>
       </tr>`;
     }
-    html += `</tbody></table>`;
+    h += `</tbody></table>`;
   }
 
-  html += `</body></html>`;
-  return html;
+  h += `<p class="note" style="margin-top:32px">Generated by weekly-qa/index.mjs · ${esc(ts)}</p>`;
+  h += `</body></html>`;
+  return h;
 }
 
 function esc(str) {
@@ -539,9 +707,9 @@ function esc(str) {
     .replace(/"/g, "&quot;");
 }
 
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Entry point
-// -----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 main().catch((err) => {
   console.error("QA script failed:", err);
