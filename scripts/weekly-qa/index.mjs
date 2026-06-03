@@ -144,7 +144,8 @@ function matchCity(sitemapCity, target) {
 // ---------------------------------------------------------------------------
 
 async function playwrightCheck(browser, citySlug) {
-  const url  = `${SITE_BASE}/c/${citySlug}`;
+  // UTM params identify these visits in analytics as QA bot traffic.
+  const url = `${SITE_BASE}/c/${citySlug}?utm_source=qa-bot&utm_medium=automated&utm_campaign=weekly-qa`;
   const findings = {
     url,
     renderFailed:  false,
@@ -157,6 +158,8 @@ async function playwrightCheck(browser, citySlug) {
   const context = await browser.newContext({
     // Logged-out: no stored auth state, no cookies.
     storageState: undefined,
+    // Custom UA so analytics / server logs can also filter by bot identity.
+    userAgent: "TransparentCity-QA-Bot/1.0 (weekly-dashboard-audit; +https://transparent.city)",
   });
   const page = await context.newPage();
 
