@@ -188,13 +188,16 @@ async function playwrightCheck(browser, citySlug) {
 
     if (findings.stillLoading) findings.renderFailed = true;
 
-    // Check 2: raw URL slugs appearing as visible text (card rendering failure).
-    // These look like "/c/oakland/metrics/oakland_stolen_vehicles" in body text.
-    const slugPattern = /\/c\/[\w-]+\/metrics\/[\w_-]+/g;
-    const rawInText   = bodyText.match(slugPattern) || [];
-    // Only flag if the slug itself is visible as a standalone line / heading,
-    // not just embedded in a longer sentence or as part of "View metric →" links.
-    findings.rawSlugs = [...new Set(rawInText)];
+    // Check 2: raw URL slugs appearing as a card title (card rendering failure).
+    // A broken card renders its slug path as its entire visible text, e.g.
+    // "/c/oakland/metrics/oakland_stolen_vehicles" with nothing else on that line.
+    // We only flag lines that ARE the slug — not slugs embedded in links or prose.
+    const slugLinePattern = /^\/c\/[\w-]+\/metrics\/[\w_-]+$/;
+    const rawSlugs = bodyText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => slugLinePattern.test(l));
+    findings.rawSlugs = [...new Set(rawSlugs)];
 
     // Check 3: "As of" date visible?
     findings.missingAsOf = !/\bas of\b/i.test(bodyText);
@@ -528,6 +531,27 @@ async function auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLa
         "Implausible value: negative YTD count",
         `Current: ${fmtNum(cur)} | Prior: ${fmtNum(prior)}`
       ));
+    }
+
+    // Check 7b: Plausibility — extreme relative change (possible stalled feed).
+    // Only applies when both values are non-negative and prior is large enough to make
+    // the ratio meaningful. Negative values are already caught by check 7 above.
+    if (cur !== null && cur !== undefined && cur >= 0 && prior !== null && prior !== undefined && prior > 100) {
+      const ratio = cur / prior;
+      if (ratio < 0.01) {
+        // Current year is less than 1% of prior — almost certainly a broken feed,
+        // not a real-world change (e.g. 27,200 → 7 for blight tickets).
+        failures.push(failure(city, m,
+          `Implausible value: current-year is ${(ratio * 100).toFixed(2)}% of prior-year — possible stalled data feed`,
+          `Current: ${fmtNum(cur)} | Prior: ${fmtNum(prior)}`
+        ));
+      } else if (ratio > 100) {
+        // Current year is more than 100× prior — flag as a possible data error.
+        failures.push(failure(city, m,
+          `Implausible value: current-year is ${ratio.toFixed(0)}× prior-year — possible data error`,
+          `Current: ${fmtNum(cur)} | Prior: ${fmtNum(prior)}`
+        ));
+      }
     }
 
     // Check 8: Staleness — "As of" more than 90 days old after accounting for known lag.
