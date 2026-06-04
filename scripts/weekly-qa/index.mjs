@@ -41,13 +41,13 @@ const BROWSER_SETTLE_MS = 6000;
 const PAGE_TIMEOUT_MS   = 30000;
 
 const TARGET_CITIES = [
-  { label: "SF",         slugPatterns: ["sf", "san-francisco"] },
+  { label: "SF",         slugPatterns: ["san-francisco", "sf"] },
   { label: "Oakland",    slugPatterns: ["oakland"] },
   { label: "Chicago",    slugPatterns: ["chicago"] },
   { label: "Detroit",    slugPatterns: ["detroit"] },
   { label: "Denver",     slugPatterns: ["denver"] },
   { label: "Cincinnati", slugPatterns: ["cincinnati"] },
-  { label: "NYC",        slugPatterns: ["nyc", "new-york", "new-york-city"] },
+  { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"] },
   { label: "Austin",     slugPatterns: ["austin"] },
   { label: "Seattle",    slugPatterns: ["seattle"] },
 ];
