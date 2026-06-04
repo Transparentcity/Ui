@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 14px; color: #333; max-width: 960px; line-height: 1.5; }
+  h2 { font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 4px; margin-top: 28px; }
+  h3 { font-size: 14px; font-weight: bold; margin-top: 20px; margin-bottom: 6px; color: #222; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px 0; font-size: 13px; }
+  th { background: #f0f0f0; text-align: left; padding: 7px 10px; border: 1px solid #ccc; font-size: 13px; }
+  td { padding: 7px 10px; border: 1px solid #ccc; vertical-align: top; }
+  tr.fail td { background: #fff8f8; }
+  tr.outage td { background: #fffaf3; }
+  .summary-box { background: #f4f4f4; padding: 12px 16px; border-left: 4px solid #555; margin: 12px 0 20px 0; font-size: 14px; }
+  .pass-cities { color: #1a6b1a; font-weight: bold; }
+  .note { color: #666; font-size: 12px; font-style: italic; }
+  a { color: #0055cc; }
+  .infra-note { background: #eef4ff; border-left: 4px solid #3377cc; padding: 10px 14px; margin: 8px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- ===== SUMMARY ===== -->
+<div class="summary-box">
+  <strong>117 cards checked across 7 of 9 cities &nbsp;·&nbsp; 3 active metric failures &nbsp;·&nbsp; 14 new outages documented (added to Appendix A) &nbsp;·&nbsp; SF &amp; NYC unauditable &nbsp;·&nbsp; Run: Wed Jun 4, 2026</strong>
+</div>
+
+<!-- ===== PASSING CITIES ===== -->
+<h2>Passing Cities</h2>
+<p><span class="pass-cities">Cincinnati, Austin</span> — all cards rendered correctly with complete data and consistent arithmetic across all metrics.</p>
+<p class="note">Oakland (9/11 cards), Chicago (14/15), and Denver (9/18 with data) had no active failures but have newly observed missing-data entries now logged in Appendix A. Detroit and Seattle have active failures detailed below. SF and NYC could not be audited.</p>
+
+<!-- ===== FAILURES ===== -->
+<h2>Failures</h2>
+
+<h3>Detroit</h3>
+<table>
+  <tr>
+    <th style="width:28%">Metric</th>
+    <th style="width:30%">Failure Type</th>
+    <th>On-Page Values</th>
+  </tr>
+  <tr class="fail">
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_311_improve_detroit_issues">Improve Detroit Issues (311)</a></td>
+    <td>Current-year "No data" — prior year has data (feed appears down)</td>
+    <td>2025 YTD: 41,400 &nbsp;(Jan 1 – Jun 3, 2025)<br>2026 YTD: <strong>No data</strong> &nbsp;(Jan 1 – Jun 3, 2026)<br>Change: —</td>
+  </tr>
+  <tr class="fail">
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_blight_tickets">Blight Tickets Issued</a></td>
+    <td>Current-year value implausibly low — possible stalled or broken feed</td>
+    <td>2025 YTD: 27,200 &nbsp;(Jan 1 – May 12)<br>2026 YTD: <strong>7</strong> &nbsp;(Jan 1 – May 12)<br>Change: −100% / −27,193</td>
+  </tr>
+</table>
+
+<h3>Seattle</h3>
+<table>
+  <tr>
+    <th style="width:28%">Metric</th>
+    <th style="width:30%">Failure Type</th>
+    <th>On-Page Values</th>
+  </tr>
+  <tr class="fail">
+    <td><a href="https://transparent.city/c/seattle/metrics/seattle_traffic_crashes">Traffic Crashes</a></td>
+    <td>No 2026 data at all; dataset ~7 months stale (ends Oct 30, 2025) — well beyond any plausible normal lag</td>
+    <td>2025 YTD: No data<br>2026 YTD: No data<br>Dataset coverage: Oct 6, 2003 – <strong>Oct 30, 2025</strong><br>As of: Jun 3, 2026</td>
+  </tr>
+</table>
+
+<!-- ===== SF / NYC ===== -->
+<h3>SF &amp; NYC — Dashboard Unauditable</h3>
+<div class="infra-note">
+  Both <a href="https://transparent.city/c/sf">transparent.city/c/sf</a> and <a href="https://transparent.city/c/nyc">transparent.city/c/nyc</a> returned only <em>"Loading city dashboard…"</em> on three fetch attempts each. The other 7 cities loaded successfully, suggesting something specific to these two pages (different rendering path, lazy-load gate, or an actual loading error). <strong>Both require manual verification this week.</strong> Zero cards could be extracted from either.
+</div>
+
+<!-- ===== NEW KNOWN OUTAGES ===== -->
+<h2>New Known Outages — First Observation (Added to Appendix A)</h2>
+<p class="note">These missing-data observations are new as of this run. Per QA protocol they are flagged here once and carried forward in Appendix A. If they recur unchanged in future runs they will not appear in this section.</p>
+
+<h3>Oakland &nbsp;(2 new outages)</h3>
+<table>
+  <tr><th style="width:30%">Metric</th><th style="width:25%">Missing Window</th><th>Notes</th></tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/oakland/metrics/oakland_stolen_vehicles">Stolen Vehicle Reports</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>2026 YTD: 1,400 (Jan 1 – Jun 1) &nbsp;·&nbsp; 2025: No data &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/oakland/metrics/oakland_auto_burglary">Auto Burglary Reports</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>2026 YTD: 693 (Jan 1 – May 29) &nbsp;·&nbsp; 2025: No data &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+</table>
+
+<h3>Chicago &nbsp;(1 new outage)</h3>
+<table>
+  <tr><th style="width:30%">Metric</th><th style="width:25%">Missing Window</th><th>Notes</th></tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/chicago/metrics/chicago_traffic_crashes">Traffic Crashes</a></td>
+    <td>Both years (2025 &amp; 2026 YTD)</td>
+    <td>Dashboard shows "No data" for both YTD columns despite the underlying dataset running through Jun 1, 2026. Date-window configuration may be misconfigured on the card.</td>
+  </tr>
+</table>
+
+<h3>Detroit &nbsp;(2 new outages — separate from active failures above)</h3>
+<table>
+  <tr><th style="width:30%">Metric</th><th style="width:25%">Missing Window</th><th>Notes</th></tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_housing_units_issued">New Residential Housing Units Issued</a></td>
+    <td>Both years (2025 &amp; 2026 YTD)</td>
+    <td>Both YTD columns "No data" &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_911_calls_police_serviced">911 Calls (Police Serviced)</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>2026 YTD: 100,000 (Jan 1 – Apr 26) &nbsp;·&nbsp; 2025: No data &nbsp;·&nbsp; Likely new dataset with no prior year available</td>
+  </tr>
+</table>
+
+<h3>Denver &nbsp;(8 new outages)</h3>
+<table>
+  <tr><th style="width:30%">Metric</th><th style="width:25%">Missing Window</th><th>Notes</th></tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_sexual_assault_incidents">Sexual Assault Incidents</a></td>
+    <td>Both years</td>
+    <td>Both YTD columns "No data" &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_active_liquor_licenses">Active Liquor Licenses</a></td>
+    <td>Both years</td>
+    <td>Both YTD columns "No data" &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_short_term_rental_licenses">Short-Term Rental Licenses</a></td>
+    <td>Both years</td>
+    <td>Both YTD columns "No data" &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_traffic_accidents">Traffic Accidents</a></td>
+    <td>Both years</td>
+    <td>Both YTD columns "No data" &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_311_service_requests">311 Service Requests</a></td>
+    <td>Both years</td>
+    <td>Both YTD columns "No data" &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_pavement_lane_miles_treated">Pavement Lane-Miles Treated</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>2026 YTD: 4,500 (Jan 1 – Jun 1) &nbsp;·&nbsp; 2025: No data &nbsp;·&nbsp; Possibly new dataset</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_311_graffiti">Graffiti Removal Requests</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>2026 YTD: 203 (Jan 1 – May 31) &nbsp;·&nbsp; 2025: No data &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle">Abandoned Vehicle Complaints</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>2026 YTD: 3,500 (Jan 1 – May 31) &nbsp;·&nbsp; 2025: No data &nbsp;·&nbsp; Reason unconfirmed</td>
+  </tr>
+</table>
+
+<h3>Seattle &nbsp;(1 new outage — separate from active failure above)</h3>
+<table>
+  <tr><th style="width:30%">Metric</th><th style="width:25%">Missing Window</th><th>Notes</th></tr>
+  <tr class="outage">
+    <td><a href="https://transparent.city/c/seattle/metrics/seattle_311_noise">Noise Complaints</a></td>
+    <td>Both years (2025 &amp; 2026 YTD)</td>
+    <td>Both YTD columns "No data" despite the dataset having records through May 27, 2026. The card's date-window may be misconfigured (similar pattern to Chicago Traffic Crashes).</td>
+  </tr>
+</table>
+
+<!-- ===== RESOLVED ===== -->
+<h2>Resolved Items</h2>
+<p>None — first run; no prior appendix to compare against.</p>
+
+<hr style="margin: 32px 0; border: none; border-top: 1px solid #ccc;">
+
+<!-- ===== APPENDIX A ===== -->
+<h2>Appendix A: Known Data Outages</h2>
+<p class="note">All 14 entries below are new as of this first run. Update reasons as they are confirmed.</p>
+<table>
+  <tr>
+    <th style="width:10%">City</th>
+    <th style="width:30%">Metric</th>
+    <th style="width:20%">Missing Window</th>
+    <th>Reason</th>
+  </tr>
+  <tr>
+    <td>Oakland</td>
+    <td><a href="https://transparent.city/c/oakland/metrics/oakland_stolen_vehicles">Stolen Vehicle Reports</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Oakland</td>
+    <td><a href="https://transparent.city/c/oakland/metrics/oakland_auto_burglary">Auto Burglary Reports</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Chicago</td>
+    <td><a href="https://transparent.city/c/chicago/metrics/chicago_traffic_crashes">Traffic Crashes</a></td>
+    <td>Both years YTD</td>
+    <td>Underlying dataset runs through Jun 1, 2026; YTD card shows "No data" — likely date-window misconfiguration</td>
+  </tr>
+  <tr>
+    <td>Detroit</td>
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_housing_units_issued">New Residential Housing Units Issued</a></td>
+    <td>Both years YTD</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Detroit</td>
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_911_calls_police_serviced">911 Calls (Police Serviced)</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>Likely new dataset; 2026 YTD available (100k through Apr 26)</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_sexual_assault_incidents">Sexual Assault Incidents</a></td>
+    <td>Both years YTD</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_active_liquor_licenses">Active Liquor Licenses</a></td>
+    <td>Both years YTD</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_short_term_rental_licenses">Short-Term Rental Licenses</a></td>
+    <td>Both years YTD</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_traffic_accidents">Traffic Accidents</a></td>
+    <td>Both years YTD</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_311_service_requests">311 Service Requests</a></td>
+    <td>Both years YTD</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_pavement_lane_miles_treated">Pavement Lane-Miles Treated</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>Possibly new dataset; 2026 data present (4,500 lane-miles through Jun 1)</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_311_graffiti">Graffiti Removal Requests</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle">Abandoned Vehicle Complaints</a></td>
+    <td>Prior-year YTD (2025)</td>
+    <td>Reason unconfirmed</td>
+  </tr>
+  <tr>
+    <td>Seattle</td>
+    <td><a href="https://transparent.city/c/seattle/metrics/seattle_311_noise">Noise Complaints</a></td>
+    <td>Both years YTD</td>
+    <td>Dataset runs through May 27, 2026; YTD card shows "No data" — likely date-window misconfiguration</td>
+  </tr>
+</table>
+
+<!-- ===== APPENDIX B ===== -->
+<h2>Appendix B: Known Data Lag</h2>
+<p class="note">All entries below are first-observation lags noted on this run. Ranges will tighten as subsequent runs confirm typical latency.</p>
+<table>
+  <tr>
+    <th style="width:10%">City</th>
+    <th style="width:30%">Metric</th>
+    <th style="width:25%">Observed Lag (vs. Jun 3 dashboard date)</th>
+    <th>Source / Notes</th>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_drug_crime_incidents">Drug Crime Incidents</a></td>
+    <td>~5–6 weeks (window ends Apr 30)</td>
+    <td>First observation</td>
+  </tr>
+  <tr>
+    <td>Denver</td>
+    <td><a href="https://transparent.city/c/denver/metrics/denver_total_crime_incidents">Total Crime Incidents</a></td>
+    <td>~12 weeks (window ends Mar 11)</td>
+    <td>First observation; notably longer than other Denver crime metrics — worth watching</td>
+  </tr>
+  <tr>
+    <td>Chicago</td>
+    <td><a href="https://transparent.city/c/chicago/metrics/chicago_building_permits_issued">Building Permits Issued</a></td>
+    <td>~5 weeks (window ends May 1)</td>
+    <td>First observation</td>
+  </tr>
+  <tr>
+    <td>Austin</td>
+    <td><a href="https://transparent.city/c/austin/metrics/austin_apd_911_calls">APD 911 Calls for Service</a></td>
+    <td>~5 weeks (window ends Apr 30)</td>
+    <td>First observation</td>
+  </tr>
+  <tr>
+    <td>Austin</td>
+    <td><a href="https://transparent.city/c/austin/metrics/austin_911_calls_ems_incidents">911 Calls (EMS Incidents)</a></td>
+    <td>~3 weeks (window ends May 15)</td>
+    <td>First observation</td>
+  </tr>
+  <tr>
+    <td>Austin</td>
+    <td><a href="https://transparent.city/c/austin/metrics/austin_traffic_crashes">Traffic Crashes</a></td>
+    <td>~2.5 weeks (window ends May 18)</td>
+    <td>First observation</td>
+  </tr>
+  <tr>
+    <td>Detroit</td>
+    <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_units_completed">New Residential Housing Units Completed</a></td>
+    <td>~2 weeks (window ends May 22)</td>
+    <td>First observation</td>
+  </tr>
+</table>
+
+<p style="margin-top: 32px; color: #888; font-size: 12px;">— Automated QA audit via Claude Code · transparent.city · Run Jun 4, 2026</p>
+
+</body>
+</html>
