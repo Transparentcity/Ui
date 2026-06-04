@@ -29,6 +29,10 @@ import { type MetricCardData } from "./templates/MetricSummaryCard";
 import MetricFeedCard from "./MetricFeedCard";
 import { MetricKeyProvider } from "./MetricKeyContext";
 import FeedCard from "./FeedCard";
+import WelcomeFeedCard, {
+  type WelcomeNewsletterLink,
+} from "./WelcomeFeedCard";
+import { listNewsletterEditionsForSitemap } from "@/lib/newsletter";
 import FeedStoryModal from "./FeedStoryModal";
 import SkeletonCard from "./SkeletonCard";
 import FeedEndState from "./FeedEndState";
@@ -1276,6 +1280,73 @@ export default function FeedContainer({
     return [...found].sort((a, b) => a - b);
   }, [isAuthenticated, userPlaces, visibleStories, selectedPlaceId]);
 
+  // ── Welcome feed card ──
+  // Shown once to a signed-in user as an ordinary feed card. It anchors to the
+  // moment the user first sees their feed, so as newer stories arrive it slides
+  // down the list naturally. Dismissed permanently via the card's own button.
+  const WELCOME_ANCHOR_KEY = "tc:welcome-feed-card-first-seen";
+  const WELCOME_DISMISS_KEY = "tc:welcome-feed-card-dismissed";
+  const [welcomeAnchor, setWelcomeAnchor] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(WELCOME_DISMISS_KEY) === "1") return;
+      const raw = localStorage.getItem(WELCOME_ANCHOR_KEY);
+      let ts = raw ? parseInt(raw, 10) : NaN;
+      if (!raw || Number.isNaN(ts)) {
+        ts = Date.now();
+        localStorage.setItem(WELCOME_ANCHOR_KEY, String(ts));
+      }
+      setWelcomeAnchor(ts);
+    } catch {
+      setWelcomeAnchor(Date.now());
+    }
+  }, []);
+
+  // Newsletter "catch up" links only make sense when a single city is in view.
+  const welcomeCitySlug = useMemo(() => {
+    if (selectedCityIds.size !== 1) return null;
+    const id = [...selectedCityIds][0];
+    return (launchedCitiesData ?? []).find((c) => c.id === id)?.slug ?? null;
+  }, [selectedCityIds, launchedCitiesData]);
+
+  const { data: newsletterEditions = [] } = useQuery({
+    queryKey: ["newsletter", "editions", "sitemap"],
+    queryFn: listNewsletterEditionsForSitemap,
+    staleTime: 60 * 60 * 1000,
+    enabled: welcomeAnchor != null && !!welcomeCitySlug,
+  });
+
+  const welcomeNewsletters = useMemo<WelcomeNewsletterLink[]>(() => {
+    if (!welcomeCitySlug) return [];
+    return newsletterEditions
+      .filter((e) => e.city_slug === welcomeCitySlug && (e.district ?? 0) === 0)
+      .sort((a, b) => b.edition_date.localeCompare(a.edition_date))
+      .slice(0, 3)
+      .map((e) => ({ shortHash: e.short_hash, editionDate: e.edition_date }));
+  }, [newsletterEditions, welcomeCitySlug]);
+
+  // Position the card among the stories: it sits below every story newer than
+  // the anchor, so it starts near the top and sinks as fresh stories arrive.
+  // -1 means "don't render" (not yet hydrated, or already dismissed).
+  const welcomeInsertIdx = useMemo(() => {
+    if (welcomeAnchor == null) return -1;
+    let idx = 0;
+    for (const s of visibleStories) {
+      const t = new Date(s.published_at ?? s.story_date ?? 0).getTime();
+      if (t >= welcomeAnchor) idx++;
+      else break;
+    }
+    return idx;
+  }, [visibleStories, welcomeAnchor]);
+
+  const welcomeCardEl =
+    welcomeInsertIdx >= 0 ? (
+      <WelcomeFeedCard
+        slug={welcomeCitySlug ?? ""}
+        newsletters={welcomeNewsletters}
+      />
+    ) : null;
+
   // Show the pills row when filtering is meaningful: the user has chips to
   // remove, has place-nav suggestions, or is signed in with cities loaded so
   // the inline "Add filter" popover and Sort dropdown actually have content.
@@ -1827,6 +1898,7 @@ export default function FeedContainer({
       <MetricKeyProvider metrics={metricLookupItems}>
       {visibleStories.length > 0 && (
         <div className={styles.storiesList}>
+          {welcomeInsertIdx === 0 && welcomeCardEl}
           {visibleStories.map((story, storyIdx) => {
             // Interleave a metric summary card every 5th position (at indices 4, 9, 14, ...)
             const metricCardIdx = storyIdx >= 4 && (storyIdx - 4) % 5 === 0
@@ -1854,6 +1926,7 @@ export default function FeedContainer({
                   onDelete={isAdmin ? handleDelete : undefined}
                   onOpenFeedDetail={openFeedDetail}
                 />
+                {welcomeInsertIdx === storyIdx + 1 && welcomeCardEl}
               </React.Fragment>
             );
           })}
