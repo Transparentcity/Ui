@@ -702,7 +702,46 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
+    },
+    {
+      "city": "SF",
+      "metricName": "📊 Sole-Source Contract Share",
+      "metricKey": "sf_sole_source_contract_share",
+      "metricId": 624,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_sole_source_contract_share",
+      "normalLagRange": [
+        27,
+        35
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-04"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "💊 Drug Crime Incidents",
+      "metricKey": "chicago_drug_crime",
+      "metricId": 266,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_drug_crime",
+      "normalLagRange": [
+        9,
+        17
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-04"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "📋📥 New Residential Construction Permits Filed",
+      "metricKey": "chicago_new_residential_construction_permits_filed",
+      "metricId": 417,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_filed",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-04"
     }
   ],
-  "lastRunDate": "2026-06-03"
+  "lastRunDate": "2026-06-04"
 }
