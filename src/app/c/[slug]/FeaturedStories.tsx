@@ -11,9 +11,6 @@ import MetricFeedCard from "@/components/feed/MetricFeedCard";
 import { getCategoryMeta } from "@/lib/feed/mockFeedData";
 import CardHeader from "@/components/feed/CardHeader";
 import feedStyles from "@/components/feed/feed.module.css";
-import WelcomeFeedCard, {
-  type WelcomeNewsletterLink,
-} from "@/components/feed/WelcomeFeedCard";
 
 type Props = {
   slug: string;
@@ -22,8 +19,6 @@ type Props = {
   stories: PublicFeedStory[];
   metrics?: PublicCityMetricItem[];
   comparisonsMap?: Record<number, PublicMetricComparisons>;
-  showWelcomeCard?: boolean;
-  welcomeNewsletters?: WelcomeNewsletterLink[];
 };
 
 function storyHeadline(story: PublicFeedStory): string {
@@ -178,8 +173,6 @@ export default function FeaturedStories({
   stories,
   metrics,
   comparisonsMap,
-  showWelcomeCard = true,
-  welcomeNewsletters = [],
 }: Props) {
   const metricCards = buildMetricCards(slug, cityDisplayName, cityEmoji, metrics, comparisonsMap);
 
@@ -238,10 +231,6 @@ export default function FeaturedStories({
         </header>
 
         <div className="featured-stories-grid">
-          {showWelcomeCard && (
-            <WelcomeFeedCard slug={slug} newsletters={welcomeNewsletters} />
-          )}
-
           {/* Metric summary cards */}
           {metricCards.map((mc) => (
             <MetricFeedCard key={mc.metric.id} data={mc} hideActions />
