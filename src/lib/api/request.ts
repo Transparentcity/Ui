@@ -91,5 +91,14 @@ export async function request<T>(
     throw error;
   }
 
+  // Tolerate empty success bodies (e.g. 204/205 or an empty 200 from POST
+  // mutations) so callers that don't need a payload don't choke on res.json().
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T;
+  }
+  if (res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+
   return (await res.json()) as T;
 }
