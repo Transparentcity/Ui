@@ -293,6 +293,7 @@
 /* City name switcher dropdown */
 .city-name-switcher {
   position: relative;
+  flex-shrink: 0;
 }
 
 .city-name-switcher-btn {
@@ -656,6 +657,7 @@
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .city-header-subtitle {
@@ -1510,13 +1512,17 @@
   
   .comparison-selector-label {
     font-size: 12px;
+    flex-shrink: 0;
   }
-  
+
+  /* Each select shares the remaining row width and shrinks (with ellipsis)
+     so the second dropdown never clips off the right edge. */
   .comparison-selector-dropdown {
     padding: 4px 8px;
     font-size: 12px;
-    min-width: 110px;
-    max-width: 150px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
     padding-right: 24px;
     background-position: right 5px center;
     background-size: 9px;
@@ -3079,6 +3085,14 @@ button.metrics-table-row {
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+  }
+
+  /* Duplicate of the mayor bar below; let it truncate so the city name keeps
+     its full width instead of breaking mid-word ("Chic ago"). */
+  .city-header-subtitle {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .city-header-right {
