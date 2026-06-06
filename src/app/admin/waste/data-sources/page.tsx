@@ -1,116 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-
-import { API_BASE } from "@/lib/apiBase";
-
-type DataSource = {
-  adapter_key: string;
-  display_name: string;
-  adapter_type: "api" | "pdf";
-  default_refresh_interval_hours: number;
-  circuit_state: string;
-  last_check_at: string | null;
-  last_good_at: string | null;
-  last_failure_at?: string | null;
-  last_latency_ms?: number | null;
-  last_error?: string | null;
-  consecutive_failures?: number;
-  total_checks?: number;
-  total_failures?: number;
-};
-
-type ListResponse = { items: DataSource[]; total: number };
+import {
+  useRefreshWasteAdminDataSource,
+  useResetWasteAdminDataSource,
+  useRunWasteAdminDataSourceHealthCheck,
+  useWasteAdminDataSources,
+} from "@/lib/hooks/useDataSources";
 
 export default function DataSourcesPage() {
-  const [items, setItems] = useState<DataSource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const listQ = useWasteAdminDataSources();
+  const refreshM = useRefreshWasteAdminDataSource();
+  const resetM = useResetWasteAdminDataSource();
+  const healthM = useRunWasteAdminDataSourceHealthCheck();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/waste/data-sources`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: ListResponse = await res.json();
-      setItems(data.items);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const items = listQ.data?.items ?? [];
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Which row (or "__all__" for the global health check) has an in-flight
+  // mutation, so we can disable just the relevant buttons.
+  const busyKey = refreshM.isPending
+    ? refreshM.variables ?? null
+    : resetM.isPending
+    ? resetM.variables ?? null
+    : healthM.isPending
+    ? "__all__"
+    : null;
 
-  const refreshOne = useCallback(
-    async (key: string) => {
-      setBusyKey(key);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/waste/data-sources/${key}/refresh`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!res.ok) throw new Error(`Refresh ${key}: HTTP ${res.status}`);
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyKey(null);
-      }
-    },
-    [load],
-  );
-
-  const resetCircuit = useCallback(
-    async (key: string) => {
-      setBusyKey(key);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/waste/data-sources/${key}/reset`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!res.ok) throw new Error(`Reset ${key}: HTTP ${res.status}`);
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyKey(null);
-      }
-    },
-    [load],
-  );
-
-  const runHealthCheck = useCallback(async () => {
-    setBusyKey("__all__");
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/waste/data-sources/health-check`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error(`Health check: HTTP ${res.status}`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusyKey(null);
-    }
-  }, [load]);
+  const error =
+    listQ.error ?? refreshM.error ?? resetM.error ?? healthM.error;
 
   return (
     <div style={{ padding: "1.5rem" }}>
@@ -122,16 +38,20 @@ export default function DataSourcesPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button onClick={() => void load()} disabled={loading}>
-            {loading ? "Loading..." : "Refresh list"}
+          <button onClick={() => void listQ.refetch()} disabled={listQ.isFetching}>
+            {listQ.isFetching ? "Loading..." : "Refresh list"}
           </button>
-          <button onClick={() => void runHealthCheck()} disabled={busyKey !== null}>
+          <button onClick={() => healthM.mutate()} disabled={busyKey !== null}>
             Run health check
           </button>
         </div>
       </header>
 
-      {error && <div style={{ color: "crimson", marginBottom: "1rem" }}>Error: {error}</div>}
+      {error && (
+        <div style={{ color: "crimson", marginBottom: "1rem" }}>
+          Error: {error instanceof Error ? error.message : String(error)}
+        </div>
+      )}
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
         <thead>
@@ -180,7 +100,7 @@ export default function DataSourcesPage() {
               </td>
               <td style={{ padding: "0.5rem", whiteSpace: "nowrap" }}>
                 <button
-                  onClick={() => void refreshOne(item.adapter_key)}
+                  onClick={() => refreshM.mutate(item.adapter_key)}
                   disabled={busyKey === item.adapter_key}
                   style={{ marginRight: 4 }}
                 >
@@ -188,7 +108,7 @@ export default function DataSourcesPage() {
                 </button>
                 {item.circuit_state !== "closed" && (
                   <button
-                    onClick={() => void resetCircuit(item.adapter_key)}
+                    onClick={() => resetM.mutate(item.adapter_key)}
                     disabled={busyKey === item.adapter_key}
                   >
                     Reset
@@ -200,7 +120,7 @@ export default function DataSourcesPage() {
         </tbody>
       </table>
 
-      {!loading && items.length === 0 && (
+      {!listQ.isLoading && items.length === 0 && (
         <p style={{ color: "#666", marginTop: "1rem" }}>No adapters registered.</p>
       )}
     </div>
