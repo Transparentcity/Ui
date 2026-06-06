@@ -28,6 +28,7 @@ import {
   adaptSeymour,
 } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
+import { useWasteState } from "@/lib/admin/waste/useWasteState";
 import type { Detector } from "@/lib/wasteFixtures";
 import styles from "@/components/admin/waste/feed/feed.module.css";
 
@@ -52,6 +53,7 @@ function FindingsPageView() {
   const findingsQ = useWasteAdminFindings({ citySlug, period, filter });
   const detectorsQ = useWasteAdminDetectors(citySlug);
   const seymourQ = useWasteAdminSeymourFeed(citySlug);
+  const ui = useWasteState();
 
   const visibleFindings = useMemo(
     () => (findingsQ.data ?? []).map(adaptFinding),
@@ -179,7 +181,10 @@ function FindingsPageView() {
           period={period}
           onPeriodChange={p => updateParams({ period: p === "today" ? null : p })}
           isQuiet={isQuiet}
-          isDegraded={false}
+          isDegraded={ui.failingCount > 0}
+          detectorCount={Object.keys(detectorById).length}
+          degradedCount={ui.failingCount}
+          degradedDetectorId={ui.failingDetectorId}
         />
         <ProvenancePanel detector={selectedDetector} finding={selectedFinding} />
         {view === "full" ? (

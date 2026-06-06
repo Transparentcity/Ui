@@ -26,6 +26,8 @@ export type WasteUIState = {
   lastRunAt: string;
   health: WasteHealth;
   healthLabel: string;
+  failingCount: number;
+  failingDetectorId: string | null;
   isLoading: boolean;
 };
 
@@ -111,6 +113,8 @@ export function useWasteState(): WasteUIState {
     lastRunAt: relativeRunLabel(cityRow?.last_run_at),
     health,
     healthLabel,
+    failingCount: cityRow?.health?.failing_count ?? 0,
+    failingDetectorId: cityRow?.health?.failing_detector_id ?? null,
     isLoading: citiesQ.isLoading || readoutQ.isLoading,
   };
 }

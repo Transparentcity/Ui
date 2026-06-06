@@ -768,6 +768,16 @@
   border-radius: 4px;
   cursor: pointer;
 }
+/* Stub actions not yet wired to a backend mutation read as disabled rather
+   than as silent no-ops. */
+.bulkBtn:disabled,
+.todaysReadAction:disabled,
+.clusterAccept:disabled,
+.clusterSnooze:disabled,
+.clusterDismiss:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .suggestedList {
   display: flex;
   flex-direction: column;

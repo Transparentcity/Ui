@@ -45,7 +45,7 @@ function ReportsView() {
         <p className="text-sm text-gray-500">
           Per-period reports compiled from confirmed findings, grouped by detector class.
         </p>
-        <Button size="sm" className="shrink-0">+ New workpaper</Button>
+        <Button size="sm" className="shrink-0" disabled title="Coming soon">+ New workpaper</Button>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white">
