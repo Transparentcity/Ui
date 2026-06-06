@@ -1,10 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-
-import { API_BASE } from "@/lib/apiBase";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableHeader,
@@ -13,114 +10,32 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-
-type DataSource = {
-  adapter_key: string;
-  display_name: string;
-  adapter_type: "api" | "pdf";
-  default_refresh_interval_hours: number;
-  circuit_state: string;
-  last_check_at: string | null;
-  last_good_at: string | null;
-  last_failure_at?: string | null;
-  last_latency_ms?: number | null;
-  last_error?: string | null;
-  consecutive_failures?: number;
-  total_checks?: number;
-  total_failures?: number;
-};
-
-type ListResponse = { items: DataSource[]; total: number };
+import {
+  useRefreshWasteAdminDataSource,
+  useResetWasteAdminDataSource,
+  useRunWasteAdminDataSourceHealthCheck,
+  useWasteAdminDataSources,
+} from "@/lib/hooks/useDataSources";
 
 export default function DataSourcesPage() {
-  const [items, setItems] = useState<DataSource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const listQ = useWasteAdminDataSources();
+  const refreshM = useRefreshWasteAdminDataSource();
+  const resetM = useResetWasteAdminDataSource();
+  const healthM = useRunWasteAdminDataSourceHealthCheck();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/waste/data-sources`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: ListResponse = await res.json();
-      setItems(data.items);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const items = listQ.data?.items ?? [];
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Which row (or "__all__" for the global health check) has an in-flight
+  // mutation, so we can disable just the relevant buttons.
+  const busyKey = refreshM.isPending
+    ? refreshM.variables ?? null
+    : resetM.isPending
+    ? resetM.variables ?? null
+    : healthM.isPending
+    ? "__all__"
+    : null;
 
-  const refreshOne = useCallback(
-    async (key: string) => {
-      setBusyKey(key);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/waste/data-sources/${key}/refresh`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!res.ok) throw new Error(`Refresh ${key}: HTTP ${res.status}`);
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyKey(null);
-      }
-    },
-    [load],
-  );
-
-  const resetCircuit = useCallback(
-    async (key: string) => {
-      setBusyKey(key);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/waste/data-sources/${key}/reset`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!res.ok) throw new Error(`Reset ${key}: HTTP ${res.status}`);
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyKey(null);
-      }
-    },
-    [load],
-  );
-
-  const runHealthCheck = useCallback(async () => {
-    setBusyKey("__all__");
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/waste/data-sources/health-check`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error(`Health check: HTTP ${res.status}`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusyKey(null);
-    }
-  }, [load]);
+  const error = listQ.error ?? refreshM.error ?? resetM.error ?? healthM.error;
 
   const circuitVariant = (state: string): "success" | "destructive" | "warning" =>
     state === "closed" ? "success" : state === "open" ? "destructive" : "warning";
@@ -132,10 +47,20 @@ export default function DataSourcesPage() {
           External federal data adapters (Phase 3). Continuous state lives in adapter_health.
         </p>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? "Loading…" : "Refresh list"}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void listQ.refetch()}
+            disabled={listQ.isFetching}
+          >
+            {listQ.isFetching ? "Loading…" : "Refresh list"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void runHealthCheck()} disabled={busyKey !== null}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => healthM.mutate()}
+            disabled={busyKey !== null}
+          >
             Run health check
           </Button>
         </div>
@@ -143,7 +68,7 @@ export default function DataSourcesPage() {
 
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+          {error instanceof Error ? error.message : String(error)}
         </div>
       )}
 
@@ -185,7 +110,7 @@ export default function DataSourcesPage() {
                     variant="outline"
                     size="sm"
                     className="mr-2"
-                    onClick={() => void refreshOne(item.adapter_key)}
+                    onClick={() => refreshM.mutate(item.adapter_key)}
                     disabled={busyKey === item.adapter_key}
                   >
                     Refresh
@@ -194,7 +119,7 @@ export default function DataSourcesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => void resetCircuit(item.adapter_key)}
+                      onClick={() => resetM.mutate(item.adapter_key)}
                       disabled={busyKey === item.adapter_key}
                     >
                       Reset
@@ -207,7 +132,7 @@ export default function DataSourcesPage() {
         </Table>
       </div>
 
-      {!loading && items.length === 0 && (
+      {!listQ.isLoading && items.length === 0 && (
         <p className="mt-4 text-sm text-gray-500">No adapters registered.</p>
       )}
     </div>
