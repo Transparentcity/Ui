@@ -2,15 +2,24 @@
 
 import { Suspense, useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { Button, Mono, ReportStatusChip } from "@/components/admin/waste/primitives";
+import { Mono, ReportStatusChip } from "@/components/admin/waste/primitives";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import { useWasteAdminReports } from "@/lib/hooks/useWasteAdmin";
 import { adaptReportRow } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
-import styles from "./reports.module.css";
 
 function ReportsView() {
+  const router = useRouter();
   const params = useSearchParams();
   const citySlug = getWasteApiSlug(params.get("city"));
   const { data, isLoading, error, refetch } = useWasteAdminReports(citySlug);
@@ -19,79 +28,87 @@ function ReportsView() {
 
   if (error) {
     return (
-      <div className={styles.page}>
-        <h2 className={styles.title}>Audit workpapers</h2>
-        <p role="alert" className={styles.subtitle}>
+      <div className="px-8 py-6">
+        <p role="alert" className="text-sm text-red-700">
           Couldn&apos;t load reports: {error instanceof Error ? error.message : "Unknown error"}
         </p>
-        <Button variant="secondary" size="sm" onClick={() => refetch()}>Retry</Button>
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
+          Retry
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className={styles.page} data-testid="waste-reports-page">
-      <div className={styles.headerRow}>
-        <div>
-          <h2 className={styles.title}>Audit workpapers</h2>
-          <p className={styles.subtitle}>
-            Per-period reports compiled from confirmed findings, grouped by detector class.
-          </p>
-        </div>
-        <Button variant="primary" size="sm" disabled title="Coming soon">+ New workpaper</Button>
+    <div className="px-8 py-6" data-testid="waste-reports-page">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <p className="text-sm text-gray-500">
+          Per-period reports compiled from confirmed findings, grouped by detector class.
+        </p>
+        <Button size="sm" className="shrink-0" disabled title="Coming soon">+ New workpaper</Button>
       </div>
 
-      <div className={styles.table}>
-        <div className={styles.tableHeader}>
-          <span>Title</span>
-          <span>Period</span>
-          <span>Findings</span>
-          <span>Exposure</span>
-          <span>Updated</span>
-          <span>Status</span>
-        </div>
-
-        {isLoading ? (
-          <div className={styles.row} role="status" aria-live="polite">
-            <div className={styles.titleCell}>
-              <div className={styles.titleText}>Loading reports…</div>
-            </div>
-            <span />
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : rows.length === 0 ? (
-          <div className={styles.row}>
-            <div className={styles.titleCell}>
-              <div className={styles.titleText}>No reports yet for this city.</div>
-              <Mono>Reports populate as findings accumulate.</Mono>
-            </div>
-            <span />
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : (
-          rows.map(r => {
-            const href = `/admin/waste/reports/${encodeURIComponent(r.slug)}?city=${encodeURIComponent(citySlug)}`;
-            return (
-              <Link key={r.slug} href={href} className={styles.row} data-slug={r.slug}>
-                <div className={styles.titleCell}>
-                  <div className={styles.titleText}>{r.title}</div>
-                  <Mono>materiality {r.materiality}</Mono>
-                </div>
-                <span className={styles.periodCell}>{r.period}</span>
-                <span className={styles.numCell}>{r.findings}</span>
-                <span className={styles.numCell}>{r.exposure}</span>
-                <span className={styles.updatedCell}>{r.updated}</span>
-                <ReportStatusChip status={r.status} />
-              </Link>
-            );
-          })
-        )}
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead>Period</TableHead>
+              <TableHead className="text-right">Findings</TableHead>
+              <TableHead className="text-right">Exposure</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-gray-500">
+                  Loading reports…
+                </TableCell>
+              </TableRow>
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <div className="text-gray-700">No reports yet for this city.</div>
+                  <Mono>Reports populate as findings accumulate.</Mono>
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((r) => {
+                const href = `/admin/waste/reports/${encodeURIComponent(r.slug)}?city=${encodeURIComponent(citySlug)}`;
+                return (
+                  <TableRow
+                    key={r.slug}
+                    data-slug={r.slug}
+                    className="cursor-pointer"
+                    onClick={() => router.push(href)}
+                  >
+                    <TableCell>
+                      <Link
+                        href={href}
+                        className="font-medium text-gray-900 hover:text-purple-700 no-underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {r.title}
+                      </Link>
+                      <div className="mt-0.5">
+                        <Mono>materiality {r.materiality}</Mono>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-gray-600">{r.period}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.findings}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.exposure}</TableCell>
+                    <TableCell className="text-gray-600">{r.updated}</TableCell>
+                    <TableCell>
+                      <ReportStatusChip status={r.status} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -99,7 +116,7 @@ function ReportsView() {
 
 export default function WasteReportsPage() {
   return (
-    <Suspense fallback={<div className={styles.page} />}>
+    <Suspense fallback={<div className="px-8 py-6" />}>
       <ReportsView />
     </Suspense>
   );

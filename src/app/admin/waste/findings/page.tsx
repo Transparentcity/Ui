@@ -114,8 +114,6 @@ function FindingsPageView() {
 
   const toggleBar = (
     <div className={styles.viewToggleBar}>
-      <h1 className={styles.pageTitle}>Findings</h1>
-      <span className={styles.toolbarSpacer} />
       <span className={styles.viewToggleLabel}>View</span>
       <div className={styles.viewToggle} role="tablist" aria-label="Findings view">
         <button

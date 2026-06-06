@@ -1,49 +1,51 @@
 "use client";
 
-import { Suspense, use } from "react";
+import { Suspense, use, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import {
-  Button,
   Mono,
   ReportStatusChip,
   SeverityChip,
 } from "@/components/admin/waste/primitives";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useWasteAdminReport } from "@/lib/hooks/useWasteAdmin";
-import {
-  adaptFinding,
-  adaptReportDetail,
-} from "@/lib/admin/waste/adapters";
+import { adaptFinding, adaptReportDetail } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
-import styles from "./reportDetail.module.css";
+
+function BackLink({ href }: { href: string }) {
+  return (
+    <Link href={href} className="text-sm text-purple-600 hover:underline no-underline">
+      ← All workpapers
+    </Link>
+  );
+}
 
 function ReportDetailView({ slug }: { slug: string }) {
   const params = useSearchParams();
   const citySlug = getWasteApiSlug(params.get("city"));
   const { data, isLoading, error, refetch } = useWasteAdminReport(slug, citySlug);
+  const backHref = `/admin/waste/reports?city=${encodeURIComponent(citySlug)}`;
 
   if (error) {
     return (
-      <div className={styles.page}>
-        <Link href={`/admin/waste/reports?city=${encodeURIComponent(citySlug)}`} className={styles.backBtn}>
-          ← All workpapers
-        </Link>
-        <p role="alert">
+      <div className="px-8 py-6 space-y-3">
+        <BackLink href={backHref} />
+        <p role="alert" className="text-sm text-red-700">
           Couldn&apos;t load report: {error instanceof Error ? error.message : "Unknown error"}
         </p>
-        <Button variant="secondary" size="sm" onClick={() => refetch()}>Retry</Button>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
       </div>
     );
   }
 
   if (isLoading || !data) {
     return (
-      <div className={styles.page}>
-        <Link href={`/admin/waste/reports?city=${encodeURIComponent(citySlug)}`} className={styles.backBtn}>
-          ← All workpapers
-        </Link>
-        <p>Loading report…</p>
+      <div className="px-8 py-6 space-y-3">
+        <BackLink href={backHref} />
+        <p className="text-sm text-gray-500">Loading report…</p>
       </div>
     );
   }
@@ -59,105 +61,107 @@ function ReportDetailView({ slug }: { slug: string }) {
   const status = report.status;
   const isFinal = status === "final";
   const isDraft = status === "draft";
-  const backHref = `/admin/waste/reports?city=${encodeURIComponent(citySlug)}`;
+
+  const kpis: { label: string; value: ReactNode }[] = [
+    { label: "Findings", value: report.findings },
+    { label: "Exposure", value: report.exposure },
+    { label: "Materiality", value: report.materiality },
+    { label: "Detectors", value: report.detectors.length },
+  ];
 
   return (
-    <div className={styles.page} data-testid="waste-report-detail" data-status={status}>
-      <div className={`${styles.hero} ${isFinal ? styles.heroFinal : styles.heroDraft}`}>
-        <Link href={backHref} className={styles.backBtn}>← All workpapers</Link>
-        <div className={styles.heroRow}>
-          <div className={styles.heroLeft}>
-            <div className={styles.idLine}>
+    <div className="px-8 py-6 space-y-6" data-testid="waste-report-detail" data-status={status}>
+      <Card className="p-6">
+        <BackLink href={backHref} />
+        <div className="mt-3 flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
               <ReportStatusChip status={status} />
               <Mono>{report.slug}</Mono>
             </div>
-            <h1 className={styles.heroTitle}>{report.title}</h1>
-            <Mono color="#374151">Period: {report.period} · Updated {report.updated}</Mono>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-gray-900">{report.title}</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Period: {report.period} · Updated {report.updated}
+            </p>
           </div>
-          <div className={styles.heroActions}>
-            <Button variant="secondary" size="sm">Export CSV</Button>
-            <Button variant="secondary" size="sm">Export JSON</Button>
-            {!isFinal && <Button variant="primary" size="sm">Promote to final →</Button>}
-          </div>
-        </div>
-        <div className={styles.kpiGrid}>
-          <div className={styles.kpi}>
-            <div className={styles.kpiLabel}>Findings</div>
-            <div className={styles.kpiValue}>{report.findings}</div>
-          </div>
-          <div className={styles.kpi}>
-            <div className={styles.kpiLabel}>Exposure</div>
-            <div className={styles.kpiValue}>{report.exposure}</div>
-          </div>
-          <div className={styles.kpi}>
-            <div className={styles.kpiLabel}>Materiality</div>
-            <div className={styles.kpiValue}>{report.materiality}</div>
-          </div>
-          <div className={styles.kpi}>
-            <div className={styles.kpiLabel}>Detectors</div>
-            <div className={styles.kpiValueSmall}>{report.detectors.length}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm">Export CSV</Button>
+            <Button variant="outline" size="sm">Export JSON</Button>
+            {!isFinal && <Button size="sm">Promote to final →</Button>}
           </div>
         </div>
-      </div>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Methodology</h2>
+        <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {kpis.map((k) => (
+            <div key={k.label} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="text-xs text-gray-500">{k.label}</div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{k.value}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Methodology</h2>
         {report.standards ? (
-          <>
-            <Mono color="#9ca3af">Standards basis</Mono>
-            <p className={styles.subhead}>{report.standards}</p>
-          </>
+          <div className="mb-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Standards basis</div>
+            <p className="mt-1 text-sm text-gray-700">{report.standards}</p>
+          </div>
         ) : null}
 
-        <Mono color="#9ca3af">Calculation method</Mono>
-        <div style={{ marginTop: 6 }}>
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Calculation method</div>
+        <div className="mt-1.5">
           {isDraft && report.methodology ? (
-            <div className={styles.seymourBlock} data-testid="methodology-draft">
-              <div className={styles.seymourHeader}>
-                <span className={styles.seymourBadge}>
-                  <span className={styles.seymourBadgeDot} />
-                  Seymour
-                </span>
+            <div
+              className="rounded-r border-l-2 border-teal-400 bg-teal-50/50 px-3 py-2"
+              data-testid="methodology-draft"
+            >
+              <div className="mb-1 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-teal-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500" aria-hidden="true" />
+                Seymour
               </div>
-              <p className={styles.seymourText}>{report.methodology}</p>
+              <p className="text-sm text-gray-700">{report.methodology}</p>
             </div>
           ) : (
-            <p className={styles.bodyText} data-testid="methodology-final">
+            <p className="text-sm text-gray-700" data-testid="methodology-final">
               {report.methodology || "—"}
             </p>
           )}
         </div>
 
         {report.caveats ? (
-          <>
-            <Mono color="#9ca3af">Caveats</Mono>
-            <p className={styles.caveatText}>{report.caveats}</p>
-          </>
+          <div className="mt-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Caveats</div>
+            <p className="mt-1 text-sm text-gray-600">{report.caveats}</p>
+          </div>
         ) : null}
       </section>
 
-      <section className={styles.findingsSection}>
-        <div className={styles.findingsHeader}>
-          <h2 className={styles.sectionTitle}>Findings · ranked by exposure</h2>
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900">Findings · ranked by exposure</h2>
           <Mono>{reportFindings.length} of {report.findings} shown</Mono>
         </div>
-        <div className={styles.findingsList}>
+        <div className="space-y-3">
           {reportFindings.length === 0 ? (
-            <p>No findings under this report yet.</p>
+            <p className="text-sm text-gray-500">No findings under this report yet.</p>
           ) : (
-            reportFindings.map(f => (
-              <div key={f.id} className={styles.findingRow}>
-                <div className={styles.findingTopLine}>
+            reportFindings.map((f) => (
+              <Card key={f.id} className="p-4">
+                <div className="flex items-center gap-2 flex-wrap">
                   <SeverityChip level={f.severity} />
-                  <Mono color="#9ca3af">{f.id}</Mono>
-                  <span className={styles.detectorTag}>{f.detectorId}</span>
-                  <span className={styles.spacer} />
-                  <span className={styles.findingAmount}>{f.amount}</span>
+                  <Mono>{f.id}</Mono>
+                  <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                    {f.detectorId}
+                  </span>
+                  <span className="flex-1" />
+                  <span className="text-sm font-semibold text-gray-900 tabular-nums">{f.amount}</span>
                 </div>
-                <div className={styles.findingHeadline}>{f.headline}</div>
-                <div className={styles.findingSubject}>{f.subject} · {f.department}</div>
-                <p className={styles.findingDetail}>{f.detail}</p>
-              </div>
+                <div className="mt-2 font-semibold text-gray-900">{f.headline}</div>
+                <div className="text-sm text-gray-500">{f.subject} · {f.department}</div>
+                <p className="mt-1 text-sm text-gray-700">{f.detail}</p>
+              </Card>
             ))
           )}
         </div>
@@ -173,7 +177,7 @@ export default function WasteReportDetailPage({
 }) {
   const { slug } = use(params);
   return (
-    <Suspense fallback={<div className={styles.page} />}>
+    <Suspense fallback={<div className="px-8 py-6" />}>
       <ReportDetailView slug={slug} />
     </Suspense>
   );
