@@ -4,6 +4,9 @@ import { Suspense, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Mono, SeverityChip, SeverityDot } from "@/components/admin/waste/primitives";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   useWasteAdminDetectors,
   useWasteAdminFindings,
@@ -15,7 +18,6 @@ import {
   type Detector,
   type DetectorCategoryId,
 } from "@/lib/wasteFixtures";
-import styles from "./metrics.module.css";
 
 function MetricsView() {
   const router = useRouter();
@@ -38,7 +40,7 @@ function MetricsView() {
 
   const detectorById = useMemo<Record<string, Detector>>(() => {
     const all = (detectorsQ.data ?? []).map(adaptDetector);
-    return Object.fromEntries(all.map(d => [d.id, d]));
+    return Object.fromEntries(all.map((d) => [d.id, d]));
   }, [detectorsQ.data]);
 
   const weeklyCountById = useMemo<Record<string, number>>(() => {
@@ -91,28 +93,24 @@ function MetricsView() {
 
   if (error) {
     return (
-      <div className={styles.page}>
-        <h2 className={styles.title}>Methodology</h2>
-        <p className={styles.subtitle} role="alert">
+      <div className="px-8 py-6">
+        <h2 className="text-lg font-semibold text-gray-900">Methodology</h2>
+        <p role="alert" className="mt-1 text-sm text-red-700">
           Couldn&apos;t load detector catalog:{" "}
           {error instanceof Error ? error.message : "Unknown error"}
         </p>
-        <button
-          type="button"
-          onClick={() => detectorsQ.refetch()}
-          style={{ padding: "6px 12px", marginTop: 8 }}
-        >
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => detectorsQ.refetch()}>
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className={styles.page}>
-        <h2 className={styles.title}>Methodology</h2>
-        <p className={styles.subtitle}>Loading detector catalog…</p>
+      <div className="px-8 py-6">
+        <h2 className="text-lg font-semibold text-gray-900">Methodology</h2>
+        <p className="mt-1 text-sm text-gray-500">Loading detector catalog…</p>
       </div>
     );
   }
@@ -120,33 +118,37 @@ function MetricsView() {
   const totalDetectors = allDetectorsOrdered.length;
   if (totalDetectors === 0) {
     return (
-      <div className={styles.page} data-testid="waste-metrics-page">
-        <div className={styles.header}>
-          <h2 className={styles.title}>Methodology</h2>
-          <p className={styles.subtitle}>No detectors configured for this city yet.</p>
-        </div>
+      <div className="px-8 py-6" data-testid="waste-metrics-page">
+        <h2 className="text-lg font-semibold text-gray-900">Methodology</h2>
+        <p className="mt-1 text-sm text-gray-500">No detectors configured for this city yet.</p>
       </div>
     );
   }
 
   return (
-    <div className={styles.split} data-testid="waste-metrics-page">
-      <aside className={styles.listPane} aria-label="Detector catalog">
-        <div className={styles.listHeader}>
-          <h2 className={styles.listTitle}>Detectors</h2>
+    <div className="px-8 py-6 flex gap-6 items-start" data-testid="waste-metrics-page">
+      {/* List pane */}
+      <aside
+        className="w-72 shrink-0 rounded-lg border border-gray-200 bg-white sticky top-0 self-start max-h-[calc(100vh-9rem)] overflow-y-auto"
+        aria-label="Detector catalog"
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-900">Detectors</h2>
           <Mono>{totalDetectors} active</Mono>
         </div>
-        <div className={styles.listScroll}>
-          {DETECTOR_CATEGORIES.map(cat => {
+        <div className="py-1">
+          {DETECTOR_CATEGORIES.map((cat) => {
             const items = grouped[cat.id] ?? [];
             if (!items.length) return null;
             return (
-              <div key={cat.id} className={styles.catBlock}>
-                <div className={styles.catHeader}>
-                  <span className={styles.catLabel}>{cat.label}</span>
+              <div key={cat.id} className="py-1">
+                <div className="flex items-center justify-between px-4 py-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    {cat.label}
+                  </span>
                   <Mono>{items.length}</Mono>
                 </div>
-                {items.map(d => {
+                {items.map((d) => {
                   const isSel = selectedDetectorId === d.id;
                   const count = weeklyCountById[d.id] ?? 0;
                   return (
@@ -154,20 +156,28 @@ function MetricsView() {
                       key={d.id}
                       type="button"
                       onClick={() => updateParams({ detector: d.id })}
-                      className={`${styles.listRow} ${isSel ? styles.listRowSel : ""}`}
                       aria-pressed={isSel}
                       data-detector-id={d.id}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-4 py-2 text-left border-l-2 transition-colors",
+                        isSel
+                          ? "border-l-purple-600 bg-purple-50"
+                          : "border-l-transparent hover:bg-gray-50",
+                      )}
                     >
-                      <div className={styles.listRowMain}>
-                        <div className={styles.listRowTop}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
                           <SeverityDot level={d.severity} />
-                          <Mono color="#9ca3af">{d.id}</Mono>
+                          <Mono>{d.id}</Mono>
                         </div>
-                        <div className={styles.listRowName}>{d.name}</div>
+                        <div className="text-sm font-semibold text-gray-900 truncate">{d.name}</div>
                       </div>
-                      <div className={styles.countChip} title="Findings this week">
+                      <span
+                        className="shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 tabular-nums"
+                        title="Findings this week"
+                      >
                         {count}
-                      </div>
+                      </span>
                     </button>
                   );
                 })}
@@ -175,64 +185,66 @@ function MetricsView() {
             );
           })}
         </div>
-        <div className={styles.listFooter}>
-          <Mono color="#9ca3af">Counts: findings this week</Mono>
-        </div>
       </aside>
 
-      <section className={styles.detailPane} aria-label="Detector detail">
+      {/* Detail pane */}
+      <section className="flex-1 min-w-0" aria-label="Detector detail">
         {selectedDetector ? (
-          <div className={styles.detailScroll}>
-            <div className={styles.detailHeader}>
-              <div className={styles.idLine}>
+          <div className="space-y-5">
+            <div>
+              <div className="flex items-center gap-2">
                 <SeverityDot level={selectedDetector.severity} />
-                <Mono color="#9ca3af">{selectedDetector.id}</Mono>
+                <Mono>{selectedDetector.id}</Mono>
                 <SeverityChip level={selectedDetector.severity} />
               </div>
-              <h2 className={styles.detailName}>{selectedDetector.name}</h2>
-              <div className={styles.weeklyCountRow}>
-                <span className={styles.plainLabel}>Findings this week</span>
+              <h2 className="mt-2 text-xl font-bold tracking-tight text-gray-900">
+                {selectedDetector.name}
+              </h2>
+              <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Findings this week
+                </span>
                 <Mono>{weeklyCountById[selectedDetector.id] ?? 0}</Mono>
               </div>
             </div>
 
-            <div className={styles.detailSection}>
-              <div className={styles.plainLabel}>What it flags</div>
-              <p className={styles.plainText}>{selectedDetector.plain}</p>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">What it flags</div>
+              <p className="mt-1 text-sm text-gray-700">{selectedDetector.plain}</p>
             </div>
 
             {selectedDetector.sources.length > 0 ? (
-              <div className={styles.detailSection}>
-                <div className={styles.plainLabel}>Standards basis</div>
-                <div className={styles.sourceTags}>
-                  {selectedDetector.sources.map(s => (
-                    <span key={s} className={styles.sourceTag}>{s}</span>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+                  Standards basis
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedDetector.sources.map((s) => (
+                    <Badge key={s} variant="outline" className="px-2 py-0.5 font-normal">
+                      {s}
+                    </Badge>
                   ))}
                 </div>
               </div>
             ) : null}
 
             {selectedDetector.historical && selectedDetector.historical.summary ? (
-              <div className={styles.exampleCallout}>
-                <div className={styles.exampleHeader}>
-                  <span className={styles.seymourBadge}>
-                    <span className={styles.seymourBadgeDot} />
+              <div className="rounded-r border-l-2 border-teal-400 bg-teal-50/50 px-3 py-2">
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-teal-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500" aria-hidden="true" />
                     Anchor
                   </span>
-                  <span className={styles.exampleLabel}>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-700">
                     {selectedDetector.historical.case}
                   </span>
                 </div>
-                <p className={styles.exampleText}>
-                  {selectedDetector.historical.lesson}
-                </p>
+                <p className="text-sm text-gray-700">{selectedDetector.historical.lesson}</p>
               </div>
             ) : null}
           </div>
         ) : (
-          <div className={styles.detailEmpty}>
-            Select a detector on the left to see how it works.
-          </div>
+          <div className="text-sm text-gray-500">Select a detector on the left to see how it works.</div>
         )}
       </section>
     </div>
@@ -241,7 +253,7 @@ function MetricsView() {
 
 export default function WasteMetricsPage() {
   return (
-    <Suspense fallback={<div className={styles.page} />}>
+    <Suspense fallback={<div className="px-8 py-6" />}>
       <MetricsView />
     </Suspense>
   );

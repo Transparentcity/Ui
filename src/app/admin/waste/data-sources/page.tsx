@@ -1,5 +1,15 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
 import {
   useRefreshWasteAdminDataSource,
   useResetWasteAdminDataSource,
@@ -25,103 +35,105 @@ export default function DataSourcesPage() {
     ? "__all__"
     : null;
 
-  const error =
-    listQ.error ?? refreshM.error ?? resetM.error ?? healthM.error;
+  const error = listQ.error ?? refreshM.error ?? resetM.error ?? healthM.error;
+
+  const circuitVariant = (state: string): "success" | "destructive" | "warning" =>
+    state === "closed" ? "success" : state === "open" ? "destructive" : "warning";
 
   return (
-    <div style={{ padding: "1.5rem" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Data sources</h1>
-          <p style={{ margin: "0.25rem 0 0", color: "#666" }}>
-            External federal data adapters (Phase 3). Continuous state lives in adapter_health.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button onClick={() => void listQ.refetch()} disabled={listQ.isFetching}>
-            {listQ.isFetching ? "Loading..." : "Refresh list"}
-          </button>
-          <button onClick={() => healthM.mutate()} disabled={busyKey !== null}>
+    <div className="px-8 py-6">
+      <header className="flex items-start justify-between gap-4 mb-4">
+        <p className="text-sm text-gray-500">
+          External federal data adapters (Phase 3). Continuous state lives in adapter_health.
+        </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void listQ.refetch()}
+            disabled={listQ.isFetching}
+          >
+            {listQ.isFetching ? "Loading…" : "Refresh list"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => healthM.mutate()}
+            disabled={busyKey !== null}
+          >
             Run health check
-          </button>
+          </Button>
         </div>
       </header>
 
       {error && (
-        <div style={{ color: "crimson", marginBottom: "1rem" }}>
-          Error: {error instanceof Error ? error.message : String(error)}
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error instanceof Error ? error.message : String(error)}
         </div>
       )}
 
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th style={{ padding: "0.5rem" }}>Adapter</th>
-            <th style={{ padding: "0.5rem" }}>Type</th>
-            <th style={{ padding: "0.5rem" }}>Circuit</th>
-            <th style={{ padding: "0.5rem" }}>Last good</th>
-            <th style={{ padding: "0.5rem" }}>Last check</th>
-            <th style={{ padding: "0.5rem" }}>Latency</th>
-            <th style={{ padding: "0.5rem" }}>Last error</th>
-            <th style={{ padding: "0.5rem" }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(item => (
-            <tr key={item.adapter_key} style={{ borderBottom: "1px solid #eee" }}>
-              <td style={{ padding: "0.5rem", fontFamily: "monospace" }}>
-                <strong>{item.display_name}</strong>
-                <div style={{ color: "#666", fontSize: "0.8rem" }}>{item.adapter_key}</div>
-              </td>
-              <td style={{ padding: "0.5rem" }}>{item.adapter_type}</td>
-              <td style={{ padding: "0.5rem" }}>
-                <span
-                  style={{
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                    background:
-                      item.circuit_state === "closed"
-                        ? "#d1f7c4"
-                        : item.circuit_state === "open"
-                        ? "#fcd9d6"
-                        : "#fff3bf",
-                  }}
-                >
-                  {item.circuit_state}
-                </span>
-              </td>
-              <td style={{ padding: "0.5rem" }}>{item.last_good_at ?? "never"}</td>
-              <td style={{ padding: "0.5rem" }}>{item.last_check_at ?? "never"}</td>
-              <td style={{ padding: "0.5rem" }}>
-                {item.last_latency_ms != null ? `${item.last_latency_ms} ms` : "-"}
-              </td>
-              <td style={{ padding: "0.5rem", maxWidth: 320, color: "#a33" }}>
-                {item.last_error ?? ""}
-              </td>
-              <td style={{ padding: "0.5rem", whiteSpace: "nowrap" }}>
-                <button
-                  onClick={() => refreshM.mutate(item.adapter_key)}
-                  disabled={busyKey === item.adapter_key}
-                  style={{ marginRight: 4 }}
-                >
-                  Refresh
-                </button>
-                {item.circuit_state !== "closed" && (
-                  <button
-                    onClick={() => resetM.mutate(item.adapter_key)}
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Adapter</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Circuit</TableHead>
+              <TableHead>Last good</TableHead>
+              <TableHead>Last check</TableHead>
+              <TableHead>Latency</TableHead>
+              <TableHead>Last error</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow key={item.adapter_key}>
+                <TableCell>
+                  <div className="font-medium text-gray-900">{item.display_name}</div>
+                  <div className="font-mono text-xs text-gray-500">{item.adapter_key}</div>
+                </TableCell>
+                <TableCell className="text-gray-600">{item.adapter_type}</TableCell>
+                <TableCell>
+                  <Badge variant={circuitVariant(item.circuit_state)}>{item.circuit_state}</Badge>
+                </TableCell>
+                <TableCell className="text-gray-600">{item.last_good_at ?? "never"}</TableCell>
+                <TableCell className="text-gray-600">{item.last_check_at ?? "never"}</TableCell>
+                <TableCell className="text-gray-600 tabular-nums">
+                  {item.last_latency_ms != null ? `${item.last_latency_ms} ms` : "-"}
+                </TableCell>
+                <TableCell className="max-w-[320px] truncate text-red-600" title={item.last_error ?? ""}>
+                  {item.last_error ?? ""}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-right">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mr-2"
+                    onClick={() => refreshM.mutate(item.adapter_key)}
                     disabled={busyKey === item.adapter_key}
                   >
-                    Reset
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                    Refresh
+                  </Button>
+                  {item.circuit_state !== "closed" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => resetM.mutate(item.adapter_key)}
+                      disabled={busyKey === item.adapter_key}
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       {!listQ.isLoading && items.length === 0 && (
-        <p style={{ color: "#666", marginTop: "1rem" }}>No adapters registered.</p>
+        <p className="mt-4 text-sm text-gray-500">No adapters registered.</p>
       )}
     </div>
   );
