@@ -136,6 +136,7 @@ function MetricValuesView() {
   return (
     <div className={styles.page} data-testid="waste-metric-values-page">
       <div className={styles.header}>
+        <h2 className={styles.title}>Metrics</h2>
         <p className={styles.subtitle}>
           Waste-category metrics for {cityName}, with year-to-date value and change vs the prior
           year-to-date. Shown regardless of the public dashboard (show-on-dash) setting. Click any

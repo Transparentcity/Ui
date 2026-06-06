@@ -18,6 +18,9 @@ type Props = {
   onPeriodChange: (p: FindingsPeriod) => void;
   isQuiet: boolean;
   isDegraded: boolean;
+  detectorCount?: number;
+  degradedCount?: number;
+  degradedDetectorId?: string | null;
 };
 
 const FILTER_LABEL: Record<FindingsFilter, string> = {
@@ -29,6 +32,7 @@ const FILTER_LABEL: Record<FindingsFilter, string> = {
 export function FindingsStream({
   findings, detectorById, selectedFindingId, onSelect,
   filter, onFilterChange, period, onPeriodChange, isQuiet, isDegraded,
+  detectorCount, degradedCount, degradedDetectorId,
 }: Props) {
   return (
     <main className={styles.findingsStream}>
@@ -62,12 +66,18 @@ export function FindingsStream({
           ))}
         </div>
         <span className={styles.toolbarSpacer} />
-        <button type="button" className={styles.bulkBtn}>Bulk · assign</button>
+        <button type="button" className={styles.bulkBtn} disabled title="Coming soon">
+          Bulk · assign
+        </button>
       </div>
 
       {isDegraded && (
         <div className={styles.degradedBanner} role="status">
-          1 detector failing — D-007 stale. Findings shown may be incomplete.
+          {degradedCount && degradedCount > 0
+            ? `${degradedCount} detector${degradedCount === 1 ? "" : "s"} failing`
+            : "Pipeline degraded"}
+          {degradedDetectorId ? ` — ${degradedDetectorId} stale` : ""}. Findings shown may be
+          incomplete.
         </div>
       )}
 
@@ -76,8 +86,8 @@ export function FindingsStream({
           <div className={styles.emptyState}>
             <div className={styles.emptyTitle}>Quiet day.</div>
             <p className={styles.emptyBody}>
-              All 42 detectors ran clean for {period}. Yesterday&apos;s two open findings remain in review.
-              Seymour will surface anything new on the next 06:00 run.
+              {detectorCount ? `All ${detectorCount} detectors` : "All detectors"} ran clean for{" "}
+              {period}. Seymour will surface anything new on the next scheduled run.
             </p>
           </div>
         ) : findings.length === 0 ? (

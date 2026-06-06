@@ -58,16 +58,16 @@ export function ProvenancePanel({ detector, finding }: Props) {
             <div className={styles.cardLabel}>Lineage · this finding</div>
             <div className={styles.lineageList}>
               <div className={styles.lineageRow}>
-                <span className={styles.lineageKey}>Run</span>
-                <span className={styles.lineageValue}>2026-04-19 06:00 PT</span>
+                <span className={styles.lineageKey}>Flagged</span>
+                <span className={styles.lineageValue}>{finding.flagged}</span>
               </div>
               <div className={styles.lineageRow}>
                 <span className={styles.lineageKey}>Inputs</span>
                 <span className={styles.lineageValue}>{detector.sources.length} sources</span>
               </div>
               <div className={styles.lineageRow}>
-                <span className={styles.lineageKey}>Δ vs. prior run</span>
-                <span className={styles.lineageValueAlert}>+1 new flag</span>
+                <span className={styles.lineageKey}>Status</span>
+                <span className={styles.lineageValue}>{finding.status}</span>
               </div>
             </div>
           </div>
@@ -87,9 +87,9 @@ export function ProvenancePanel({ detector, finding }: Props) {
 
         {finding && (
           <div className={styles.actionRow}>
-            <Button variant="primary" size="sm">Open case →</Button>
-            <Button variant="secondary" size="sm">Mark in review</Button>
-            <Button variant="ghost" size="sm">Dismiss</Button>
+            <Button variant="primary" size="sm" disabled title="Coming soon">Open case →</Button>
+            <Button variant="secondary" size="sm" disabled title="Coming soon">Mark in review</Button>
+            <Button variant="ghost" size="sm" disabled title="Coming soon">Dismiss</Button>
           </div>
         )}
       </div>

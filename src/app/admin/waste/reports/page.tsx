@@ -38,7 +38,7 @@ function ReportsView() {
             Per-period reports compiled from confirmed findings, grouped by detector class.
           </p>
         </div>
-        <Button variant="primary" size="sm">+ New workpaper</Button>
+        <Button variant="primary" size="sm" disabled title="Coming soon">+ New workpaper</Button>
       </div>
 
       <div className={styles.table}>

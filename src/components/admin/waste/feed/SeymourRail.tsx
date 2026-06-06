@@ -119,13 +119,15 @@ export function SeymourRail({ data, onCollapse, isQuiet }: Props) {
           {isQuiet ? (
             <div className={styles.todaysReadCardQuiet}>
               <p className={styles.todaysReadTextQuiet}>
-                No new clusters since 06:00 PT. Two findings carried over from yesterday remain in Open status. Nothing new to escalate.
+                No new clusters since the last run. Nothing new to escalate.
               </p>
             </div>
           ) : (
             <div className={styles.todaysReadCard}>
               <p className={styles.todaysReadText}>{data.todaysRead}</p>
-              <button type="button" className={styles.todaysReadAction}>Show reasoning →</button>
+              <button type="button" className={styles.todaysReadAction} disabled title="Coming soon">
+                Show reasoning →
+              </button>
             </div>
           )}
         </div>
@@ -153,9 +155,15 @@ export function SeymourRail({ data, onCollapse, isQuiet }: Props) {
                     </div>
                     <p className={styles.clusterReasoning}>{c.reasoning}</p>
                     <div className={styles.clusterActions}>
-                      <button type="button" className={styles.clusterAccept}>{c.suggestion} →</button>
-                      <button type="button" className={styles.clusterSnooze}>Snooze</button>
-                      <button type="button" className={styles.clusterDismiss} aria-label="Dismiss">×</button>
+                      <button type="button" className={styles.clusterAccept} disabled title="Coming soon">
+                        {c.suggestion} →
+                      </button>
+                      <button type="button" className={styles.clusterSnooze} disabled title="Coming soon">
+                        Snooze
+                      </button>
+                      <button type="button" className={styles.clusterDismiss} aria-label="Dismiss" disabled title="Coming soon">
+                        ×
+                      </button>
                     </div>
                   </div>
                 ))}
