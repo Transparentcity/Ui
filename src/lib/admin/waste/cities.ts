@@ -13,20 +13,12 @@ export type WasteCity = {
   status: string;
 };
 
+// Only cities we currently have waste data for. apiSlug must match the public
+// metrics sitemap slug so the metrics page can resolve the DB city id.
 export const WASTE_CITIES: readonly WasteCity[] = [
-  { id: "sf",  apiSlug: "san-francisco", name: "San Francisco", flag: "🌉", state: "CA", launched: true,  detectors: 42, findingsToday: 7, status: "Live · Auditor's Office" },
-  { id: "chi", apiSlug: "chicago",       name: "Chicago",       flag: "🏙️", state: "IL", launched: true,  detectors: 38, findingsToday: 4, status: "Live · Inspector General" },
-  { id: "atx", apiSlug: "austin",        name: "Austin",        flag: "🤘", state: "TX", launched: true,  detectors: 9,  findingsToday: 1, status: "Onboarding · 9 of 42 detectors live" },
-  { id: "nyc", apiSlug: "new-york",      name: "New York City", flag: "🗽", state: "NY", launched: false, status: "Rolling out · Q3 2026" },
-  { id: "la",  apiSlug: "los-angeles",   name: "Los Angeles",   flag: "🌴", state: "CA", launched: false, status: "Rolling out · Q3 2026" },
-  { id: "sea", apiSlug: "seattle",       name: "Seattle",       flag: "🌲", state: "WA", launched: false, status: "Rolling out · Q4 2026" },
-  { id: "den", apiSlug: "denver",        name: "Denver",        flag: "⛰️", state: "CO", launched: false, status: "Rolling out · Q4 2026" },
-  { id: "bos", apiSlug: "boston",        name: "Boston",        flag: "⚓", state: "MA", launched: false, status: "Rolling out · Q4 2026" },
-  { id: "phi", apiSlug: "philadelphia",  name: "Philadelphia",  flag: "🔔", state: "PA", launched: false, status: "Rolling out · 2027" },
-  { id: "phx", apiSlug: "phoenix",       name: "Phoenix",       flag: "🌵", state: "AZ", launched: false, status: "Rolling out · 2027" },
-  { id: "atl", apiSlug: "atlanta",       name: "Atlanta",       flag: "🍑", state: "GA", launched: false, status: "Rolling out · 2027" },
-  { id: "min", apiSlug: "minneapolis",   name: "Minneapolis",   flag: "🌾", state: "MN", launched: false, status: "Rolling out · 2027" },
-  { id: "por", apiSlug: "portland",      name: "Portland",      flag: "🌹", state: "OR", launched: false, status: "Rolling out · 2027" },
+  { id: "sf",  apiSlug: "san-francisco", name: "San Francisco", flag: "🌉", state: "CA", launched: true, detectors: 42, findingsToday: 7, status: "Live · Auditor's Office" },
+  { id: "nyc", apiSlug: "new-york-city", name: "New York City", flag: "🗽", state: "NY", launched: true, status: "Live" },
+  { id: "chi", apiSlug: "chicago",       name: "Chicago",       flag: "🏙️", state: "IL", launched: true, detectors: 38, findingsToday: 4, status: "Live · Inspector General" },
 ] as const;
 
 export const DEFAULT_WASTE_CITY_ID = "sf";

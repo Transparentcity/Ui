@@ -25,12 +25,14 @@ type NavItem = {
 const NAV_ITEMS: readonly NavItem[] = [
   { id: "findings", label: "Findings", href: "/admin/waste/findings",
     iconPath: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></> },
-  { id: "metrics", label: "Metrics", href: "/admin/waste/metrics",
+  { id: "metrics", label: "Metrics", href: "/admin/waste/metric-values",
     iconPath: <path d="M3 3v18h18M7 14l3-3 4 4 5-6" /> },
   { id: "reports", label: "Reports", href: "/admin/waste/reports",
     iconPath: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></> },
   { id: "data-sources", label: "Data sources", href: "/admin/waste/data-sources",
     iconPath: <><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" /></> },
+  { id: "methodology", label: "Methodology", href: "/admin/waste/metrics",
+    iconPath: <><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></> },
 ];
 
 export function PrimaryNav() {
