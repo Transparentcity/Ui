@@ -33,7 +33,6 @@ export function CitySelector({ active }: Props) {
   };
 
   const launched = WASTE_CITIES.filter(c => c.launched);
-  const rolling = WASTE_CITIES.filter(c => !c.launched);
 
   return (
     <div className={styles.cityWrap} ref={ref}>
@@ -41,7 +40,10 @@ export function CitySelector({ active }: Props) {
         <span className={styles.cityFlag}>{active.flag}</span>
         <div className={styles.cityMain}>
           <div className={styles.cityName}>{active.name}</div>
-          <div className={styles.cityMeta}>{active.state} · {active.detectors ?? 0} detectors</div>
+          <div className={styles.cityMeta}>
+            {active.state}
+            {active.detectors != null ? ` · ${active.detectors} detectors` : ""}
+          </div>
         </div>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" aria-hidden="true">
           <path d={open ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
@@ -49,7 +51,6 @@ export function CitySelector({ active }: Props) {
       </button>
       {open && (
         <div className={styles.cityMenu} role="listbox">
-          <div className={styles.cityGroup}>Live</div>
           {launched.map(c => {
             const isActive = c.id === active.id;
             return (
@@ -70,16 +71,6 @@ export function CitySelector({ active }: Props) {
               </button>
             );
           })}
-          <div className={`${styles.cityGroup} ${styles.cityGroupRolling}`}>Rolling out · {rolling.length}</div>
-          {rolling.map(c => (
-            <div key={c.id} className={styles.cityRollingItem}>
-              <span className={styles.cityRollingFlag}>{c.flag}</span>
-              <div className={styles.cityMain}>
-                <div className={styles.cityRollingName}>{c.name}</div>
-                <div className={styles.cityRollingStatus}>{c.status}</div>
-              </div>
-            </div>
-          ))}
         </div>
       )}
     </div>

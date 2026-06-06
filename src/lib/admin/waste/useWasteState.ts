@@ -12,7 +12,7 @@ import type {
 } from "@/lib/api/wasteAdmin";
 
 export type WasteHealth = "healthy" | "warn" | "down";
-export type WasteSection = "feed" | "metrics" | "findings" | "reports";
+export type WasteSection = "feed" | "metrics" | "findings" | "reports" | "methodology";
 
 export type WasteUIState = {
   city: WasteCity;
@@ -34,10 +34,15 @@ const SECTION_LABEL: Record<WasteSection, string> = {
   metrics: "Metrics",
   findings: "Findings",
   reports: "Reports",
+  methodology: "Methodology",
 };
 
 function parseSection(pathname: string): WasteSection {
-  const match = pathname.match(/\/admin\/waste\/(feed|metrics|findings|reports)/);
+  // Order matters: /metric-values is the metrics page; /metrics is the detector
+  // catalog (labeled "Methodology" in the nav).
+  if (/\/admin\/waste\/metric-values/.test(pathname)) return "metrics";
+  if (/\/admin\/waste\/metrics/.test(pathname)) return "methodology";
+  const match = pathname.match(/\/admin\/waste\/(feed|findings|reports)/);
   return (match?.[1] as WasteSection) ?? "feed";
 }
 
