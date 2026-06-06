@@ -1,7 +1,7 @@
 "use client";
 
+import { Card } from "@/components/ui/card";
 import { useWasteState } from "@/lib/admin/waste/useWasteState";
-import styles from "./Readout.module.css";
 
 type Cell = { label: string; value: number; hint?: string };
 
@@ -13,8 +13,11 @@ export function Readout() {
   const ui = useWasteState();
 
   const cells: readonly Cell[] = [
-    { label: "Detectors active", value: ui.detectorsActive,
-      hint: ui.city.detectors != null ? `of ${ui.city.detectors} configured` : undefined },
+    {
+      label: "Detectors active",
+      value: ui.detectorsActive,
+      hint: ui.city.detectors != null ? `of ${ui.city.detectors} configured` : undefined,
+    },
     { label: "Findings today", value: ui.findingsToday },
     { label: "This week", value: ui.findingsThisWeek },
     { label: "In review", value: ui.inReview },
@@ -22,13 +25,19 @@ export function Readout() {
   ];
 
   return (
-    <div className={styles.grid} role="group" aria-label="Waste KPIs">
-      {cells.map(c => (
-        <div key={c.label} className={styles.cell}>
-          <div className={styles.label}>{c.label}</div>
-          <div className={styles.value}>{format(c.value)}</div>
-          {c.hint && <div className={styles.delta}>{c.hint}</div>}
-        </div>
+    <div
+      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+      role="group"
+      aria-label="Waste KPIs"
+    >
+      {cells.map((c) => (
+        <Card key={c.label} className="p-4">
+          <div className="text-xs text-gray-500">{c.label}</div>
+          <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
+            {format(c.value)}
+          </div>
+          {c.hint && <div className="mt-0.5 text-xs text-gray-400">{c.hint}</div>}
+        </Card>
       ))}
     </div>
   );

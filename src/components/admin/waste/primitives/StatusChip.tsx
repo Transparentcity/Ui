@@ -1,12 +1,12 @@
-import styles from "./primitives.module.css";
+import { Badge } from "@/components/ui/badge";
 
 export type FindingStatus = "open" | "in-review" | "confirmed" | "dismissed";
 
-const statusClass: Record<FindingStatus, string> = {
-  open: styles.statusOpen,
-  "in-review": styles.statusInReview,
-  confirmed: styles.statusConfirmed,
-  dismissed: styles.statusDismissed,
+const statusTint: Record<FindingStatus, string> = {
+  open: "bg-purple-50 text-purple-700 border-purple-200",
+  "in-review": "bg-indigo-50 text-indigo-700 border-indigo-200",
+  confirmed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  dismissed: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 const statusLabel: Record<FindingStatus, string> = {
@@ -17,5 +17,9 @@ const statusLabel: Record<FindingStatus, string> = {
 };
 
 export function StatusChip({ status }: { status: FindingStatus }) {
-  return <span className={`${styles.statusChip} ${statusClass[status]}`}>{statusLabel[status]}</span>;
+  return (
+    <Badge variant="outline" className={`px-2 py-0.5 ${statusTint[status]}`}>
+      {statusLabel[status]}
+    </Badge>
+  );
 }
