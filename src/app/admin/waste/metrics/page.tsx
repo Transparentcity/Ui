@@ -94,7 +94,7 @@ function MetricsView() {
   if (error) {
     return (
       <div className="px-8 py-6">
-        <h2 className="text-lg font-semibold text-gray-900">Methodology</h2>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Methodology</h2>
         <p role="alert" className="mt-1 text-sm text-red-700">
           Couldn&apos;t load detector catalog:{" "}
           {error instanceof Error ? error.message : "Unknown error"}
@@ -109,8 +109,8 @@ function MetricsView() {
   if (isLoading) {
     return (
       <div className="px-8 py-6">
-        <h2 className="text-lg font-semibold text-gray-900">Methodology</h2>
-        <p className="mt-1 text-sm text-gray-500">Loading detector catalog…</p>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Methodology</h2>
+        <p className="mt-1 text-sm text-[var(--text-tertiary)]">Loading detector catalog…</p>
       </div>
     );
   }
@@ -119,8 +119,8 @@ function MetricsView() {
   if (totalDetectors === 0) {
     return (
       <div className="px-8 py-6" data-testid="waste-metrics-page">
-        <h2 className="text-lg font-semibold text-gray-900">Methodology</h2>
-        <p className="mt-1 text-sm text-gray-500">No detectors configured for this city yet.</p>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Methodology</h2>
+        <p className="mt-1 text-sm text-[var(--text-tertiary)]">No detectors configured for this city yet.</p>
       </div>
     );
   }
@@ -129,11 +129,11 @@ function MetricsView() {
     <div className="px-8 py-6 flex gap-6 items-start" data-testid="waste-metrics-page">
       {/* List pane */}
       <aside
-        className="w-72 shrink-0 rounded-lg border border-gray-200 bg-white sticky top-0 self-start max-h-[calc(100vh-9rem)] overflow-y-auto"
+        className="w-72 shrink-0 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] sticky top-0 self-start max-h-[calc(100vh-9rem)] overflow-y-auto"
         aria-label="Detector catalog"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-900">Detectors</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-primary)]">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Detectors</h2>
           <Mono>{totalDetectors} active</Mono>
         </div>
         <div className="py-1">
@@ -143,7 +143,7 @@ function MetricsView() {
             return (
               <div key={cat.id} className="py-1">
                 <div className="flex items-center justify-between px-4 py-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
                     {cat.label}
                   </span>
                   <Mono>{items.length}</Mono>
@@ -161,8 +161,8 @@ function MetricsView() {
                       className={cn(
                         "w-full flex items-center gap-2 px-4 py-2 text-left border-l-2 transition-colors",
                         isSel
-                          ? "border-l-purple-600 bg-purple-50"
-                          : "border-l-transparent hover:bg-gray-50",
+                          ? "border-l-purple-600 bg-[var(--brand-secondary)]"
+                          : "border-l-transparent hover:bg-[var(--bg-tertiary)]",
                       )}
                     >
                       <div className="min-w-0 flex-1">
@@ -170,10 +170,10 @@ function MetricsView() {
                           <SeverityDot level={d.severity} />
                           <Mono>{d.id}</Mono>
                         </div>
-                        <div className="text-sm font-semibold text-gray-900 truncate">{d.name}</div>
+                        <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{d.name}</div>
                       </div>
                       <span
-                        className="shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 tabular-nums"
+                        className="shrink-0 rounded-md bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-xs text-[var(--text-secondary)] tabular-nums"
                         title="Findings this week"
                       >
                         {count}
@@ -197,11 +197,11 @@ function MetricsView() {
                 <Mono>{selectedDetector.id}</Mono>
                 <SeverityChip level={selectedDetector.severity} />
               </div>
-              <h2 className="mt-2 text-xl font-bold tracking-tight text-gray-900">
+              <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--text-primary)]">
                 {selectedDetector.name}
               </h2>
-              <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <div className="mt-1 flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
                   Findings this week
                 </span>
                 <Mono>{weeklyCountById[selectedDetector.id] ?? 0}</Mono>
@@ -209,13 +209,13 @@ function MetricsView() {
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">What it flags</div>
-              <p className="mt-1 text-sm text-gray-700">{selectedDetector.plain}</p>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">What it flags</div>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{selectedDetector.plain}</p>
             </div>
 
             {selectedDetector.sources.length > 0 ? (
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)] mb-1.5">
                   Standards basis
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -239,12 +239,12 @@ function MetricsView() {
                     {selectedDetector.historical.case}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700">{selectedDetector.historical.lesson}</p>
+                <p className="text-sm text-[var(--text-secondary)]">{selectedDetector.historical.lesson}</p>
               </div>
             ) : null}
           </div>
         ) : (
-          <div className="text-sm text-gray-500">Select a detector on the left to see how it works.</div>
+          <div className="text-sm text-[var(--text-tertiary)]">Select a detector on the left to see how it works.</div>
         )}
       </section>
     </div>
