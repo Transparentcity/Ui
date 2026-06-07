@@ -7507,6 +7507,48 @@ export interface ProductAnalyticsRetentionLagTable {
   rows: ProductAnalyticsRetentionLagRow[];
 }
 
+export interface RetentionLagCellUser {
+  first_name: string | null;
+  last_name: string | null;
+  name: string | null;
+}
+
+export interface RetentionLagCellUsersResponse {
+  date: string;
+  lag: number;
+  users: RetentionLagCellUser[];
+}
+
+export function getRetentionLagCellUsers(
+  token: string,
+  date: string,
+  lag: number
+): Promise<RetentionLagCellUsersResponse> {
+  return request<RetentionLagCellUsersResponse>(
+    `/api/admin/product-analytics/retention-lag/cell-users?date=${encodeURIComponent(date)}&lag=${lag}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface RetentionLagActiveDayUsersResponse {
+  date: string;
+  users: RetentionLagCellUser[];
+}
+
+export function getRetentionLagActiveDayUsers(
+  token: string,
+  date: string
+): Promise<RetentionLagActiveDayUsersResponse> {
+  return request<RetentionLagActiveDayUsersResponse>(
+    `/api/admin/product-analytics/retention-lag/active-day-users?date=${encodeURIComponent(date)}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export interface ProductAnalyticsLandingMatrixRow {
   source: string;
   total: number;

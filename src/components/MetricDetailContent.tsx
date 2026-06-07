@@ -43,6 +43,9 @@ export default function MetricDetailContent({
 }: MetricDetailContentProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
   const selectedDistrict = district ?? null; // null = citywide, number = specific district
+  // Collapses to false when MetricMapEmbed determines there's nothing renderable
+  // (e.g. too many points, no choropleth available).
+  const [mapSectionVisible, setMapSectionVisible] = useState(true);
 
   // Detect narrow screens for compact map/chart layout
   const [isMobile, setIsMobile] = useState(false);
@@ -435,7 +438,7 @@ export default function MetricDetailContent({
       )}
 
       {/* District Comparison - district pages use the comparison cards and charts, not a district-only map. */}
-      {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+      {mapSectionVisible && metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
         <section className="metric-section">
           <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
           {isStale ? (
@@ -455,10 +458,16 @@ export default function MetricDetailContent({
             metricName={metric.metric_name}
             itemNoun={metric.item_noun}
             valueField={mapValueField}
+            knownTotal={comparison?.current_period_value ?? undefined}
             dateRange={{
               start: comparison?.current_period_start || null,
               end: comparison?.current_period_end || null,
             }}
+            comparisonDateRange={{
+              start: comparison?.comparison_period_start || null,
+              end: comparison?.comparison_period_end || null,
+            }}
+            onMapUnavailable={() => setMapSectionVisible(false)}
           />
         </section>
       )}

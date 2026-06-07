@@ -70,6 +70,69 @@
   min-width: 0;
 }
 
+/* Place scope: prominent name block replacing the compact label + name row */
+.district-navigation-header--place {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 4px 8px 4px 2px;
+}
+
+.district-navigation-header--place:hover {
+  background: var(--bg-secondary, #f8f9fa);
+  border-color: var(--border-primary, #e5e7eb);
+  box-shadow: none;
+}
+
+.district-navigation-place-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.district-navigation-place-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--brand-primary, #ad35fa);
+  line-height: 1;
+}
+
+.district-navigation-place-eyebrow-chevron {
+  flex-shrink: 0;
+  color: var(--brand-primary, #ad35fa);
+  opacity: 0.8;
+}
+
+.district-navigation-place-name {
+  font-family: var(--font-heading, "Inter", sans-serif);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .district-navigation-place-name,
+.dark .district-navigation-place-name {
+  color: var(--text-primary, #f1f5f9);
+}
+
+@media (max-width: 640px) {
+  .district-navigation-place-name {
+    font-size: 0.9375rem;
+  }
+}
+
 .district-navigation-refresh {
   font-size: 0.7rem;
   font-weight: 500;

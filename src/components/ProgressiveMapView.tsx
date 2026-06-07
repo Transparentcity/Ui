@@ -132,6 +132,8 @@ function getBoundsFromPolygonFeatures(
 
 interface Aggregation {
   identifier_field: string;
+  /** Metric column used to key rows (may differ from identifier_field, e.g. "analysis_neighborhood" vs "nhood"). */
+  data_field?: string;
   display_name: string;
   rows: Array<{ district: string; value: number; [key: string]: any }>;
 }
@@ -899,14 +901,19 @@ export default function ProgressiveMapView({
     }
 
 
-    // Filter points by selected district
+    // Filter points by selected district.
+    // Use data_field (the Socrata column the points actually carry) if it differs from
+    // identifier_field (the GeoJSON property). Both come from the shape layer DB record.
     const filteredPoints = selectedDistrictId
       ? points.filter((p: any) => {
           if (!selectedShapeLayer) return true;
           const aggregation = effectiveAggregations[selectedShapeLayer];
           if (!aggregation) return true;
-          const identifierField = aggregation.identifier_field;
-          const pointDistrictId = String(p[identifierField] || p.supervisor_district || p.district || "");
+          const dataField = (aggregation as any).data_field?.trim();
+          const idField = aggregation.identifier_field;
+          const pointDistrictId = String(
+            (dataField && p[dataField]) || p[idField] || ""
+          );
           return pointDistrictId === selectedDistrictId;
         })
       : points;
@@ -938,16 +945,11 @@ export default function ProgressiveMapView({
     
     
     points.forEach((point: any) => {
-      // Try to get district ID from point data:
-      // 1. First check metric's district_field (highest priority - explicitly configured)
-      // 2. Then check the shape layer's identifier_field
-      // 3. Then fall back to common district field names
+      // identifierField here is joinFieldForCompute = data_field || identifier_field,
+      // both sourced from the shape layer DB record. No hardcoded names needed.
       const id = String(
         (metricDistrictField && point[metricDistrictField]) ||
-        point[identifierField] || 
-        point.supervisor_district || 
-        point.district || 
-        point.district_id ||
+        point[identifierField] ||
         ""
       );
       if (id && id !== "null" && id !== "undefined" && id !== "") {
@@ -1077,6 +1079,12 @@ export default function ProgressiveMapView({
         if (rawStr && rawStr !== norm) districtDataMap.set(rawStr, row);
       };
 
+      // The aggregation row key may differ from the shape layer's identifier_field.
+      // Example: rows keyed by "analysis_neighborhood" (the Socrata field) while the
+      // shape layer's GeoJSON identifier_field is "nhood". We must try data_field first
+      // so those rows can be found even when identifier_field has no match.
+      const aggDataField = aggregation.data_field?.trim();
+
       aggregation.rows.forEach((row: any) => {
         const rowObj = row as Record<string, unknown>;
         const cands: unknown[] = [];
@@ -1086,17 +1094,16 @@ export default function ProgressiveMapView({
             getCaseInsensitiveProp(rowObj, districtFieldCfg)
           );
         }
-        cands.push(
-          getCaseInsensitiveProp(rowObj, identifierField),
-          getCaseInsensitiveProp(rowObj, "district"),
-          getCaseInsensitiveProp(rowObj, "supervisor_district"),
-          getCaseInsensitiveProp(rowObj, "district_id"),
-          getCaseInsensitiveProp(rowObj, "council_district"),
-          rowObj.district,
-          rowObj.supervisor_district,
-          rowObj.district_id,
-          rowObj.council_district
-        );
+        // Try data_field (the Socrata column used to key the aggregation rows) first,
+        // then identifier_field (the GeoJSON property name from the shape layer DB record).
+        // Both are sourced from the database — no hardcoded city/field names needed here.
+        if (aggDataField && aggDataField !== identifierField) {
+          cands.push(
+            rowObj[aggDataField],
+            getCaseInsensitiveProp(rowObj, aggDataField)
+          );
+        }
+        cands.push(getCaseInsensitiveProp(rowObj, identifierField));
         for (const raw of cands) {
           if (raw == null || String(raw).trim() === "") continue;
           addRowUnderKeys(row, raw);
@@ -1166,14 +1173,12 @@ export default function ProgressiveMapView({
       const features = geometryData.features.map((feature: any) => {
         const props = feature.properties || {};
 
+        // Use the DB-stored identifier_field from the shape layer API as the definitive
+        // GeoJSON property key. No hardcoded city-specific field names.
         const districtIdRaw =
           getCaseInsensitiveProp(props, apiIdentifierField) ??
           getCaseInsensitiveProp(props, shapeIdentifierField) ??
           getCaseInsensitiveProp(props, identifierField) ??
-          getCaseInsensitiveProp(props, "district") ??
-          getCaseInsensitiveProp(props, "district_id") ??
-          getCaseInsensitiveProp(props, "supervisor_district") ??
-          props.sup_dist_num ??
           props.name ??
           props.label ??
           "";
@@ -1287,7 +1292,7 @@ export default function ProgressiveMapView({
       mapInstance.on("click", "choropleth-fill", async (e: any) => {
         if (!e.features || e.features.length === 0) return;
         const feature = e.features[0];
-        const districtId = feature.properties.district_id || feature.properties.district || "";
+        const districtId = feature.properties.district_id || "";
         
         if (!districtId) return;
 
@@ -1319,7 +1324,7 @@ export default function ProgressiveMapView({
         if (!e.features || e.features.length === 0) return;
         const feature = e.features[0];
         const props = feature.properties;
-        const districtId = props.district_id || props.district || "Unknown";
+        const districtId = props.district_id || "Unknown";
         const value = props.value !== null && props.value !== undefined ? props.value.toLocaleString() : "No data";
 
         popup

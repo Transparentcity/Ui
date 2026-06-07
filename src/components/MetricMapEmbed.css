@@ -7,11 +7,12 @@
 
 .metric-map-primary-shape-label {
   font-family: "IBM Plex Sans", sans-serif;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
   line-height: 1.35;
-  margin-bottom: 0.15rem;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.25rem;
 }
 
 .map-period-selector {
@@ -177,6 +178,50 @@
 
 .map-legend-label {
   line-height: 1;
+}
+
+/* ── Lazy-load placeholder ─────────────────────────────────────────────────── */
+.map-placeholder {
+  width: 100%;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary, var(--bg-secondary)) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: map-placeholder-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes map-placeholder-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Secondary map sections ────────────────────────────────────────────────── */
+.metric-map-secondary-maps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.metric-map-secondary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.metric-map-secondary-label {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
 }
 
 @media (max-width: 768px) {
