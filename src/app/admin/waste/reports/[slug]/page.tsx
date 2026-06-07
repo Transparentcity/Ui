@@ -55,7 +55,13 @@ const CSV_COLUMNS: ReadonlyArray<[string, (f: WasteAdminReportDetail["findings"]
 
 function csvCell(value: unknown): string {
   if (value == null) return "";
-  const s = String(value);
+  let s = String(value);
+  // Defuse spreadsheet formula injection for text cells (a value like
+  // "=cmd()" or "@SUM" would execute on open). Numeric columns come through
+  // as numbers, so guarding only string values keeps them intact.
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
