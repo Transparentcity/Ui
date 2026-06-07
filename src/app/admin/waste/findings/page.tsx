@@ -31,6 +31,7 @@ import { getWasteApiSlug } from "@/lib/admin/waste/cities";
 import { useWasteState } from "@/lib/admin/waste/useWasteState";
 import type { Detector } from "@/lib/wasteFixtures";
 import styles from "@/components/admin/waste/feed/feed.module.css";
+import { WasteLoading } from "@/components/admin/waste/WasteLoading";
 
 const VALID_FILTERS: readonly FindingsFilter[] = ["all", "high", "med"];
 const VALID_PERIODS: readonly FindingsPeriod[] = ["today", "week", "month"];
@@ -211,7 +212,7 @@ function FindingsPageView() {
 
 export default function WasteFindingsPage() {
   return (
-    <Suspense fallback={<div className={styles.findingsPage} />}>
+    <Suspense fallback={<WasteLoading label="Loading findings…" />}>
       <FindingsPageView />
     </Suspense>
   );

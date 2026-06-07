@@ -17,6 +17,7 @@ import {
 import { useWasteAdminReports } from "@/lib/hooks/useWasteAdmin";
 import { adaptReportRow } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
+import { WasteLoading } from "@/components/admin/waste/WasteLoading";
 
 function ReportsView() {
   const router = useRouter();
@@ -116,7 +117,7 @@ function ReportsView() {
 
 export default function WasteReportsPage() {
   return (
-    <Suspense fallback={<div className="px-8 py-6" />}>
+    <Suspense fallback={<WasteLoading />}>
       <ReportsView />
     </Suspense>
   );

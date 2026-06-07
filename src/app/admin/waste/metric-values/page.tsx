@@ -10,6 +10,7 @@ import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
 import type { AdminMetricListItem } from "@/lib/apiClient";
 import MetricChartsModal from "@/components/MetricChartsModal";
 import { Badge } from "@/components/ui/badge";
+import { WasteLoading } from "@/components/admin/waste/WasteLoading";
 import { cn } from "@/lib/utils";
 
 // The admin waste UI selects its city via the ?city= param using abbreviated
@@ -79,6 +80,10 @@ function MetricValuesView() {
     queryKey: ["public", "cities", "sitemap"],
     queryFn: listPublicCitiesForSitemap,
     staleTime: 5 * 60 * 1000,
+    // Bound retries so a slow/timed-out sitemap surfaces an error state quickly
+    // instead of spinning indefinitely.
+    retry: 1,
+    retryDelay: 1000,
   });
 
   const cityId = useMemo(() => {
@@ -86,7 +91,13 @@ function MetricValuesView() {
     return match ? Number(match.id) : null;
   }, [citiesQ.data, apiSlug]);
 
-  const metricsQ = useMetrics({ category: "waste", city_id: cityId ?? -1 });
+  // Only fetch metrics once we have a real city id. Previously this fired with
+  // city_id=-1 while the city was still resolving, returning nothing and
+  // wasting a backend call.
+  const metricsQ = useMetrics(
+    { category: "waste", city_id: cityId ?? -1 },
+    { enabled: cityId != null },
+  );
   const metrics = useMemo(() => (cityId ? metricsQ.data ?? [] : []), [cityId, metricsQ.data]);
 
   const metricIds = useMemo(
@@ -116,7 +127,9 @@ function MetricValuesView() {
   }, [metrics]);
 
   const citySlug = cityId ? apiSlug : null;
-  const cityUnresolved = !citiesQ.isLoading && cityId == null;
+  // Distinguish "the city catalog failed to load" (error, retryable) from
+  // "this city simply isn't in the launched list" (genuine empty state).
+  const cityUnresolved = !citiesQ.isLoading && !citiesQ.isError && cityId == null;
 
   function valueLabel(m: AdminMetricListItem, value: number | null): string {
     if (value != null) return formatValue(value);
@@ -143,13 +156,20 @@ function MetricValuesView() {
         metric for its full chart and history.
       </p>
 
-      {cityUnresolved ? (
+      {citiesQ.isError ? (
+        emptyBox(
+          "Couldn't load the city catalog",
+          citiesQ.error instanceof Error
+            ? citiesQ.error.message
+            : "The cities service didn't respond. Reload to try again.",
+        )
+      ) : cityUnresolved ? (
         emptyBox(
           `No metrics catalog for ${cityName}`,
           "This city isn't in the launched metrics list, so there are no waste metrics to show here yet.",
         )
-      ) : metricsQ.isLoading || citiesQ.isLoading ? (
-        <p className="text-sm text-[var(--text-tertiary)]">Loading metrics…</p>
+      ) : citiesQ.isLoading || (cityId != null && metricsQ.isLoading) ? (
+        <WasteLoading label="Loading metrics…" />
       ) : metricsQ.error ? (
         emptyBox("Couldn't load metrics", (metricsQ.error as Error).message)
       ) : metrics.length === 0 ? (
@@ -255,7 +275,7 @@ function MetricValuesView() {
 
 export default function WasteMetricValuesPage() {
   return (
-    <Suspense fallback={<div className="px-8 py-6" />}>
+    <Suspense fallback={<WasteLoading />}>
       <MetricValuesView />
     </Suspense>
   );
