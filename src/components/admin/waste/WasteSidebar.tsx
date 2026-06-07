@@ -8,7 +8,6 @@ import {
   ClipboardCheck,
   BarChart3,
   FileText,
-  Database,
   BookOpen,
   ArrowLeft,
   LogIn,
@@ -28,7 +27,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   { id: "findings", label: "Findings", href: "/admin/waste/findings", icon: ClipboardCheck },
   { id: "metrics", label: "Metrics", href: "/admin/waste/metric-values", icon: BarChart3 },
   { id: "reports", label: "Reports", href: "/admin/waste/reports", icon: FileText },
-  { id: "data-sources", label: "Data sources", href: "/admin/waste/data-sources", icon: Database },
   { id: "methodology", label: "Methodology", href: "/admin/waste/metrics", icon: BookOpen },
 ];
 
