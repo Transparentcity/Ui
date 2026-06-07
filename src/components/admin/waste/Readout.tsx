@@ -14,7 +14,7 @@ export function Readout() {
 
   const cells: readonly Cell[] = [
     {
-      label: "Detectors active",
+      label: "Detectors firing (30d)",
       value: ui.detectorsActive,
       hint:
         ui.detectorsConfigured != null
