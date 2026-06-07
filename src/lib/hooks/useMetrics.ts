@@ -135,7 +135,10 @@ export interface UseMetricsOptions {
  * Hook to fetch list of metrics with filtering options.
  * Cache time: 2 minutes (metrics change frequently)
  */
-export function useMetrics(options: UseMetricsOptions = {}) {
+export function useMetrics(
+  options: UseMetricsOptions = {},
+  queryOptions?: { enabled?: boolean }
+) {
   const { getAccessTokenSilently, isAuthenticated, isLoading } = useAuth0();
   const queryClient = useQueryClient();
 
@@ -149,7 +152,10 @@ export function useMetrics(options: UseMetricsOptions = {}) {
       return listAdminMetrics(token, options);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - metrics can change frequently
-    enabled: !isLoading && !!isAuthenticated,
+    // Callers can additionally gate the query (e.g. until a city id resolves)
+    // so we never fire a request with a placeholder/invalid filter.
+    enabled:
+      (queryOptions?.enabled ?? true) && !isLoading && !!isAuthenticated,
   });
 }
 

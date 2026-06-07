@@ -13,6 +13,7 @@ import {
 } from "@/lib/hooks/useWasteAdmin";
 import { adaptDetector, adaptFinding, categoryFromBackend } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
+import { WasteLoading } from "@/components/admin/waste/WasteLoading";
 import {
   DETECTOR_CATEGORIES,
   type Detector,
@@ -253,7 +254,7 @@ function MetricsView() {
 
 export default function WasteMetricsPage() {
   return (
-    <Suspense fallback={<div className="px-8 py-6" />}>
+    <Suspense fallback={<WasteLoading />}>
       <MetricsView />
     </Suspense>
   );
