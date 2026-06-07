@@ -20,9 +20,16 @@ body {
   box-sizing: border-box;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* Keep this in @layer base so Tailwind's text-color/underline utilities (which
+   live in the later `utilities` layer) win over it. An unlayered `a` rule would
+   outrank every layered utility and silently override link colors set via
+   classes — e.g. it made the themed waste-admin nav links inherit the body ink
+   and vanish in dark mode. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 /* Skip navigation link for keyboard/screen-reader users */

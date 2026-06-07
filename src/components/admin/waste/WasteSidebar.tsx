@@ -62,9 +62,9 @@ export function WasteSidebar() {
   const querySuffix = preserved.toString() ? `?${preserved.toString()}` : "";
 
   return (
-    <aside className="w-[280px] min-w-[280px] h-screen bg-white border-r border-gray-200 flex flex-col sticky top-0 left-0 z-50">
+    <aside className="w-[280px] min-w-[280px] h-screen bg-[var(--bg-primary)] border-r border-[var(--border-primary)] flex flex-col sticky top-0 left-0 z-50">
       {/* Brand */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 min-h-16">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-primary)] min-h-16">
         <Link href="/home" className="flex items-center gap-2.5 text-inherit no-underline flex-1">
           <div className="w-5 h-5 shrink-0">
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="overflow-visible w-full h-full">
@@ -73,20 +73,20 @@ export function WasteSidebar() {
             </svg>
           </div>
           <div className="font-bold text-lg whitespace-nowrap">
-            <span className="text-gray-900">Transparent</span>
-            <span className="text-purple-600">.city</span>
+            <span className="text-[var(--text-primary)]">Transparent</span>
+            <span className="text-[var(--brand-primary)]">.city</span>
           </div>
         </Link>
       </div>
 
       {/* Eyebrow + back link */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        <span className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wide">
           Waste Module
         </span>
         <Link
           href="/home"
-          className="flex items-center gap-1 text-xs text-gray-500 no-underline hover:text-purple-600 transition-colors"
+          className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] no-underline hover:text-[var(--brand-primary)] transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />
           Main App
@@ -111,8 +111,8 @@ export function WasteSidebar() {
                   className={cn(
                     "flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-all border-l-[3px]",
                     isActive
-                      ? "text-purple-600 font-semibold bg-gray-100 border-l-purple-600"
-                      : "text-gray-600 font-normal bg-transparent border-l-transparent hover:bg-gray-50 hover:text-gray-900",
+                      ? "text-[var(--brand-primary)] font-semibold bg-[var(--bg-tertiary)] border-l-purple-600"
+                      : "text-[var(--text-secondary)] font-normal bg-transparent border-l-transparent hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
                   )}
                 >
                   <Icon className="w-[18px] h-[18px]" />
@@ -125,17 +125,17 @@ export function WasteSidebar() {
       </nav>
 
       {/* Account footer */}
-      <div className="px-3 py-3 border-t border-gray-200 bg-white" ref={menuRef}>
+      <div className="px-3 py-3 border-t border-[var(--border-primary)] bg-[var(--bg-primary)]" ref={menuRef}>
         {isAuthenticated ? (
           <div className="relative">
             <button
               type="button"
               onClick={() => setMenuOpen((o) => !o)}
-              className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-colors text-left"
+              className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-[var(--bg-tertiary)] transition-colors text-left"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
-              <span className="w-7 h-7 rounded-full bg-purple-600 text-white text-xs font-semibold flex items-center justify-center overflow-hidden shrink-0">
+              <span className="w-7 h-7 rounded-full bg-[var(--brand-primary)] text-white text-xs font-semibold flex items-center justify-center overflow-hidden shrink-0">
                 {user?.picture ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={user.picture} alt="" className="w-full h-full object-cover" />
@@ -144,18 +144,18 @@ export function WasteSidebar() {
                 )}
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-sm text-gray-900 truncate">
+                <span className="block text-sm text-[var(--text-primary)] truncate">
                   {user?.name || user?.email || "Account"}
                 </span>
-                <span className="block text-xs text-gray-500">Sign out</span>
+                <span className="block text-xs text-[var(--text-tertiary)]">Sign out</span>
               </span>
             </button>
             {menuOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1" role="menu">
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg shadow-lg py-1" role="menu">
                 <button
                   type="button"
                   role="menuitem"
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
                   onClick={() => {
                     setMenuOpen(false);
                     logout({ logoutParams: { returnTo: window.location.origin } });
@@ -170,9 +170,9 @@ export function WasteSidebar() {
           <button
             type="button"
             onClick={() => loginWithRedirect()}
-            className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
           >
-            <LogIn className="w-4 h-4 text-gray-400" />
+            <LogIn className="w-4 h-4 text-[var(--text-tertiary)]" />
             Sign in
           </button>
         )}

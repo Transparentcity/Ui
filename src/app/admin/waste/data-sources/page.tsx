@@ -43,7 +43,7 @@ export default function DataSourcesPage() {
   return (
     <div className="px-8 py-6">
       <header className="flex items-start justify-between gap-4 mb-4">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--text-tertiary)]">
           External federal data adapters (Phase 3). Continuous state lives in adapter_health.
         </p>
         <div className="flex items-center gap-2 shrink-0">
@@ -72,7 +72,7 @@ export default function DataSourcesPage() {
         </div>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]">
         <Table>
           <TableHeader>
             <TableRow>
@@ -90,16 +90,16 @@ export default function DataSourcesPage() {
             {items.map((item) => (
               <TableRow key={item.adapter_key}>
                 <TableCell>
-                  <div className="font-medium text-gray-900">{item.display_name}</div>
-                  <div className="font-mono text-xs text-gray-500">{item.adapter_key}</div>
+                  <div className="font-medium text-[var(--text-primary)]">{item.display_name}</div>
+                  <div className="font-mono text-xs text-[var(--text-tertiary)]">{item.adapter_key}</div>
                 </TableCell>
-                <TableCell className="text-gray-600">{item.adapter_type}</TableCell>
+                <TableCell className="text-[var(--text-secondary)]">{item.adapter_type}</TableCell>
                 <TableCell>
                   <Badge variant={circuitVariant(item.circuit_state)}>{item.circuit_state}</Badge>
                 </TableCell>
-                <TableCell className="text-gray-600">{item.last_good_at ?? "never"}</TableCell>
-                <TableCell className="text-gray-600">{item.last_check_at ?? "never"}</TableCell>
-                <TableCell className="text-gray-600 tabular-nums">
+                <TableCell className="text-[var(--text-secondary)]">{item.last_good_at ?? "never"}</TableCell>
+                <TableCell className="text-[var(--text-secondary)]">{item.last_check_at ?? "never"}</TableCell>
+                <TableCell className="text-[var(--text-secondary)] tabular-nums">
                   {item.last_latency_ms != null ? `${item.last_latency_ms} ms` : "-"}
                 </TableCell>
                 <TableCell className="max-w-[320px] truncate text-red-600" title={item.last_error ?? ""}>
@@ -133,7 +133,7 @@ export default function DataSourcesPage() {
       </div>
 
       {!listQ.isLoading && items.length === 0 && (
-        <p className="mt-4 text-sm text-gray-500">No adapters registered.</p>
+        <p className="mt-4 text-sm text-[var(--text-tertiary)]">No adapters registered.</p>
       )}
     </div>
   );
