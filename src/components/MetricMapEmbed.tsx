@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
@@ -10,6 +10,7 @@ import Loader from "./Loader";
 import {
   computeMetricMapEmbedViewSpecs,
   formatMetricMapViewSpecKey,
+  type MetricMapViewSpec,
 } from "@/lib/metricMapEmbedViews";
 import { getMapCaptionTotalCount } from "@/lib/metricMapCaptionTotal";
 import "./MetricMapEmbed.css";
@@ -21,20 +22,73 @@ interface MetricMapEmbedProps {
   showLink?: boolean;
   showPeriodSelector?: boolean;
   onPeriodChange?: (period: string) => void;
-  district?: number | null; // District to filter by (null/0 = citywide)
-  metricName?: string; // Metric name for caption
-  itemNoun?: string; // Item noun (e.g., "incidents", "cases") for caption
-  dateRange?: { start: string | null; end: string | null }; // Date range from comparison data
-  comparisonDateRange?: { start: string | null; end: string | null }; // Comparison period dates (shown as grey dots behind)
-  /** Metric aggregation field (e.g. housingunits); sums on point maps instead of counting rows */
+  district?: number | null;
+  metricName?: string;
+  itemNoun?: string;
+  dateRange?: { start: string | null; end: string | null };
+  comparisonDateRange?: { start: string | null; end: string | null };
   valueField?: string | null;
+  /**
+   * Known true total for the period (e.g. from comparison data). When supplied
+   * this is always shown in the caption instead of the (potentially truncated)
+   * point count returned by the map API.
+   */
+  knownTotal?: number | null;
+  /**
+   * Called once after the API responds and the only renderable view would be a
+   * truncated point sample (limit hit, no choropleth available). The parent can
+   * use this to collapse the surrounding section entirely.
+   */
+  onMapUnavailable?: () => void;
+}
+
+// ─── Map-layer subtitle helpers ──────────────────────────────────────────────
+
+/**
+ * Drop a trailing plain "s" to singularize civic nouns.
+ * "Districts" → "District", "Wards" → "Ward", "Neighborhoods" → "Neighborhood"
+ * Leaves "ss"-endings and short words alone.
+ */
+function singularizeLastWord(label: string): string {
+  const words = label.trim().split(/\s+/);
+  if (words.length === 0) return label;
+  const last = words[words.length - 1];
+  const singular =
+    last.length > 3 && last.endsWith("s") && !last.endsWith("ss")
+      ? last.slice(0, -1)
+      : last;
+  return [...words.slice(0, -1), singular].join(" ");
+}
+
+/**
+ * Build a human-readable subtitle that explains *how* the map is broken down.
+ *   primary choropleth  → "By Supervisor District"
+ *   secondary choropleth → "Also by Analysis Neighborhood"
+ *
+ * Leading city abbreviations (2–4 uppercase letters like "SF", "NYC") are
+ * stripped so "SF Analysis Neighborhoods" becomes "analysis neighborhood".
+ */
+function buildLayerSubtitle(
+  rawLabel: string,
+  kind: "points" | "choropleth",
+  isSecondary = false
+): string {
+  if (kind !== "choropleth") return "";
+
+  // Singularize last word first, then strip a leading 2-4-char city abbreviation
+  // and lowercase the whole thing.
+  const singularLabel = singularizeLastWord(rawLabel)
+    .replace(/^[A-Z]{2,4}\s+/, "") // strip "SF ", "NYC ", etc.
+    .toLowerCase();
+
+  return isSecondary ? `Also by ${singularLabel}` : `By ${singularLabel}`;
 }
 
 // Convert MapPreviewResponse to SavedMap format for ProgressiveMapView
 function previewToSavedMap(preview: MapPreviewResponse): SavedMap {
   return {
-    id: 0, // Not saved yet
-    short_hash: "", // No hash yet
+    id: 0,
+    short_hash: "",
     title: preview.title,
     description: preview.description ?? null,
     map_type: preview.map_type as "point" | "choropleth" | "symbol" | "heatmap" | "multi_layer",
@@ -53,6 +107,70 @@ function previewToSavedMap(preview: MapPreviewResponse): SavedMap {
   };
 }
 
+// ─── Secondary map: lazy-rendered once it enters the viewport ───────────────
+
+interface SecondaryMapProps {
+  mapData: SavedMap;
+  spec: MetricMapViewSpec;
+  height: number;
+  basemapTheme: "dark" | "light";
+  metricId: number;
+  selectedPeriod: string;
+  dateRange?: { start: string | null; end: string | null };
+}
+
+function SecondaryMapSection({
+  mapData,
+  spec,
+  height,
+  basemapTheme,
+  metricId,
+  selectedPeriod,
+  dateRange,
+}: SecondaryMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const subtitle = buildLayerSubtitle(spec.label, spec.kind, true);
+
+  return (
+    <div className="metric-map-secondary-section" ref={containerRef}>
+      {subtitle && <div className="metric-map-secondary-label">{subtitle}</div>}
+      {isVisible ? (
+        <ProgressiveMapView
+          key={`metric-map-secondary-${metricId}-${selectedPeriod}-${dateRange?.start ?? ""}-${dateRange?.end ?? ""}-${formatMetricMapViewSpecKey(spec)}`}
+          mapData={mapData}
+          mapHash=""
+          height={height}
+          onError={() => {/* silently ignore secondary map errors */}}
+          mapBasemapTheme={basemapTheme}
+          lockedViewKey={formatMetricMapViewSpecKey(spec)}
+        />
+      ) : (
+        <div className="map-placeholder" style={{ height }} />
+      )}
+    </div>
+  );
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
+
 export default function MetricMapEmbed({
   metricId,
   selectedPeriod,
@@ -66,37 +184,61 @@ export default function MetricMapEmbed({
   dateRange,
   comparisonDateRange,
   valueField,
+  knownTotal,
+  onMapUnavailable,
 }: MetricMapEmbedProps) {
   const { theme } = useTheme();
   const mapBasemapTheme = theme === "dark" ? "dark" : "light";
+
   const [mapData, setMapData] = useState<SavedMap | null>(null);
   const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, any>> | null>(null);
+  const [limitHit, setLimitHit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapNotAvailable, setMapNotAvailable] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
 
-  // Fetch map preview dynamically (no database save)
+  // ── Lazy loading: only fetch once the container enters the viewport ─────────
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hasEnteredViewport, setHasEnteredViewport] = useState(false);
+
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasEnteredViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "400px" } // start loading 400px before it enters the visible area
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // ── Fetch map preview (deferred until in viewport) ───────────────────────────
+  useEffect(() => {
+    if (!hasEnteredViewport) return;
+
     let mounted = true;
-    
-    // Reset state when inputs change
+
     setMapData(null);
     setComparisonLocationData(null);
     setMapNotAvailable(false);
     setError(null);
-    
-    // Need date range to generate map
+    setLimitHit(false);
+
     if (!dateRange?.start || !dateRange?.end) {
       setLoading(false);
       return;
     }
-    
+
     async function fetchMapPreview() {
       try {
         setLoading(true);
-        
-        // Include comparison dates if provided
+
         const response = await getMetricMapPreview(metricId, {
           start_date: dateRange!.start!,
           end_date: dateRange!.end!,
@@ -105,26 +247,24 @@ export default function MetricMapEmbed({
           comparison_start_date: comparisonDateRange?.start || undefined,
           comparison_end_date: comparisonDateRange?.end || undefined,
         });
-        
+
         if (mounted) {
-          // Convert to SavedMap format for ProgressiveMapView
           setMapData(previewToSavedMap(response));
-          
-          // Store comparison data if returned
+          setLimitHit(response.limit_hit ?? false);
+
           if (response.comparison_location_data && response.comparison_location_data.length > 0) {
             setComparisonLocationData(response.comparison_location_data);
           }
         }
       } catch (err) {
         if (mounted) {
-          // Check if it's a 404 (map not available for this metric)
-          const is404 = (err as any)?.status === 404 || 
-                       (err instanceof Error && (
-                         err.message.includes("404") || 
-                         err.message.includes("not available") ||
-                         err.message.includes("no map_query")
-                       ));
-          
+          const is404 =
+            (err as any)?.status === 404 ||
+            (err instanceof Error &&
+              (err.message.includes("404") ||
+                err.message.includes("not available") ||
+                err.message.includes("no map_query")));
+
           if (is404) {
             setMapNotAvailable(true);
             setError(null);
@@ -138,28 +278,27 @@ export default function MetricMapEmbed({
         }
       }
     }
-    
+
     fetchMapPreview();
     return () => {
       mounted = false;
     };
-  }, [metricId, selectedPeriod, district, dateRange?.start, dateRange?.end, comparisonDateRange?.start, comparisonDateRange?.end]);
+  }, [hasEnteredViewport, metricId, selectedPeriod, district, dateRange?.start, dateRange?.end, comparisonDateRange?.start, comparisonDateRange?.end]);
 
-  // Handle "View full map" click - save map then navigate
+  // ── Handle "View full map" ────────────────────────────────────────────────────
   const handleViewFullMap = useCallback(async () => {
     if (!dateRange?.start || !dateRange?.end) return;
-    
+
     try {
       setSavingMap(true);
-      
+
       const response = await saveMetricMap(metricId, {
         start_date: dateRange.start,
         end_date: dateRange.end,
         district: district || undefined,
         period_type: selectedPeriod,
       });
-      
-      // Navigate to the full map page
+
       window.open(response.map_url, "_blank", "noopener,noreferrer");
     } catch (err) {
       console.error("Failed to save map:", err);
@@ -169,13 +308,55 @@ export default function MetricMapEmbed({
     }
   }, [metricId, selectedPeriod, district, dateRange]);
 
+  // ── Caption builder ───────────────────────────────────────────────────────────
+  const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string =>
+    formatDateRangeFromStrings(start, end, { fallback: "" });
+
+  const buildCaption = (): string => {
+    if (!metricName) return "";
+
+    // Determine the date range string
+    let dateRangeStr = "";
+    if (mapData?.map_config?.start_date && mapData?.map_config?.end_date) {
+      dateRangeStr = formatDateRange(
+        mapData.map_config.start_date as string,
+        mapData.map_config.end_date as string
+      );
+    } else if (dateRange?.start && dateRange?.end) {
+      dateRangeStr = formatDateRange(dateRange.start, dateRange.end);
+    }
+    if (!dateRangeStr) return "";
+
+    // Resolve total count:
+    //   1. knownTotal (authoritative — from comparison API)
+    //   2. choropleth aggregation sum
+    //   3. location_data row count (may be capped at 5 k)
+    let totalCount: number | null = null;
+    if (knownTotal != null && knownTotal > 0) {
+      totalCount = knownTotal;
+    } else if (mapData) {
+      totalCount = getMapCaptionTotalCount(mapData, { valueField });
+    }
+
+    if (totalCount === null) return "";
+
+    const locationLabel = district && district > 0 ? `District ${district}` : "citywide";
+    const displayItemNoun = (mapData?.map_config?.item_noun as string | undefined) || itemNoun;
+
+    // Don't produce a caption when the map itself is being suppressed.
+    if (limitHit && effectiveSpecs === null) return "";
+
+    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : "citywide"} from ${dateRangeStr}.`;
+  };
+
+  const caption = buildCaption();
+
   const periodButtonLabels = {
     ytd: "Year-to-Date",
     mtd: "Month-to-Date",
     mtd_prior_year: "Month-to-Date (Prior Year)",
   };
 
-  // Get year from date string for legend
   const getYearFromDate = (dateStr: string | null | undefined): number | null => {
     if (!dateStr) return null;
     try {
@@ -187,51 +368,72 @@ export default function MetricMapEmbed({
     }
   };
 
-  // Build legend labels based on period type and dates
   const currentYear = getYearFromDate(dateRange?.start);
   const comparisonYear = getYearFromDate(comparisonDateRange?.start);
   const hasComparison = comparisonLocationData && comparisonLocationData.length > 0;
-
-  // Format date range for caption
-  const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string =>
-    formatDateRangeFromStrings(start, end, { fallback: "" });
-
-  // Build caption text
-  const buildCaption = (): string => {
-    if (!mapData || !metricName) return "";
-    
-    const totalCount = getMapCaptionTotalCount(mapData, { valueField });
-    const locationLabel = district && district > 0 ? `District ${district}` : "citywide";
-    
-    // Try to get date range from map metadata first, then from props
-    let dateRangeStr = "";
-    if (mapData.map_config?.start_date && mapData.map_config?.end_date) {
-      dateRangeStr = formatDateRange(mapData.map_config.start_date, mapData.map_config.end_date);
-    } else if (dateRange?.start && dateRange?.end) {
-      dateRangeStr = formatDateRange(dateRange.start, dateRange.end);
-    }
-    
-    if (!dateRangeStr) return "";
-    
-    if (totalCount === null) return "";
-    
-    // Use item_noun from map_config if available
-    const displayItemNoun = mapData.map_config?.item_noun || itemNoun;
-    
-    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : `citywide`} from ${dateRangeStr}.`;
-  };
-
-  const caption = buildCaption();
 
   const embedViewSpecs = useMemo(
     () => (mapData ? computeMetricMapEmbedViewSpecs(mapData) : null),
     [mapData]
   );
 
-  // If no date range provided, show message
+  // When the backend hit the 5k row limit and the only renderable view is a raw
+  // point sample, suppress point maps entirely. If a choropleth exists, promote
+  // it to primary; otherwise the section produces nothing useful.
+  const effectiveSpecs = useMemo(() => {
+    if (!embedViewSpecs) return null;
+    if (!limitHit) return embedViewSpecs;
+
+    const primaryIsPoints = embedViewSpecs.primary.kind === "points";
+
+    if (!primaryIsPoints) {
+      // Primary is already a choropleth/delta — just strip any secondary point maps.
+      return {
+        primary: embedViewSpecs.primary,
+        secondary: embedViewSpecs.secondary.filter((s) => s.kind !== "points"),
+      };
+    }
+
+    // Primary is a point map that's maxing out.  Try to promote a choropleth.
+    const firstChoropleth = embedViewSpecs.secondary.find(
+      (s) => s.kind === "choropleth"
+    );
+    if (firstChoropleth) {
+      return {
+        primary: firstChoropleth,
+        secondary: embedViewSpecs.secondary.filter(
+          (s) => s !== firstChoropleth && s.kind !== "points"
+        ),
+      };
+    }
+
+    // Nothing useful to render.
+    return null;
+  }, [embedViewSpecs, limitHit]);
+
+  // Notify parent once we know the map section has nothing to show.
+  const onMapUnavailableFired = useRef(false);
+  useEffect(() => {
+    if (
+      !loading &&
+      mapData &&
+      limitHit &&
+      effectiveSpecs === null &&
+      !onMapUnavailableFired.current
+    ) {
+      onMapUnavailableFired.current = true;
+      onMapUnavailable?.();
+    }
+  }, [loading, mapData, limitHit, effectiveSpecs, onMapUnavailable]);
+
+  // Secondary map height: 75 % of primary (but not smaller than 200 px)
+  const secondaryHeight = Math.max(200, Math.round(height * 0.75));
+
+  // ── Early-exit renders ────────────────────────────────────────────────────────
+
   if (!dateRange?.start || !dateRange?.end) {
     return (
-      <div className="metric-map-embed" style={{ height }}>
+      <div className="metric-map-embed" ref={containerRef} style={{ minHeight: height }}>
         <div className="map-not-available">
           <p>Map data requires date range information.</p>
         </div>
@@ -239,12 +441,21 @@ export default function MetricMapEmbed({
     );
   }
 
+  // Before entering viewport, show a pulsing placeholder at full height
+  if (!hasEnteredViewport) {
+    return (
+      <div className="metric-map-embed" ref={containerRef}>
+        <div className="map-placeholder" style={{ height }} />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="metric-map-embed" style={{ height }}>
-        <div className="map-loading">
+      <div className="metric-map-embed" ref={containerRef} style={{ minHeight: height }}>
+        <div className="map-loading" style={{ minHeight: height }}>
           <Loader size="md" color="dark" />
-          <span>Loading map...</span>
+          <span>Loading map…</span>
         </div>
       </div>
     );
@@ -252,7 +463,7 @@ export default function MetricMapEmbed({
 
   if (mapNotAvailable) {
     return (
-      <div className="metric-map-embed" style={{ height }}>
+      <div className="metric-map-embed" ref={containerRef} style={{ minHeight: height }}>
         <div className="map-not-available">
           <p>Map data is not available for this metric.</p>
         </div>
@@ -260,16 +471,24 @@ export default function MetricMapEmbed({
     );
   }
 
+  // Data loaded but the only view would be a truncated point sample — nothing useful to render.
+  // The onMapUnavailable callback already notified the parent to collapse its section.
+  if (!loading && mapData && limitHit && effectiveSpecs === null) {
+    return null;
+  }
+
   if (error) {
     return (
-      <div className="metric-map-embed" style={{ height }}>
+      <div className="metric-map-embed" ref={containerRef} style={{ minHeight: height }}>
         <div className="map-error">{error}</div>
       </div>
     );
   }
 
+  // ── Full render ───────────────────────────────────────────────────────────────
+
   return (
-    <div className="metric-map-embed">
+    <div className="metric-map-embed" ref={containerRef}>
       {showPeriodSelector && (
         <div className="map-period-selector">
           {(["ytd", "mtd", "mtd_prior_year"] as const).map((period) => (
@@ -283,20 +502,24 @@ export default function MetricMapEmbed({
           ))}
         </div>
       )}
-      {mapData && embedViewSpecs ? (
+
+      {/* ── Primary map ── */}
+      {mapData && effectiveSpecs ? (
         <>
-          {embedViewSpecs.primary.kind === "choropleth" && (
-            <div className="metric-map-primary-shape-label">{embedViewSpecs.primary.label}</div>
+          {effectiveSpecs.primary.kind === "choropleth" && (
+            <div className="metric-map-primary-shape-label">
+              {buildLayerSubtitle(effectiveSpecs.primary.label, effectiveSpecs.primary.kind, false)}
+            </div>
           )}
           <ProgressiveMapView
-            key={`metric-map-primary-${metricId}-${selectedPeriod}-${dateRange?.start ?? ""}-${dateRange?.end ?? ""}-${formatMetricMapViewSpecKey(embedViewSpecs.primary)}`}
+            key={`metric-map-primary-${metricId}-${selectedPeriod}-${dateRange?.start ?? ""}-${dateRange?.end ?? ""}-${formatMetricMapViewSpecKey(effectiveSpecs.primary)}`}
             mapData={mapData}
-            mapHash="" // No hash for preview mode - points are already in mapData
+            mapHash=""
             height={height}
             onError={setError}
             comparisonLocationData={comparisonLocationData || undefined}
             mapBasemapTheme={mapBasemapTheme}
-            lockedViewKey={formatMetricMapViewSpecKey(embedViewSpecs.primary)}
+            lockedViewKey={formatMetricMapViewSpecKey(effectiveSpecs.primary)}
           />
         </>
       ) : (
@@ -305,27 +528,29 @@ export default function MetricMapEmbed({
           {loading && (
             <div className="map-loading">
               <Loader size="md" color="dark" />
-              <span>Loading map...</span>
+              <span>Loading map…</span>
             </div>
           )}
         </div>
       )}
-      {/* Legend: period (current vs comparison) and/or series field colors - for point maps; always show series legend when dots are colored by series */}
+
+      {/* ── Point map legend ── */}
       {mapData && (() => {
         const defaultView = mapData.map_config?.default_view;
         const hasAggregations = !!(mapData.map_config?.aggregations && Object.keys(mapData.map_config.aggregations).length > 0);
-        const isPointMode = defaultView?.type === "points" ||
-          (mapData.map_type === "point" && !hasAggregations);
+        const isPointMode =
+          defaultView?.type === "points" || (mapData.map_type === "point" && !hasAggregations);
 
         const seriesField = mapData.map_config?.series_field as string | undefined;
         const seriesColors = mapData.map_config?.series_colors as Record<string, string> | undefined;
         const seriesValues = mapData.map_config?.series_values as string[] | undefined;
         const hasSeriesLegend = !!(seriesField && seriesColors && Object.keys(seriesColors).length > 0);
         const seriesLabels = hasSeriesLegend
-          ? (Array.isArray(seriesValues) ? seriesValues : Object.keys(seriesColors)).filter((v) => seriesColors[v])
+          ? (Array.isArray(seriesValues) ? seriesValues : Object.keys(seriesColors)).filter(
+              (v) => seriesColors![v]
+            )
           : [];
 
-        // Show legend when in point mode OR when this is a point map with series-colored dots (embedded view may not set default_view)
         const showLegend = isPointMode || (mapData.map_type === "point" && hasSeriesLegend);
         if (!showLegend) return null;
 
@@ -355,7 +580,7 @@ export default function MetricMapEmbed({
                   <div key={String(label)} className="map-legend-item">
                     <span
                       className="map-legend-dot map-legend-dot-series"
-                      style={{ backgroundColor: seriesColors[label] ?? "#ad35fa" }}
+                      style={{ backgroundColor: seriesColors![label] ?? "#ad35fa" }}
                     />
                     <span className="map-legend-label">{label}</span>
                   </div>
@@ -365,29 +590,47 @@ export default function MetricMapEmbed({
           </div>
         );
       })()}
-      {caption && (
-        <div className="map-caption">
-          {caption}
-        </div>
-      )}
+
+      {/* ── Caption ── */}
+      {caption && <div className="map-caption">{caption}</div>}
+
+      {/* ── View full map link ── */}
       {showLink && mapData && (
         <div className="map-link-row">
-          <button 
+          <button
             onClick={handleViewFullMap}
             disabled={savingMap}
             className="map-link"
-            style={{ 
-              background: "none", 
-              border: "none", 
+            style={{
+              background: "none",
+              border: "none",
               cursor: savingMap ? "wait" : "pointer",
               padding: 0,
               font: "inherit",
               color: "inherit",
-              textDecoration: "underline"
+              textDecoration: "underline",
             }}
           >
-            {savingMap ? "Opening..." : "View full map"} <i className="fas fa-external-link-alt" />
+            {savingMap ? "Opening…" : "View full map"} <i className="fas fa-external-link-alt" />
           </button>
+        </div>
+      )}
+
+      {/* ── Secondary maps (additional shape layers) ── */}
+      {mapData && effectiveSpecs && effectiveSpecs.secondary.length > 0 && (
+        <div className="metric-map-secondary-maps">
+          {effectiveSpecs.secondary.map((secondarySpec) => (
+            <SecondaryMapSection
+              key={formatMetricMapViewSpecKey(secondarySpec)}
+              mapData={mapData}
+              spec={secondarySpec}
+              height={secondaryHeight}
+              basemapTheme={mapBasemapTheme}
+              metricId={metricId}
+              selectedPeriod={selectedPeriod}
+              dateRange={dateRange}
+            />
+          ))}
         </div>
       )}
     </div>

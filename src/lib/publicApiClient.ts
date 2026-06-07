@@ -927,6 +927,8 @@ export type MapPreviewResponse = {
   title: string;
   description?: string | null;
   location_data_count: number;
+  /** True when the backend hit its fetch limit — actual total is higher than location_data_count. */
+  limit_hit?: boolean;
   // Comparison period data (optional - for dual-layer display)
   comparison_location_data?: Array<{
     count?: number

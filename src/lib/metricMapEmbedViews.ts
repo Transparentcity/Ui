@@ -195,8 +195,20 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
     mapData.location_data && Array.isArray(mapData.location_data)
       ? normalizePointData(mapData.location_data as Array<Record<string, unknown>>)
       : [];
+
+  // A "points" secondary view is only useful when location_data actually contains the
+  // original incident rows — not district aggregate rows that carry a sample lat/lon.
+  // The backend sets a "points" entry in available_views only when real points are
+  // present. When available_views is populated but has no "points" entry (choropleth
+  // preview where location_data was replaced with district rows), we skip the secondary
+  // pin map. Fall back to coordinate-only check only when available_views is missing
+  // entirely (e.g. older saved maps without the field).
+  const hasPointsViewInAvailableViews =
+    availableViews.length === 0 || availableViews.some((v) => v.type === "points");
   const hasRenderablePoints =
-    validPoints.length > 0 && validPoints.length <= MAX_POINTS_LIMIT;
+    hasPointsViewInAvailableViews &&
+    validPoints.length > 0 &&
+    validPoints.length <= MAX_POINTS_LIMIT;
 
   const chartPref = String(
     (mapData.map_config?.chart_type_preference as string | undefined) || ""

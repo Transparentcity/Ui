@@ -64,6 +64,8 @@ interface WelcomeModalProps {
   }) => void;
   /** Called when the user's city is not found or not yet active. */
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
+  /** Which step to start on when the modal opens. Defaults to "profile". */
+  initialStep?: Step;
 }
 
 type Step = "profile" | "welcome" | "place" | "preferences";
@@ -110,6 +112,7 @@ export default function WelcomeModal({
   onCitySelected,
   onComplete,
   onCityNotFound,
+  initialStep = "profile",
 }: WelcomeModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
   const { theme } = useTheme();
@@ -160,7 +163,7 @@ export default function WelcomeModal({
     let cancelled = false;
 
     if (isOpen) {
-      setStep("profile");
+      setStep(initialStep);
       setLoading(false);
       setLoadingAction(null);
       setLocationInput("");
@@ -211,7 +214,7 @@ export default function WelcomeModal({
     return () => {
       cancelled = true;
     };
-  }, [getAccessTokenSilently, isOpen]);
+  }, [getAccessTokenSilently, initialStep, isOpen]);
 
   // Fire step-view analytics whenever the active step changes
   useEffect(() => {
@@ -290,6 +293,7 @@ export default function WelcomeModal({
     setLocationInput(suggestion.place_name);
     setAddressSuggestions([]);
     setLoading(true);
+    setLoadingAction("search");
     setError(null);
 
     const cityName =
@@ -335,6 +339,7 @@ export default function WelcomeModal({
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   };
 
