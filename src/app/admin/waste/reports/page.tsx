@@ -43,13 +43,13 @@ function ReportsView() {
   return (
     <div className="px-8 py-6" data-testid="waste-reports-page">
       <div className="flex items-start justify-between gap-4 mb-4">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--text-tertiary)]">
           Per-period reports compiled from confirmed findings, grouped by detector class.
         </p>
         <Button size="sm" className="shrink-0" disabled title="Coming soon">+ New workpaper</Button>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]">
         <Table>
           <TableHeader>
             <TableRow>
@@ -64,14 +64,14 @@ function ReportsView() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-gray-500">
+                <TableCell colSpan={6} className="text-[var(--text-tertiary)]">
                   Loading reports…
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <div className="text-gray-700">No reports yet for this city.</div>
+                  <div className="text-[var(--text-secondary)]">No reports yet for this city.</div>
                   <Mono>Reports populate as findings accumulate.</Mono>
                 </TableCell>
               </TableRow>
@@ -88,7 +88,7 @@ function ReportsView() {
                     <TableCell>
                       <Link
                         href={href}
-                        className="font-medium text-gray-900 hover:text-purple-700 no-underline"
+                        className="font-medium text-[var(--text-primary)] hover:text-[var(--brand-primary)] no-underline"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {r.title}
@@ -97,10 +97,10 @@ function ReportsView() {
                         <Mono>materiality {r.materiality}</Mono>
                       </div>
                     </TableCell>
-                    <TableCell className="text-gray-600">{r.period}</TableCell>
+                    <TableCell className="text-[var(--text-secondary)]">{r.period}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.findings}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.exposure}</TableCell>
-                    <TableCell className="text-gray-600">{r.updated}</TableCell>
+                    <TableCell className="text-[var(--text-secondary)]">{r.updated}</TableCell>
                     <TableCell>
                       <ReportStatusChip status={r.status} />
                     </TableCell>

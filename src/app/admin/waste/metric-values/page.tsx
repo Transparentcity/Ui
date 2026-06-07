@@ -142,15 +142,15 @@ function MetricValuesView() {
   }
 
   const emptyBox = (title: string, body: string) => (
-    <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
-      <p className="text-sm font-semibold text-gray-700">{title}</p>
-      <p className="mt-1 text-xs text-gray-500">{body}</p>
+    <div className="rounded-lg border border-dashed border-[var(--border-secondary)] bg-[var(--bg-primary)] p-8 text-center">
+      <p className="text-sm font-semibold text-[var(--text-secondary)]">{title}</p>
+      <p className="mt-1 text-xs text-[var(--text-tertiary)]">{body}</p>
     </div>
   );
 
   return (
     <div className="px-8 py-6" data-testid="waste-metric-values-page">
-      <p className="mb-5 text-sm text-gray-500">
+      <p className="mb-5 text-sm text-[var(--text-tertiary)]">
         Waste-category metrics for {cityName}, with year-to-date value and change vs the prior
         year-to-date. Shown regardless of the public dashboard (show-on-dash) setting. Click any
         metric for its full chart and history.
@@ -182,8 +182,8 @@ function MetricValuesView() {
           {groups.map((group) => (
             <section key={group.key} data-subcategory={group.key}>
               <div className="flex items-baseline gap-2 mb-2">
-                <h2 className="text-sm font-semibold text-gray-900">{group.label}</h2>
-                <span className="font-mono text-xs text-gray-400">{group.items.length}</span>
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">{group.label}</h2>
+                <span className="font-mono text-xs text-[var(--text-tertiary)]">{group.items.length}</span>
               </div>
               <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
                 {group.items.map((m) => {
@@ -197,26 +197,26 @@ function MetricValuesView() {
                       type="button"
                       onClick={() => setOpenMetric(m)}
                       className={cn(
-                        "flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-purple-300 hover:shadow-sm",
+                        "flex flex-col gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3.5 text-left transition hover:border-purple-300 hover:shadow-sm",
                         !m.is_active && "opacity-60",
                       )}
                     >
-                      <div className="text-sm font-semibold text-gray-900 leading-snug">
+                      <div className="text-sm font-semibold text-[var(--text-primary)] leading-snug">
                         {m.metric_name}
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span
                           className={cn(
                             value != null
-                              ? "text-2xl font-semibold tracking-tight text-gray-900"
-                              : "text-sm text-gray-400",
+                              ? "text-2xl font-semibold tracking-tight text-[var(--text-primary)]"
+                              : "text-sm text-[var(--text-tertiary)]",
                           )}
                           title={value != null ? String(value) : undefined}
                         >
                           {valueLabel(m, value)}
                         </span>
                         {trend && (
-                          <span className="font-mono text-xs text-gray-500" title="Change vs prior year-to-date">
+                          <span className="font-mono text-xs text-[var(--text-tertiary)]" title="Change vs prior year-to-date">
                             {trend.dir === "up" ? "↑" : trend.dir === "down" ? "↓" : "→"}{" "}
                             {Math.abs(trend.pct).toFixed(1)}%
                           </span>
@@ -231,7 +231,7 @@ function MetricValuesView() {
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : kind === "failed"
                               ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-gray-100 text-gray-600 border-gray-200",
+                              : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-[var(--border-primary)]",
                           )}
                         >
                           {kind === "completed"

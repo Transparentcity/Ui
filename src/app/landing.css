@@ -2493,16 +2493,15 @@
 /* Hero v2 (two-column on desktop) */
 .city-hero-v2 {
   position: relative;
-  padding: 76px 0 16px;
+  padding: 76px 0 20px;
   background: var(--bg-primary, #fff);
   border-bottom: 1px solid var(--border-primary);
 }
 
 .city-hero-v2-row {
   display: flex;
-  align-items: baseline;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .city-hero-v2-inner {
@@ -2518,13 +2517,28 @@
 
 .city-hero-v2-title {
   font-family: var(--font-heading);
-  font-size: 28px;
+  font-size: 42px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   color: var(--text-primary);
   margin: 0;
-  line-height: 1.1;
-  white-space: nowrap;
+  line-height: 1.05;
+}
+
+.city-hero-v2-state {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+  letter-spacing: 0;
+}
+
+.city-hero-v2-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .city-hero-v2-datasets {
@@ -2537,10 +2551,10 @@
 
 .city-hero-v2-right {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   flex-shrink: 0;
-  margin-left: auto;
+  flex-wrap: wrap;
 }
 
 .city-hero-v2-right .hero-official-buttons {
@@ -2780,7 +2794,7 @@
     font-size: 11px;
   }
   .city-hero-v2 {
-    padding: 56px 0 8px;
+    padding: 56px 0 12px;
   }
   .city-dashboard-wrapper {
     padding-top: 8px;
@@ -2802,9 +2816,13 @@
     width: 100%;
   }
   .city-hero-v2-title {
-    font-size: 22px;
-    white-space: normal;
+    font-size: 28px;
+    letter-spacing: -0.03em;
     margin-bottom: 0;
+  }
+  .city-hero-v2-state {
+    font-size: 13px;
+    margin-top: 1px;
   }
   .city-hero-v2-subtitle {
     font-size: 13px;

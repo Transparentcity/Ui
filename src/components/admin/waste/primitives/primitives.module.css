@@ -30,15 +30,15 @@
 .btnPrimary:hover { box-shadow: 0 6px 20px rgba(173, 53, 250, 0.25); }
 
 .btnSecondary {
-  background: #fff;
-  color: #111827;
-  border-color: #e5e7eb;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
 }
 .btnSecondary:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08); }
 
 .btnGhost {
   background: rgba(17, 24, 39, 0.04);
-  color: #111827;
+  color: var(--text-primary);
   border-color: rgba(17, 24, 39, 0.08);
 }
 .btnGhost:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08); }
@@ -65,7 +65,7 @@
 }
 .sevDotHigh { background: #dc2626; }
 .sevDotMed  { background: #d97706; }
-.sevDotLow  { background: #6b7280; }
+.sevDotLow  { background: var(--text-tertiary); }
 
 /* ── Severity chip ──────────────────────────────────────────────────── */
 .sevChip {
@@ -81,20 +81,20 @@
 }
 .sevChipHigh { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
 .sevChipMed  { color: #b45309; background: #fffbeb; border-color: #fde68a; }
-.sevChipLow  { color: #374151; background: #f3f4f6; border-color: #e5e7eb; }
+.sevChipLow  { color: var(--text-secondary); background: var(--bg-tertiary); border-color: var(--border-primary); }
 
 /* ── Severity bar (precision/confidence color tracking) ─────────────── */
 .sevBarTrack {
   width: 64px;
   height: 4px;
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
   border-radius: 2px;
   overflow: hidden;
 }
 .sevBarFill { height: 100%; }
 .sevBarFillHigh { background: #dc2626; }
 .sevBarFillMed  { background: #d97706; }
-.sevBarFillLow  { background: #6b7280; }
+.sevBarFillLow  { background: var(--text-tertiary); }
 
 /* ── Status chip ────────────────────────────────────────────────────── */
 .statusChip {
@@ -108,7 +108,7 @@
 .statusOpen      { color: #7c3aed; background: rgba(173, 53, 250, 0.08); }
 .statusInReview  { color: #4338ca; background: #eef2ff; }
 .statusConfirmed { color: #15803d; background: #f0fdf4; }
-.statusDismissed { color: #6b7280; background: #f3f4f6; }
+.statusDismissed { color: var(--text-tertiary); background: var(--bg-tertiary); }
 
 /* ── Report status chip ─────────────────────────────────────────────── */
 .reportStatusChip {
@@ -130,7 +130,7 @@
   font-family: var(--font-mono);
   font-size: 11.5px;
   letter-spacing: 0.01em;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 /* ── Section label ──────────────────────────────────────────────────── */
@@ -139,7 +139,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px 8px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 .sectionLabelText {
   font-family: var(--font-ui);
@@ -147,7 +147,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 /* ── Confidence bar ─────────────────────────────────────────────────── */
@@ -159,7 +159,7 @@
 .confidenceBarTrack {
   width: 64px;
   height: 4px;
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -172,4 +172,4 @@
 }
 .confidenceHigh { color: #dc2626; background: #dc2626; }
 .confidenceMed  { color: #d97706; background: #d97706; }
-.confidenceLow  { color: #6b7280; background: #6b7280; }
+.confidenceLow  { color: var(--text-tertiary); background: var(--text-tertiary); }

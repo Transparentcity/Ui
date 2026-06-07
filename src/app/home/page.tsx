@@ -212,6 +212,7 @@ export default function DashboardPage() {
   const [initialPlaceGps, setInitialPlaceGps] = useState<{ lat: number; lng: number; radius_m: number } | null>(null);
   const [requestOpenDistrictModal, setRequestOpenDistrictModal] = useState<number | null>(null);
   const [initialPlaceId, setInitialPlaceId] = useState<number | null>(null);
+  const [initialPlaceLabel, setInitialPlaceLabel] = useState<string | null>(null);
   const [initialSection, setInitialSection] = useState<"dashboard" | "map" | null>(null);
   /** Official Selector selection (district / place) so left nav can stay in sync; only when currentView === "city". */
   const [citySelection, setCitySelection] = useState<{ district: number | null; placeId: number | null }>({ district: null, placeId: null });
@@ -236,6 +237,7 @@ export default function DashboardPage() {
   const onboardingRepNotifyRef = useRef<((name: string, title?: string) => void) | null>(null);
   const onboardingBackgroundWorkRef = useRef<{ start: () => void; complete: () => void } | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [welcomeModalInitialStep, setWelcomeModalInitialStep] = useState<"profile" | "welcome">("profile");
   const [cityNotFound, setCityNotFound] = useState<{
     cityName: string;
     state: string | null;
@@ -333,6 +335,7 @@ export default function DashboardPage() {
     setGpsLocation(null);
     setRequestOpenDistrictModal(null);
     setInitialPlaceId(null);
+    setInitialPlaceLabel(null);
     setCitySelection({ district: null, placeId: null });
     setPlaceIdPendingPlaceMetricsBootstrap(null);
     setAllUserPlaces([]);
@@ -1030,6 +1033,7 @@ export default function DashboardPage() {
     setActiveCityId(cityId);
     setInitialDistrict(null);
     setInitialPlaceId(null);
+    setInitialPlaceLabel(null);
     setInitialPlaceGps(null);
     setInitialSection(null);
     setCitySelection({ district: null, placeId: null });
@@ -1042,12 +1046,13 @@ export default function DashboardPage() {
 
   const handlePlaceClick = useCallback(
     (cityId: number, placeId: number, placeOverride?: UserPlace) => {
-      // Look up place GPS immediately so the map can start at block level without waiting
-      // for listMyPlaces inside CityView (use API response when the place was just created).
+      // Look up place GPS and label immediately so the map and name header render
+      // without waiting for listMyPlaces inside CityView to complete.
       const place = placeOverride ?? allUserPlaces.find((p) => p.id === placeId);
       setActiveCityId(cityId);
       setInitialDistrict(null);
       setInitialPlaceId(placeId);
+      setInitialPlaceLabel(place?.label ?? null);
       setInitialPlaceGps(
         place?.lat != null && place?.lng != null
           ? { lat: place.lat, lng: place.lng, radius_m: place.radius_m ?? 500 }
@@ -1085,6 +1090,7 @@ export default function DashboardPage() {
       setActiveCityId(cityId);
       setInitialDistrict(district);
       setInitialPlaceId(null);
+      setInitialPlaceLabel(null);
       setInitialPlaceGps(null);
       setInitialSection(null);
       setCitySelection({ district, placeId: null });
@@ -1158,6 +1164,7 @@ export default function DashboardPage() {
     if (citySelection.placeId === placeId) {
       setCitySelection((prev) => ({ ...prev, placeId: null }));
       setInitialPlaceId(null);
+      setInitialPlaceLabel(null);
     }
   };
 
@@ -1570,6 +1577,7 @@ export default function DashboardPage() {
     setActiveCityId(null);
     setInitialDistrict(null);
     setInitialPlaceId(null);
+    setInitialPlaceLabel(null);
     setInitialPlaceGps(null);
     setInitialSection(null);
     setCitySelection({ district: null, placeId: null });
@@ -1765,6 +1773,7 @@ export default function DashboardPage() {
           const districtNum = typeof district === "string" ? parseInt(district, 10) : district;
           setInitialDistrict(districtNum);
           setInitialPlaceId(null);
+          setInitialPlaceLabel(null);
           setCitySelection({ district: Number.isNaN(districtNum) ? null : districtNum, placeId: null });
           setCurrentView("city");
           setCurrentSessionId(null);
@@ -1807,6 +1816,7 @@ export default function DashboardPage() {
         onCitySelect={(cityId, opts) => {
           setActiveCityId(cityId);
           setInitialPlaceId(null);
+          setInitialPlaceLabel(null);
           setInitialPlaceGps(null);
           if (opts && "district" in opts) {
             const d = opts.district;
@@ -1987,6 +1997,7 @@ export default function DashboardPage() {
                   gpsLocation={gpsLocation}
                   initialDistrict={initialDistrict}
                   initialPlaceId={initialPlaceId}
+                  initialPlaceLabel={initialPlaceLabel}
                   initialPlaceGps={initialPlaceGps}
                   initialSection={initialSection}
                   requestOpenDistrictModal={requestOpenDistrictModal}
@@ -2589,9 +2600,13 @@ export default function DashboardPage() {
       {/* Welcome Modal for first-time users (residents and government alike) */}
       <WelcomeModal
         isOpen={showWelcomeModal}
-        onClose={() => setShowWelcomeModal(false)}
+        onClose={() => {
+          setShowWelcomeModal(false);
+          setWelcomeModalInitialStep("profile");
+        }}
         onCitySelected={handleWelcomeCitySelected}
         onComplete={handleWelcomeComplete}
+        initialStep={welcomeModalInitialStep}
         onCityNotFound={(cityName, state, country) => {
           setShowWelcomeModal(false);
           setCurrentView("feed");
@@ -2607,6 +2622,7 @@ export default function DashboardPage() {
         onClose={() => setCityNotFound(null)}
         onBackToSearch={() => {
           setCityNotFound(null);
+          setWelcomeModalInitialStep("welcome");
           setShowWelcomeModal(true);
         }}
         onComplete={() => {
