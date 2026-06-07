@@ -53,7 +53,12 @@ function FindingsPageView() {
 
   const findingsQ = useWasteAdminFindings({ citySlug, period, filter });
   const detectorsQ = useWasteAdminDetectors(citySlug);
-  const seymourQ = useWasteAdminSeymourFeed(citySlug);
+  // Defer the non-critical Seymour rail fetch until the primary findings
+  // query settles, so it doesn't add to the concurrent request burst that
+  // can exhaust the backend connection pool on first load.
+  const seymourQ = useWasteAdminSeymourFeed(citySlug, {
+    enabled: !findingsQ.isLoading,
+  });
   const ui = useWasteState();
 
   const visibleFindings = useMemo(

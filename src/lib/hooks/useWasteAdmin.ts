@@ -131,7 +131,10 @@ export function useWasteAdminReport(slug: string | null, citySlug: string | null
   });
 }
 
-export function useWasteAdminSeymourFeed(citySlug: string | null) {
+export function useWasteAdminSeymourFeed(
+  citySlug: string | null,
+  options?: { enabled?: boolean },
+) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   return useQuery<WasteAdminSeymourFeed>({
     queryKey: ["waste-admin", "seymour", citySlug],
@@ -140,7 +143,10 @@ export function useWasteAdminSeymourFeed(citySlug: string | null) {
       const token = await getAccessTokenSilently();
       return getWasteAdminSeymourFeed(token, citySlug);
     },
-    enabled: isAuthenticated && !!citySlug,
+    // The Seymour right-rail is non-critical. Callers can gate it (e.g. until
+    // the primary findings query resolves) so it doesn't compete with the
+    // critical-path requests for a DB connection on first load.
+    enabled: (options?.enabled ?? true) && isAuthenticated && !!citySlug,
     staleTime: STALE_MED,
     refetchOnWindowFocus: false,
   });
