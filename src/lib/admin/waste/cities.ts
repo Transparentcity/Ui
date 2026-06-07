@@ -8,17 +8,15 @@ export type WasteCity = {
   flag: string;
   state: string;
   launched: boolean;
-  detectors?: number;
-  findingsToday?: number;
   status: string;
 };
 
 // Only cities we currently have waste data for. apiSlug must match the public
 // metrics sitemap slug so the metrics page can resolve the DB city id.
 export const WASTE_CITIES: readonly WasteCity[] = [
-  { id: "sf",  apiSlug: "san-francisco", name: "San Francisco", flag: "🌉", state: "CA", launched: true, detectors: 42, findingsToday: 7, status: "Live · Auditor's Office" },
+  { id: "sf",  apiSlug: "san-francisco", name: "San Francisco", flag: "🌉", state: "CA", launched: true, status: "Live · Auditor's Office" },
   { id: "nyc", apiSlug: "new-york-city", name: "New York City", flag: "🗽", state: "NY", launched: true, status: "Live" },
-  { id: "chi", apiSlug: "chicago",       name: "Chicago",       flag: "🏙️", state: "IL", launched: true, detectors: 38, findingsToday: 4, status: "Live · Inspector General" },
+  { id: "chi", apiSlug: "chicago",       name: "Chicago",       flag: "🏙️", state: "IL", launched: true, status: "Live · Inspector General" },
 ] as const;
 
 export const DEFAULT_WASTE_CITY_ID = "sf";

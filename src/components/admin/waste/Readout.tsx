@@ -16,7 +16,10 @@ export function Readout() {
     {
       label: "Detectors active",
       value: ui.detectorsActive,
-      hint: ui.city.detectors != null ? `of ${ui.city.detectors} configured` : undefined,
+      hint:
+        ui.detectorsConfigured != null
+          ? `of ${ui.detectorsConfigured} configured`
+          : undefined,
     },
     { label: "Findings today", value: ui.findingsToday },
     { label: "This week", value: ui.findingsThisWeek },

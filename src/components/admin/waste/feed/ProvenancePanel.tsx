@@ -31,7 +31,6 @@ export function ProvenancePanel({ detector, finding }: Props) {
             <span className={styles.eyebrow}>Detector</span>
           </div>
           <h3 className={styles.provDetectorName}>{detector.name}</h3>
-          <Mono>Last tuned {detector.lastTuned} · precision {Math.round(detector.precision * 100)}%</Mono>
         </div>
 
         <div className={styles.card}>

@@ -110,7 +110,10 @@ function FindingsPageView() {
 
   const isLoading = findingsQ.isLoading || detectorsQ.isLoading;
   const error = findingsQ.error ?? detectorsQ.error;
-  const isQuiet = !isLoading && visibleFindings.length === 0;
+  // Only a genuinely empty result (no severity filter narrowing it) is a "quiet
+  // day". With a filter applied, an empty list means nothing matched the filter,
+  // not that every detector ran clean — show the "no match" state instead.
+  const isQuiet = !isLoading && visibleFindings.length === 0 && filter === "all";
 
   const toggleBar = (
     <div className={styles.viewToggleBar}>
