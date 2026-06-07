@@ -12,4 +12,18 @@
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* This is a light-only surface. The global `a { color: inherit }` reset in
+     globals.css is unlayered, so it outranks Tailwind's layered text-color
+     utilities on links — meaning nav links inherit the body ink instead of
+     their `text-gray-*` class. In dark mode that body ink is near-white, so the
+     links vanished against the white sidebar. Pin the module ink dark so links
+     inherit a readable color regardless of theme. */
+  color: #1f2937;
+}
+
+/* Restore the active nav-item accent that the inherited color would otherwise
+   flatten (selector outranks the global unlayered `a` rule by specificity). */
+.waste-root a[aria-current="page"] {
+  color: #9333ea;
 }
