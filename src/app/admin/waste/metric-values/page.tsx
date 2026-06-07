@@ -121,7 +121,15 @@ function MetricValuesView() {
       .map(([key, items]) => ({
         key,
         label: subLabel(key),
-        items: items.sort((a, b) => a.metric_name.localeCompare(b.metric_name)),
+        // Working metrics (last run completed) first, then the rest, each
+        // sorted alphabetically. Uses last_execution_status (stable on the
+        // metric row) rather than the async comparison value, so cards don't
+        // reshuffle after the value batch loads.
+        items: items.sort((a, b) => {
+          const aWorking = statusKind(a.last_execution_status) === "completed" ? 0 : 1;
+          const bWorking = statusKind(b.last_execution_status) === "completed" ? 0 : 1;
+          return aWorking - bWorking || a.metric_name.localeCompare(b.metric_name);
+        }),
       }))
       .sort((a, b) => subIndex(a.key) - subIndex(b.key) || a.label.localeCompare(b.label));
   }, [metrics]);
