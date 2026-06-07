@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { getWasteCity, type WasteCity } from "./cities";
+import { getWasteApiSlug, getWasteCity, type WasteCity } from "./cities";
 import {
   useWasteAdminCities,
   useWasteAdminReadout,
@@ -19,6 +19,7 @@ export type WasteUIState = {
   section: WasteSection;
   sectionLabel: string;
   detectorsActive: number;
+  detectorsConfigured: number | null;
   findingsToday: number;
   findingsThisWeek: number;
   inReview: number;
@@ -46,14 +47,6 @@ function parseSection(pathname: string): WasteSection {
   if (/\/admin\/waste\/metrics/.test(pathname)) return "methodology";
   const match = pathname.match(/\/admin\/waste\/(feed|findings|reports)/);
   return (match?.[1] as WasteSection) ?? "feed";
-}
-
-function slugifyName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function relativeRunLabel(iso: string | null | undefined): string {
@@ -90,10 +83,13 @@ function kpiValue(kpis: WasteAdminReadoutKPI[] | undefined, key: string): number
 export function useWasteState(): WasteUIState {
   const pathname = usePathname() ?? "";
   const params = useSearchParams();
-  const city = getWasteCity(params?.get("city"));
+  const cityParam = params?.get("city");
+  const city = getWasteCity(cityParam);
   const section = parseSection(pathname);
 
-  const backendSlug = slugifyName(city.name);
+  // Match the slug the page-level queries use (getWasteApiSlug) so the header
+  // readout and the page body never resolve to different cities.
+  const backendSlug = getWasteApiSlug(cityParam);
   const citiesQ = useWasteAdminCities();
   const readoutQ = useWasteAdminReadout(backendSlug);
 
@@ -106,6 +102,7 @@ export function useWasteState(): WasteUIState {
     section,
     sectionLabel: SECTION_LABEL[section],
     detectorsActive: kpiValue(kpis, "detectors_active"),
+    detectorsConfigured: cityRow?.detectors ?? null,
     findingsToday: kpiValue(kpis, "findings_today"),
     findingsThisWeek: kpiValue(kpis, "findings_week"),
     inReview: kpiValue(kpis, "findings_in_review"),

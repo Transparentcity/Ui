@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { useWasteAdminReport } from "@/lib/hooks/useWasteAdmin";
 import { adaptFinding, adaptReportDetail } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
+import type { WasteAdminReportDetail } from "@/lib/api/wasteAdmin";
 
 function BackLink({ href }: { href: string }) {
   return (
@@ -21,6 +22,49 @@ function BackLink({ href }: { href: string }) {
       ← All workpapers
     </Link>
   );
+}
+
+function triggerDownload(filename: string, mime: string, content: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const CSV_COLUMNS: ReadonlyArray<[string, (f: WasteAdminReportDetail["findings"][number]) => unknown]> = [
+  ["finding_id", (f) => f.finding_id],
+  ["detector_key", (f) => f.detector_key],
+  ["detector_name", (f) => f.detector_name],
+  ["category", (f) => f.category],
+  ["subcategory", (f) => f.subcategory],
+  ["severity", (f) => f.severity],
+  ["status", (f) => f.finding_status],
+  ["entity_name", (f) => f.entity_name],
+  ["department", (f) => f.department],
+  ["estimated_dollar_impact", (f) => f.estimated_dollar_impact ?? f.amount],
+  ["confidence", (f) => f.confidence],
+  ["created_at", (f) => f.created_at],
+  ["headline", (f) => f.headline],
+  ["description", (f) => f.description],
+];
+
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  const s = String(value);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function reportToCsv(report: WasteAdminReportDetail): string {
+  const header = CSV_COLUMNS.map(([name]) => name).join(",");
+  const rows = report.findings.map((f) =>
+    CSV_COLUMNS.map(([, get]) => csvCell(get(f))).join(","),
+  );
+  return [header, ...rows].join("\r\n");
 }
 
 function ReportDetailView({ slug }: { slug: string }) {
@@ -85,9 +129,23 @@ function ReportDetailView({ slug }: { slug: string }) {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="sm">Export CSV</Button>
-            <Button variant="outline" size="sm">Export JSON</Button>
-            {!isFinal && <Button size="sm">Promote to final →</Button>}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => triggerDownload(`${report.slug}.csv`, "text/csv;charset=utf-8", reportToCsv(data))}
+            >
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                triggerDownload(`${report.slug}.json`, "application/json", JSON.stringify(data, null, 2))
+              }
+            >
+              Export JSON
+            </Button>
+            {!isFinal && <Button size="sm" disabled title="Coming soon">Promote to final →</Button>}
           </div>
         </div>
 
