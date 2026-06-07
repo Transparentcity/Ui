@@ -14,13 +14,63 @@ import { Card } from "@/components/ui/card";
 import { useWasteAdminReport } from "@/lib/hooks/useWasteAdmin";
 import { adaptFinding, adaptReportDetail } from "@/lib/admin/waste/adapters";
 import { getWasteApiSlug } from "@/lib/admin/waste/cities";
+import type { WasteAdminReportDetail } from "@/lib/api/wasteAdmin";
 
 function BackLink({ href }: { href: string }) {
   return (
-    <Link href={href} className="text-sm text-purple-600 hover:underline no-underline">
+    <Link href={href} className="text-sm text-[var(--brand-primary)] hover:underline no-underline">
       ← All workpapers
     </Link>
   );
+}
+
+function triggerDownload(filename: string, mime: string, content: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const CSV_COLUMNS: ReadonlyArray<[string, (f: WasteAdminReportDetail["findings"][number]) => unknown]> = [
+  ["finding_id", (f) => f.finding_id],
+  ["detector_key", (f) => f.detector_key],
+  ["detector_name", (f) => f.detector_name],
+  ["category", (f) => f.category],
+  ["subcategory", (f) => f.subcategory],
+  ["severity", (f) => f.severity],
+  ["status", (f) => f.finding_status],
+  ["entity_name", (f) => f.entity_name],
+  ["department", (f) => f.department],
+  ["estimated_dollar_impact", (f) => f.estimated_dollar_impact ?? f.amount],
+  ["confidence", (f) => f.confidence],
+  ["created_at", (f) => f.created_at],
+  ["headline", (f) => f.headline],
+  ["description", (f) => f.description],
+];
+
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  let s = String(value);
+  // Defuse spreadsheet formula injection for text cells (a value like
+  // "=cmd()" or "@SUM" would execute on open). Numeric columns come through
+  // as numbers, so guarding only string values keeps them intact.
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function reportToCsv(report: WasteAdminReportDetail): string {
+  const header = CSV_COLUMNS.map(([name]) => name).join(",");
+  const rows = report.findings.map((f) =>
+    CSV_COLUMNS.map(([, get]) => csvCell(get(f))).join(","),
+  );
+  return [header, ...rows].join("\r\n");
 }
 
 function ReportDetailView({ slug }: { slug: string }) {
@@ -45,7 +95,7 @@ function ReportDetailView({ slug }: { slug: string }) {
     return (
       <div className="px-8 py-6 space-y-3">
         <BackLink href={backHref} />
-        <p className="text-sm text-gray-500">Loading report…</p>
+        <p className="text-sm text-[var(--text-tertiary)]">Loading report…</p>
       </div>
     );
   }
@@ -79,38 +129,52 @@ function ReportDetailView({ slug }: { slug: string }) {
               <ReportStatusChip status={status} />
               <Mono>{report.slug}</Mono>
             </div>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-gray-900">{report.title}</h1>
-            <p className="mt-1 text-sm text-gray-600">
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-[var(--text-primary)]">{report.title}</h1>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
               Period: {report.period} · Updated {report.updated}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="sm">Export CSV</Button>
-            <Button variant="outline" size="sm">Export JSON</Button>
-            {!isFinal && <Button size="sm">Promote to final →</Button>}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => triggerDownload(`${report.slug}.csv`, "text/csv;charset=utf-8", reportToCsv(data))}
+            >
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                triggerDownload(`${report.slug}.json`, "application/json", JSON.stringify(data, null, 2))
+              }
+            >
+              Export JSON
+            </Button>
+            {!isFinal && <Button size="sm" disabled title="Coming soon">Promote to final →</Button>}
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
           {kpis.map((k) => (
-            <div key={k.label} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="text-xs text-gray-500">{k.label}</div>
-              <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{k.value}</div>
+            <div key={k.label} className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3">
+              <div className="text-xs text-[var(--text-tertiary)]">{k.label}</div>
+              <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{k.value}</div>
             </div>
           ))}
         </div>
       </Card>
 
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Methodology</h2>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Methodology</h2>
         {report.standards ? (
           <div className="mb-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Standards basis</div>
-            <p className="mt-1 text-sm text-gray-700">{report.standards}</p>
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Standards basis</div>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{report.standards}</p>
           </div>
         ) : null}
 
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Calculation method</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Calculation method</div>
         <div className="mt-1.5">
           {isDraft && report.methodology ? (
             <div
@@ -121,10 +185,10 @@ function ReportDetailView({ slug }: { slug: string }) {
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-500" aria-hidden="true" />
                 Seymour
               </div>
-              <p className="text-sm text-gray-700">{report.methodology}</p>
+              <p className="text-sm text-[var(--text-secondary)]">{report.methodology}</p>
             </div>
           ) : (
-            <p className="text-sm text-gray-700" data-testid="methodology-final">
+            <p className="text-sm text-[var(--text-secondary)]" data-testid="methodology-final">
               {report.methodology || "—"}
             </p>
           )}
@@ -132,35 +196,35 @@ function ReportDetailView({ slug }: { slug: string }) {
 
         {report.caveats ? (
           <div className="mt-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Caveats</div>
-            <p className="mt-1 text-sm text-gray-600">{report.caveats}</p>
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">Caveats</div>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{report.caveats}</p>
           </div>
         ) : null}
       </section>
 
       <section>
         <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Findings · ranked by exposure</h2>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Findings · ranked by exposure</h2>
           <Mono>{reportFindings.length} of {report.findings} shown</Mono>
         </div>
         <div className="space-y-3">
           {reportFindings.length === 0 ? (
-            <p className="text-sm text-gray-500">No findings under this report yet.</p>
+            <p className="text-sm text-[var(--text-tertiary)]">No findings under this report yet.</p>
           ) : (
             reportFindings.map((f) => (
               <Card key={f.id} className="p-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <SeverityChip level={f.severity} />
                   <Mono>{f.id}</Mono>
-                  <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                  <span className="inline-flex items-center rounded-md border border-purple-200 bg-[var(--brand-secondary)] px-2 py-0.5 text-xs font-medium text-[var(--brand-primary)]">
                     {f.detectorId}
                   </span>
                   <span className="flex-1" />
-                  <span className="text-sm font-semibold text-gray-900 tabular-nums">{f.amount}</span>
+                  <span className="text-sm font-semibold text-[var(--text-primary)] tabular-nums">{f.amount}</span>
                 </div>
-                <div className="mt-2 font-semibold text-gray-900">{f.headline}</div>
-                <div className="text-sm text-gray-500">{f.subject} · {f.department}</div>
-                <p className="mt-1 text-sm text-gray-700">{f.detail}</p>
+                <div className="mt-2 font-semibold text-[var(--text-primary)]">{f.headline}</div>
+                <div className="text-sm text-[var(--text-tertiary)]">{f.subject} · {f.department}</div>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">{f.detail}</p>
               </Card>
             ))
           )}

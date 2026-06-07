@@ -59,6 +59,8 @@ interface CityViewProps {
   initialDistrict?: number | null;
   /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Places). */
   initialPlaceId?: number | null;
+  /** Pre-loaded label for the initial place so the name renders immediately before listMyPlaces resolves. */
+  initialPlaceLabel?: string | null;
   /** Pre-loaded GPS coordinates for the initial place so the map can start at block level immediately,
    *  without waiting for the userPlaces API call to complete. */
   initialPlaceGps?: { lat: number; lng: number; radius_m: number } | null;
@@ -2076,6 +2078,7 @@ export default function CityView({
   gpsLocation,
   initialDistrict,
   initialPlaceId,
+  initialPlaceLabel,
   initialPlaceGps,
   requestOpenDistrictModal,
   onClearDistrictModalRequest,
@@ -2103,7 +2106,14 @@ export default function CityView({
     initialPlaceId != null ? 0 : (initialDistrict !== undefined && initialDistrict !== null ? initialDistrict : 0)
   );
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(initialPlaceId ?? null);
-  const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number }[]>([]);
+  // Pre-seed with the label passed from the parent so the name renders immediately
+  // before listMyPlaces resolves. The real API response replaces this on load.
+  const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number }[]>(() => {
+    if (initialPlaceId && initialPlaceLabel) {
+      return [{ id: initialPlaceId, label: initialPlaceLabel, city_id: cityId }];
+    }
+    return [];
+  });
   const [placesRefreshKey, setPlacesRefreshKey] = useState(0);
   const [districtGPSLocation, setDistrictGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [mapLeaders, setMapLeaders] = useState<any[]>([]);

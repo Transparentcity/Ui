@@ -16,7 +16,10 @@ export function Readout() {
     {
       label: "Detectors active",
       value: ui.detectorsActive,
-      hint: ui.city.detectors != null ? `of ${ui.city.detectors} configured` : undefined,
+      hint:
+        ui.detectorsConfigured != null
+          ? `of ${ui.detectorsConfigured} configured`
+          : undefined,
     },
     { label: "Findings today", value: ui.findingsToday },
     { label: "This week", value: ui.findingsThisWeek },
@@ -32,11 +35,11 @@ export function Readout() {
     >
       {cells.map((c) => (
         <Card key={c.label} className="p-4">
-          <div className="text-xs text-gray-500">{c.label}</div>
-          <div className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
+          <div className="text-xs text-[var(--text-tertiary)]">{c.label}</div>
+          <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)] tabular-nums">
             {format(c.value)}
           </div>
-          {c.hint && <div className="mt-0.5 text-xs text-gray-400">{c.hint}</div>}
+          {c.hint && <div className="mt-0.5 text-xs text-[var(--text-tertiary)]">{c.hint}</div>}
         </Card>
       ))}
     </div>

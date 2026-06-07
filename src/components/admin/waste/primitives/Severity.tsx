@@ -12,7 +12,7 @@ const dotClass: Record<SeverityLevel, string> = {
 const chipTint: Record<SeverityLevel, string> = {
   high: "bg-red-50 text-red-700 border-red-200",
   med: "bg-amber-50 text-amber-700 border-amber-200",
-  low: "bg-gray-100 text-gray-600 border-gray-200",
+  low: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-[var(--border-primary)]",
 };
 
 const chipLabel: Record<SeverityLevel, string> = {

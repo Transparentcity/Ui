@@ -761,7 +761,7 @@ export default function DistrictNavigation({
       <div className="district-navigation-bar">
         {/* Official / place selector — chevron ends the control; Follow is outside when on a district. */}
         <div
-          className="district-navigation-header"
+          className={`district-navigation-header${isPlaceScope ? " district-navigation-header--place" : ""}`}
           onClick={() => setOpen(true)}
           role="button"
           tabIndex={0}
@@ -774,32 +774,57 @@ export default function DistrictNavigation({
           aria-label="Open official and location selector"
         >
           <div className="district-navigation-content">
-            <div className="district-navigation-title-row">
-              <span className="district-navigation-label">{officialSelectorLabelText}</span>
-              <span className="district-navigation-name">{displayName}</span>
-              {isPlaceScope && placeRefreshLastRunAt && (
-                <span className="district-navigation-refresh">
-                  (refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })})
+            {isPlaceScope ? (
+              <div className="district-navigation-place-block">
+                <span className="district-navigation-place-eyebrow">
+                  My Place
+                  <svg
+                    className="district-navigation-place-eyebrow-chevron"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
                 </span>
-              )}
+                <span className="district-navigation-place-name">{displayName}</span>
+                {placeRefreshLastRunAt && (
+                  <span className="district-navigation-refresh">
+                    Refreshed {new Date(placeRefreshLastRunAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="district-navigation-title-row">
+                <span className="district-navigation-label">{officialSelectorLabelText}</span>
+                <span className="district-navigation-name">{displayName}</span>
+              </div>
+            )}
+          </div>
+          {!isPlaceScope && (
+            <div className="district-navigation-actions">
+              <svg
+                className="district-navigation-chevron"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
-          </div>
-          <div className="district-navigation-actions">
-            <svg
-              className="district-navigation-chevron"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </div>
+          )}
         </div>
         {showDistrictFollow && (
           <div className="district-navigation-follow-aside">

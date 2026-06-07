@@ -12,4 +12,10 @@
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Themed default ink so any unclassed/inherited text follows the theme.
+     Surfaces, text and borders across the module are driven by the site design
+     tokens (--bg-*, --text-*, --border-*), so the whole thing flips with .dark
+     like the rest of the app. */
+  color: var(--text-primary);
 }

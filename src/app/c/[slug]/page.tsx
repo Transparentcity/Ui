@@ -285,10 +285,22 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       {/* Section 1: City Hero */}
       <section className="city-hero-v2">
         <div className="container city-hero-v2-row">
-          <h1 className="city-hero-v2-title">
-            {city ? `${city.emoji || ""} ${city.name}` : slug}
-          </h1>
-          <div className="city-hero-v2-right">
+          <div>
+            <h1 className="city-hero-v2-title">
+              {city ? (
+                <>
+                  {city.emoji && <span style={{ marginRight: "0.15em" }}>{city.emoji}</span>}
+                  {city.name}
+                </>
+              ) : slug}
+            </h1>
+            {city?.state && (
+              <p className="city-hero-v2-state">
+                {city.state}{city.country && city.country !== "United States" ? `, ${city.country}` : ""}
+              </p>
+            )}
+          </div>
+          <div className="city-hero-v2-meta">
             {districts.length > 0 ? (
               <HeroDistrictSelector
                 slug={slug}
