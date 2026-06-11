@@ -741,7 +741,59 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-04"
+    },
+    {
+      "city": "SF",
+      "metricName": "💀 Homicides",
+      "metricKey": "homicides",
+      "metricId": 109,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/homicides",
+      "normalLagRange": [
+        5,
+        13
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-11"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "📋🏁 New Residential Construction Permits Completed",
+      "metricKey": "chicago_new_residential_construction_permits_completed",
+      "metricId": 563,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_completed",
+      "normalLagRange": [
+        58,
+        66
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-11"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "🐀 Rodent Baiting / Rat Complaints (Chicago)",
+      "metricKey": "chicago_311_rodent",
+      "metricId": 350,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_311_rodent",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-11"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "💡 Street Light Out Complaints (Chicago)",
+      "metricKey": "chicago_311_street_light_out",
+      "metricId": 351,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_311_street_light_out",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-11"
     }
   ],
-  "lastRunDate": "2026-06-04"
+  "lastRunDate": "2026-06-11"
 }
