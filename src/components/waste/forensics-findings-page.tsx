@@ -7,16 +7,25 @@ import { useWasteCity } from "./WasteCityContext"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
+import {
+  WasteRankedFindings,
+  WasteRankControls,
+  impactOf,
+  type RankBy,
+  type RankView,
+} from "./waste-ranked-findings"
 import { WasteSeverityFilter } from "./waste-severity-filter"
 import { WasteSeymourAskBar } from "./waste-seymour-ask-bar"
 import {
   WasteSeymourPanel,
   type WasteSeymourRequest,
 } from "./waste-seymour-panel"
-import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
+import { normalizeWasteCategory, getWasteCategoryLabel, formatDollar } from "./waste-utils"
+import { cn } from "@/lib/utils"
 import { Search } from "lucide-react"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
+type Layout = RankView | "category"
 
 export function ForensicsFindingsPage() {
   const { selectedCityId: cityId } = useWasteCity()
@@ -29,6 +38,12 @@ export function ForensicsFindingsPage() {
   const [entitySearch, setEntitySearch] = useState("")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
 
+  // Ranked-view state.
+  const [layout, setLayout] = useState<Layout>("finding")
+  const [rankBy, setRankBy] = useState<RankBy>("impact")
+  const [dir, setDir] = useState<"asc" | "desc">("desc")
+  const [newOnly, setNewOnly] = useState(false)
+
   const handleAskSeymour = (finding: WasteFinding) => {
     setSeymourRequest({ finding })
   }
@@ -38,6 +53,11 @@ export function ForensicsFindingsPage() {
     allFindings.forEach((f) => set.add(normalizeWasteCategory(f.category)))
     return [...set].sort()
   }, [allFindings])
+
+  const newCount = useMemo(
+    () => allFindings.filter((f) => f.is_new).length,
+    [allFindings]
+  )
 
   const filtered = useMemo(() => {
     let results = allFindings
@@ -57,34 +77,74 @@ export function ForensicsFindingsPage() {
         f.entity?.toLowerCase().includes(q)
       )
     }
+    if (newOnly) {
+      results = results.filter((f) => f.is_new)
+    }
     return results
-  }, [allFindings, severityFilter, categoryFilter, entitySearch])
+  }, [allFindings, severityFilter, categoryFilter, entitySearch, newOnly])
+
+  // Total dollar impact in the current filtered view, for the header readout.
+  const totalImpact = useMemo(
+    () => filtered.reduce((sum, f) => sum + impactOf(f), 0),
+    [filtered]
+  )
 
   const activeChips = [
     severityFilter !== "all" ? `Severity: ${severityFilter}` : null,
     categoryFilter ? `Category: ${getWasteCategoryLabel(categoryFilter)}` : null,
     entitySearch ? `Entity: ${entitySearch}` : null,
+    newOnly ? "New this week" : null,
   ].filter(Boolean) as string[]
 
   return (
     <WasteShell
       title="Findings"
-      description="Detected anomalies across all categories"
+      description="Detected anomalies ranked by impact and confidence"
     >
       <ForensicsShell title="All Findings">
         <WasteSeymourAskBar
           className="mb-3"
           context={{
-            label: `Findings list — ${activeChips.length ? activeChips.join(", ") : "all"} (${filtered.length} of ${allFindings.length})`,
+            label: `Findings list — ${activeChips.length ? activeChips.join(", ") : "all"} (${filtered.length} of ${allFindings.length}), ranked by ${rankBy}`,
             details: {
               severity: severityFilter,
               category: categoryFilter || null,
               entitySearch: entitySearch || null,
+              rankBy,
+              view: layout,
+              newOnly,
               total: allFindings.length,
               filtered: filtered.length,
             },
           }}
         />
+
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <WasteRankControls
+            rankBy={rankBy}
+            onRankByChange={setRankBy}
+            dir={dir}
+            onDirChange={setDir}
+            view={layout === "category" ? "finding" : layout}
+            onViewChange={(v) => setLayout(v)}
+            newOnly={newOnly}
+            onNewOnlyChange={setNewOnly}
+            newCount={newCount}
+          />
+          <button
+            type="button"
+            onClick={() => setLayout("category")}
+            className={cn(
+              "text-xs px-2.5 py-1.5 rounded-md border transition-colors",
+              layout === "category"
+                ? "bg-purple-600 text-white border-purple-600"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            )}
+          >
+            By category
+          </button>
+        </div>
+
         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
           <div className="flex items-center gap-2 flex-wrap">
             <WasteSeverityFilter
@@ -116,9 +176,19 @@ export function ForensicsFindingsPage() {
             </div>
           </div>
           <span className="text-xs text-gray-500">
-            Showing {filtered.length.toLocaleString()} of {allFindings.length.toLocaleString()}
+            {filtered.length.toLocaleString()} of {allFindings.length.toLocaleString()} findings
+            {totalImpact > 0 && (
+              <>
+                {" · "}
+                <span className="font-medium text-gray-700">
+                  {formatDollar(totalImpact)}
+                </span>{" "}
+                exposure
+              </>
+            )}
           </span>
         </div>
+
         {activeChips.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap mb-3">
             {activeChips.map((chip) => (
@@ -141,8 +211,17 @@ export function ForensicsFindingsPage() {
               />
             ))}
           </div>
-        ) : (
+        ) : layout === "category" ? (
           <WasteFindingsList findings={filtered} onAskSeymour={handleAskSeymour} cityId={cityId} />
+        ) : (
+          <WasteRankedFindings
+            findings={filtered}
+            rankBy={rankBy}
+            dir={dir}
+            view={layout}
+            onAskSeymour={handleAskSeymour}
+            cityId={cityId}
+          />
         )}
 
         <WasteSeymourPanel
