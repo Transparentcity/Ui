@@ -1,12 +1,12 @@
 Name,Email,Title,Organization,Jurisdiction,Priority,Keywords,Contact Type
-Kirk Watson,kirk.watson@austintexas.gov,Mayor,Austin City Council,Citywide,2,"Government,City Council",elected_official
-Natasha Harper-Madison,district1@austintexas.gov,"Council Member, District 1",Austin City Council,District 1,2,"Government,City Council",elected_official
-Vanessa Fuentes,district2@austintexas.gov,"Council Member, District 2",Austin City Council,District 2,2,"Government,City Council",elected_official
-Jose Velasquez,district3@austintexas.gov,"Council Member, District 3",Austin City Council,District 3,2,"Government,City Council",elected_official
-"Jose ""Chito"" Vela",district4@austintexas.gov,"Council Member, District 4",Austin City Council,District 4,2,"Government,City Council",elected_official
-Ryan Alter,district5@austintexas.gov,"Council Member, District 5",Austin City Council,District 5,2,"Government,City Council",elected_official
-Krista Laine,district6@austintexas.gov,"Council Member, District 6",Austin City Council,District 6,2,"Government,City Council",elected_official
-Mike Siegel,district7@austintexas.gov,"Council Member, District 7",Austin City Council,District 7,2,"Government,City Council",elected_official
-Paige Ellis,district8@austintexas.gov,"Council Member, District 8",Austin City Council,District 8,2,"Government,City Council",elected_official
-"Zohaib ""Zo"" Qadri",district9@austintexas.gov,"Council Member, District 9",Austin City Council,District 9,2,"Government,City Council",elected_official
-Marc Duchen,district10@austintexas.gov,"Council Member, District 10",Austin City Council,District 10,2,"Government,City Council",elected_official
+Kirk Watson,kirk.watson@austintexas.gov,Mayor,Austin City Council,Citywide,2,"Government,City Council",city_staff
+Natasha Harper-Madison,district1@austintexas.gov,"Council Member, District 1",Austin City Council,District 1,2,"Government,City Council",city_staff
+Vanessa Fuentes,district2@austintexas.gov,"Council Member, District 2",Austin City Council,District 2,2,"Government,City Council",city_staff
+Jose Velasquez,district3@austintexas.gov,"Council Member, District 3",Austin City Council,District 3,2,"Government,City Council",city_staff
+"Jose ""Chito"" Vela",district4@austintexas.gov,"Council Member, District 4",Austin City Council,District 4,2,"Government,City Council",city_staff
+Ryan Alter,district5@austintexas.gov,"Council Member, District 5",Austin City Council,District 5,2,"Government,City Council",city_staff
+Krista Laine,district6@austintexas.gov,"Council Member, District 6",Austin City Council,District 6,2,"Government,City Council",city_staff
+Mike Siegel,district7@austintexas.gov,"Council Member, District 7",Austin City Council,District 7,2,"Government,City Council",city_staff
+Paige Ellis,district8@austintexas.gov,"Council Member, District 8",Austin City Council,District 8,2,"Government,City Council",city_staff
+"Zohaib ""Zo"" Qadri",district9@austintexas.gov,"Council Member, District 9",Austin City Council,District 9,2,"Government,City Council",city_staff
+Marc Duchen,district10@austintexas.gov,"Council Member, District 10",Austin City Council,District 10,2,"Government,City Council",city_staff

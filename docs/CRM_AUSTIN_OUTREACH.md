@@ -27,12 +27,17 @@ What works well:
   (`{{name}}`, `{{title}}`, `{{organization}}`, `{{department}}`, `{{jurisdiction}}`,
   `{{email}}`, `{{city}}`).
 
-Conclusion: the module is functional. One latent **bug** was found and fixed as
-part of this work (see migration `013`): the DB `contact_type` CHECK constraint
-from migration `009` only allowed `('city_staff','media')`, but the UI offers
-`elected_official`, `academic`, `nonprofit`, `lobbyist`, and `community_leader`.
-Saving a council member as an "Elected Official" would have failed that
-constraint. Migration `013` relaxes it to match the UI.
+Conclusion: the module is functional. **No schema/migration change is needed**
+for this outreach — the council contacts use the existing `city_staff` contact
+type (the default, already allowed by the schema) and are categorized as
+government/city council via keyword tags. The `013` file is therefore a plain
+**data seed** (INSERTs only), not a migration.
+
+> Note (not changed here): migration `009`'s `contact_type` CHECK constraint only
+> allows `('city_staff','media')`, while the UI also offers `elected_official`,
+> `academic`, `nonprofit`, `lobbyist`, and `community_leader`. Saving a contact as
+> one of those would fail the constraint. Left as-is per request; tracked under
+> Improvements.
 
 ---
 
@@ -40,16 +45,19 @@ constraint. Migration `013` relaxes it to match the UI.
 
 ### What was added
 
-- **`scripts/013_seed_austin_city_council.sql`** — idempotent seed migration that:
-  1. Relaxes the `contact_type` CHECK constraint (bug fix above).
-  2. Seeds `Government` and `City Council` keywords.
-  3. Inserts the Mayor + 10 district council members as `prospects`
-     (`contact_type = elected_official`, `city_id = 56718` / Austin,
+- **`scripts/013_seed_austin_city_council.sql`** — idempotent **data seed** (no
+  schema change) that:
+  1. Seeds `Government` and `City Council` keywords.
+  2. Inserts the Mayor + 10 district council members as `prospects`
+     (`contact_type = city_staff`, `city_id = 56718` / Austin,
      `jurisdiction = "District N"`).
-  4. Tags each with `Government` + `City Council`.
-  5. Seeds the weekly-update invitation email template.
+  3. Tags each with `Government` + `City Council`.
+  4. Seeds the weekly-update invitation email template.
 - **`scripts/austin-city-council-contacts.csv`** — the same 11 contacts, ready to
   drop into the Contacts → **Import CSV** flow (auto-maps every column).
+
+Subscriptions to the weekly Sunday digest are handled separately (outside this
+repo); nothing here writes a subscription record.
 
 ### How to load it
 

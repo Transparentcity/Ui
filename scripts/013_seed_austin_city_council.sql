@@ -18,20 +18,6 @@
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- 0. Relax the contact_type CHECK constraint.
---    Migration 009 limited contact_type to ('city_staff','media'), but the CRM
---    UI lets you classify contacts as elected_official, academic, nonprofit,
---    lobbyist and community_leader. Without this fix, saving a council member as
---    an "Elected Official" fails the CHECK constraint. Align the DB with the UI.
--- -----------------------------------------------------------------------------
-ALTER TABLE prospects DROP CONSTRAINT IF EXISTS prospects_contact_type_check;
-ALTER TABLE prospects ADD CONSTRAINT prospects_contact_type_check
-  CHECK (contact_type IN (
-    'elected_official', 'city_staff', 'media',
-    'academic', 'nonprofit', 'lobbyist', 'community_leader'
-  ));
-
--- -----------------------------------------------------------------------------
 -- 1. Keyword tags: "Government" and "City Council"
 -- -----------------------------------------------------------------------------
 INSERT INTO keywords (name, category, description) VALUES
@@ -45,7 +31,7 @@ ON CONFLICT (name) DO NOTHING;
 --    Idempotent insert: only adds a row if the email is not already present.
 -- -----------------------------------------------------------------------------
 INSERT INTO prospects (name, title, organization, email, jurisdiction, contact_type, city_id, city_name, priority, status, notes)
-SELECT v.name, v.title, v.organization, v.email, v.jurisdiction, 'elected_official', 56718, 'Austin', 2, 'active', v.notes
+SELECT v.name, v.title, v.organization, v.email, v.jurisdiction, 'city_staff', 56718, 'Austin', 2, 'active', v.notes
 FROM (VALUES
   ('Kirk Watson',           'Mayor',                'Austin City Council', 'kirk.watson@austintexas.gov', 'Citywide',    'Mayor of Austin'),
   ('Natasha Harper-Madison','Council Member, District 1','Austin City Council', 'district1@austintexas.gov',  'District 1',  'Northeast Austin'),
