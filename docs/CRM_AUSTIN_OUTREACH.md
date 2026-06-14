@@ -55,8 +55,8 @@ government/city council via keyword tags. The `013` file is therefore a plain
   3. Inserts each office's **chief of staff** as its own record (priority 3,
      tagged `Staff`), linked back to the member in `notes`.
   4. Tags members with `Government` + `City Council`; staff additionally with `Staff`.
-  5. Seeds the weekly-update invitation email template (with a "cc'd your chief of
-     staff" line).
+  5. Seeds **11 per-office** weekly-update invitation templates (Mayor + D1..D10),
+     each with that district's stories and a "cc'd your chief of staff" line.
 - **`scripts/austin-city-council-contacts.csv`** — the same 22 contacts (11 members
   + 11 chiefs of staff), ready to drop into the Contacts → **Import CSV** flow.
 
@@ -142,40 +142,68 @@ Sources: <https://www.austintexas.gov/council>,
 <https://www.austintexas.gov/department/district-1-council-office-contact-information>,
 <https://en.wikipedia.org/wiki/Austin_City_Council>.
 
-### The invitation email (template "Austin Council — Weekly District Update (invite)")
+### The invitation emails — one template per office (11 total)
 
-Casual / handwritten tone with intentional lowercase. Subject and lead headline
-are real facts pulled from the Austin public feed. Personalized per recipient via
-`{{name}}` and `{{jurisdiction}}`.
+Each office gets its **own** template carrying that district's stories, because the
+template engine has no per-district story token. They share one casual / handwritten
+frame (intentional lowercase) and personalize via `{{name}}` and `{{jurisdiction}}`.
+The subject and lead bullet of each are real facts for that district.
 
-> **Subject:** austin drug crime is up 29% this year — reversing a 5-year decline
+Templates seeded (category `Outreach`): `Austin Mayor — Weekly Update (invite)` and
+`Austin D1..D10 — Weekly District Update (invite)`.
+
+| Office | Subject line (a fact) |
+|---|---|
+| Mayor | austin graffiti removal requests fell 99% in june — from 142 a month to 1 |
+| D1 | district 1's 911 calls are down 12% this year — the biggest drop in austin |
+| D2 | district 2 residential permits hit a 6-month high in march — up 33% |
+| D3 | district 3 property crime just hit a 6-month low — down 26% |
+| D4 | active building permits in district 4 more than doubled — up 145% |
+| D5 | district 5 had austin's sharpest property crime drop — down 36% |
+| D6 | district 6 911 calls are up 29% — bucking the citywide drop |
+| D7 | district 7 had austin's steepest drop in finished permits — down 55% |
+| D8 | disorderly conduct calls in district 8 tripled in april — up 194% |
+| D9 | marijuana possession records in district 9 more than doubled — up 133% |
+| D10 | simple assault calls in district 10 fell 48% in april — a 6-month low |
+
+Every district template also carries the shared citywide graffiti story (311 graffiti
+removal requests fell 99% in June) as a bullet; the Mayor's uses three citywide
+stories (graffiti, rodent/pest complaints −85%, animal bites +33%).
+
+Example — **District 1**:
+
+> **Subject:** district 1's 911 calls are down 12% this year — the biggest drop in austin
 >
 > hey {{name}},
 >
 > i'm adam — i run transparent city. we turn austin's open data into a
-> plain-english read so nobody has to dig through dashboards. couple things that
-> jumped out this month:
+> plain-english read so nobody has to dig through dashboards. a few things from
+> {{jurisdiction}} (and citywide) that jumped out this month:
 >
-> • austin drug crime up 29%, reversing a five-year decline
-> • traffic crashes down 19% — the lowest pace in a decade
-> • parking complaints up 27%, now driving the whole 311 surge
+> • apd 911 calls in d1 are down 12% so far this year — 1,310 fewer calls, the
+>   biggest drop of any district (citywide only fell ~2%)
+> • new home construction permits in d1 are down 46% this year — the steepest
+>   decline in the city (completions are actually up 28%)
+> • citywide: graffiti removal requests fell 99% in june, ~142 a month down to 1
+>   (probably a reporting change)
 >
 > heads up — i've gone ahead and subscribed you to a weekly transparent city
-> update for {{jurisdiction}}. the first one lands THIS sunday, and you'll get one
-> every sunday after that. just the numbers that actually moved in your district,
-> nothing else.
+> update for {{jurisdiction}}. first one lands THIS sunday, then one every sunday
+> after — just the numbers that actually moved in your district, nothing else.
 >
 > if there's stuff you care about more (housing? public safety? permits?) just hit
-> reply and tell me — i'll tune it to your interests. and if it's not for you,
-> reply "stop" and i'll take you right off, no worries.
+> reply and tell me — i'll tune it to your interests. not for you? reply "stop" and
+> i'll take you right off, no worries.
 >
 > p.s. i cc'd your chief of staff so this doesn't get buried — either of you can reply.
 >
 > talk soon,
 > adam
 
-Facts are current as of the June 2026 Austin feed; refresh the headlines before a
-send if time has passed.
+Story content is sourced from the supplied June 2026 Austin Story Briefs. Note: the
+graffiti (−99%) and rodent/pest (−85%) drops are almost certainly data-pipeline /
+reporting changes, not real-world shifts — the copy frames them that way. Refresh the
+headlines before a send if time has passed.
 
 ---
 
