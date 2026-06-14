@@ -30,21 +30,21 @@ ON CONFLICT (name) DO NOTHING;
 --    city_id 56718 = Austin, TX (platform cities.id, per public sitemap API)
 --    Idempotent insert: only adds a row if the email is not already present.
 -- -----------------------------------------------------------------------------
-INSERT INTO prospects (name, title, organization, email, jurisdiction, contact_type, city_id, city_name, priority, status, notes)
-SELECT v.name, v.title, v.organization, v.email, v.jurisdiction, 'city_staff', 56718, 'Austin', 2, 'active', v.notes
+INSERT INTO prospects (name, title, organization, department, email, phone, jurisdiction, contact_type, city_id, city_name, priority, status, notes)
+SELECT v.name, v.title, v.organization, v.department, v.email, v.phone, v.jurisdiction, 'city_staff', 56718, 'Austin', 2, 'active', v.notes
 FROM (VALUES
-  ('Kirk Watson',           'Mayor',                'Austin City Council', 'kirk.watson@austintexas.gov', 'Citywide',    'Mayor of Austin'),
-  ('Natasha Harper-Madison','Council Member, District 1','Austin City Council', 'district1@austintexas.gov',  'District 1',  'Northeast Austin'),
-  ('Vanessa Fuentes',       'Council Member, District 2','Austin City Council', 'district2@austintexas.gov',  'District 2',  'Southeast Austin'),
-  ('Jose Velasquez',        'Council Member, District 3','Austin City Council', 'district3@austintexas.gov',  'District 3',  'East Austin'),
-  ('Jose "Chito" Vela',     'Council Member, District 4','Austin City Council', 'district4@austintexas.gov',  'District 4',  'North Central Austin'),
-  ('Ryan Alter',            'Council Member, District 5','Austin City Council', 'district5@austintexas.gov',  'District 5',  'South Austin'),
-  ('Krista Laine',          'Council Member, District 6','Austin City Council', 'district6@austintexas.gov',  'District 6',  'Northwest Austin'),
-  ('Mike Siegel',           'Council Member, District 7','Austin City Council', 'district7@austintexas.gov',  'District 7',  'North Austin'),
-  ('Paige Ellis',           'Council Member, District 8','Austin City Council', 'district8@austintexas.gov',  'District 8',  'Southwest Austin'),
-  ('Zohaib "Zo" Qadri',     'Council Member, District 9','Austin City Council', 'district9@austintexas.gov',  'District 9',  'Central Austin'),
-  ('Marc Duchen',           'Council Member, District 10','Austin City Council','district10@austintexas.gov', 'District 10', 'Northwest/Central Austin')
-) AS v(name, title, organization, email, jurisdiction, notes)
+  ('Kirk Watson',           'Mayor',                     'Austin City Council', 'Mayor''s Office',    'kirk.watson@austintexas.gov', '(512) 978-2100', 'Citywide',    'Mayor of Austin'),
+  ('Natasha Harper-Madison','Council Member, District 1','Austin City Council', 'District 1 Office',  'district1@austintexas.gov',   '(512) 978-2101', 'District 1',  'Northeast Austin'),
+  ('Vanessa Fuentes',       'Council Member, District 2','Austin City Council', 'District 2 Office',  'district2@austintexas.gov',   '(512) 978-2102', 'District 2',  'Southeast Austin'),
+  ('Jose Velasquez',        'Council Member, District 3','Austin City Council', 'District 3 Office',  'district3@austintexas.gov',   '(512) 978-2103', 'District 3',  'East Austin'),
+  ('Jose "Chito" Vela',     'Council Member, District 4','Austin City Council', 'District 4 Office',  'district4@austintexas.gov',   '(512) 978-2104', 'District 4',  'North Central Austin'),
+  ('Ryan Alter',            'Council Member, District 5','Austin City Council', 'District 5 Office',  'district5@austintexas.gov',   '(512) 978-2105', 'District 5',  'South Austin'),
+  ('Krista Laine',          'Council Member, District 6','Austin City Council', 'District 6 Office',  'district6@austintexas.gov',   '(512) 978-2106', 'District 6',  'Northwest Austin'),
+  ('Mike Siegel',           'Council Member, District 7','Austin City Council', 'District 7 Office',  'district7@austintexas.gov',   '(512) 978-2107', 'District 7',  'North Austin'),
+  ('Paige Ellis',           'Council Member, District 8','Austin City Council', 'District 8 Office',  'district8@austintexas.gov',   '(512) 978-2108', 'District 8',  'Southwest Austin'),
+  ('Zohaib "Zo" Qadri',     'Council Member, District 9','Austin City Council', 'District 9 Office',  'district9@austintexas.gov',   '(512) 978-2109', 'District 9',  'Central Austin'),
+  ('Marc Duchen',           'Council Member, District 10','Austin City Council','District 10 Office', 'district10@austintexas.gov',  '(512) 978-2110', 'District 10', 'Northwest/Central Austin')
+) AS v(name, title, organization, department, email, phone, jurisdiction, notes)
 WHERE NOT EXISTS (
   SELECT 1 FROM prospects p WHERE lower(p.email) = lower(v.email)
 );

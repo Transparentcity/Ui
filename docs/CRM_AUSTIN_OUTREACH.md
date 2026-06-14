@@ -74,23 +74,33 @@ the Austin-scoped view.
 
 ### The roster (verified June 2026)
 
-| District | Member | Email |
-|---|---|---|
-| Mayor | Kirk Watson | kirk.watson@austintexas.gov |
-| 1 | Natasha Harper-Madison | district1@austintexas.gov |
-| 2 | Vanessa Fuentes | district2@austintexas.gov |
-| 3 | José Velásquez | district3@austintexas.gov |
-| 4 | José "Chito" Vela | district4@austintexas.gov |
-| 5 | Ryan Alter | district5@austintexas.gov |
-| 6 | Krista Laine | district6@austintexas.gov |
-| 7 | Mike Siegel | district7@austintexas.gov |
-| 8 | Paige Ellis | district8@austintexas.gov |
-| 9 | Zohaib "Zo" Qadri | district9@austintexas.gov |
-| 10 | Marc Duchen | district10@austintexas.gov |
+| District | Member | Email | Phone |
+|---|---|---|---|
+| Mayor | Kirk Watson | kirk.watson@austintexas.gov | (512) 978-2100 |
+| 1 | Natasha Harper-Madison | district1@austintexas.gov | (512) 978-2101 |
+| 2 | Vanessa Fuentes | district2@austintexas.gov | (512) 978-2102 |
+| 3 | José Velásquez | district3@austintexas.gov | (512) 978-2103 |
+| 4 | José "Chito" Vela | district4@austintexas.gov | (512) 978-2104 |
+| 5 | Ryan Alter | district5@austintexas.gov | (512) 978-2105 |
+| 6 | Krista Laine | district6@austintexas.gov | (512) 978-2106 |
+| 7 | Mike Siegel | district7@austintexas.gov | (512) 978-2107 |
+| 8 | Paige Ellis | district8@austintexas.gov | (512) 978-2108 |
+| 9 | Zohaib "Zo" Qadri | district9@austintexas.gov | (512) 978-2109 |
+| 10 | Marc Duchen | district10@austintexas.gov | (512) 978-2110 |
 
-Sources: <https://www.austintexas.gov/council>, <https://en.wikipedia.org/wiki/Austin_City_Council>.
-Council offices use the `district<N>@austintexas.gov` general-inquiry mailbox; the
-Mayor uses a named mailbox.
+Each contact also carries `organization = "Austin City Council"`, a `department`
+(e.g. "District 5 Office"), `title`, `jurisdiction` ("District N"), and a `notes`
+area descriptor.
+
+**Email/phone verification (June 2026):** confirmed against austintexas.gov.
+Council offices use the `district<N>@austintexas.gov` general-inquiry mailbox
+(D1, D7, D10 shown explicitly on the city site; the rest follow the same pattern)
+and office phones run `(512) 978-210N` (Mayor 2100, D10 2110). The Mayor uses the
+named mailbox `kirk.watson@austintexas.gov`.
+
+Sources: <https://www.austintexas.gov/council>,
+<https://www.austintexas.gov/department/district-1-council-office-contact-information>,
+<https://en.wikipedia.org/wiki/Austin_City_Council>.
 
 ### The invitation email (template "Austin Council — Weekly District Update (invite)")
 
