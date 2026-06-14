@@ -13,6 +13,7 @@ import {
   createNewSession,
   getAvailableModels,
   getSessionStats,
+  toggleSessionPublic,
   type ModelGroupInfo,
   type StreamEvent,
   type SessionStats,
@@ -105,6 +106,11 @@ export default function ChatView({
   );
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
   const [currentAssistantMessageId, setCurrentAssistantMessageId] = useState<string | null>(null);
+  // Tracks the last assistant message whose text/share link was copied (for "Copied" feedback).
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [copiedShareId, setCopiedShareId] = useState<string | null>(null);
+  // True while the conversation-share request (toggleSessionPublic) is in flight.
+  const [isSharing, setIsSharing] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sessionStats, setSessionStats] = useState<SessionStats | null>(() => {
@@ -947,6 +953,106 @@ export default function ChatView({
 
   const selectedModelInfo = getSelectedModelInfo();
 
+  // Extract the full plain-text answer for an assistant message, preferring the
+  // streamed text_response events (which exclude tool calls) and falling back to content.
+  const getAnswerText = (msg: Message): string => {
+    const fromEvents = (msg.intermediate_events || [])
+      .filter((e) => e.type === "text_response" && e.content)
+      .map((e) => e.content)
+      .join("");
+    return (fromEvents.trim() ? fromEvents : msg.content || "").trim();
+  };
+
+  const handleCopyAnswer = async (msg: Message) => {
+    const text = getAnswerText(msg);
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(msg.id);
+      setTimeout(() => {
+        setCopiedMessageId((id) => (id === msg.id ? null : id));
+      }, 1500);
+    } catch {
+      // Clipboard may be unavailable (e.g. insecure context); fail silently.
+    }
+  };
+
+  // Share the whole conversation: make the session public (idempotent) and copy
+  // its /chat/{hash} link. Mirrors the share flow in SessionList's handleCopyUrl.
+  const handleShareConversation = async (msg: Message) => {
+    if (!currentSessionId || isSharing) return;
+    setIsSharing(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const data = await toggleSessionPublic(currentSessionId, true, token);
+      // The public link uses a server-generated hash, so rely on public_url
+      // rather than fabricating a URL from the session id.
+      if (!data.public_url) return;
+      const url = `${window.location.origin}${data.public_url}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedShareId(msg.id);
+      setTimeout(() => {
+        setCopiedShareId((id) => (id === msg.id ? null : id));
+      }, 1500);
+    } catch {
+      // Share/clipboard may fail (offline, insecure context); fail silently.
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  // Footer shown under a completed Seymour answer: icon-only Copy, plus a Share
+  // button (copies a public conversation link) once the session is saved.
+  const renderMessageActions = (msg: Message) => {
+    if (!getAnswerText(msg)) return null;
+    const justCopied = copiedMessageId === msg.id;
+    const justCopiedShare = copiedShareId === msg.id;
+    return (
+      <div className={styles.messageActions}>
+        <button
+          type="button"
+          className={styles.messageActionButton}
+          onClick={() => handleCopyAnswer(msg)}
+          aria-label={justCopied ? "Answer copied" : "Copy answer"}
+          title={justCopied ? "Copied" : "Copy answer"}
+        >
+          {justCopied ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
+        {currentSessionId && (
+          <button
+            type="button"
+            className={styles.messageActionButton}
+            onClick={() => handleShareConversation(msg)}
+            disabled={isSharing}
+            aria-label={justCopiedShare ? "Share link copied" : "Copy share link"}
+            title={justCopiedShare ? "Link copied" : "Copy link to this conversation"}
+          >
+            {justCopiedShare ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                <path d="M16 6l-4-4-4 4" />
+                <path d="M12 2v14" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const renderAssistantMessage = (msg: Message, isActiveStream: boolean = false) => {
     // Check if we have intermediate events for chronological rendering
     // Only use message-level events - session-level events contain ALL events from all messages
@@ -1334,6 +1440,8 @@ export default function ChatView({
                       <div className={styles.assistantBubble}>
                         <div className={styles.assistantName}>Seymour</div>
                         {renderAssistantMessage(msg, isStreaming && msg.id === currentAssistantMessageId)}
+                        {!(isStreaming && msg.id === currentAssistantMessageId) &&
+                          renderMessageActions(msg)}
                       </div>
                     ) : (
                       <div className={styles.messageContent}>{msg.content}</div>
