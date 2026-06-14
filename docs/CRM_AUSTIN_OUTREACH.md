@@ -47,17 +47,34 @@ government/city council via keyword tags. The `013` file is therefore a plain
 
 - **`scripts/013_seed_austin_city_council.sql`** — idempotent **data seed** (no
   schema change) that:
-  1. Seeds `Government` and `City Council` keywords.
+  1. Seeds `Government`, `City Council`, and `Staff` keywords.
   2. Inserts the Mayor + 10 district council members as `prospects`
      (`contact_type = city_staff`, `city_id = 56718` / Austin,
-     `jurisdiction = "District N"`).
-  3. Tags each with `Government` + `City Council`.
-  4. Seeds the weekly-update invitation email template.
-- **`scripts/austin-city-council-contacts.csv`** — the same 11 contacts, ready to
-  drop into the Contacts → **Import CSV** flow (auto-maps every column).
+     `jurisdiction = "District N"`). Each member's `notes` records their chief of
+     staff + email as the CC for outreach.
+  3. Inserts each office's **chief of staff** as its own record (priority 3,
+     tagged `Staff`), linked back to the member in `notes`.
+  4. Tags members with `Government` + `City Council`; staff additionally with `Staff`.
+  5. Seeds the weekly-update invitation email template (with a "cc'd your chief of
+     staff" line).
+- **`scripts/austin-city-council-contacts.csv`** — the same 22 contacts (11 members
+  + 11 chiefs of staff), ready to drop into the Contacts → **Import CSV** flow.
 
 Subscriptions to the weekly Sunday digest are handled separately (outside this
 repo); nothing here writes a subscription record.
+
+### "Copying" the chief of staff
+
+The CRM has **no per-recipient CC field** (and we're not changing the data model).
+The product's CC mechanism is the composer's "use the same copy for all selected
+contacts" — it queues an identical message per recipient. So to copy a member's
+office:
+
+1. The chief of staff exists as their own contact (added above), and the member's
+   record carries the CoS email in `notes`.
+2. At send, select **both** the member and their chief of staff, write/generate the
+   invite, and use **"same copy for all"** — both get the email and each is logged
+   in the CRM. The template's closing line already says the chief of staff is copied.
 
 ### How to load it
 
@@ -91,6 +108,29 @@ the Austin-scoped view.
 Each contact also carries `organization = "Austin City Council"`, a `department`
 (e.g. "District 5 Office"), `title`, `jurisdiction` ("District N"), and a `notes`
 area descriptor.
+
+### Chiefs of staff (CC contacts, verified June 2026)
+
+| District | Member | Chief of Staff | Email | Phone |
+|---|---|---|---|---|
+| Mayor | Kirk Watson | Colleen Pate | colleen.pate@austintexas.gov ⚠️ | (512) 978-2100 |
+| 1 | Natasha Harper-Madison | Sharon Mays | sharon.mays@austintexas.gov | (512) 978-2136 |
+| 2 | Vanessa Fuentes | Jason Lopez | jason.lopez@austintexas.gov | (512) 978-2165 |
+| 3 | José Velásquez | Sobeyda Gomez-Chou | sobeyda.gomez-chou@austintexas.gov | (512) 978-2151 |
+| 4 | José "Chito" Vela | Solomon Ortiz | solomonortiz@austintexas.gov | (512) 978-2104 |
+| 5 | Ryan Alter | Ben Leffler | ben.leffler@austintexas.gov | (512) 978-2105 |
+| 6 | Krista Laine | Jenna Hanes | jennahanes@austintexas.gov | (512) 978-2106 |
+| 7 | Mike Siegel | Emily Gerrick | emily.gerrick@austintexas.gov | (512) 978-2185 |
+| 8 | Paige Ellis | Julie Montgomery | julie.montgomery@austintexas.gov | (512) 978-2108 |
+| 9 | Zohaib "Zo" Qadri | Sara Barge | sara.barge@austintexas.gov ⚠️ | (512) 978-2109 |
+| 10 | Marc Duchen | Carrie Smith | carrie.smith@austintexas.gov | (512) 978-2110 |
+
+Names + titles confirmed on the official `austintexas.gov/district-N/staff-directory`
+pages. ⚠️ = email **inferred** from the `firstname.lastname@austintexas.gov` pattern
+(the Mayor's and D9's pages masked the address behind a contact-form link) — verify
+those two before sending. D4 (`solomonortiz@`) and D6 (`jennahanes@`) use no-dot
+addresses, confirmed verbatim from their pages. Phones for the Mayor, D4, D6, D8, D9,
+and D10 are office main lines, not the CoS's direct desk line.
 
 **Email/phone verification (June 2026):** confirmed against austintexas.gov.
 Council offices use the `district<N>@austintexas.gov` general-inquiry mailbox
@@ -128,6 +168,8 @@ are real facts pulled from the Austin public feed. Personalized per recipient vi
 > if there's stuff you care about more (housing? public safety? permits?) just hit
 > reply and tell me — i'll tune it to your interests. and if it's not for you,
 > reply "stop" and i'll take you right off, no worries.
+>
+> p.s. i cc'd your chief of staff so this doesn't get buried — either of you can reply.
 >
 > talk soon,
 > adam
