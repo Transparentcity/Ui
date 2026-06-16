@@ -43,15 +43,3 @@ export function FeedErrorState({
     </div>
   );
 }
-
-export function FeedQuietState({ period = "today" }: { period?: string }) {
-  return (
-    <div className={styles.emptyState}>
-      <div className={styles.emptyTitle}>Quiet day.</div>
-      <p className={styles.emptyBody}>
-        All detectors ran clean for {period}. Seymour will surface anything new on the
-        next scheduled run.
-      </p>
-    </div>
-  );
-}

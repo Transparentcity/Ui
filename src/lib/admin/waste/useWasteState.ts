@@ -30,6 +30,7 @@ export type WasteUIState = {
   failingCount: number;
   failingDetectorId: string | null;
   isLoading: boolean;
+  isError: boolean;
 };
 
 const SECTION_LABEL: Record<WasteSection, string> = {
@@ -95,7 +96,12 @@ export function useWasteState(): WasteUIState {
 
   const cityRow = citiesQ.data?.find(c => c.slug === backendSlug);
   const kpis = readoutQ.data?.kpis;
-  const { health, healthLabel } = deriveHealth(cityRow);
+  const isError = citiesQ.isError || readoutQ.isError;
+  // Don't assert "all systems normal" when the health data itself failed to
+  // load: treat an errored lookup as unknown (warn) rather than healthy.
+  const { health, healthLabel } = isError
+    ? { health: "warn" as WasteHealth, healthLabel: "Status unavailable" }
+    : deriveHealth(cityRow);
 
   return {
     city,
@@ -113,5 +119,6 @@ export function useWasteState(): WasteUIState {
     failingCount: cityRow?.health?.failing_count ?? 0,
     failingDetectorId: cityRow?.health?.failing_detector_id ?? null,
     isLoading: citiesQ.isLoading || readoutQ.isLoading,
+    isError,
   };
 }

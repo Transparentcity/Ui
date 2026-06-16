@@ -2,7 +2,7 @@
 
 import { Suspense, use, type ReactNode } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   Mono,
@@ -58,8 +58,9 @@ function csvCell(value: unknown): string {
   let s = String(value);
   // Defuse spreadsheet formula injection for text cells (a value like
   // "=cmd()" or "@SUM" would execute on open). Numeric columns come through
-  // as numbers, so guarding only string values keeps them intact.
-  if (typeof value === "string" && /^[=+\-@\t\r]/.test(s)) {
+  // as numbers, so guarding only string values keeps them intact. Check after
+  // trimming leading whitespace so " =cmd()" can't slip past the prefix test.
+  if (typeof value === "string" && /^[\s]*[=+\-@\t\r]/.test(s)) {
     s = `'${s}`;
   }
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -67,26 +68,42 @@ function csvCell(value: unknown): string {
 
 function reportToCsv(report: WasteAdminReportDetail): string {
   const header = CSV_COLUMNS.map(([name]) => name).join(",");
-  const rows = report.findings.map((f) =>
+  const rows = (report.findings ?? []).map((f) =>
     CSV_COLUMNS.map(([, get]) => csvCell(get(f))).join(","),
   );
   return [header, ...rows].join("\r\n");
 }
 
 function ReportDetailView({ slug }: { slug: string }) {
+  const router = useRouter();
   const params = useSearchParams();
   const citySlug = getWasteApiSlug(params.get("city"));
   const { data, isLoading, error, refetch } = useWasteAdminReport(slug, citySlug);
   const backHref = `/admin/waste/reports?city=${encodeURIComponent(citySlug)}`;
+  const notFound = (error as { status?: number } | null)?.status === 404;
 
   if (error) {
     return (
       <div className="px-8 py-6 space-y-3">
         <BackLink href={backHref} />
-        <p role="alert" className="text-sm text-red-700">
-          Couldn&apos;t load report: {error instanceof Error ? error.message : "Unknown error"}
-        </p>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+        {notFound ? (
+          <>
+            <p role="alert" className="text-sm text-[var(--text-secondary)]">
+              No report named <Mono>{slug}</Mono> for this city. It may have been removed,
+              or the link is out of date.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => router.push(backHref)}>
+              Back to reports
+            </Button>
+          </>
+        ) : (
+          <>
+            <p role="alert" className="text-sm text-red-700">
+              Couldn&apos;t load report: {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+          </>
+        )}
       </div>
     );
   }
@@ -101,7 +118,7 @@ function ReportDetailView({ slug }: { slug: string }) {
   }
 
   const report = adaptReportDetail(data);
-  const reportFindings = [...data.findings]
+  const reportFindings = [...(data.findings ?? [])]
     .sort((a, b) => {
       const av = a.estimated_dollar_impact ?? a.amount ?? 0;
       const bv = b.estimated_dollar_impact ?? b.amount ?? 0;
@@ -109,7 +126,6 @@ function ReportDetailView({ slug }: { slug: string }) {
     })
     .map(adaptFinding);
   const status = report.status;
-  const isFinal = status === "final";
   const isDraft = status === "draft";
 
   const kpis: { label: string; value: ReactNode }[] = [
@@ -151,7 +167,6 @@ function ReportDetailView({ slug }: { slug: string }) {
             >
               Export JSON
             </Button>
-            {!isFinal && <Button size="sm" disabled title="Coming soon">Promote to final →</Button>}
           </div>
         </div>
 

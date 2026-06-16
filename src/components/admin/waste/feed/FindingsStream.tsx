@@ -65,10 +65,6 @@ export function FindingsStream({
             </button>
           ))}
         </div>
-        <span className={styles.toolbarSpacer} />
-        <button type="button" className={styles.bulkBtn} disabled title="Coming soon">
-          Bulk · assign
-        </button>
       </div>
 
       {isDegraded && (
@@ -82,12 +78,19 @@ export function FindingsStream({
       )}
 
       <div className={styles.findingsScroll}>
-        {isQuiet ? (
+        {isQuiet && detectorCount === 0 ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyTitle}>No detectors yet.</div>
+            <p className={styles.emptyBody}>
+              No detectors are configured for this city, so there&apos;s nothing to scan.
+            </p>
+          </div>
+        ) : isQuiet ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyTitle}>Quiet day.</div>
             <p className={styles.emptyBody}>
-              {detectorCount ? `All ${detectorCount} detectors` : "All detectors"} ran clean for{" "}
-              {period}. Seymour will surface anything new on the next scheduled run.
+              All {detectorCount} detectors ran clean for {period}. Seymour will surface anything
+              new on the next scheduled run.
             </p>
           </div>
         ) : findings.length === 0 ? (

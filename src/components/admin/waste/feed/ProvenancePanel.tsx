@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Mono, SectionLabel, SeverityDot } from "@/components/admin/waste/primitives";
+import { Mono, SectionLabel, SeverityDot } from "@/components/admin/waste/primitives";
 import type { Detector, Finding } from "@/lib/wasteFixtures";
 import styles from "./feed.module.css";
 
@@ -38,19 +38,21 @@ export function ProvenancePanel({ detector, finding }: Props) {
           <p className={styles.cardBody}>{detector.plain}</p>
         </div>
 
-        <div className={styles.tunedCard}>
-          <div className={styles.tunedAccent} />
-          <div className={styles.tunedHeader}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5" aria-hidden>
-              <path d="M3 7v6h6" />
-              <path d="M3 13a9 9 0 1 0 3-7.7L3 8" />
-            </svg>
-            <span className={styles.tunedHeaderText}>Tuned on this case</span>
+        {detector.historical?.summary ? (
+          <div className={styles.tunedCard}>
+            <div className={styles.tunedAccent} />
+            <div className={styles.tunedHeader}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5" aria-hidden>
+                <path d="M3 7v6h6" />
+                <path d="M3 13a9 9 0 1 0 3-7.7L3 8" />
+              </svg>
+              <span className={styles.tunedHeaderText}>Tuned on this case</span>
+            </div>
+            <div className={styles.tunedCase}>{detector.historical.case}</div>
+            <p className={styles.tunedSummary}>{detector.historical.summary}</p>
+            <div className={styles.tunedLesson}>&ldquo;{detector.historical.lesson}&rdquo;</div>
           </div>
-          <div className={styles.tunedCase}>{detector.historical.case}</div>
-          <p className={styles.tunedSummary}>{detector.historical.summary}</p>
-          <div className={styles.tunedLesson}>&ldquo;{detector.historical.lesson}&rdquo;</div>
-        </div>
+        ) : null}
 
         {finding && (
           <div className={styles.card}>
@@ -83,14 +85,6 @@ export function ProvenancePanel({ detector, finding }: Props) {
             ))}
           </div>
         </div>
-
-        {finding && (
-          <div className={styles.actionRow}>
-            <Button variant="primary" size="sm" disabled title="Coming soon">Open case →</Button>
-            <Button variant="secondary" size="sm" disabled title="Coming soon">Mark in review</Button>
-            <Button variant="ghost" size="sm" disabled title="Coming soon">Dismiss</Button>
-          </div>
-        )}
       </div>
     </aside>
   );

@@ -70,11 +70,16 @@ function detectorPlain(det: WasteAdminDetectorRow): string {
 }
 
 function buildHistorical(det: WasteAdminDetectorRow): Detector["historical"] {
-  const md = det.historical_anchor_md || "";
+  // Only surface a historical anchor when the backend actually provides one.
+  // Returning empty strings (rather than fabricating a summary from the
+  // methodology) lets the render guards hide the "Anchor" block entirely for
+  // detectors with no real case behind them.
+  const md = (det.historical_anchor_md || "").trim();
+  if (!md) return { case: "", summary: "", lesson: "" };
   const firstLine = md.split(/\r?\n/).map(l => l.trim()).find(Boolean) ?? "";
   return {
-    case: firstLine || (det.standards_basis ?? "Standards-anchored detector"),
-    summary: md || (det.methodology_md ?? det.name),
+    case: firstLine || (det.standards_basis ?? "Historical case"),
+    summary: md,
     lesson: det.standards_basis || "Confirmed by historical case anchoring.",
   };
 }
@@ -125,13 +130,23 @@ function parseConfidence(value: string | number | null | undefined): number {
   return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
+// Backends occasionally stringify nulls; treat "null"/"undefined" as empty so
+// they never render as literal text in a subject line or label.
+function cleanText(value: string | null | undefined): string {
+  const s = (value ?? "").trim();
+  if (!s || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return "";
+  return s;
+}
+
 export function adaptFinding(f: WasteAdminFindingRow): Finding {
   const subjectParts: string[] = [];
-  if (f.entity_name) subjectParts.push(f.entity_name);
-  if (f.subcategory) subjectParts.push(f.subcategory);
+  const entity = cleanText(f.entity_name);
+  const subcategory = cleanText(f.subcategory);
+  if (entity) subjectParts.push(entity);
+  if (subcategory) subjectParts.push(subcategory);
   const detailConfidence = (f as Partial<{ confidence_score: number | null }>).confidence_score;
-  const headline = f.headline || f.description || f.detector_name || "Finding";
-  const rawDetail = f.description || f.detector_name || "";
+  const headline = cleanText(f.headline) || cleanText(f.description) || f.detector_name || "Finding";
+  const rawDetail = cleanText(f.description) || cleanText(f.detector_name);
   // The backend currently ships the same string in `headline` and `description`
   // for many finding types. Suppress the detail when it would duplicate the
   // headline so the card doesn't render the same paragraph twice.
@@ -141,7 +156,7 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
     detectorId: f.detector_key,
     headline,
     subject: subjectParts.join(" · ") || (f.detector_name ?? f.detector_key),
-    department: f.department || "—",
+    department: cleanText(f.department) || "—",
     amount: formatAmount(f.estimated_dollar_impact ?? f.amount),
     confidence: parseConfidence(detailConfidence ?? f.confidence),
     flagged: relativeTime(f.created_at),
@@ -205,9 +220,12 @@ export function adaptReportRow(r: WasteAdminReportRow): Report {
 }
 
 export function adaptReportDetail(r: WasteAdminReportDetail): Report {
+  // Guard against a report body that omits `findings`: a missing array here
+  // would throw and blank the report page through the error boundary.
+  const findings = r.findings ?? [];
   return {
     ...adaptReportRow(r),
-    detectors: Array.from(new Set(r.findings.map(f => f.detector_key))),
+    detectors: Array.from(new Set(findings.map(f => f.detector_key))),
     standards: r.standards_basis ?? "",
     methodology: r.methodology_md ?? r.blurb ?? "",
     caveats: r.caveats_md ?? "",
@@ -215,17 +233,21 @@ export function adaptReportDetail(r: WasteAdminReportDetail): Report {
 }
 
 export function adaptSeymour(feed: WasteAdminSeymourFeed): SeymourData {
+  // The Seymour rail is non-critical, so a partial/malformed feed must never
+  // throw and take down the whole findings page. Default every array.
+  const clusters = feed?.clusters ?? [];
+  const suggested = feed?.suggested_investigations ?? [];
   return {
-    todaysRead: feed.read_of_the_day,
+    todaysRead: feed?.read_of_the_day ?? "",
     generatedAt: new Date().toLocaleString("default", {
       hour: "2-digit",
       minute: "2-digit",
     }),
-    clusters: feed.clusters.map(c => ({
+    clusters: clusters.map(c => ({
       id: c.id,
       entity: c.title,
       detectors: [],
-      findings: c.finding_ids.length,
+      findings: (c.finding_ids ?? []).length,
       exposure:
         c.composite_risk != null
           ? `risk ${c.composite_risk.toFixed(2)}`
@@ -233,10 +255,10 @@ export function adaptSeymour(feed: WasteAdminSeymourFeed): SeymourData {
       reasoning: c.department ? `Department: ${c.department}` : "",
       suggestion: "Open as investigation",
     })),
-    suggested: feed.suggested_investigations.map((s, i) => ({
+    suggested: suggested.map((s, i) => ({
       id: `S-${i + 1}`,
       title: `${s.entity_name} (${s.entity_type})`,
-      basis: `Score Δ ${s.score_delta.toFixed(2)}`,
+      basis: `Score Δ ${(s.score_delta ?? 0).toFixed(2)}`,
       lift: s.last_scored_at ? `Updated ${relativeTime(s.last_scored_at)}` : "",
     })),
   };
