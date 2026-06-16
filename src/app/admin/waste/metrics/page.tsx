@@ -40,8 +40,17 @@ function MetricsView() {
   }, [detectorsQ.data]);
 
   const detectorById = useMemo<Record<string, Detector>>(() => {
-    const all = (detectorsQ.data ?? []).map(adaptDetector);
-    return Object.fromEntries(all.map((d) => [d.id, d]));
+    // Index by both the row id and detector_key so weekly counts (keyed by a
+    // finding's detector_key) line up with the catalog regardless of which the
+    // backend uses as the primary id.
+    const map: Record<string, Detector> = {};
+    for (const raw of detectorsQ.data ?? []) {
+      const det = adaptDetector(raw);
+      map[det.id] = det;
+      const key = (raw as { detector_key?: string }).detector_key;
+      if (key) map[key] = det;
+    }
+    return map;
   }, [detectorsQ.data]);
 
   const weeklyCountById = useMemo<Record<string, number>>(() => {
@@ -91,6 +100,13 @@ function MetricsView() {
 
   const error = detectorsQ.error;
   const isLoading = detectorsQ.isLoading;
+
+  // Weekly counts come from a separate findings query. Until it settles (or if
+  // it failed), show a placeholder instead of a hard "0" that reads as a real
+  // "no findings this week".
+  const countsReady = !findingsQ.isLoading && !findingsQ.isError;
+  const weekCount = (id: string): string =>
+    countsReady ? String(weeklyCountById[id] ?? 0) : findingsQ.isError ? "—" : "…";
 
   if (error) {
     return (
@@ -151,7 +167,7 @@ function MetricsView() {
                 </div>
                 {items.map((d) => {
                   const isSel = selectedDetectorId === d.id;
-                  const count = weeklyCountById[d.id] ?? 0;
+                  const count = weekCount(d.id);
                   return (
                     <button
                       key={d.id}
@@ -205,7 +221,7 @@ function MetricsView() {
                 <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
                   Findings this week
                 </span>
-                <Mono>{weeklyCountById[selectedDetector.id] ?? 0}</Mono>
+                <Mono>{weekCount(selectedDetector.id)}</Mono>
               </div>
             </div>
 

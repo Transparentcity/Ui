@@ -68,7 +68,17 @@ function FindingsPageView() {
 
   const detectorById = useMemo<Record<string, Detector>>(() => {
     const rows = detectorsQ.data ?? [];
-    return Object.fromEntries(rows.map(d => [d.id, adaptDetector(d)]));
+    // Findings reference a detector by `detector_key`; the detector row's `id`
+    // may differ. Index by both so provenance always resolves for a selected
+    // finding instead of falling back to the "select a detector" empty state.
+    const map: Record<string, Detector> = {};
+    for (const d of rows) {
+      const det = adaptDetector(d);
+      map[d.id] = det;
+      const key = (d as { detector_key?: string }).detector_key;
+      if (key) map[key] = det;
+    }
+    return map;
   }, [detectorsQ.data]);
 
   const seymour = useMemo(
@@ -191,7 +201,7 @@ function FindingsPageView() {
           onPeriodChange={p => updateParams({ period: p === "today" ? null : p })}
           isQuiet={isQuiet}
           isDegraded={ui.failingCount > 0}
-          detectorCount={Object.keys(detectorById).length}
+          detectorCount={detectorsQ.data?.length ?? 0}
           degradedCount={ui.failingCount}
           degradedDetectorId={ui.failingDetectorId}
         />

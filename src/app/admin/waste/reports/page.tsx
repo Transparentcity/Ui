@@ -42,11 +42,10 @@ function ReportsView() {
 
   return (
     <div className="px-8 py-6" data-testid="waste-reports-page">
-      <div className="flex items-start justify-between gap-4 mb-4">
+      <div className="mb-4">
         <p className="text-sm text-[var(--text-tertiary)]">
           Per-period reports compiled from confirmed findings, grouped by detector class.
         </p>
-        <Button size="sm" className="shrink-0" disabled title="Coming soon">+ New workpaper</Button>
       </div>
 
       <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]">

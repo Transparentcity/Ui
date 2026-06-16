@@ -11,6 +11,10 @@ function format(n: number): string {
 
 export function Readout() {
   const ui = useWasteState();
+  // Until the KPI data resolves (or if it failed), show an em dash instead of
+  // a fabricated "0" that reads as a real, confident zero.
+  const unknown = ui.isLoading || ui.isError;
+  const display = (n: number): string => (unknown ? "—" : format(n));
 
   const cells: readonly Cell[] = [
     {
@@ -37,9 +41,11 @@ export function Readout() {
         <Card key={c.label} className="p-4">
           <div className="text-xs text-[var(--text-tertiary)]">{c.label}</div>
           <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)] tabular-nums">
-            {format(c.value)}
+            {display(c.value)}
           </div>
-          {c.hint && <div className="mt-0.5 text-xs text-[var(--text-tertiary)]">{c.hint}</div>}
+          {c.hint && !unknown && (
+            <div className="mt-0.5 text-xs text-[var(--text-tertiary)]">{c.hint}</div>
+          )}
         </Card>
       ))}
     </div>

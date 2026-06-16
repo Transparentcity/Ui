@@ -125,9 +125,6 @@ export function SeymourRail({ data, onCollapse, isQuiet }: Props) {
           ) : (
             <div className={styles.todaysReadCard}>
               <p className={styles.todaysReadText}>{data.todaysRead}</p>
-              <button type="button" className={styles.todaysReadAction} disabled title="Coming soon">
-                Show reasoning →
-              </button>
             </div>
           )}
         </div>
@@ -154,17 +151,6 @@ export function SeymourRail({ data, onCollapse, isQuiet }: Props) {
                       <span className={styles.clusterMeta}>· {c.findings} findings · {c.exposure}</span>
                     </div>
                     <p className={styles.clusterReasoning}>{c.reasoning}</p>
-                    <div className={styles.clusterActions}>
-                      <button type="button" className={styles.clusterAccept} disabled title="Coming soon">
-                        {c.suggestion} →
-                      </button>
-                      <button type="button" className={styles.clusterSnooze} disabled title="Coming soon">
-                        Snooze
-                      </button>
-                      <button type="button" className={styles.clusterDismiss} aria-label="Dismiss" disabled title="Coming soon">
-                        ×
-                      </button>
-                    </div>
                   </div>
                 ))}
               </div>

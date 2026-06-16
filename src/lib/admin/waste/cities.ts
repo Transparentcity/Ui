@@ -11,11 +11,12 @@ export type WasteCity = {
   status: string;
 };
 
-// Only cities we currently have waste data for. apiSlug must match the public
-// metrics sitemap slug so the metrics page can resolve the DB city id.
+// Only cities the waste module is actually configured for in the backend.
+// apiSlug must match the public metrics sitemap slug so the metrics page can
+// resolve the DB city id. NYC is intentionally excluded: it has no waste
+// dataset config and would fall back to SF data, so it must not be selectable.
 export const WASTE_CITIES: readonly WasteCity[] = [
   { id: "sf",  apiSlug: "san-francisco", name: "San Francisco", flag: "🌉", state: "CA", launched: true, status: "Live · Auditor's Office" },
-  { id: "nyc", apiSlug: "new-york-city", name: "New York City", flag: "🗽", state: "NY", launched: true, status: "Live" },
   { id: "chi", apiSlug: "chicago",       name: "Chicago",       flag: "🏙️", state: "IL", launched: true, status: "Live · Inspector General" },
 ] as const;
 
@@ -32,13 +33,10 @@ export function getWasteCity(idOrSlug: string | null | undefined): WasteCity {
 }
 
 // Resolve a city URL param (?city=sf or ?city=san-francisco) to the backend
-// slug expected by /api/admin/waste/*. Unknown values pass through so a backend
-// rename doesn't require a UI deploy to keep working.
+// slug expected by /api/admin/waste/*. An unrecognized value (e.g. a stale
+// ?city=nyc bookmark after NYC was removed) resolves to the same default city
+// that getWasteCity falls back to, so the header label and the data query never
+// disagree. Equivalent to getWasteCity(idOrSlug).apiSlug, written out for clarity.
 export function getWasteApiSlug(idOrSlug: string | null | undefined): string {
-  if (!idOrSlug) return getWasteCity(null).apiSlug;
-  const byId = WASTE_CITIES.find(c => c.id === idOrSlug);
-  if (byId) return byId.apiSlug;
-  const bySlug = WASTE_CITIES.find(c => c.apiSlug === idOrSlug);
-  if (bySlug) return bySlug.apiSlug;
-  return idOrSlug;
+  return getWasteCity(idOrSlug).apiSlug;
 }

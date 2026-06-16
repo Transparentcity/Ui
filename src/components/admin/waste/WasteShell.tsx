@@ -10,6 +10,18 @@ import { Readout } from "./Readout";
 
 function HealthPill() {
   const ui = useWasteState();
+  // While health data is still loading, stay neutral instead of flashing a
+  // confident green "All systems normal".
+  if (ui.isLoading) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" aria-hidden="true" />
+          Checking status…
+        </span>
+      </div>
+    );
+  }
   const cls =
     ui.health === "down"
       ? "bg-red-50 text-red-700"
@@ -25,6 +37,19 @@ function HealthPill() {
         <span className={cn("w-1.5 h-1.5 rounded-full", dot)} aria-hidden="true" />
         {ui.healthLabel}
       </span>
+    </div>
+  );
+}
+
+// The KPI readout strip belongs on the Findings overview only. Repeating it
+// above every sub-page (notably the metric-values grid) stacked two near
+// identical card grids and added chrome without information.
+function ShellReadout() {
+  const ui = useWasteState();
+  if (ui.section !== "findings") return null;
+  return (
+    <div className="px-8 pt-6">
+      <Readout />
     </div>
   );
 }
@@ -61,9 +86,7 @@ export function WasteShell({ children }: { children: React.ReactNode }) {
         <main id="main-content" className="flex-1 flex flex-col min-w-0 h-screen">
           <WasteHeader />
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="px-8 pt-6">
-              <Readout />
-            </div>
+            <ShellReadout />
             {children}
           </div>
         </main>
