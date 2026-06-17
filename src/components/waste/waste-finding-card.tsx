@@ -95,6 +95,17 @@ interface CitySocrataConfig {
   neighborhoodColumn: string
   geoPointColumn: string
   districtColumn: string
+  // Supplier-contracts dataset + its column names (differ by city: SF labels
+  // them prime_contractor/agreed_amt/purchasing_authority, Chicago
+  // vendor_name/award_amount/procurement_type). Used to drill contract-level
+  // findings (sole-source, threshold clustering, emergency runaway, grants)
+  // through to the actual contracts behind them.
+  contractsDataset: string
+  contractVendorCol: string
+  contractAmountCol: string
+  contractAuthorityCol: string
+  contractDateCol: string
+  contractDeptCol: string
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -105,6 +116,12 @@ const SF_SOCRATA: CitySocrataConfig = {
   neighborhoodColumn: "neighborhoods_sffind_boundaries",
   geoPointColumn: "point",
   districtColumn: "supervisor_district",
+  contractsDataset: "cqi5-hm2d",
+  contractVendorCol: "prime_contractor",
+  contractAmountCol: "agreed_amt",
+  contractAuthorityCol: "purchasing_authority",
+  contractDateCol: "term_start_date",
+  contractDeptCol: "department",
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -115,6 +132,12 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   neighborhoodColumn: "community_area",
   geoPointColumn: "location",
   districtColumn: "ward",
+  contractsDataset: "rsxa-ify5",
+  contractVendorCol: "vendor_name",
+  contractAmountCol: "award_amount",
+  contractAuthorityCol: "procurement_type",
+  contractDateCol: "start_date",
+  contractDeptCol: "department",
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -347,6 +370,60 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
   // CONTRACTS (vendor/procurement)
   if (cat.includes("contract") || cat.includes("vendor")) {
     const vendorOrder = "fiscal_year DESC,vouchers_paid DESC"
+
+    // ── Contract-level findings drill through to the supplier-contracts
+    // dataset (city-aware columns), so a viewer lands on the actual contracts
+    // behind the finding rather than payment vouchers. These run before the
+    // payments-based handlers so D23's "Threshold Avoidance" (contracts) is not
+    // confused with D12's (payments).
+    const CONTRACTS = socrataUrl(cfg, cfg.contractsDataset)
+    const vCol = cfg.contractVendorCol
+    const aCol = cfg.contractAmountCol
+    const authCol = cfg.contractAuthorityCol
+    const dCol = cfg.contractDeptCol
+    const cSelect = [vCol, dCol, aCol, authCol, "contract_title"].join(",")
+    const amtDesc = `${aCol}::number DESC`
+    const tool = finding.tool ?? ""
+    // Entity formats vary by detector: D19 "vendor (dept)", D22 "vendor — label",
+    // NP6 "grantee". Take the vendor as everything before the first separator.
+    const vendorFromEntity = (finding.entity || "").split(/ \(| — /)[0].trim()
+
+    // D23 — contracts clustered just under a round approval ceiling.
+    if (tool.includes("Threshold Clustering")) {
+      const m = `${finding.metric} ${finding.metricDetail ?? ""}`.match(
+        /\$(\d+(?:\.\d+)?)\s*([MK])/i
+      )
+      if (m) {
+        const unit = m[2].toUpperCase() === "M" ? 1_000_000 : 1_000
+        const ceiling = Math.round(parseFloat(m[1]) * unit)
+        const low = Math.round(ceiling * 0.95)
+        const where = `${aCol}::number >= ${low} AND ${aCol}::number < ${ceiling}`
+        return `${CONTRACTS}?$select=${encodeURIComponent(cSelect)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(amtDesc)}&$limit=${DETAILS_LIMIT}`
+      }
+    }
+
+    // D19 — sole-source / no-bid contracts for this vendor.
+    if (sub === "Sole Source Abuse" && vendorFromEntity) {
+      const v = escapeSoqlLike(vendorFromEntity)
+      const where = `upper(${vCol}) like upper('%${v}%')`
+      return `${CONTRACTS}?$select=${encodeURIComponent(cSelect)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(amtDesc)}&$limit=${DETAILS_LIMIT}`
+    }
+
+    // D22 — emergency contract(s) for this vendor (SF also carries the spend).
+    if (sub === "Emergency Contract Runaway" && vendorFromEntity) {
+      const v = escapeSoqlLike(vendorFromEntity)
+      const extra = cfg.contractsDataset === "cqi5-hm2d" ? ",consumed_amt,pmt_amt" : ""
+      const where = `upper(${vCol}) like upper('%${v}%')`
+      return `${CONTRACTS}?$select=${encodeURIComponent(cSelect + extra)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(amtDesc)}&$limit=${DETAILS_LIMIT}`
+    }
+
+    // NP6 — grant lines for this grantee, newest first, across departments.
+    if (sub === "Grant Concentration" && vendorFromEntity) {
+      const v = escapeSoqlLike(vendorFromEntity)
+      const where = `upper(${vCol}) like upper('%${v}%')`
+      const gSelect = [vCol, dCol, aCol, "contract_title", cfg.contractDateCol].join(",")
+      return `${CONTRACTS}?$select=${encodeURIComponent(gSelect)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(`${cfg.contractDateCol} DESC`)}&$limit=${DETAILS_LIMIT}`
+    }
 
     if (sub === "Contract Drift") {
       const contractIdRaw = parseContractDriftContractId(finding.description ?? "")

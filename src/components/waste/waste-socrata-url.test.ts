@@ -304,4 +304,118 @@ describe("buildSocrataDetailsUrl", () => {
   it("returns null for unknown category", () => {
     expect(buildSocrataDetailsUrl(makeFinding({ category: "other" }))).toBeNull()
   })
+
+  // ── Contract-level drill-throughs (D23 / D19 / D22 / NP6) ──────────────
+
+  describe("contract drill-throughs", () => {
+    it("D23 threshold clustering -> SF contracts in the ceiling band", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Threshold Avoidance",
+          tool: "D23 Contract Threshold Clustering",
+          metric: "314 contracts hug the $10M ceiling",
+          entity: "DPH Public Health (and others)",
+        }),
+        1
+      )!
+      expect(url).toContain("cqi5-hm2d") // SF supplier-contracts, not payments
+      const where = decodeURIComponent(url)
+      expect(where).toContain("agreed_amt::number >= 9500000")
+      expect(where).toContain("agreed_amt::number < 10000000")
+    })
+
+    it("D23 parses a $250K ceiling", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Threshold Avoidance",
+          tool: "D23 Contract Threshold Clustering",
+          metric: "8 contracts hug the $250K ceiling",
+        }),
+        1
+      )!
+      const where = decodeURIComponent(url)
+      expect(where).toContain("agreed_amt::number >= 237500")
+      expect(where).toContain("agreed_amt::number < 250000")
+    })
+
+    it("D12 adaptive-threshold (payments) is NOT routed to contracts", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Threshold Avoidance",
+          tool: "D12 Adaptive Thresholds",
+          entity: "Police Department",
+          metricDetail: "Range $9,000-$9,999",
+        }),
+        1
+      )!
+      expect(url).toContain("n9pm-xkyq") // payments dataset
+      expect(url).not.toContain("cqi5-hm2d")
+    })
+
+    it("D19 sole source -> contracts filtered to the vendor", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Sole Source Abuse",
+          tool: "D19 Sole Source",
+          entity: "Friendship House Assoc (DPH Public Health)",
+        }),
+        1
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("cqi5-hm2d")
+      expect(dec).toContain("upper(prime_contractor) like upper('%Friendship House Assoc%')")
+    })
+
+    it("D22 emergency runaway (SF) includes consumed/pmt amounts and parses the em-dash entity", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Emergency Contract Runaway",
+          tool: "D22 Emergency Contract Runaway",
+          // Real D22 entity format: "vendor — contract label".
+          entity: "U S ELECTRIC TECHNOLOGIES INC — PW LHH Emergency",
+        }),
+        1
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("cqi5-hm2d")
+      expect(dec).toContain("consumed_amt")
+      // The vendor, not the contract label, drives the filter.
+      expect(dec).toContain("upper('%U S ELECTRIC TECHNOLOGIES INC%')")
+    })
+
+    it("NP6 grant concentration -> grantee's lines newest first", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Grant Concentration",
+          tool: "NP6 Grant Ramp Concentration",
+          entity: "San Francisco SAFE Inc",
+        }),
+        1
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("cqi5-hm2d")
+      expect(dec).toContain("term_start_date DESC")
+    })
+
+    it("uses Chicago contract columns for cityId 3", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Sole Source Abuse",
+          tool: "D19 Sole Source",
+          entity: "Favorite Healthcare (DFSS)",
+        }),
+        3
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("rsxa-ify5") // Chicago contracts
+      expect(dec).toContain("upper(vendor_name) like")
+    })
+  })
 })
