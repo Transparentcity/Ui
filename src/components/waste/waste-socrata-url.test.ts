@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { buildSocrataDetailsUrl, isOnRoadmap } from "./waste-finding-card"
+import {
+  buildSocrataDetailsUrl,
+  isOnRoadmap,
+  humanizeSocrataQuery,
+  formatSoql,
+} from "./waste-finding-card"
 import { makeFinding } from "./test-utils"
 
 // ── isOnRoadmap ─────────────────────────────────────────────────────────────
@@ -303,5 +308,219 @@ describe("buildSocrataDetailsUrl", () => {
 
   it("returns null for unknown category", () => {
     expect(buildSocrataDetailsUrl(makeFinding({ category: "other" }))).toBeNull()
+  })
+
+  // ── Contract-level drill-throughs (D23 / D19 / D22 / NP6) ──────────────
+
+  describe("contract drill-throughs", () => {
+    it("D23 threshold clustering -> SF contracts in the ceiling band", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Threshold Avoidance",
+          tool: "D23 Contract Threshold Clustering",
+          metric: "314 contracts hug the $10M ceiling",
+          entity: "DPH Public Health (and others)",
+        }),
+        1
+      )!
+      expect(url).toContain("cqi5-hm2d") // SF supplier-contracts, not payments
+      const where = decodeURIComponent(url)
+      expect(where).toContain("agreed_amt::number >= 9500000")
+      expect(where).toContain("agreed_amt::number < 10000000")
+    })
+
+    it("D23 parses a $250K ceiling", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Threshold Avoidance",
+          tool: "D23 Contract Threshold Clustering",
+          metric: "8 contracts hug the $250K ceiling",
+        }),
+        1
+      )!
+      const where = decodeURIComponent(url)
+      expect(where).toContain("agreed_amt::number >= 237500")
+      expect(where).toContain("agreed_amt::number < 250000")
+    })
+
+    it("D12 adaptive-threshold (payments) is NOT routed to contracts", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Threshold Avoidance",
+          tool: "D12 Adaptive Thresholds",
+          entity: "Police Department",
+          metricDetail: "Range $9,000-$9,999",
+        }),
+        1
+      )!
+      expect(url).toContain("n9pm-xkyq") // payments dataset
+      expect(url).not.toContain("cqi5-hm2d")
+    })
+
+    it("D19 sole source -> contracts filtered to the vendor", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Sole Source Abuse",
+          tool: "D19 Sole Source",
+          entity: "Friendship House Assoc (DPH Public Health)",
+        }),
+        1
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("cqi5-hm2d")
+      expect(dec).toContain("upper(prime_contractor) like upper('%Friendship House Assoc%')")
+    })
+
+    it("D22 emergency runaway (SF) includes consumed/pmt amounts and parses the em-dash entity", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Emergency Contract Runaway",
+          tool: "D22 Emergency Contract Runaway",
+          // Real D22 entity format: "vendor — contract label".
+          entity: "U S ELECTRIC TECHNOLOGIES INC — PW LHH Emergency",
+        }),
+        1
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("cqi5-hm2d")
+      expect(dec).toContain("consumed_amt")
+      // The vendor, not the contract label, drives the filter.
+      expect(dec).toContain("upper('%U S ELECTRIC TECHNOLOGIES INC%')")
+    })
+
+    it("NP6 grant concentration -> grantee's lines newest first", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Grant Concentration",
+          tool: "NP6 Grant Ramp Concentration",
+          entity: "San Francisco SAFE Inc",
+        }),
+        1
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("cqi5-hm2d")
+      expect(dec).toContain("term_start_date DESC")
+    })
+
+    it("uses Chicago contract columns for cityId 3", () => {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "contracts",
+          subcategory: "Sole Source Abuse",
+          tool: "D19 Sole Source",
+          entity: "Favorite Healthcare (DFSS)",
+        }),
+        3
+      )!
+      const dec = decodeURIComponent(url)
+      expect(url).toContain("rsxa-ify5") // Chicago contracts
+      expect(dec).toContain("upper(vendor_name) like")
+    })
+  })
+})
+
+// ── humanizeSocrataQuery / formatSoql ────────────────────────────────────────
+
+describe("humanizeSocrataQuery", () => {
+  it("decodes the SoQL clauses from a drill-through URL", () => {
+    // Round-trip the real query builder so the displayed query is guaranteed
+    // to match what the link actually fetches.
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "Contracts",
+        subcategory: "Duplicate Payments",
+        entity: "Acme Corp",
+        amount: 50000,
+        metricDetail: "3 payments of $50,000 each",
+      })
+    )!
+    const q = humanizeSocrataQuery(url)!
+    expect(q).not.toBeNull()
+    expect(q.domain).toBe("data.sfgov.org")
+    expect(q.dataset).toBe("n9pm-xkyq")
+    // Clauses are decoded, not percent-encoded.
+    expect(q.where).toContain("vendor = 'Acme Corp'")
+    expect(q.where).toContain("vouchers_paid = 50000")
+    expect(q.where).not.toContain("%20")
+    expect(q.limit).not.toBe("")
+  })
+
+  it("extracts the Chicago dataset id from the path", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "contracts",
+        subcategory: "Sole Source Abuse",
+        tool: "D19 Sole Source",
+        entity: "Favorite Healthcare (DFSS)",
+      }),
+      3
+    )!
+    const q = humanizeSocrataQuery(url)!
+    expect(q.dataset).toBe("rsxa-ify5")
+    expect(q.domain).toBe("data.cityofchicago.org")
+  })
+
+  it("round-trips a payroll drill-through (different dataset + clauses)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "Payroll",
+        subcategory: "Overtime Abuse",
+        entity: "Fire Department",
+      })
+    )!
+    const q = humanizeSocrataQuery(url)!
+    expect(q.dataset).toBe("88g8-5mnd") // SF payroll, not the contracts ds
+    expect(q.where).toContain("Fire Department")
+    expect(q.order).not.toContain("%20") // decoded, e.g. "overtime desc"
+  })
+
+  it("returns null for a non-URL string", () => {
+    expect(humanizeSocrataQuery("not a url")).toBeNull()
+  })
+
+  it("defaults select to * when absent", () => {
+    const q = humanizeSocrataQuery("https://data.sfgov.org/resource/abcd-1234.json")!
+    expect(q.select).toBe("*")
+    expect(q.where).toBe("")
+  })
+})
+
+describe("formatSoql", () => {
+  it("renders a readable multi-line SoQL statement", () => {
+    const soql = formatSoql({
+      domain: "data.sfgov.org",
+      dataset: "n9pm-xkyq",
+      select: "vendor, department, vouchers_paid",
+      where: "vendor = 'Acme Corp'",
+      order: "vouchers_paid desc",
+      limit: "100",
+    })
+    expect(soql).toBe(
+      [
+        "SELECT vendor, department, vouchers_paid",
+        "FROM n9pm-xkyq (data.sfgov.org)",
+        "WHERE vendor = 'Acme Corp'",
+        "ORDER BY vouchers_paid desc",
+        "LIMIT 100",
+      ].join("\n")
+    )
+  })
+
+  it("omits empty WHERE/ORDER/LIMIT clauses", () => {
+    const soql = formatSoql({
+      domain: "data.sfgov.org",
+      dataset: "abcd-1234",
+      select: "*",
+      where: "",
+      order: "",
+      limit: "",
+    })
+    expect(soql).toBe("SELECT *\nFROM abcd-1234 (data.sfgov.org)")
   })
 })
