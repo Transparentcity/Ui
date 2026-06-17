@@ -752,6 +752,100 @@ function CopyCaseStudyButton({ finding }: { finding: WasteFinding }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Source-query transparency: turn the Socrata REST URL the drill-through
+// fetches into the human-readable SoQL behind it, so anyone can see exactly
+// which records produced a finding (not just follow an opaque link).
+// ---------------------------------------------------------------------------
+
+interface SocrataQueryParts {
+  domain: string
+  dataset: string
+  select: string
+  where: string
+  order: string
+  limit: string
+}
+
+export function humanizeSocrataQuery(url: string): SocrataQueryParts | null {
+  try {
+    const u = new URL(url)
+    // URLSearchParams.get already percent-decodes, so the clauses come back
+    // in their readable form (e.g. "agreed_amt >= 100000").
+    const p = u.searchParams
+    const dsMatch = u.pathname.match(/\/resource\/([^/.]+)\.json/)
+    return {
+      domain: u.hostname,
+      dataset: dsMatch ? dsMatch[1] : "",
+      select: p.get("$select") ?? "*",
+      where: p.get("$where") ?? "",
+      order: p.get("$order") ?? "",
+      limit: p.get("$limit") ?? "",
+    }
+  } catch {
+    return null
+  }
+}
+
+export function formatSoql(q: SocrataQueryParts): string {
+  const lines = [`SELECT ${q.select}`]
+  lines.push(`FROM ${q.dataset}${q.domain ? ` (${q.domain})` : ""}`)
+  if (q.where) lines.push(`WHERE ${q.where}`)
+  if (q.order) lines.push(`ORDER BY ${q.order}`)
+  if (q.limit) lines.push(`LIMIT ${q.limit}`)
+  return lines.join("\n")
+}
+
+function SourceQueryPanel({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+  const q = humanizeSocrataQuery(url)
+  if (!q) return null
+  const soql = formatSoql(q)
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(soql).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="border-t border-gray-100 bg-gray-50 px-3 py-2">
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+          Source query · Socrata SoQL
+        </span>
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-800"
+          >
+            {copied ? (
+              <><Check className="w-3 h-3" /> Copied</>
+            ) : (
+              <><Copy className="w-3 h-3" /> Copy</>
+            )}
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-800 underline"
+          >
+            View raw JSON ↗
+          </a>
+        </div>
+      </div>
+      <pre className="text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap break-words font-mono m-0">
+        {soql}
+      </pre>
+    </div>
+  )
+}
+
 export function WasteFindingCard({
   finding,
   isExpanded,
@@ -1204,6 +1298,11 @@ export function WasteFindingCard({
                     </div>
                   ) : (
                     renderDetailsTable()
+                  )}
+                  {/* The exact SoQL behind this drill-through — transparency
+                      so a reader (or auditor) can see and re-run the query. */}
+                  {detailsUrl && !isDetailsLoading && !detailsError && (
+                    <SourceQueryPanel url={detailsUrl} />
                   )}
                 </div>
               )}

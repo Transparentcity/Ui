@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { buildSocrataDetailsUrl, isOnRoadmap } from "./waste-finding-card"
+import {
+  buildSocrataDetailsUrl,
+  isOnRoadmap,
+  humanizeSocrataQuery,
+  formatSoql,
+} from "./waste-finding-card"
 import { makeFinding } from "./test-utils"
 
 // ── isOnRoadmap ─────────────────────────────────────────────────────────────
@@ -417,5 +422,105 @@ describe("buildSocrataDetailsUrl", () => {
       expect(url).toContain("rsxa-ify5") // Chicago contracts
       expect(dec).toContain("upper(vendor_name) like")
     })
+  })
+})
+
+// ── humanizeSocrataQuery / formatSoql ────────────────────────────────────────
+
+describe("humanizeSocrataQuery", () => {
+  it("decodes the SoQL clauses from a drill-through URL", () => {
+    // Round-trip the real query builder so the displayed query is guaranteed
+    // to match what the link actually fetches.
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "Contracts",
+        subcategory: "Duplicate Payments",
+        entity: "Acme Corp",
+        amount: 50000,
+        metricDetail: "3 payments of $50,000 each",
+      })
+    )!
+    const q = humanizeSocrataQuery(url)!
+    expect(q).not.toBeNull()
+    expect(q.domain).toBe("data.sfgov.org")
+    expect(q.dataset).toBe("n9pm-xkyq")
+    // Clauses are decoded, not percent-encoded.
+    expect(q.where).toContain("vendor = 'Acme Corp'")
+    expect(q.where).toContain("vouchers_paid = 50000")
+    expect(q.where).not.toContain("%20")
+    expect(q.limit).not.toBe("")
+  })
+
+  it("extracts the Chicago dataset id from the path", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "contracts",
+        subcategory: "Sole Source Abuse",
+        tool: "D19 Sole Source",
+        entity: "Favorite Healthcare (DFSS)",
+      }),
+      3
+    )!
+    const q = humanizeSocrataQuery(url)!
+    expect(q.dataset).toBe("rsxa-ify5")
+    expect(q.domain).toBe("data.cityofchicago.org")
+  })
+
+  it("round-trips a payroll drill-through (different dataset + clauses)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "Payroll",
+        subcategory: "Overtime Abuse",
+        entity: "Fire Department",
+      })
+    )!
+    const q = humanizeSocrataQuery(url)!
+    expect(q.dataset).toBe("88g8-5mnd") // SF payroll, not the contracts ds
+    expect(q.where).toContain("Fire Department")
+    expect(q.order).not.toContain("%20") // decoded, e.g. "overtime desc"
+  })
+
+  it("returns null for a non-URL string", () => {
+    expect(humanizeSocrataQuery("not a url")).toBeNull()
+  })
+
+  it("defaults select to * when absent", () => {
+    const q = humanizeSocrataQuery("https://data.sfgov.org/resource/abcd-1234.json")!
+    expect(q.select).toBe("*")
+    expect(q.where).toBe("")
+  })
+})
+
+describe("formatSoql", () => {
+  it("renders a readable multi-line SoQL statement", () => {
+    const soql = formatSoql({
+      domain: "data.sfgov.org",
+      dataset: "n9pm-xkyq",
+      select: "vendor, department, vouchers_paid",
+      where: "vendor = 'Acme Corp'",
+      order: "vouchers_paid desc",
+      limit: "100",
+    })
+    expect(soql).toBe(
+      [
+        "SELECT vendor, department, vouchers_paid",
+        "FROM n9pm-xkyq (data.sfgov.org)",
+        "WHERE vendor = 'Acme Corp'",
+        "ORDER BY vouchers_paid desc",
+        "LIMIT 100",
+      ].join("\n")
+    )
+  })
+
+  it("omits empty WHERE/ORDER/LIMIT clauses", () => {
+    const soql = formatSoql({
+      domain: "data.sfgov.org",
+      dataset: "abcd-1234",
+      select: "*",
+      where: "",
+      order: "",
+      limit: "",
+    })
+    expect(soql).toBe("SELECT *\nFROM abcd-1234 (data.sfgov.org)")
   })
 })
