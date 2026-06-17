@@ -7864,3 +7864,15 @@ export function markInboxRead(
     token
   );
 }
+
+export function markAllInboxRead(
+  token: string,
+  itemIds: string[]
+): Promise<{ ok: boolean; marked_count: number }> {
+  return request<{ ok: boolean; marked_count: number }>(
+    "/api/newsletter/inbox/read-all",
+    "POST",
+    { item_ids: itemIds },
+    token
+  );
+}

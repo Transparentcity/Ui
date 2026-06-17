@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { InboxItem } from "@/lib/apiClient";
 
 // ---------------------------------------------------------------------------
@@ -33,10 +34,11 @@ vi.mock("@/lib/apiClient", async (importOriginal) => {
   return {
     ...mod,
     listInbox: vi.fn(),
+    markAllInboxRead: vi.fn(),
   };
 });
 
-import { listInbox } from "@/lib/apiClient";
+import { listInbox, markAllInboxRead } from "@/lib/apiClient";
 import Inbox from "./Inbox";
 
 // ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ describe("Inbox", () => {
     vi.mocked(listInbox).mockResolvedValue({ items: [], unread_count: 0 });
     render(<Inbox onOpen={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "Newsletters" })).toBeInTheDocument();
-    expect(screen.getByText(/New edition every Sunday/i)).toBeInTheDocument();
+    expect(screen.getByText(/New editions weekly/i)).toBeInTheDocument();
   });
 
   it("shows empty state when no items", async () => {
@@ -105,15 +107,68 @@ describe("Inbox", () => {
     });
   });
 
-  it("shows unread count badge", async () => {
+  it("shows unread indicator on unread items", async () => {
     vi.mocked(listInbox).mockResolvedValue({
       items: [makeItem({ is_read: false })],
       unread_count: 1,
     });
     render(<Inbox onOpen={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByLabelText("1 unread")).toBeInTheDocument();
+      expect(screen.getByLabelText("Unread")).toBeInTheDocument();
     });
+  });
+
+  it("shows mark all as read when there are unread items", async () => {
+    vi.mocked(listInbox).mockResolvedValue({
+      items: [makeItem({ is_read: false })],
+      unread_count: 1,
+    });
+    render(<Inbox onOpen={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mark all as read" })).toBeInTheDocument();
+    });
+  });
+
+  it("marks all items as read when button is clicked", async () => {
+    vi.mocked(listInbox).mockResolvedValue({
+      items: [
+        makeItem({ id: "edition:one", is_read: false }),
+        makeItem({ id: "edition:two", is_read: false, subject: "Second" }),
+      ],
+      unread_count: 2,
+    });
+    vi.mocked(markAllInboxRead).mockResolvedValue({ ok: true, marked_count: 2 });
+    const onUnreadCountChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(<Inbox onOpen={vi.fn()} onUnreadCountChange={onUnreadCountChange} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mark all as read" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Mark all as read" }));
+
+    await waitFor(() => {
+      expect(markAllInboxRead).toHaveBeenCalledWith("test-token", [
+        "edition:one",
+        "edition:two",
+      ]);
+    });
+    expect(onUnreadCountChange).toHaveBeenCalledWith(0);
+    expect(screen.queryByRole("button", { name: "Mark all as read" })).not.toBeInTheDocument();
+  });
+
+  it("does not show mark all as read when all items are read", async () => {
+    vi.mocked(listInbox).mockResolvedValue({
+      items: [makeItem({ is_read: true })],
+      unread_count: 0,
+    });
+    render(<Inbox onOpen={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByText("Test subject")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Mark all as read" })).not.toBeInTheDocument();
   });
 
   it("does not show unread badge when all read", async () => {

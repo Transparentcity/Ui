@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:root {
+  --font-inter: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+}
+
 html,
 body {
   max-width: 100vw;

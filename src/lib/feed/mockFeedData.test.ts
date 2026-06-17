@@ -363,6 +363,21 @@ describe("enrichStory", () => {
     expect(enriched.embed_url_resolved).toBe("/t/42?thumbnail=true&period=ytd");
   });
 
+  it("prefers chart shortcode in article_html over stale primary_visualization id", () => {
+    const enriched = enrichStory(
+      makeStory({
+        visualization_type: "chart",
+        primary_visualization: { id: 288, type: "chart", period: "ytd" },
+        article_html: "<p>[chart:1315935:ytd]</p>",
+        image_url: "/api/time-series/public/288/image?period=ytd",
+      }),
+    );
+    expect(enriched.embed_url_resolved).toBe("/t/1315935?thumbnail=true&period=ytd");
+    expect(enriched.image_url_resolved).toContain(
+      "/api/time-series/public/1315935/image?period=ytd",
+    );
+  });
+
   it("adds period=ytd to API chart embed_url when missing", () => {
     const enriched = enrichStory(
       makeStory({

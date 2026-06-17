@@ -20,6 +20,40 @@
   padding: var(--space-md) var(--space-lg) var(--space-sm);
 }
 
+.inboxHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.inboxHeaderText {
+  min-width: 0;
+}
+
+.markAllReadBtn {
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--brand-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.markAllReadBtn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.markAllReadBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .inboxTitle {
   font-family: var(--font-heading, "Inter", sans-serif);
   font-size: 1.125rem;

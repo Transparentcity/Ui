@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { InboxItem, InboxListResponse, listInbox } from "@/lib/apiClient";
+import { InboxItem, InboxListResponse, listInbox, markAllInboxRead } from "@/lib/apiClient";
 import { recordProductEvent } from "@/lib/productAnalytics";
 import { trackInboxView } from "@/lib/analytics";
 import InboxCard from "./InboxCard";
@@ -56,6 +56,7 @@ export default function Inbox({
   const [response, setResponse] = useState<InboxListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const didTrackView = useRef(false);
 
   const fetchInbox = useCallback(async () => {
@@ -159,11 +160,74 @@ export default function Inbox({
     [onOpen, surface, response]
   );
 
+  const handleMarkAllRead = useCallback(async () => {
+    if (!response || response.unread_count === 0 || markingAllRead) return;
+
+    const unreadIds = response.items
+      .filter((item) => !item.is_read)
+      .map((item) => item.id);
+    if (unreadIds.length === 0) return;
+
+    setMarkingAllRead(true);
+
+    const previous = response;
+    setResponse({
+      items: previous.items.map((item) => ({ ...item, is_read: true })),
+      unread_count: 0,
+    });
+    onUnreadCountChange?.(0);
+
+    let token: string;
+    try {
+      token = await getAccessTokenSilently();
+    } catch {
+      setResponse(previous);
+      onUnreadCountChange?.(previous.unread_count);
+      setMarkingAllRead(false);
+      return;
+    }
+
+    try {
+      await markAllInboxRead(token, unreadIds);
+      recordProductEvent("inbox_mark_all_read", {
+        surface,
+        marked_count: unreadIds.length,
+      });
+    } catch {
+      setResponse(previous);
+      onUnreadCountChange?.(previous.unread_count);
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }, [
+    response,
+    markingAllRead,
+    getAccessTokenSilently,
+    onUnreadCountChange,
+    surface,
+  ]);
+
+  const showMarkAllRead = (response?.unread_count ?? 0) > 0;
+
   return (
     <div className={styles.inbox}>
       <header className={styles.inboxHeader}>
-        <h1 className={styles.inboxTitle}>Newsletters</h1>
-        <p className={styles.inboxSubtitle}>New edition every Sunday</p>
+        <div className={styles.inboxHeaderRow}>
+          <div className={styles.inboxHeaderText}>
+            <h1 className={styles.inboxTitle}>Newsletters</h1>
+            <p className={styles.inboxSubtitle}>New editions weekly</p>
+          </div>
+          {showMarkAllRead && (
+            <button
+              type="button"
+              className={styles.markAllReadBtn}
+              onClick={handleMarkAllRead}
+              disabled={markingAllRead}
+            >
+              Mark all as read
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Optional billboard (e.g. onboarding welcome message) */}

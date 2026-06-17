@@ -263,6 +263,19 @@ function ensureTimeSeriesPeriodYtd(url: string): string {
   return url.includes("?") ? `${url}&period=ytd` : `${url}?period=ytd`;
 }
 
+/** First [chart:N] or [chart:N:period] shortcode in article HTML (source of truth). */
+function chartShortcodeFromArticleHtml(
+  html: string | null | undefined,
+): { chartId: number; period?: string } | null {
+  if (!html) return null;
+  const match = html.match(/\[chart:(\d+)(?::([a-z]+))?\]/i);
+  if (!match) return null;
+  const chartId = parseInt(match[1], 10);
+  if (!Number.isFinite(chartId)) return null;
+  const period = match[2]?.toLowerCase();
+  return period ? { chartId, period } : { chartId };
+}
+
 function deriveVisualizationImageUrl(story: FeedStory, base: string): string | null {
   const pv = story.primary_visualization;
   if (!pv) return null;
@@ -270,7 +283,10 @@ function deriveVisualizationImageUrl(story: FeedStory, base: string): string | n
   const id = pv.id;
   const hash = pv.short_hash;
   if (type === "chart" && id != null) {
-    return `${base}/api/time-series/public/${id}/image?period=ytd`;
+    const fromBody = chartShortcodeFromArticleHtml(story.article_html);
+    const chartId = fromBody?.chartId ?? id;
+    const period = fromBody?.period ?? "ytd";
+    return `${base}/api/time-series/public/${chartId}/image?period=${period}`;
   }
   if ((type === "anomaly" || type === "anomaly_chart") && id != null) {
     return `${base}/api/anomalies/public/result/${id}/image`;
@@ -283,12 +299,18 @@ function deriveVisualizationImageUrl(story: FeedStory, base: string): string | n
 function resolveImageUrl(story: FeedStory): string | null {
   const base = getApiBaseUrlForAssets();
   const storyAny = story as unknown as Record<string, unknown>;
+  const bodyChart = chartShortcodeFromArticleHtml(story.article_html);
   if (storyAny.image_url) {
     const url = storyAny.image_url as string;
     const isPublicStoryImageProxy = url.startsWith("/api/feed/public/story-image/");
     if (isPublicStoryImageProxy && isPrivateScopedStory(story)) {
       const visualizationImageUrl = deriveVisualizationImageUrl(story, base);
       if (visualizationImageUrl) return visualizationImageUrl;
+    }
+    // Stored chart PNG paths can point at metric_id; article shortcode wins.
+    if (bodyChart && url.includes("/api/time-series/public/")) {
+      const period = bodyChart.period ?? "ytd";
+      return `${base}/api/time-series/public/${bodyChart.chartId}/image?period=${period}`;
     }
     // External URLs (e.g. Cloudinary 311 photos) are already absolute
     return url.startsWith("http") ? url : `${base}${url}`;
@@ -332,8 +354,17 @@ function resolveEmbedUrl(story: FeedStory): string | null {
   const id = pv.id;
   const hash = pv.short_hash;
 
+  if (type === "chart") {
+    const fromBody = chartShortcodeFromArticleHtml(story.article_html);
+    const chartId = fromBody?.chartId ?? id;
+    if (chartId != null) {
+      const period = fromBody?.period ?? "ytd";
+      const periodQuery = period ? `&period=${period}` : "";
+      return `/t/${chartId}?thumbnail=true${periodQuery}`;
+    }
+  }
+
   if ((type === "anomaly" || type === "anomaly_chart") && id != null) return `/a/${id}?thumbnail=true`;
-  if (type === "chart" && id != null) return `/t/${id}?thumbnail=true&period=ytd`;
   if (type === "map" && hash) return `/m/${hash}?thumbnail=true`;
   if (type === "map" && id != null) return `/m/${id}?thumbnail=true`;
 

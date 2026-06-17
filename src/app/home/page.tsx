@@ -70,6 +70,7 @@ import {
 } from "@/lib/impersonation";
 import { slugify } from "@/lib/utils";
 import { userNeedsOnboardingWelcome } from "@/lib/onboardingGate";
+import { resolveHomePlaceLandingTarget } from "@/lib/resolveHomePlaceLanding";
 import { cityKeys } from "@/lib/hooks/useCities";
 import styles from "./page.module.css";
 import dynamic from "next/dynamic";
@@ -247,6 +248,8 @@ export default function DashboardPage() {
   const hasAutoSelectedCity = useRef(false);
   const autoSelectedCityRef = useRef<{ id: number; name: string; slug: string } | null>(null);
   const hasCheckedOnboarding = useRef(false);
+  const hasAutoLandedOnHomePlace = useRef(false);
+  const [allUserPlacesLoaded, setAllUserPlacesLoaded] = useState(false);
   const activeCityIdRef = useRef<number | null>(null);
   activeCityIdRef.current = activeCityId;
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
@@ -324,6 +327,8 @@ export default function DashboardPage() {
 
     previousIdentityScopeKey.current = identityScopeKey;
     hasCheckedOnboarding.current = isImpersonating;
+    hasAutoLandedOnHomePlace.current = false;
+    setAllUserPlacesLoaded(false);
     setCurrentView("feed");
     setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
@@ -717,16 +722,24 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isAuthenticated || isLoading) {
       setAllUserPlaces([]);
+      setAllUserPlacesLoaded(false);
       return;
     }
     let cancelled = false;
+    setAllUserPlacesLoaded(false);
     getAccessTokenSilently()
       .then((token) => listMyPlaces(token))
       .then((res) => {
-        if (!cancelled) setAllUserPlaces(res.places);
+        if (!cancelled) {
+          setAllUserPlaces(res.places);
+          setAllUserPlacesLoaded(true);
+        }
       })
       .catch(() => {
-        if (!cancelled) setAllUserPlaces([]);
+        if (!cancelled) {
+          setAllUserPlaces([]);
+          setAllUserPlacesLoaded(true);
+        }
       });
     return () => { cancelled = true; };
   }, [isAuthenticated, isLoading, getAccessTokenSilently, identityScopeKey]);
@@ -1067,6 +1080,56 @@ export default function DashboardPage() {
     },
     [allUserPlaces]
   );
+
+  // Returning users with a saved home place land on their place dashboard, not feed.
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      isLoading ||
+      isCheckingAdmin ||
+      isImpersonating ||
+      showWelcomeModal ||
+      pendingNavIntent ||
+      hasAutoSelectedCity.current ||
+      hasAutoLandedOnHomePlace.current ||
+      !hasCheckedOnboarding.current ||
+      currentView !== "feed" ||
+      !userPreferences?.has_completed_onboarding
+    ) {
+      return;
+    }
+
+    const extra = userPreferences.extra as Record<string, unknown> | undefined;
+    const home = extra?.home_location;
+    const needsPlacesForResolve =
+      home != null &&
+      typeof home === "object" &&
+      (home as { place_id?: unknown }).place_id == null;
+    if (needsPlacesForResolve && !allUserPlacesLoaded) {
+      return;
+    }
+
+    const target = resolveHomePlaceLandingTarget(extra, allUserPlaces);
+    if (!target) return;
+
+    const place = allUserPlaces.find((p) => p.id === target.placeId);
+    hasAutoLandedOnHomePlace.current = true;
+    hasAutoSelectedCity.current = true;
+    handlePlaceClick(target.cityId, target.placeId, place);
+    setInitialSection("dashboard");
+  }, [
+    isAuthenticated,
+    isLoading,
+    isCheckingAdmin,
+    isImpersonating,
+    showWelcomeModal,
+    pendingNavIntent,
+    currentView,
+    userPreferences,
+    allUserPlaces,
+    allUserPlacesLoaded,
+    handlePlaceClick,
+  ]);
 
   // Resolve pendingNavIntent (set by the email/external deep-link effect
   // above) by invoking the same handlers the left nav uses. The place case
