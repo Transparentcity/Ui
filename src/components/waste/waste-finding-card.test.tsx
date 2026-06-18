@@ -13,12 +13,15 @@ describe("WasteFindingCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────────
 
-  it("renders metric and metric detail in collapsed state", () => {
+  it("renders a plain-English headline in the collapsed state", () => {
     const finding = makeFinding({ metric: "$2.3M", metricDetail: "above peer average" })
     render(<WasteFindingCard finding={finding} isExpanded={false} onToggle={onToggle} />)
-    // metric and formatted amount may both show "$2.3M"
-    expect(screen.getAllByText("$2.3M").length).toBeGreaterThan(0)
-    expect(screen.getByText("above peer average")).toBeInTheDocument()
+    // The collapsed row shows one derived headline; for an unmapped tool it
+    // falls back to "<entity> — <metric> <metricDetail>".
+    // "Fire Department" also appears in the entity pill, so match the headline
+    // by its unique metric-detail fragment.
+    expect(screen.getAllByText(/Fire Department/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/above peer average/)).toBeInTheDocument()
   })
 
   it("renders severity badge with correct label", () => {
@@ -35,7 +38,7 @@ describe("WasteFindingCard", () => {
 
   it("calls onToggle when the card is clicked", () => {
     render(<WasteFindingCard finding={makeFinding()} isExpanded={false} onToggle={onToggle} />)
-    fireEvent.click(screen.getByText("above peer average"))
+    fireEvent.click(screen.getByText(/above peer average/))
     expect(onToggle).toHaveBeenCalledTimes(1)
   })
 

@@ -14,6 +14,7 @@ import {
   type RankBy,
   type RankView,
 } from "./waste-ranked-findings"
+import { WasteTopFindings } from "./waste-top-findings"
 import { WasteSeverityFilter } from "./waste-severity-filter"
 import { WasteSeymourAskBar } from "./waste-seymour-ask-bar"
 import {
@@ -102,6 +103,12 @@ export function ForensicsFindingsPage() {
       description="Detected anomalies ranked by impact and confidence"
     >
       <ForensicsShell title="All Findings">
+        {!isLoading && activeChips.length === 0 && (
+          <WasteTopFindings
+            findings={allFindings}
+            onSelectEntity={setEntitySearch}
+          />
+        )}
         <WasteSeymourAskBar
           className="mb-3"
           context={{

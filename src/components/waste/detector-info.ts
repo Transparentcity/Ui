@@ -149,3 +149,27 @@ export function expandDetectorCodesInline(
     return `(${expanded.join(", ")})`
   })
 }
+
+const _CODE_SHAPE = /^[A-Z]+\d+[a-z]?$/
+
+/**
+ * Remove internal detector-code parentheticals — "(D1, D7)", "(NP4)",
+ * "(RD2, D3)" — from a public-facing string entirely. These codes are
+ * engineering shorthand, not globally unique, and mean nothing to an ordinary
+ * reader. Tidies the leftover whitespace and dangling punctuation. Use for
+ * headlines/descriptions shown to the public; the auditor-facing "Detectors
+ * triggered" panel still names detectors explicitly via formatDetector().
+ */
+export function stripDetectorCodes(text: string | null | undefined): string {
+  if (!text) return ""
+  return text
+    .replace(/\s*\(([^)]+)\)/g, (whole, inner: string) => {
+      const parts = inner.split(",").map((s) => s.trim())
+      return parts.length > 0 && parts.every((p) => _CODE_SHAPE.test(p))
+        ? ""
+        : whole
+    })
+    .replace(/\s+([.,;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}

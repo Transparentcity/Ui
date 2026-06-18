@@ -12,7 +12,8 @@ import {
   parseContractDriftContractId,
   procurementVendorNameFromEntity,
 } from "./waste-utils"
-import { expandDetectorCodesInline, formatDetector } from "./detector-info"
+import { formatDetector, stripDetectorCodes } from "./detector-info"
+import { deriveHeadline } from "./waste-finding-narrator"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
@@ -718,8 +719,7 @@ function CopyCaseStudyButton({ finding }: { finding: WasteFinding }) {
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
     const parts: string[] = []
-    if (finding.headline) parts.push(finding.headline)
-    else parts.push(`${finding.entity} — ${finding.metric} ${finding.metricDetail}`)
+    parts.push(deriveHeadline(finding))
     if (finding.amount) parts.push(`Amount at risk: ${formatDollar(finding.amount)}`)
     parts.push("")
     parts.push(finding.description)
@@ -864,6 +864,7 @@ export function WasteFindingCard({
   const conf = confidenceConfig[confKey] ?? confidenceConfig.medium
   const ConfIcon = conf.icon
   const isConvergence = finding.category?.toLowerCase().includes("convergence")
+  const headline = deriveHeadline(finding)
   const triangleLegsRaw = finding.convergence_details?.triangle_legs_present
   const triangleLegsPresent = Array.isArray(triangleLegsRaw)
     ? triangleLegsRaw.length
@@ -1170,25 +1171,11 @@ export function WasteFindingCard({
           </span>
         )}
 
-        {/* Headline (plain-English) or fallback to metric. Consolidated
-            metricDetail strings like "(D1, D7, NP4)" get expanded inline. */}
-        {finding.headline ? (
-          <span className="text-sm text-gray-800 font-medium truncate">
-            {expandDetectorCodesInline(finding.headline, finding.category)}
-          </span>
-        ) : (
-          <>
-            <span className={cn("font-semibold text-sm whitespace-nowrap", sev.metricColor)}>
-              {finding.metric}
-            </span>
-            <span className="text-sm text-gray-600 truncate">
-              {expandDetectorCodesInline(
-                finding.metricDetail ?? "",
-                finding.category,
-              )}
-            </span>
-          </>
-        )}
+        {/* Plain-English headline, generated client-side (waste-finding-narrator)
+            so the at-a-glance hook reads clearly for a non-expert. */}
+        <span className="text-sm text-gray-800 font-medium truncate">
+          {stripDetectorCodes(headline)}
+        </span>
 
         {/* Spacer */}
         <div className="flex-1" />
@@ -1257,16 +1244,11 @@ export function WasteFindingCard({
             </div>
           ) : (
             <div className="mb-3">
-              {finding.headline && (
-                <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
-                  {expandDetectorCodesInline(finding.headline, finding.category)}
-                </p>
-              )}
+              <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
+                {stripDetectorCodes(headline)}
+              </p>
               <p className="text-sm text-gray-700 leading-relaxed">
-                {expandDetectorCodesInline(
-                  finding.description ?? "",
-                  finding.category,
-                )}
+                {stripDetectorCodes(finding.description)}
               </p>
             </div>
           )}
