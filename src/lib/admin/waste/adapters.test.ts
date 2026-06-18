@@ -4,7 +4,9 @@ import {
   adaptReportDetail,
   adaptDetector,
   adaptFinding,
+  selectTopAdminFindings,
 } from "./adapters";
+import type { Finding } from "@/lib/wasteFixtures";
 import type {
   WasteAdminSeymourFeed,
   WasteAdminReportDetail,
@@ -106,5 +108,114 @@ describe("adaptFinding — sanitizes stringified nulls and dedupes", () => {
     } as WasteAdminFindingRow);
     expect(f.detail).toBe("");
     expect(f.subject).toContain("Acme Corp");
+  });
+});
+
+describe("adaptFinding — plain-English narrator (admin/waste port)", () => {
+  it("rewrites a vague backend headline into a tuned one + adds a why-line", () => {
+    const f = adaptFinding({
+      id: 1,
+      finding_id: "F-1",
+      detector_key: "payroll_d6_hours",
+      detector_name: "D6 Hours Feasibility (Hard Cap)",
+      entity_name: "Sheriff",
+      headline: "overtime payment distribution is statistically unusual",
+      estimated_dollar_impact: 456000,
+      severity: "critical",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.headline.toLowerCase()).toContain("physically possible");
+    expect(f.headline).toContain("Sheriff");
+    expect((f.why ?? "").toLowerCase()).toContain("physically impossible");
+  });
+
+  it("falls back to the backend headline for an uncovered detector_key", () => {
+    const f = adaptFinding({
+      id: 2,
+      finding_id: "F-2",
+      detector_key: "some_future_detector",
+      entity_name: "Dept X",
+      headline: "A perfectly good backend headline",
+      severity: "low",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.headline).toBe("A perfectly good backend headline");
+    expect(f.why ?? "").toBe("");
+  });
+
+  it("preserves raw fields needed for source drill-through", () => {
+    const f = adaptFinding({
+      id: 4,
+      finding_id: "F-4",
+      detector_key: "vendor_d19_sole_source",
+      detector_name: "D19 Sole Source",
+      category: "contracts",
+      subcategory: "Sole Source Abuse",
+      entity_name: "Color Health",
+      estimated_dollar_impact: 84000000,
+      severity: "high",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.category).toBe("contracts");
+    expect(f.subcategory).toBe("Sole Source Abuse");
+    expect(f.entity).toBe("Color Health");
+    expect(f.tool).toBe("D19 Sole Source");
+    expect(f.amountValue).toBe(84000000);
+  });
+
+  it("strips internal detector codes from the rendered detail", () => {
+    const f = adaptFinding({
+      id: 3,
+      finding_id: "F-3",
+      detector_key: "vendor_d19_sole_source",
+      entity_name: "Color Health",
+      headline: "No-bid award",
+      description: "Awarded without competition (D19, D23)",
+      severity: "high",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.detail).not.toContain("(D19, D23)");
+  });
+});
+
+describe("selectTopAdminFindings", () => {
+  const mk = (over: Partial<Finding>): Finding =>
+    ({
+      id: "x", detectorId: "d", headline: "h", subject: "s", department: "—",
+      amount: "—", confidence: 80, flagged: "now", detail: "", severity: "med",
+      status: "open", amountValue: 0, ...over,
+    } as Finding);
+
+  it("ranks high severity above med above low", () => {
+    const out = selectTopAdminFindings([
+      mk({ id: "lo", severity: "low" }),
+      mk({ id: "hi", severity: "high" }),
+      mk({ id: "me", severity: "med" }),
+    ], 3);
+    expect(out.map(f => f.id)).toEqual(["hi", "me", "lo"]);
+  });
+
+  it("breaks ties by confidence then impact", () => {
+    const out = selectTopAdminFindings([
+      mk({ id: "lowconf", severity: "high", confidence: 50, amountValue: 9_000_000 }),
+      mk({ id: "hiconf", severity: "high", confidence: 95, amountValue: 1000 }),
+    ]);
+    expect(out[0].id).toBe("hiconf");
+  });
+
+  it("excludes dismissed and low-confidence (<40) findings", () => {
+    const out = selectTopAdminFindings([
+      mk({ id: "keep", severity: "high", confidence: 80 }),
+      mk({ id: "dismissed", severity: "high", confidence: 90, status: "dismissed" }),
+      mk({ id: "lowconf", severity: "high", confidence: 20 }),
+    ]).map(f => f.id);
+    expect(out).toContain("keep");
+    expect(out).not.toContain("dismissed");
+    expect(out).not.toContain("lowconf");
+  });
+
+  it("caps at n", () => {
+    const many = Array.from({ length: 9 }, (_, i) => mk({ id: `f${i}`, severity: "high" }));
+    expect(selectTopAdminFindings(many, 5)).toHaveLength(5);
   });
 });

@@ -12,6 +12,8 @@ import type {
   SeymourData,
 } from "@/lib/wasteFixtures";
 import type { SeverityLevel, FindingStatus } from "@/components/admin/waste/primitives";
+import { adminHeadline, adminWhy } from "@/components/waste/waste-finding-narrator";
+import { stripDetectorCodes } from "@/components/waste/detector-info";
 import type {
   WasteAdminDetectorRow,
   WasteAdminFindingRow,
@@ -145,12 +147,28 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
   if (entity) subjectParts.push(entity);
   if (subcategory) subjectParts.push(subcategory);
   const detailConfidence = (f as Partial<{ confidence_score: number | null }>).confidence_score;
-  const headline = cleanText(f.headline) || cleanText(f.description) || f.detector_name || "Finding";
-  const rawDetail = cleanText(f.description) || cleanText(f.detector_name);
-  // The backend currently ships the same string in `headline` and `description`
-  // for many finding types. Suppress the detail when it would duplicate the
-  // headline so the card doesn't render the same paragraph twice.
-  const detail = rawDetail.trim() === headline.trim() ? "" : rawDetail;
+  // Plain-English headline + "why" from the shared narrator (keyed on the
+  // backend detector_key), so the admin feed reads like the forensics cards
+  // rather than echoing the raw backend headline. Falls back to the backend
+  // headline/description for any detector the narrator doesn't cover.
+  const backendHeadline =
+    cleanText(f.headline) || cleanText(f.description) || f.detector_name || "Finding";
+  const headline = stripDetectorCodes(
+    adminHeadline(f.detector_key, entity, f.estimated_dollar_impact ?? f.amount, backendHeadline)
+  );
+  const why = adminWhy(f.detector_key);
+  const rawDetail = stripDetectorCodes(cleanText(f.description) || cleanText(f.detector_name));
+  // The backend ships the same string in `headline` and `description` for many
+  // finding types. Suppress the detail when it duplicates the displayed
+  // headline, the why-line, OR the raw backend headline (the narrator may have
+  // rewritten the displayed headline, but the detail is still redundant).
+  const backendHeadlineClean = stripDetectorCodes(cleanText(f.headline));
+  const detail =
+    rawDetail.trim() === headline.trim() ||
+    rawDetail.trim() === why.trim() ||
+    (backendHeadlineClean !== "" && rawDetail.trim() === backendHeadlineClean.trim())
+      ? ""
+      : rawDetail;
   return {
     id: f.finding_id || String(f.id),
     detectorId: f.detector_key,
@@ -161,6 +179,12 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
     confidence: parseConfidence(detailConfidence ?? f.confidence),
     flagged: relativeTime(f.created_at),
     detail,
+    why,
+    category: cleanText(f.category),
+    subcategory,
+    entity,
+    tool: cleanText(f.detector_name) || f.detector_key,
+    amountValue: f.estimated_dollar_impact ?? f.amount ?? null,
     severity: severityFromBackend(f.severity),
     status: statusFromBackend(f.finding_status),
   };
@@ -262,4 +286,35 @@ export function adaptSeymour(feed: WasteAdminSeymourFeed): SeymourData {
       lift: s.last_scored_at ? `Updated ${relativeTime(s.last_scored_at)}` : "",
     })),
   };
+}
+
+const _ADMIN_SEV_RANK: Record<string, number> = { high: 3, med: 2, low: 1 };
+
+/**
+ * Pick the few most suspicious-yet-credible findings for the admin "Most
+ * suspicious this period" hero. Weights severity, then confidence, then dollar
+ * impact; drops dismissed and clearly low-confidence findings so the top of
+ * the page leads with solid cases. Mirrors the forensics selectTopFindings,
+ * adapted to the admin Finding shape (severity high/med/low; confidence is the
+ * adapter's 0-100 scale).
+ */
+export function selectTopAdminFindings(
+  findings: readonly Finding[],
+  n = 5
+): Finding[] {
+  const score = (f: Finding): number => {
+    const sev = _ADMIN_SEV_RANK[f.severity] ?? 0;
+    // confidence is 0-100 here; scale to 0-1 so it ranks below severity.
+    const conf = (typeof f.confidence === "number" ? f.confidence : 0) / 100;
+    const impact = f.amountValue ?? 0;
+    return sev * 1_000_000 + conf * 100_000 + Math.log10(Math.max(0, impact) + 1) * 1000;
+  };
+  return [...findings]
+    .filter(
+      (f) =>
+        f.status !== "dismissed" &&
+        (typeof f.confidence !== "number" || f.confidence >= 40)
+    )
+    .sort((a, b) => score(b) - score(a))
+    .slice(0, n);
 }

@@ -3,8 +3,41 @@ import {
   deriveHeadline,
   canonicalNarratorKey,
   whySuspicious,
+  localKeyFromBackendKey,
+  adminHeadline,
+  adminWhy,
 } from "./waste-finding-narrator"
 import { makeFinding } from "./test-utils"
+
+describe("admin/waste narrator (keyed on backend detector_key)", () => {
+  it("resolves backend canonical keys to local narrator keys", () => {
+    expect(localKeyFromBackendKey("payroll_d6_hours")).toBe("payroll_d6")
+    expect(localKeyFromBackendKey("infrastructure_d5_budget_variance")).toBe("infra_d5")
+    expect(localKeyFromBackendKey("vendor_d7b_commodity_price_disparity")).toBe("vendor_d7b")
+    expect(localKeyFromBackendKey("integrity_rd3_cross_dept_double_dip")).toBe("integrity_rd3")
+    expect(localKeyFromBackendKey("influence_d18_pay_to_play")).toBe("influence_d18")
+    expect(localKeyFromBackendKey("nonprofit_np1_cross_grant_double_dip")).toBe("nonprofit_np1")
+    // alias: backend has no suffix-free local key for vendor d21
+    expect(localKeyFromBackendKey("vendor_d21_vendor_location_verification")).toBe("vendor_d21_location")
+  })
+
+  it("builds a tuned headline from a detector_key", () => {
+    const h = adminHeadline("vendor_d19_sole_source", "Color Health", 84_000_000, "raw backend headline")
+    expect(h.toLowerCase()).toContain("no-bid")
+    expect(h).toContain("Color Health")
+  })
+
+  it("falls back to the backend headline for an unmapped detector_key", () => {
+    expect(adminHeadline("totally_unknown_thing", "Dept", null, "Backend headline")).toBe(
+      "Backend headline"
+    )
+  })
+
+  it("gives a why-line keyed on detector_key", () => {
+    expect(adminWhy("payroll_d6_hours").toLowerCase()).toContain("physically impossible")
+    expect(adminWhy("unknown_x")).toBe("")
+  })
+})
 
 describe("narrator coverage", () => {
   // Every detector tool the backend can emit should get a tuned headline AND a

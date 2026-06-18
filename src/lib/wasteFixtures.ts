@@ -43,6 +43,15 @@ export type Finding = {
   detail: string;
   severity: SeverityLevel;
   status: FindingStatus;
+  /** One-line plain-English reason the pattern is suspicious (may be ""). */
+  why?: string;
+  // Raw fields preserved for source drill-through (building the Socrata query
+  // for this finding's underlying records). Optional so fixtures still type.
+  category?: string;
+  subcategory?: string;
+  entity?: string;
+  tool?: string;
+  amountValue?: number | null;
 };
 
 export type SeymourCluster = {
