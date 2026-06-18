@@ -100,7 +100,7 @@ export function ForensicsFindingsPage() {
   return (
     <WasteShell
       title="Findings"
-      description="Detected anomalies ranked by impact and confidence"
+      description="Unusual patterns flagged in the city's own published data — open any finding to see the records and the exact query behind it"
     >
       <ForensicsShell title="All Findings">
         {!isLoading && activeChips.length === 0 && (

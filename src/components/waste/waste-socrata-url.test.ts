@@ -4,6 +4,7 @@ import {
   isOnRoadmap,
   humanizeSocrataQuery,
   formatSoql,
+  buildResearchLinks,
 } from "./waste-finding-card"
 import { makeFinding } from "./test-utils"
 
@@ -522,5 +523,110 @@ describe("formatSoql", () => {
       limit: "",
     })
     expect(soql).toBe("SELECT *\nFROM abcd-1234 (data.sfgov.org)")
+  })
+})
+
+describe("buildResearchLinks", () => {
+  const sfUrl =
+    "https://data.sfgov.org/resource/n9pm-xkyq.json?$where=vendor%20%3D%20'Acme'"
+
+  it("builds the dataset landing page link from the drill-through URL", () => {
+    const { datasetUrl } = buildResearchLinks(sfUrl, "Acme Corp")
+    expect(datasetUrl).toBe("https://data.sfgov.org/d/n9pm-xkyq")
+  })
+
+  it("builds a web search scoped to the entity and city", () => {
+    const { webSearchUrl } = buildResearchLinks(sfUrl, "Acme Corp")
+    expect(webSearchUrl).toContain("google.com/search")
+    expect(decodeURIComponent(webSearchUrl!)).toContain("Acme Corp San Francisco")
+  })
+
+  it("strips a committee/label suffix from the searched entity", () => {
+    const { cleanEntity, webSearchUrl } = buildResearchLinks(
+      sfUrl,
+      "Swinerton Builders → Yes on A"
+    )
+    expect(cleanEntity).toBe("Swinerton Builders")
+    expect(decodeURIComponent(webSearchUrl!)).not.toContain("→")
+  })
+
+  it("uses Chicago's domain + city label", () => {
+    const chiUrl = "https://data.cityofchicago.org/resource/s4vu-giwb.json"
+    const { datasetUrl, webSearchUrl } = buildResearchLinks(chiUrl, "Foo LLC")
+    expect(datasetUrl).toBe("https://data.cityofchicago.org/d/s4vu-giwb")
+    expect(decodeURIComponent(webSearchUrl!)).toContain("Foo LLC Chicago")
+  })
+
+  it("returns null links for a non-URL, but still cleans the entity", () => {
+    const { datasetUrl, webSearchUrl, cleanEntity } = buildResearchLinks(
+      "not a url",
+      "Bar Inc (SF)"
+    )
+    expect(datasetUrl).toBeNull()
+    expect(webSearchUrl).toBeNull()
+    expect(cleanEntity).toBe("Bar Inc")
+  })
+})
+
+describe("buildSocrataDetailsUrl — integrity", () => {
+  it("drills an RD finding to the employee's own compensation rows (SF)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "integrity",
+        subcategory: "Cross-Department Double Dipping",
+        tool: "RD3 Cross-Dept Double Dip",
+        entity: "Mary Tse",
+      }),
+      1
+    )!
+    const dec = decodeURIComponent(url)
+    expect(url).toContain("88g8-5mnd") // SF compensation dataset
+    expect(dec).toContain("upper(employee_identifier) like upper('%Mary Tse%')")
+    expect(dec).toContain("department") // cross-dept visibility
+  })
+
+  it("returns null for Chicago integrity (snapshot dataset is a poor source)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "integrity",
+        subcategory: "Cross-Department Double Dipping",
+        tool: "RD3 Cross-Dept Double Dip",
+        entity: "Some Person",
+      }),
+      3
+    )
+    expect(url).toBeNull()
+  })
+})
+
+describe("buildSocrataDetailsUrl — influence", () => {
+  it("drills a D18 finding to the SF contributions dataset for the contributor", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "influence",
+        subcategory: "Pay-to-Play",
+        tool: "D18 Pay-to-Play",
+        entity: "Swinerton Builders → Yes on A",
+      }),
+      1
+    )!
+    const dec = decodeURIComponent(url)
+    expect(url).toContain("pitq-e56w")
+    expect(dec).toContain("record_type = 'RCPT'")
+    expect(dec).toContain("upper(transaction_last_name) like '%SWINERTON BUILDERS%'")
+    expect(dec).not.toContain("→")
+  })
+
+  it("returns null for Chicago influence (no usable contributions dataset)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "influence",
+        subcategory: "Pay-to-Play",
+        tool: "D18 Pay-to-Play",
+        entity: "Some Vendor",
+      }),
+      3
+    )
+    expect(url).toBeNull()
   })
 })

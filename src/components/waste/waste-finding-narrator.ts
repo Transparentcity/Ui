@@ -43,6 +43,7 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D16 Fiscal Sponsor": "vendor_d16",
   "D19 Sole Source": "vendor_d19",
   "D20 Debarment Bypass": "vendor_d20",
+  "D21 Vendor Location Verification": "vendor_d21_location",
   "D22 Emergency Contract Runaway": "vendor_d22",
   "D23 Contract Threshold Clustering": "vendor_d23",
   // Payroll
@@ -77,6 +78,10 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D18 Pay-to-Play": "influence_d18",
   "D20i Behested Quid Pro Quo": "influence_d20i",
   // Nonprofit
+  "NP1 Cross-Grant Double Dipping": "nonprofit_np1",
+  "NP2 Ineligible Expense Scan": "nonprofit_np2",
+  "NP3 Fiscal Sponsor Opacity": "nonprofit_np3",
+  "NP4 Charity Registration Compliance": "nonprofit_np4",
   "NP5 Nonprofit-Vendor Overlap": "nonprofit_np5",
   "NP6 Grant Ramp Concentration": "nonprofit_np6",
 }
@@ -140,6 +145,8 @@ const HEADLINES: Record<string, Builder> = {
     `${f.entity} — no-bid (sole source) contract awarded without competition (${dollar(f.amount)})`,
   vendor_d20: (f) =>
     `${f.entity} — paid ${dollar(f.amount)} despite being on a debarment list`,
+  vendor_d21_location: (f) =>
+    `${f.entity} — the vendor's registered business location couldn't be verified`,
   vendor_d22: (f) =>
     `${f.entity} — "emergency" contract that kept growing after the emergency (${dollar(f.amount)})`,
   vendor_d23: (f) =>
@@ -175,10 +182,86 @@ const HEADLINES: Record<string, Builder> = {
   influence_d20i: (f) =>
     `${f.entity} — behested payment that looks like quid pro quo`,
   // ── Nonprofit ────────────────────────────────────────────────────────────
+  nonprofit_np1: (f) =>
+    `${f.entity} — the same costs appear billed to more than one grant`,
+  nonprofit_np2: (f) =>
+    `${f.entity} — grant money spent on expenses the grant doesn't allow`,
+  nonprofit_np3: (f) =>
+    `${f.entity} — grants routed through an opaque fiscal sponsor`,
+  nonprofit_np4: (f) =>
+    `${f.entity} — taking city grants without a current charity registration`,
   nonprofit_np5: (f) =>
     `${f.entity} — collects city grants while also billing as a commercial vendor`,
   nonprofit_np6: (f) =>
     `${f.entity} — grant funding ramped up fast across new line items`,
+}
+
+// One-line, pattern-level explanation of WHY each detector's pattern is a red
+// flag — generic (not entity-specific), plain language, for an ordinary reader.
+const WHY: Record<string, string> = {
+  payroll_d1: "Overtime above base pay can mean padded hours or chronic understaffing.",
+  payroll_d2: "When a few people collect most of the overtime, controls may be weak.",
+  payroll_d3: "A pay spike in a final year inflates the pension it locks in.",
+  payroll_d4: "Overtime far above comparable departments suggests weak oversight.",
+  payroll_d5: "Real payrolls follow predictable digit patterns; these don't, a fabrication signal.",
+  payroll_d6: "These hours are physically impossible to work — a timesheet or payroll red flag.",
+  payroll_d6_ghost: "Overtime paid with no base salary can indicate a ghost employee.",
+  payroll_d6_headcomp: "Staff out-earning their own department head can signal misclassification.",
+  payroll_d7: "Large 'other pay' cash-outs can hide comp-time or leave abuse.",
+  vendor_d1: "Duplicate payments mean the city may have paid the same bill twice.",
+  vendor_d2: "Payments rerouted to a new account are a classic fraud vector.",
+  vendor_d3: "Amounts that don't follow natural patterns can indicate manipulation.",
+  vendor_d4: "Payments far larger than peer vendors warrant a closer look.",
+  vendor_d5: "Many round-dollar amounts suggest manual overrides rather than real invoices.",
+  vendor_d6: "One vendor dominating a department's spend reduces competition.",
+  vendor_d7: "Charging departments different prices for the same thing can mean overbilling.",
+  vendor_d7b: "Paying above-market rates for commodities wastes money.",
+  vendor_d8: "Splitting orders to stay under the approval limit dodges oversight.",
+  vendor_d9: "Paying a vendor with no business registration is a ghost-vendor risk.",
+  vendor_d10: "Contracts that balloon past their original value escape competitive review.",
+  vendor_d11: "A short bid window limits competition and can favor an insider.",
+  vendor_d12: "Clustering payments under approval limits dodges sign-off.",
+  vendor_d13: "Vendors at homes or mail drops can be shell companies.",
+  vendor_d14: "Vague contract descriptions make spending hard to audit.",
+  vendor_d15: "Vendors sharing one address may be related or shell entities.",
+  vendor_d16: "Grant money cycling through sponsors obscures who actually gets paid.",
+  vendor_d19: "No-bid contracts skip competitive pricing, so the city may overpay.",
+  vendor_d20: "Paying a debarred vendor violates exclusion rules.",
+  vendor_d21_location: "A vendor whose address can't be verified may be a shell or pass-through.",
+  vendor_d22: "'Emergency' contracts that keep growing bypass normal procurement.",
+  vendor_d23: "Pricing contracts just under an approval ceiling avoids higher scrutiny.",
+  infra_d1: "Slower response times can signal mismanagement or under-resourcing.",
+  infra_d2: "Large service gaps between districts raise equity concerns.",
+  infra_d3: "A falling resolution rate means more requests go unaddressed.",
+  infra_d4: "Repeated failures in one area point to a deeper unfixed problem.",
+  infra_d5: "Spending far off budget can mean poor planning or hidden costs.",
+  infra_d5_yoy: "Spending growth far above inflation warrants scrutiny.",
+  infra_d6: "Permits approved unusually fast can indicate favoritism or skipped review.",
+  infra_d7: "Year-end spending spikes often mean 'use it or lose it' waste.",
+  infra_d8: "Failure hotspots flag deferred maintenance.",
+  infra_d21: "Budgeted money sitting unspent may be padding or poor forecasting.",
+  integrity_rd1: "Leaving the payroll then billing as a vendor can be a conflict of interest.",
+  integrity_rd2: "Being on payroll while also a paid vendor is a conflict of interest.",
+  integrity_rd3: "Drawing pay from multiple departments at once can mean double-dipping.",
+  integrity_rd4: "Heavy overtime leaves little time to run a side business — one may be miscounted.",
+  influence_d17: "Contract awards that track lobbyist contacts raise undue-influence concerns.",
+  influence_d18: "Donations timed to contract awards raise pay-to-play concerns.",
+  influence_d20i: "Payments made at an official's behest can mask quid pro quo.",
+  nonprofit_np1: "Billing the same cost to two grants is double-dipping public money.",
+  nonprofit_np2: "Spending restricted grant funds on ineligible costs misuses the award.",
+  nonprofit_np3: "Opaque fiscal sponsors hide who ultimately receives and controls the money.",
+  nonprofit_np4: "Receiving grants without a valid charity registration skirts oversight rules.",
+  nonprofit_np5: "Taking grants while also billing as a vendor invites self-dealing.",
+  nonprofit_np6: "Grants ramped fast across new line items can outrun oversight.",
+}
+
+/**
+ * One-line plain-English reason the finding's pattern is suspicious, or "" if
+ * the detector has no registered explanation. Pattern-level, not entity-
+ * specific — answers "why should I care?" for a non-expert.
+ */
+export function whySuspicious(f: WasteFinding): string {
+  return WHY[canonicalNarratorKey(f.tool)] ?? ""
 }
 
 /** Resolve a finding's display tool to its canonical narrator key. */

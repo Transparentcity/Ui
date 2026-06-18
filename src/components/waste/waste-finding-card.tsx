@@ -13,7 +13,7 @@ import {
   procurementVendorNameFromEntity,
 } from "./waste-utils"
 import { formatDetector, stripDetectorCodes } from "./detector-info"
-import { deriveHeadline } from "./waste-finding-narrator"
+import { deriveHeadline, whySuspicious } from "./waste-finding-narrator"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
@@ -107,6 +107,21 @@ interface CitySocrataConfig {
   contractAuthorityCol: string
   contractDateCol: string
   contractDeptCol: string
+  // Campaign-finance contributions, for drilling D18 Pay-to-Play through to the
+  // source donations. SF = SFEC Transactions (pitq-e56w), contributions are
+  // record_type='RCPT'. Empty campaignDataset disables the drill-through (e.g.
+  // Chicago, whose available dataset is lobbyist contributions, not vendor
+  // pay-to-play, so a contributor→contract drill would be misleading).
+  campaignDataset: string
+  campaignContributorCol: string
+  campaignAmountCol: string
+  campaignDateCol: string
+  campaignRecordTypeFilter: string
+  // Employee-name column on the compensation dataset, for drilling integrity
+  // (RD) findings to a person's own pay records across departments/years. Empty
+  // disables it (e.g. Chicago, whose public payroll dataset is a name-only
+  // current snapshot with no year/overtime/cross-dept depth — a poor source).
+  compEmployeeCol: string
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -123,6 +138,12 @@ const SF_SOCRATA: CitySocrataConfig = {
   contractAuthorityCol: "purchasing_authority",
   contractDateCol: "term_start_date",
   contractDeptCol: "department",
+  campaignDataset: "pitq-e56w",
+  campaignContributorCol: "transaction_last_name",
+  campaignAmountCol: "transaction_amount_1",
+  campaignDateCol: "transaction_date",
+  campaignRecordTypeFilter: "record_type = 'RCPT'",
+  compEmployeeCol: "employee_identifier",
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -139,6 +160,12 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   contractAuthorityCol: "procurement_type",
   contractDateCol: "start_date",
   contractDeptCol: "department",
+  campaignDataset: "",
+  campaignContributorCol: "",
+  campaignAmountCol: "",
+  campaignDateCol: "",
+  campaignRecordTypeFilter: "",
+  compEmployeeCol: "",
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -528,6 +555,47 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
     }
   }
 
+  // INTEGRITY (RD1-4) — drill to the employee's own compensation rows so an
+  // investigator can see the cross-department / dual-role pay behind the
+  // finding. SF only; Chicago's public payroll dataset is a name-only snapshot.
+  if (cat.includes("integrity")) {
+    if (!cfg.compEmployeeCol) return null
+    const employee = escapeSoqlLike(
+      (finding.entity || "").split(/ \(| — | → /)[0].trim()
+    )
+    if (!employee) return null
+    const select = `year,department,${cfg.compEmployeeCol},job,salaries,overtime,total_salary`
+    const where = `upper(${cfg.compEmployeeCol}) like upper('%${employee}%')`
+    return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
+  }
+
+  // INFLUENCE (D18 Pay-to-Play, D17 Lobbyist) — drill to the source campaign
+  // contributions so an investigator can see the actual donations behind the
+  // finding. Only where a usable contributions dataset exists (SF).
+  if (cat.includes("influence")) {
+    if (!cfg.campaignDataset) return null
+    const CAMPAIGN = socrataUrl(cfg, cfg.campaignDataset)
+    // Entity is the contributor/vendor; drop any "→ committee" / "(label)" tail.
+    const contributor = escapeSoqlLike(
+      (finding.entity || "").split(/ \(| — | → | -> /)[0].trim()
+    )
+    if (!contributor) return null
+    const select = [
+      cfg.campaignContributorCol,
+      cfg.campaignAmountCol,
+      cfg.campaignDateCol,
+      "filer_name",
+    ].join(",")
+    const where = [
+      cfg.campaignRecordTypeFilter,
+      `upper(${cfg.campaignContributorCol}) like '%${contributor.toUpperCase()}%'`,
+    ]
+      .filter(Boolean)
+      .join(" AND ")
+    const order = `${cfg.campaignDateCol} DESC, ${cfg.campaignAmountCol} DESC`
+    return `${CAMPAIGN}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(order)}&$limit=${DETAILS_LIMIT}`
+  }
+
   return null
 }
 
@@ -796,7 +864,41 @@ export function formatSoql(q: SocrataQueryParts): string {
   return lines.join("\n")
 }
 
-function SourceQueryPanel({ url }: { url: string }) {
+/** Human-readable city name for the open-data domain (for research links). */
+function cityLabelForDomain(domain: string): string {
+  if (domain.includes("sfgov")) return "San Francisco"
+  if (domain.includes("cityofchicago")) return "Chicago"
+  return ""
+}
+
+export interface ResearchLinks {
+  datasetUrl: string | null
+  webSearchUrl: string | null
+  cleanEntity: string
+}
+
+/**
+ * Independent-research affordances for a finding: a link to browse the full
+ * source dataset on the open-data portal, and an open-web search for the
+ * entity. Derived from the same drill-through URL so they always point at the
+ * right dataset/domain.
+ */
+export function buildResearchLinks(
+  url: string,
+  entity?: string
+): ResearchLinks {
+  const q = humanizeSocrataQuery(url)
+  const cleanEntity = (entity || "").split(/ \(| — | → /)[0].trim()
+  if (!q) return { datasetUrl: null, webSearchUrl: null, cleanEntity }
+  const datasetUrl = q.dataset ? `https://${q.domain}/d/${q.dataset}` : null
+  const cityLabel = cityLabelForDomain(q.domain)
+  const webSearchUrl = cleanEntity
+    ? `https://www.google.com/search?q=${encodeURIComponent(`${cleanEntity} ${cityLabel}`.trim())}`
+    : null
+  return { datasetUrl, webSearchUrl, cleanEntity }
+}
+
+function SourceQueryPanel({ url, entity }: { url: string; entity?: string }) {
   const [copied, setCopied] = useState(false)
   const q = humanizeSocrataQuery(url)
   if (!q) return null
@@ -809,6 +911,11 @@ function SourceQueryPanel({ url }: { url: string }) {
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  // Independent-research affordances so an investigator can confirm a finding
+  // beyond this tool: browse the full source dataset, and search the open web
+  // for the entity (e.g. a vendor, committee, or employee).
+  const { datasetUrl, webSearchUrl, cleanEntity } = buildResearchLinks(url, entity)
 
   return (
     <div className="border-t border-gray-100 bg-gray-50 px-3 py-2">
@@ -842,6 +949,35 @@ function SourceQueryPanel({ url }: { url: string }) {
       <pre className="text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap break-words font-mono m-0">
         {soql}
       </pre>
+      {(datasetUrl || webSearchUrl) && (
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-200">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            Verify independently
+          </span>
+          {datasetUrl && (
+            <a
+              href={datasetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-800 underline"
+            >
+              Open full dataset ↗
+            </a>
+          )}
+          {webSearchUrl && (
+            <a
+              href={webSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-800 underline"
+            >
+              Search the web for {cleanEntity} ↗
+            </a>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1003,6 +1139,62 @@ export function WasteFindingCard({
                      <td className="px-3 py-2 text-gray-600">{row.status_description}</td>
                      <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_datetime)}</td>
                      <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]">{row.neighborhoods_sffind_boundaries || row.community_area || row.ward || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        )
+    }
+
+    if (cat.includes("integrity")) {
+        return (
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Year</th>
+                  <th className="px-3 py-2 text-left font-medium">Department</th>
+                  <th className="px-3 py-2 text-left font-medium">Employee</th>
+                  <th className="px-3 py-2 text-left font-medium">Job</th>
+                  <th className="px-3 py-2 text-left font-medium">Total comp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailsRows.map((row, idx) => (
+                  <tr key={idx} className="border-t border-gray-100">
+                     <td className="px-3 py-2 text-gray-600">{row.year || "—"}</td>
+                     <td className="px-3 py-2 text-gray-800 truncate max-w-[150px]" title={row.department}>{row.department || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[150px]" title={row.employee_identifier}>{row.employee_identifier || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[120px]" title={row.job}>{row.job || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600">{formatCurrency(row.total_salary)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        )
+    }
+
+    if (cat.includes("influence")) {
+        return (
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Contributor</th>
+                  <th className="px-3 py-2 text-left font-medium">Amount</th>
+                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-left font-medium">Recipient committee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailsRows.map((row, idx) => (
+                  <tr key={idx} className="border-t border-gray-100">
+                     <td className="px-3 py-2 text-gray-800 truncate max-w-[160px]" title={row.transaction_last_name}>
+                        {row.transaction_last_name || "—"}
+                     </td>
+                     <td className="px-3 py-2 text-gray-600">{formatCurrency(row.transaction_amount_1)}</td>
+                     <td className="px-3 py-2 text-gray-600">{formatDate(row.transaction_date)}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[160px]" title={row.filer_name}>
+                        {row.filer_name || "—"}
+                     </td>
                   </tr>
                 ))}
               </tbody>
@@ -1247,6 +1439,12 @@ export function WasteFindingCard({
               <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
                 {stripDetectorCodes(headline)}
               </p>
+              {whySuspicious(finding) && (
+                <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span><span className="font-medium">Why this is suspicious:</span> {whySuspicious(finding)}</span>
+                </p>
+              )}
               <p className="text-sm text-gray-700 leading-relaxed">
                 {stripDetectorCodes(finding.description)}
               </p>
@@ -1284,7 +1482,7 @@ export function WasteFindingCard({
                   {/* The exact SoQL behind this drill-through — transparency
                       so a reader (or auditor) can see and re-run the query. */}
                   {detailsUrl && !isDetailsLoading && !detailsError && (
-                    <SourceQueryPanel url={detailsUrl} />
+                    <SourceQueryPanel url={detailsUrl} entity={finding.entity} />
                   )}
                 </div>
               )}

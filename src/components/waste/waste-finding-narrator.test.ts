@@ -1,6 +1,72 @@
 import { describe, it, expect } from "vitest"
-import { deriveHeadline, canonicalNarratorKey } from "./waste-finding-narrator"
+import {
+  deriveHeadline,
+  canonicalNarratorKey,
+  whySuspicious,
+} from "./waste-finding-narrator"
 import { makeFinding } from "./test-utils"
+
+describe("narrator coverage", () => {
+  // Every detector tool the backend can emit should get a tuned headline AND a
+  // why-line in the UI, not a generic fallback. This list mirrors the backend
+  // _TOOL_TO_CANONICAL; add here when a new detector ships.
+  const BACKEND_TOOLS = [
+    "D1 SSS Duplicate", "D2 SSD Misdirected", "D3 Benford (Chi-Square Suite)",
+    "D4 RSF", "D5 Round Numbers", "D6 Concentration", "D7 Price Disparity",
+    "D7b Commodity Price", "D8 Split POs (Same Day)", "D9 Ghost Vendor",
+    "D10 Contract Drift", "D11 Short Bid Window", "D12 Adaptive Thresholds",
+    "D13 Residential/Mail Drop Vendor", "D14 Vague Contract Titles",
+    "D15 Address Clustering", "D16 Grant Churn", "D19 Sole Source",
+    "D20 Debarment Bypass", "D21 Vendor Location Verification",
+    "D22 Emergency Contract Runaway",
+    "D1 OT-to-Base Ratio", "D2 Pareto Concentration", "D3 YoY Compensation Spike",
+    "D4 Department OT Outlier (z-score)", "D5 Benford's Law (Overtime, multi-test)",
+    "D6 Hours Feasibility (Hard Cap)", "D7 Comp Time Manipulation",
+    "D1 Response Time Deterioration", "D2 District Equity Gap",
+    "D3 Resolution Rate Decline", "D4 Spatial Clustering", "D5 Budget Variance",
+    "D7 Budget Timing Anomaly", "D6 Permit Fast Tracking",
+    "D8 Failure-Risk Hotspots", "D21 Work Order Overbudgeting",
+    "RD1 Revolving Door", "RD2 Dual Employment", "RD3 Cross-Dept Double Dip",
+    "RD4 Time Feasibility", "D17 Lobbyist Influence", "D18 Pay-to-Play",
+    "D20i Behested Quid Pro Quo", "NP1 Cross-Grant Double Dipping",
+    "NP2 Ineligible Expense Scan", "NP3 Fiscal Sponsor Opacity",
+    "NP4 Charity Registration Compliance", "NP5 Nonprofit-Vendor Overlap",
+  ]
+
+  it.each(BACKEND_TOOLS)("has a tuned headline + why for %s", (tool) => {
+    const f = makeFinding({ tool, entity: "Test Entity", headline: "", metric: "", metricDetail: "" })
+    const headline = deriveHeadline(f)
+    // Tuned headline starts with the entity and isn't an empty fallback.
+    expect(headline.startsWith("Test Entity")).toBe(true)
+    expect(headline.length).toBeGreaterThan("Test Entity".length + 5)
+    // And a non-empty why-line.
+    expect(whySuspicious(f).length).toBeGreaterThan(10)
+  })
+})
+
+describe("whySuspicious", () => {
+  it("gives a plain-language reason for no-bid contracts", () => {
+    expect(whySuspicious(makeFinding({ tool: "D19 Sole Source" }))).toBe(
+      "No-bid contracts skip competitive pricing, so the city may overpay."
+    )
+  })
+
+  it("explains pay-to-play timing", () => {
+    expect(whySuspicious(makeFinding({ tool: "D18 Pay-to-Play" }))).toContain(
+      "pay-to-play"
+    )
+  })
+
+  it("collapses D6 hours variants to one reason", () => {
+    expect(
+      whySuspicious(makeFinding({ tool: "D6 Hours Feasibility (Peer Adjusted)" }))
+    ).toContain("physically impossible")
+  })
+
+  it("returns empty string for an unmapped detector (so the UI can hide it)", () => {
+    expect(whySuspicious(makeFinding({ tool: "Unmapped Detector Z" }))).toBe("")
+  })
+})
 
 describe("canonicalNarratorKey", () => {
   it("collapses the D6 Hours variants onto one key", () => {
