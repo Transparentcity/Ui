@@ -108,3 +108,50 @@ describe("adaptFinding — sanitizes stringified nulls and dedupes", () => {
     expect(f.subject).toContain("Acme Corp");
   });
 });
+
+describe("adaptFinding — plain-English narrator (admin/waste port)", () => {
+  it("rewrites a vague backend headline into a tuned one + adds a why-line", () => {
+    const f = adaptFinding({
+      id: 1,
+      finding_id: "F-1",
+      detector_key: "payroll_d6_hours",
+      detector_name: "D6 Hours Feasibility (Hard Cap)",
+      entity_name: "Sheriff",
+      headline: "overtime payment distribution is statistically unusual",
+      estimated_dollar_impact: 456000,
+      severity: "critical",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.headline.toLowerCase()).toContain("physically possible");
+    expect(f.headline).toContain("Sheriff");
+    expect((f.why ?? "").toLowerCase()).toContain("physically impossible");
+  });
+
+  it("falls back to the backend headline for an uncovered detector_key", () => {
+    const f = adaptFinding({
+      id: 2,
+      finding_id: "F-2",
+      detector_key: "some_future_detector",
+      entity_name: "Dept X",
+      headline: "A perfectly good backend headline",
+      severity: "low",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.headline).toBe("A perfectly good backend headline");
+    expect(f.why ?? "").toBe("");
+  });
+
+  it("strips internal detector codes from the rendered detail", () => {
+    const f = adaptFinding({
+      id: 3,
+      finding_id: "F-3",
+      detector_key: "vendor_d19_sole_source",
+      entity_name: "Color Health",
+      headline: "No-bid award",
+      description: "Awarded without competition (D19, D23)",
+      severity: "high",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.detail).not.toContain("(D19, D23)");
+  });
+});

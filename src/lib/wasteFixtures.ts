@@ -43,6 +43,8 @@ export type Finding = {
   detail: string;
   severity: SeverityLevel;
   status: FindingStatus;
+  /** One-line plain-English reason the pattern is suspicious (may be ""). */
+  why?: string;
 };
 
 export type SeymourCluster = {
