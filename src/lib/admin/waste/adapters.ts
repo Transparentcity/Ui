@@ -125,6 +125,15 @@ function relativeTime(iso: string | null): string {
 
 function parseConfidence(value: string | number | null | undefined): number {
   if (value == null) return 0;
+  // The findings LIST ships confidence as a WORD label ("High"/"Medium"/"Low");
+  // only the detail carries a numeric confidence_score. Map labels to a number
+  // so the confidence bar and the "most suspicious" ranking both work.
+  if (typeof value === "string") {
+    const w = value.trim().toLowerCase();
+    if (w === "high") return 90;
+    if (w === "medium" || w === "med") return 65;
+    if (w === "low") return 35;
+  }
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return 0;
   // Accept either 0–1 or 0–100 inputs; normalize to 0–100.
