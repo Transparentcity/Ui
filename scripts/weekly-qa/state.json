@@ -21,24 +21,54 @@
       "addedDate": "2026-06-03"
     },
     {
-      "city": "Oakland",
-      "metricName": "🔓 Auto Burglary Reports",
-      "metricKey": "oakland_auto_burglary",
-      "metricId": 358,
-      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_auto_burglary",
-      "missingWindow": "prior-year YTD",
+      "city": "SF",
+      "metricName": "⚖️ Sustained Police Misconduct",
+      "metricKey": "sustained_police_misconduct",
+      "metricId": 165,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sustained_police_misconduct",
+      "missingWindow": "current-year YTD",
       "reason": "reason unconfirmed",
-      "addedDate": "2026-06-03"
+      "addedDate": "2026-06-18"
     },
     {
-      "city": "Oakland",
-      "metricName": "🚗💨 Stolen Vehicle Reports",
-      "metricKey": "oakland_stolen_vehicles",
-      "metricId": 359,
-      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_stolen_vehicles",
-      "missingWindow": "prior-year YTD",
+      "city": "SF",
+      "metricName": "💀 Fire/EMS Patient Deaths",
+      "metricKey": "fire_ems_patient_deaths",
+      "metricId": 209,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/fire_ems_patient_deaths",
+      "missingWindow": "both years YTD",
       "reason": "reason unconfirmed",
-      "addedDate": "2026-06-03"
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "🦠 Beach Fecal Coliform Level",
+      "metricKey": "beach_fecal_coliform",
+      "metricId": 226,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/beach_fecal_coliform",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "💰 Total Vendor Payments",
+      "metricKey": "sf_total_vendor_payments",
+      "metricId": 318,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_total_vendor_payments",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "🧾 Vendor Payment Transactions",
+      "metricKey": "sf_vendor_payment_count",
+      "metricId": 320,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_vendor_payment_count",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
     },
     {
       "city": "Detroit",
@@ -51,12 +81,32 @@
       "addedDate": "2026-06-03"
     },
     {
+      "city": "Detroit",
+      "metricName": "📞 Improve Detroit Issues",
+      "metricKey": "detroit_311_improve_detroit_issues",
+      "metricId": 342,
+      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_311_improve_detroit_issues",
+      "missingWindow": "current-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Detroit",
+      "metricName": "🏠✅ New Residential Housing Units Issued",
+      "metricKey": "detroit_new_residential_housing_units_issued",
+      "metricId": 579,
+      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_new_residential_housing_units_issued",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
       "city": "Denver",
       "metricName": "📞 311 Service Requests",
       "metricKey": "denver_311_service_requests",
       "metricId": 293,
       "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_service_requests",
-      "missingWindow": "prior-year YTD",
+      "missingWindow": "both years YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-06-03"
     },
@@ -72,16 +122,6 @@
     },
     {
       "city": "Denver",
-      "metricName": "🎨 Graffiti Removal Requests (Denver)",
-      "metricKey": "denver_311_graffiti",
-      "metricId": 540,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_graffiti",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Denver",
       "metricName": "🛣️ Pavement Lane-Miles Treated",
       "metricKey": "denver_pavement_lane_miles_treated",
       "metricId": 531,
@@ -89,6 +129,136 @@
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-06-03"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🚗 Traffic Accidents",
+      "metricKey": "denver_traffic_accidents",
+      "metricId": 510,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_traffic_accidents",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🔫 Homicides",
+      "metricKey": "denver_homicides",
+      "metricId": 740,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_homicides",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "🚗 Traffic Crashes",
+      "metricKey": "chicago_traffic_crashes",
+      "metricId": 521,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_traffic_crashes",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "nyc_property_crime_fbi_type_ii",
+      "metricId": 57,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_property_crime_fbi_type_ii",
+      "missingWindow": "implausible prior-year YTD",
+      "reason": "prior=205 vs current=39,515 — ratio 193x (backfill artifact)",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🚨 Violent Crime Incidents",
+      "metricKey": "nyc_violent_crime_fbi_type_i",
+      "metricId": 58,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_fbi_type_i",
+      "missingWindow": "implausible prior-year YTD",
+      "reason": "prior=37 vs current=9,749 — ratio 264x (backfill artifact)",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "📞 911 Calls for Service (NYPD)",
+      "metricKey": "nyc_911_calls_for_service",
+      "metricId": 286,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_911_calls_for_service",
+      "missingWindow": "current-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "💊 Drug Crime Incidents",
+      "metricKey": "nyc_drug_crime_arrests",
+      "metricId": 290,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🔫 NYPD Shooting Incidents",
+      "metricKey": "nyc_nypd_shooting_incidents",
+      "metricId": 555,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_shooting_incidents",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "👮 NYPD Arrests (YTD)",
+      "metricKey": "nyc_nypd_arrests_ytd",
+      "metricId": 558,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd",
+      "missingWindow": "current-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🏠🏁 New Residential Housing Units Completed",
+      "metricKey": "nyc_new_residential_housing_units_completed",
+      "metricId": 561,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_new_residential_housing_units_completed",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🏠✅ New Residential Housing Units Issued",
+      "metricKey": "nyc_new_residential_housing_units_issued",
+      "metricId": 562,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_new_residential_housing_units_issued",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Seattle",
+      "metricName": "🔊 Noise Complaints (Seattle)",
+      "metricKey": "seattle_311_noise",
+      "metricId": 411,
+      "cardUrl": "https://transparent.city/c/seattle/metrics/seattle_311_noise",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Seattle",
+      "metricName": "🚗 Traffic Crashes",
+      "metricKey": "seattle_traffic_crashes",
+      "metricId": 522,
+      "cardUrl": "https://transparent.city/c/seattle/metrics/seattle_traffic_crashes",
+      "missingWindow": "both years YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
     }
   ],
   "knownLags": [
@@ -549,19 +719,6 @@
     },
     {
       "city": "Denver",
-      "metricName": "🔫 Homicides",
-      "metricKey": "denver_homicides",
-      "metricId": 740,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_homicides",
-      "normalLagRange": [
-        6,
-        14
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Denver",
       "metricName": "👮 Total Crime Incidents",
       "metricKey": "denver_total_crime_incidents",
       "metricId": 741,
@@ -572,6 +729,19 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
+    },
+    {
+      "city": "Denver",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "denver_property_crime_incidents",
+      "metricId": 353,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_property_crime_incidents",
+      "normalLagRange": [
+        105,
+        113
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
     },
     {
       "city": "Cincinnati",
@@ -795,5 +965,5 @@
       "addedDate": "2026-06-11"
     }
   ],
-  "lastRunDate": "2026-06-11"
+  "lastRunDate": "2026-06-18"
 }
