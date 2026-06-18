@@ -524,3 +524,35 @@ describe("formatSoql", () => {
     expect(soql).toBe("SELECT *\nFROM abcd-1234 (data.sfgov.org)")
   })
 })
+
+describe("buildSocrataDetailsUrl — influence", () => {
+  it("drills a D18 finding to the SF contributions dataset for the contributor", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "influence",
+        subcategory: "Pay-to-Play",
+        tool: "D18 Pay-to-Play",
+        entity: "Swinerton Builders → Yes on A",
+      }),
+      1
+    )!
+    const dec = decodeURIComponent(url)
+    expect(url).toContain("pitq-e56w")
+    expect(dec).toContain("record_type = 'RCPT'")
+    expect(dec).toContain("upper(transaction_last_name) like '%SWINERTON BUILDERS%'")
+    expect(dec).not.toContain("→")
+  })
+
+  it("returns null for Chicago influence (no usable contributions dataset)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "influence",
+        subcategory: "Pay-to-Play",
+        tool: "D18 Pay-to-Play",
+        entity: "Some Vendor",
+      }),
+      3
+    )
+    expect(url).toBeNull()
+  })
+})

@@ -107,6 +107,16 @@ interface CitySocrataConfig {
   contractAuthorityCol: string
   contractDateCol: string
   contractDeptCol: string
+  // Campaign-finance contributions, for drilling D18 Pay-to-Play through to the
+  // source donations. SF = SFEC Transactions (pitq-e56w), contributions are
+  // record_type='RCPT'. Empty campaignDataset disables the drill-through (e.g.
+  // Chicago, whose available dataset is lobbyist contributions, not vendor
+  // pay-to-play, so a contributor→contract drill would be misleading).
+  campaignDataset: string
+  campaignContributorCol: string
+  campaignAmountCol: string
+  campaignDateCol: string
+  campaignRecordTypeFilter: string
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -123,6 +133,11 @@ const SF_SOCRATA: CitySocrataConfig = {
   contractAuthorityCol: "purchasing_authority",
   contractDateCol: "term_start_date",
   contractDeptCol: "department",
+  campaignDataset: "pitq-e56w",
+  campaignContributorCol: "transaction_last_name",
+  campaignAmountCol: "transaction_amount_1",
+  campaignDateCol: "transaction_date",
+  campaignRecordTypeFilter: "record_type = 'RCPT'",
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -139,6 +154,11 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   contractAuthorityCol: "procurement_type",
   contractDateCol: "start_date",
   contractDeptCol: "department",
+  campaignDataset: "",
+  campaignContributorCol: "",
+  campaignAmountCol: "",
+  campaignDateCol: "",
+  campaignRecordTypeFilter: "",
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -526,6 +546,33 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
              return `${SVC_REQ}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`${cfg.districtColumn} = '${dist}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
         }
     }
+  }
+
+  // INFLUENCE (D18 Pay-to-Play, D17 Lobbyist) — drill to the source campaign
+  // contributions so an investigator can see the actual donations behind the
+  // finding. Only where a usable contributions dataset exists (SF).
+  if (cat.includes("influence")) {
+    if (!cfg.campaignDataset) return null
+    const CAMPAIGN = socrataUrl(cfg, cfg.campaignDataset)
+    // Entity is the contributor/vendor; drop any "→ committee" / "(label)" tail.
+    const contributor = escapeSoqlLike(
+      (finding.entity || "").split(/ \(| — | → | -> /)[0].trim()
+    )
+    if (!contributor) return null
+    const select = [
+      cfg.campaignContributorCol,
+      cfg.campaignAmountCol,
+      cfg.campaignDateCol,
+      "filer_name",
+    ].join(",")
+    const where = [
+      cfg.campaignRecordTypeFilter,
+      `upper(${cfg.campaignContributorCol}) like '%${contributor.toUpperCase()}%'`,
+    ]
+      .filter(Boolean)
+      .join(" AND ")
+    const order = `${cfg.campaignDateCol} DESC, ${cfg.campaignAmountCol} DESC`
+    return `${CAMPAIGN}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent(order)}&$limit=${DETAILS_LIMIT}`
   }
 
   return null
@@ -1003,6 +1050,35 @@ export function WasteFindingCard({
                      <td className="px-3 py-2 text-gray-600">{row.status_description}</td>
                      <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_datetime)}</td>
                      <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]">{row.neighborhoods_sffind_boundaries || row.community_area || row.ward || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        )
+    }
+
+    if (cat.includes("influence")) {
+        return (
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Contributor</th>
+                  <th className="px-3 py-2 text-left font-medium">Amount</th>
+                  <th className="px-3 py-2 text-left font-medium">Date</th>
+                  <th className="px-3 py-2 text-left font-medium">Recipient committee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailsRows.map((row, idx) => (
+                  <tr key={idx} className="border-t border-gray-100">
+                     <td className="px-3 py-2 text-gray-800 truncate max-w-[160px]" title={row.transaction_last_name}>
+                        {row.transaction_last_name || "—"}
+                     </td>
+                     <td className="px-3 py-2 text-gray-600">{formatCurrency(row.transaction_amount_1)}</td>
+                     <td className="px-3 py-2 text-gray-600">{formatDate(row.transaction_date)}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[160px]" title={row.filer_name}>
+                        {row.filer_name || "—"}
+                     </td>
                   </tr>
                 ))}
               </tbody>
