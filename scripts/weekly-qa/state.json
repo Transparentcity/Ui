@@ -72,16 +72,6 @@
     },
     {
       "city": "Denver",
-      "metricName": "🎨 Graffiti Removal Requests (Denver)",
-      "metricKey": "denver_311_graffiti",
-      "metricId": 540,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_graffiti",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Denver",
       "metricName": "🛣️ Pavement Lane-Miles Treated",
       "metricKey": "denver_pavement_lane_miles_treated",
       "metricId": 531,
@@ -89,6 +79,26 @@
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-06-03"
+    },
+    {
+      "city": "NYC",
+      "metricName": "💊 Drug Crime Incidents",
+      "metricKey": "nyc_drug_crime_arrests",
+      "metricId": 290,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "👮 NYPD Arrests (YTD)",
+      "metricKey": "nyc_nypd_arrests_ytd",
+      "metricId": 558,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-06-18"
     }
   ],
   "knownLags": [
@@ -793,7 +803,241 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-11"
+    },
+    {
+      "city": "SF",
+      "metricName": "🚓 Arrests Presented to DA",
+      "metricKey": "arrests_arrests_presented_to_da_6",
+      "metricId": 92,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/arrests_arrests_presented_to_da_6",
+      "normalLagRange": [
+        6,
+        14
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "📄 DA Charges Filed",
+      "metricKey": "da_charges_filed",
+      "metricId": 112,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/da_charges_filed",
+      "normalLagRange": [
+        9,
+        17
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "📋 Active Supplier Contracts",
+      "metricKey": "sf_active_supplier_contracts",
+      "metricId": 319,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_active_supplier_contracts",
+      "normalLagRange": [
+        12,
+        20
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "💵 Contract Award Value",
+      "metricKey": "sf_contract_award_value",
+      "metricId": 321,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_contract_award_value",
+      "normalLagRange": [
+        12,
+        20
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "📊 DA Charge Rate",
+      "metricKey": "da_charge_rate",
+      "metricId": 168,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/da_charge_rate",
+      "normalLagRange": [
+        9,
+        17
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "📊 DA Conviction Rate",
+      "metricKey": "da_conviction_rate",
+      "metricId": 167,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/da_conviction_rate",
+      "normalLagRange": [
+        9,
+        17
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "SF",
+      "metricName": "⚖️ Sustained Police Misconduct",
+      "metricKey": "sustained_police_misconduct",
+      "metricId": 165,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sustained_police_misconduct",
+      "normalLagRange": [
+        103,
+        111
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "💀 Homicides",
+      "metricKey": "oakland_homicides",
+      "metricId": 780,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_homicides",
+      "normalLagRange": [
+        13,
+        21
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🎨 Graffiti Removal Requests (Denver)",
+      "metricKey": "denver_311_graffiti",
+      "metricId": 540,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_graffiti",
+      "normalLagRange": [
+        11,
+        19
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🛣️ Pavement Lane-Miles Treated",
+      "metricKey": "denver_pavement_lane_miles_treated",
+      "metricId": 531,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_pavement_lane_miles_treated",
+      "normalLagRange": [
+        11,
+        19
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Denver",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "denver_property_crime_incidents",
+      "metricId": 353,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_property_crime_incidents",
+      "normalLagRange": [
+        103,
+        111
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "⏱️ Avg Days to Permit — New Residential Construction (Full Plan Review)",
+      "metricKey": "cincinnati_avg_days_permit_new_residential_full_plan_review",
+      "metricId": 615,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_avg_days_permit_new_residential_full_plan_review",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📋✅ New Residential Construction Permits Issued",
+      "metricKey": "cincinnati_new_residential_construction_permits_issued",
+      "metricId": 506,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_issued",
+      "normalLagRange": [
+        11,
+        19
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "💊 Drug Crime Incidents",
+      "metricKey": "nyc_drug_crime_arrests",
+      "metricId": 290,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests",
+      "normalLagRange": [
+        74,
+        82
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "👮 NYPD Arrests (YTD)",
+      "metricKey": "nyc_nypd_arrests_ytd",
+      "metricId": 558,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd",
+      "normalLagRange": [
+        74,
+        82
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "nyc_property_crime_fbi_type_ii",
+      "metricId": 57,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_property_crime_fbi_type_ii",
+      "normalLagRange": [
+        74,
+        82
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🚨 Violent Crime Incidents",
+      "metricKey": "nyc_violent_crime_fbi_type_i",
+      "metricId": 58,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_fbi_type_i",
+      "normalLagRange": [
+        74,
+        82
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Seattle",
+      "metricName": "🏢 Business License Registrations",
+      "metricKey": "seattle_business_license_registrations",
+      "metricId": 400,
+      "cardUrl": "https://transparent.city/c/seattle/metrics/seattle_business_license_registrations",
+      "normalLagRange": [
+        17,
+        25
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-06-18"
     }
   ],
-  "lastRunDate": "2026-06-11"
+  "lastRunDate": "2026-06-18"
 }
