@@ -163,6 +163,19 @@ describe("adaptFinding — plain-English narrator (admin/waste port)", () => {
     expect(f.amountValue).toBe(84000000);
   });
 
+  it("maps word confidence labels (list ships High/Medium/Low) to a number", () => {
+    const hi = adaptFinding({
+      id: 5, finding_id: "F-5", detector_key: "vendor_d19_sole_source",
+      entity_name: "X", confidence: "High", severity: "high", finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(hi.confidence).toBeGreaterThanOrEqual(80);
+    const lo = adaptFinding({
+      id: 6, finding_id: "F-6", detector_key: "vendor_d19_sole_source",
+      entity_name: "Y", confidence: "Low", severity: "high", finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(lo.confidence).toBeLessThan(40);
+  });
+
   it("strips internal detector codes from the rendered detail", () => {
     const f = adaptFinding({
       id: 3,
