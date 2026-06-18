@@ -12,7 +12,7 @@ import {
   parseContractDriftContractId,
   procurementVendorNameFromEntity,
 } from "./waste-utils"
-import { expandDetectorCodesInline, formatDetector } from "./detector-info"
+import { formatDetector, stripDetectorCodes } from "./detector-info"
 import { deriveHeadline } from "./waste-finding-narrator"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
@@ -1174,7 +1174,7 @@ export function WasteFindingCard({
         {/* Plain-English headline, generated client-side (waste-finding-narrator)
             so the at-a-glance hook reads clearly for a non-expert. */}
         <span className="text-sm text-gray-800 font-medium truncate">
-          {expandDetectorCodesInline(headline, finding.category)}
+          {stripDetectorCodes(headline)}
         </span>
 
         {/* Spacer */}
@@ -1245,13 +1245,10 @@ export function WasteFindingCard({
           ) : (
             <div className="mb-3">
               <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
-                {expandDetectorCodesInline(headline, finding.category)}
+                {stripDetectorCodes(headline)}
               </p>
               <p className="text-sm text-gray-700 leading-relaxed">
-                {expandDetectorCodesInline(
-                  finding.description ?? "",
-                  finding.category,
-                )}
+                {stripDetectorCodes(finding.description)}
               </p>
             </div>
           )}
