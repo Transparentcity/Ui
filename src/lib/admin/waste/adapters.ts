@@ -12,6 +12,8 @@ import type {
   SeymourData,
 } from "@/lib/wasteFixtures";
 import type { SeverityLevel, FindingStatus } from "@/components/admin/waste/primitives";
+import { adminHeadline, adminWhy } from "@/components/waste/waste-finding-narrator";
+import { stripDetectorCodes } from "@/components/waste/detector-info";
 import type {
   WasteAdminDetectorRow,
   WasteAdminFindingRow,
@@ -145,12 +147,28 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
   if (entity) subjectParts.push(entity);
   if (subcategory) subjectParts.push(subcategory);
   const detailConfidence = (f as Partial<{ confidence_score: number | null }>).confidence_score;
-  const headline = cleanText(f.headline) || cleanText(f.description) || f.detector_name || "Finding";
-  const rawDetail = cleanText(f.description) || cleanText(f.detector_name);
-  // The backend currently ships the same string in `headline` and `description`
-  // for many finding types. Suppress the detail when it would duplicate the
-  // headline so the card doesn't render the same paragraph twice.
-  const detail = rawDetail.trim() === headline.trim() ? "" : rawDetail;
+  // Plain-English headline + "why" from the shared narrator (keyed on the
+  // backend detector_key), so the admin feed reads like the forensics cards
+  // rather than echoing the raw backend headline. Falls back to the backend
+  // headline/description for any detector the narrator doesn't cover.
+  const backendHeadline =
+    cleanText(f.headline) || cleanText(f.description) || f.detector_name || "Finding";
+  const headline = stripDetectorCodes(
+    adminHeadline(f.detector_key, entity, f.estimated_dollar_impact ?? f.amount, backendHeadline)
+  );
+  const why = adminWhy(f.detector_key);
+  const rawDetail = stripDetectorCodes(cleanText(f.description) || cleanText(f.detector_name));
+  // The backend ships the same string in `headline` and `description` for many
+  // finding types. Suppress the detail when it duplicates the displayed
+  // headline, the why-line, OR the raw backend headline (the narrator may have
+  // rewritten the displayed headline, but the detail is still redundant).
+  const backendHeadlineClean = stripDetectorCodes(cleanText(f.headline));
+  const detail =
+    rawDetail.trim() === headline.trim() ||
+    rawDetail.trim() === why.trim() ||
+    (backendHeadlineClean !== "" && rawDetail.trim() === backendHeadlineClean.trim())
+      ? ""
+      : rawDetail;
   return {
     id: f.finding_id || String(f.id),
     detectorId: f.detector_key,
@@ -161,6 +179,7 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
     confidence: parseConfidence(detailConfidence ?? f.confidence),
     flagged: relativeTime(f.created_at),
     detail,
+    why,
     severity: severityFromBackend(f.severity),
     status: statusFromBackend(f.finding_status),
   };

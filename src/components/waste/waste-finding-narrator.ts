@@ -285,3 +285,57 @@ export function deriveHeadline(f: WasteFinding): string {
   if (f.entity && metric) return `${f.entity} — ${metric}`
   return metric || f.entity || f.subcategory || f.category
 }
+
+// ---------------------------------------------------------------------------
+// Admin/waste entry points
+//
+// The admin/waste API ships a backend canonical `detector_key` (e.g.
+// "payroll_d6_hours", "infrastructure_d5_budget_variance",
+// "vendor_d21_vendor_location_verification") rather than the display `tool`
+// name the forensics findings carry. Resolve those to the local narrator keys
+// algorithmically: "<domain>_<dcode>_<desc>" → "<domain>_<dcode>", normalizing
+// the backend's "infrastructure" prefix to our "infra" and aliasing the few
+// keys where our local key carries a suffix the backend doesn't.
+// ---------------------------------------------------------------------------
+
+const _BACKEND_KEY_ALIAS: Record<string, string> = {
+  vendor_d21: "vendor_d21_location",
+}
+
+export function localKeyFromBackendKey(detectorKey: string | null | undefined): string {
+  if (!detectorKey) return ""
+  const parts = detectorKey.split("_")
+  if (parts.length < 2) return detectorKey
+  const domain = parts[0] === "infrastructure" ? "infra" : parts[0]
+  const candidate = `${domain}_${parts[1]}`
+  if (candidate in HEADLINES) return candidate
+  return _BACKEND_KEY_ALIAS[candidate] ?? candidate
+}
+
+/**
+ * Plain-English headline for an admin/waste finding, keyed on its backend
+ * `detector_key`. Falls back to the supplied backend headline, then the entity.
+ */
+export function adminHeadline(
+  detectorKey: string | null | undefined,
+  entity: string | null | undefined,
+  amount: number | null | undefined,
+  fallback?: string | null
+): string {
+  const builder = HEADLINES[localKeyFromBackendKey(detectorKey)]
+  const ent = entity ?? ""
+  if (builder) {
+    const out = builder({ entity: ent, amount: amount ?? null } as WasteFinding)
+      .replace(/\s+\(\)/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+    if (out && out !== ent) return out
+  }
+  if (fallback && fallback.trim()) return fallback.trim()
+  return ent
+}
+
+/** Plain-English "why suspicious" for an admin/waste finding by detector_key. */
+export function adminWhy(detectorKey: string | null | undefined): string {
+  return WHY[localKeyFromBackendKey(detectorKey)] ?? ""
+}

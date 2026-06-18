@@ -116,6 +116,23 @@ export function FindingsStream({
                   <Mono>{f.flagged}</Mono>
                 </div>
                 <h3 className={styles.findingTitle}>{f.headline}</h3>
+                {f.why && (
+                  <p
+                    style={{
+                      margin: "0 0 6px",
+                      fontSize: "12px",
+                      lineHeight: 1.5,
+                      color: "#b45309",
+                      background: "#fffbeb",
+                      border: "1px solid #fde68a",
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                    }}
+                  >
+                    <strong style={{ fontWeight: 600 }}>Why this is suspicious:</strong>{" "}
+                    {f.why}
+                  </p>
+                )}
                 <div className={styles.findingMetaRow}>
                   <span className={styles.findingSubject}>{f.subject}</span>
                   <span className={styles.findingDot}>·</span>
