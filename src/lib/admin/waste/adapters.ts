@@ -287,3 +287,34 @@ export function adaptSeymour(feed: WasteAdminSeymourFeed): SeymourData {
     })),
   };
 }
+
+const _ADMIN_SEV_RANK: Record<string, number> = { high: 3, med: 2, low: 1 };
+
+/**
+ * Pick the few most suspicious-yet-credible findings for the admin "Most
+ * suspicious this period" hero. Weights severity, then confidence, then dollar
+ * impact; drops dismissed and clearly low-confidence findings so the top of
+ * the page leads with solid cases. Mirrors the forensics selectTopFindings,
+ * adapted to the admin Finding shape (severity high/med/low; confidence is the
+ * adapter's 0-100 scale).
+ */
+export function selectTopAdminFindings(
+  findings: readonly Finding[],
+  n = 5
+): Finding[] {
+  const score = (f: Finding): number => {
+    const sev = _ADMIN_SEV_RANK[f.severity] ?? 0;
+    // confidence is 0-100 here; scale to 0-1 so it ranks below severity.
+    const conf = (typeof f.confidence === "number" ? f.confidence : 0) / 100;
+    const impact = f.amountValue ?? 0;
+    return sev * 1_000_000 + conf * 100_000 + Math.log10(Math.max(0, impact) + 1) * 1000;
+  };
+  return [...findings]
+    .filter(
+      (f) =>
+        f.status !== "dismissed" &&
+        (typeof f.confidence !== "number" || f.confidence >= 40)
+    )
+    .sort((a, b) => score(b) - score(a))
+    .slice(0, n);
+}

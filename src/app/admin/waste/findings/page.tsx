@@ -9,6 +9,7 @@ import {
   type FindingsPeriod,
 } from "@/components/admin/waste/feed/FindingsStream";
 import { ProvenancePanel } from "@/components/admin/waste/feed/ProvenancePanel";
+import { TopFindingsHero } from "@/components/admin/waste/feed/TopFindingsHero";
 import {
   SeymourCollapsedTab,
   SeymourRail,
@@ -192,6 +193,7 @@ function FindingsPageView() {
   return (
     <div className={styles.findingsPage}>
       {toggleBar}
+      <TopFindingsHero findings={visibleFindings} onSelect={handleSelectFinding} />
       <div className={styles.feed}>
         <FindingsStream
           findings={visibleFindings}

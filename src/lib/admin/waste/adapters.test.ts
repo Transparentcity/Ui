@@ -4,7 +4,9 @@ import {
   adaptReportDetail,
   adaptDetector,
   adaptFinding,
+  selectTopAdminFindings,
 } from "./adapters";
+import type { Finding } from "@/lib/wasteFixtures";
 import type {
   WasteAdminSeymourFeed,
   WasteAdminReportDetail,
@@ -173,5 +175,47 @@ describe("adaptFinding — plain-English narrator (admin/waste port)", () => {
       finding_status: "open",
     } as unknown as WasteAdminFindingRow);
     expect(f.detail).not.toContain("(D19, D23)");
+  });
+});
+
+describe("selectTopAdminFindings", () => {
+  const mk = (over: Partial<Finding>): Finding =>
+    ({
+      id: "x", detectorId: "d", headline: "h", subject: "s", department: "—",
+      amount: "—", confidence: 80, flagged: "now", detail: "", severity: "med",
+      status: "open", amountValue: 0, ...over,
+    } as Finding);
+
+  it("ranks high severity above med above low", () => {
+    const out = selectTopAdminFindings([
+      mk({ id: "lo", severity: "low" }),
+      mk({ id: "hi", severity: "high" }),
+      mk({ id: "me", severity: "med" }),
+    ], 3);
+    expect(out.map(f => f.id)).toEqual(["hi", "me", "lo"]);
+  });
+
+  it("breaks ties by confidence then impact", () => {
+    const out = selectTopAdminFindings([
+      mk({ id: "lowconf", severity: "high", confidence: 50, amountValue: 9_000_000 }),
+      mk({ id: "hiconf", severity: "high", confidence: 95, amountValue: 1000 }),
+    ]);
+    expect(out[0].id).toBe("hiconf");
+  });
+
+  it("excludes dismissed and low-confidence (<40) findings", () => {
+    const out = selectTopAdminFindings([
+      mk({ id: "keep", severity: "high", confidence: 80 }),
+      mk({ id: "dismissed", severity: "high", confidence: 90, status: "dismissed" }),
+      mk({ id: "lowconf", severity: "high", confidence: 20 }),
+    ]).map(f => f.id);
+    expect(out).toContain("keep");
+    expect(out).not.toContain("dismissed");
+    expect(out).not.toContain("lowconf");
+  });
+
+  it("caps at n", () => {
+    const many = Array.from({ length: 9 }, (_, i) => mk({ id: `f${i}`, severity: "high" }));
+    expect(selectTopAdminFindings(many, 5)).toHaveLength(5);
   });
 });
