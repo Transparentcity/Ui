@@ -864,7 +864,41 @@ export function formatSoql(q: SocrataQueryParts): string {
   return lines.join("\n")
 }
 
-function SourceQueryPanel({ url }: { url: string }) {
+/** Human-readable city name for the open-data domain (for research links). */
+function cityLabelForDomain(domain: string): string {
+  if (domain.includes("sfgov")) return "San Francisco"
+  if (domain.includes("cityofchicago")) return "Chicago"
+  return ""
+}
+
+export interface ResearchLinks {
+  datasetUrl: string | null
+  webSearchUrl: string | null
+  cleanEntity: string
+}
+
+/**
+ * Independent-research affordances for a finding: a link to browse the full
+ * source dataset on the open-data portal, and an open-web search for the
+ * entity. Derived from the same drill-through URL so they always point at the
+ * right dataset/domain.
+ */
+export function buildResearchLinks(
+  url: string,
+  entity?: string
+): ResearchLinks {
+  const q = humanizeSocrataQuery(url)
+  const cleanEntity = (entity || "").split(/ \(| — | → /)[0].trim()
+  if (!q) return { datasetUrl: null, webSearchUrl: null, cleanEntity }
+  const datasetUrl = q.dataset ? `https://${q.domain}/d/${q.dataset}` : null
+  const cityLabel = cityLabelForDomain(q.domain)
+  const webSearchUrl = cleanEntity
+    ? `https://www.google.com/search?q=${encodeURIComponent(`${cleanEntity} ${cityLabel}`.trim())}`
+    : null
+  return { datasetUrl, webSearchUrl, cleanEntity }
+}
+
+function SourceQueryPanel({ url, entity }: { url: string; entity?: string }) {
   const [copied, setCopied] = useState(false)
   const q = humanizeSocrataQuery(url)
   if (!q) return null
@@ -877,6 +911,11 @@ function SourceQueryPanel({ url }: { url: string }) {
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  // Independent-research affordances so an investigator can confirm a finding
+  // beyond this tool: browse the full source dataset, and search the open web
+  // for the entity (e.g. a vendor, committee, or employee).
+  const { datasetUrl, webSearchUrl, cleanEntity } = buildResearchLinks(url, entity)
 
   return (
     <div className="border-t border-gray-100 bg-gray-50 px-3 py-2">
@@ -910,6 +949,35 @@ function SourceQueryPanel({ url }: { url: string }) {
       <pre className="text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap break-words font-mono m-0">
         {soql}
       </pre>
+      {(datasetUrl || webSearchUrl) && (
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-200">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+            Verify independently
+          </span>
+          {datasetUrl && (
+            <a
+              href={datasetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-800 underline"
+            >
+              Open full dataset ↗
+            </a>
+          )}
+          {webSearchUrl && (
+            <a
+              href={webSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-800 underline"
+            >
+              Search the web for {cleanEntity} ↗
+            </a>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1414,7 +1482,7 @@ export function WasteFindingCard({
                   {/* The exact SoQL behind this drill-through — transparency
                       so a reader (or auditor) can see and re-run the query. */}
                   {detailsUrl && !isDetailsLoading && !detailsError && (
-                    <SourceQueryPanel url={detailsUrl} />
+                    <SourceQueryPanel url={detailsUrl} entity={finding.entity} />
                   )}
                 </div>
               )}

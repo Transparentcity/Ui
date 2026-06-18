@@ -4,6 +4,7 @@ import {
   isOnRoadmap,
   humanizeSocrataQuery,
   formatSoql,
+  buildResearchLinks,
 } from "./waste-finding-card"
 import { makeFinding } from "./test-utils"
 
@@ -522,6 +523,48 @@ describe("formatSoql", () => {
       limit: "",
     })
     expect(soql).toBe("SELECT *\nFROM abcd-1234 (data.sfgov.org)")
+  })
+})
+
+describe("buildResearchLinks", () => {
+  const sfUrl =
+    "https://data.sfgov.org/resource/n9pm-xkyq.json?$where=vendor%20%3D%20'Acme'"
+
+  it("builds the dataset landing page link from the drill-through URL", () => {
+    const { datasetUrl } = buildResearchLinks(sfUrl, "Acme Corp")
+    expect(datasetUrl).toBe("https://data.sfgov.org/d/n9pm-xkyq")
+  })
+
+  it("builds a web search scoped to the entity and city", () => {
+    const { webSearchUrl } = buildResearchLinks(sfUrl, "Acme Corp")
+    expect(webSearchUrl).toContain("google.com/search")
+    expect(decodeURIComponent(webSearchUrl!)).toContain("Acme Corp San Francisco")
+  })
+
+  it("strips a committee/label suffix from the searched entity", () => {
+    const { cleanEntity, webSearchUrl } = buildResearchLinks(
+      sfUrl,
+      "Swinerton Builders → Yes on A"
+    )
+    expect(cleanEntity).toBe("Swinerton Builders")
+    expect(decodeURIComponent(webSearchUrl!)).not.toContain("→")
+  })
+
+  it("uses Chicago's domain + city label", () => {
+    const chiUrl = "https://data.cityofchicago.org/resource/s4vu-giwb.json"
+    const { datasetUrl, webSearchUrl } = buildResearchLinks(chiUrl, "Foo LLC")
+    expect(datasetUrl).toBe("https://data.cityofchicago.org/d/s4vu-giwb")
+    expect(decodeURIComponent(webSearchUrl!)).toContain("Foo LLC Chicago")
+  })
+
+  it("returns null links for a non-URL, but still cleans the entity", () => {
+    const { datasetUrl, webSearchUrl, cleanEntity } = buildResearchLinks(
+      "not a url",
+      "Bar Inc (SF)"
+    )
+    expect(datasetUrl).toBeNull()
+    expect(webSearchUrl).toBeNull()
+    expect(cleanEntity).toBe("Bar Inc")
   })
 })
 
