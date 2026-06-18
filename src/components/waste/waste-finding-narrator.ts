@@ -43,6 +43,7 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D16 Fiscal Sponsor": "vendor_d16",
   "D19 Sole Source": "vendor_d19",
   "D20 Debarment Bypass": "vendor_d20",
+  "D21 Vendor Location Verification": "vendor_d21_location",
   "D22 Emergency Contract Runaway": "vendor_d22",
   "D23 Contract Threshold Clustering": "vendor_d23",
   // Payroll
@@ -77,6 +78,10 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D18 Pay-to-Play": "influence_d18",
   "D20i Behested Quid Pro Quo": "influence_d20i",
   // Nonprofit
+  "NP1 Cross-Grant Double Dipping": "nonprofit_np1",
+  "NP2 Ineligible Expense Scan": "nonprofit_np2",
+  "NP3 Fiscal Sponsor Opacity": "nonprofit_np3",
+  "NP4 Charity Registration Compliance": "nonprofit_np4",
   "NP5 Nonprofit-Vendor Overlap": "nonprofit_np5",
   "NP6 Grant Ramp Concentration": "nonprofit_np6",
 }
@@ -140,6 +145,8 @@ const HEADLINES: Record<string, Builder> = {
     `${f.entity} — no-bid (sole source) contract awarded without competition (${dollar(f.amount)})`,
   vendor_d20: (f) =>
     `${f.entity} — paid ${dollar(f.amount)} despite being on a debarment list`,
+  vendor_d21_location: (f) =>
+    `${f.entity} — the vendor's registered business location couldn't be verified`,
   vendor_d22: (f) =>
     `${f.entity} — "emergency" contract that kept growing after the emergency (${dollar(f.amount)})`,
   vendor_d23: (f) =>
@@ -175,6 +182,14 @@ const HEADLINES: Record<string, Builder> = {
   influence_d20i: (f) =>
     `${f.entity} — behested payment that looks like quid pro quo`,
   // ── Nonprofit ────────────────────────────────────────────────────────────
+  nonprofit_np1: (f) =>
+    `${f.entity} — the same costs appear billed to more than one grant`,
+  nonprofit_np2: (f) =>
+    `${f.entity} — grant money spent on expenses the grant doesn't allow`,
+  nonprofit_np3: (f) =>
+    `${f.entity} — grants routed through an opaque fiscal sponsor`,
+  nonprofit_np4: (f) =>
+    `${f.entity} — taking city grants without a current charity registration`,
   nonprofit_np5: (f) =>
     `${f.entity} — collects city grants while also billing as a commercial vendor`,
   nonprofit_np6: (f) =>
@@ -212,6 +227,7 @@ const WHY: Record<string, string> = {
   vendor_d16: "Grant money cycling through sponsors obscures who actually gets paid.",
   vendor_d19: "No-bid contracts skip competitive pricing, so the city may overpay.",
   vendor_d20: "Paying a debarred vendor violates exclusion rules.",
+  vendor_d21_location: "A vendor whose address can't be verified may be a shell or pass-through.",
   vendor_d22: "'Emergency' contracts that keep growing bypass normal procurement.",
   vendor_d23: "Pricing contracts just under an approval ceiling avoids higher scrutiny.",
   infra_d1: "Slower response times can signal mismanagement or under-resourcing.",
@@ -231,6 +247,10 @@ const WHY: Record<string, string> = {
   influence_d17: "Contract awards that track lobbyist contacts raise undue-influence concerns.",
   influence_d18: "Donations timed to contract awards raise pay-to-play concerns.",
   influence_d20i: "Payments made at an official's behest can mask quid pro quo.",
+  nonprofit_np1: "Billing the same cost to two grants is double-dipping public money.",
+  nonprofit_np2: "Spending restricted grant funds on ineligible costs misuses the award.",
+  nonprofit_np3: "Opaque fiscal sponsors hide who ultimately receives and controls the money.",
+  nonprofit_np4: "Receiving grants without a valid charity registration skirts oversight rules.",
   nonprofit_np5: "Taking grants while also billing as a vendor invites self-dealing.",
   nonprofit_np6: "Grants ramped fast across new line items can outrun oversight.",
 }
