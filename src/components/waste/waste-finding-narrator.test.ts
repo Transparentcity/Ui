@@ -1,6 +1,34 @@
 import { describe, it, expect } from "vitest"
-import { deriveHeadline, canonicalNarratorKey } from "./waste-finding-narrator"
+import {
+  deriveHeadline,
+  canonicalNarratorKey,
+  whySuspicious,
+} from "./waste-finding-narrator"
 import { makeFinding } from "./test-utils"
+
+describe("whySuspicious", () => {
+  it("gives a plain-language reason for no-bid contracts", () => {
+    expect(whySuspicious(makeFinding({ tool: "D19 Sole Source" }))).toBe(
+      "No-bid contracts skip competitive pricing, so the city may overpay."
+    )
+  })
+
+  it("explains pay-to-play timing", () => {
+    expect(whySuspicious(makeFinding({ tool: "D18 Pay-to-Play" }))).toContain(
+      "pay-to-play"
+    )
+  })
+
+  it("collapses D6 hours variants to one reason", () => {
+    expect(
+      whySuspicious(makeFinding({ tool: "D6 Hours Feasibility (Peer Adjusted)" }))
+    ).toContain("physically impossible")
+  })
+
+  it("returns empty string for an unmapped detector (so the UI can hide it)", () => {
+    expect(whySuspicious(makeFinding({ tool: "Unmapped Detector Z" }))).toBe("")
+  })
+})
 
 describe("canonicalNarratorKey", () => {
   it("collapses the D6 Hours variants onto one key", () => {

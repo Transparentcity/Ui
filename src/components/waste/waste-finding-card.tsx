@@ -13,7 +13,7 @@ import {
   procurementVendorNameFromEntity,
 } from "./waste-utils"
 import { formatDetector, stripDetectorCodes } from "./detector-info"
-import { deriveHeadline } from "./waste-finding-narrator"
+import { deriveHeadline, whySuspicious } from "./waste-finding-narrator"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
@@ -1247,6 +1247,12 @@ export function WasteFindingCard({
               <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
                 {stripDetectorCodes(headline)}
               </p>
+              {whySuspicious(finding) && (
+                <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span><span className="font-medium">Why this is suspicious:</span> {whySuspicious(finding)}</span>
+                </p>
+              )}
               <p className="text-sm text-gray-700 leading-relaxed">
                 {stripDetectorCodes(finding.description)}
               </p>
