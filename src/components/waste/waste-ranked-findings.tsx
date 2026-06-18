@@ -34,6 +34,46 @@ export function impactOf(f: WasteFinding): number {
   return f.estimated_dollar_impact ?? f.amount ?? 0
 }
 
+const _SEV_RANK: Record<string, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+  info: 0,
+}
+const _CONF_RANK: Record<string, number> = { High: 3, Medium: 2, Low: 1 }
+
+/**
+ * Pick the few findings an ordinary reader would find most "fishy AND
+ * credible" for a hero summary: weight severity first, then confidence, then
+ * dollar exposure. Low-confidence, partial-data, and abstract convergence
+ * meta-findings are excluded so the top of the page leads with solid, concrete
+ * cases. Returns at most *n*, highest first.
+ */
+export function selectTopFindings(
+  findings: WasteFinding[],
+  n = 5
+): WasteFinding[] {
+  const heroScore = (f: WasteFinding): number => {
+    const sev = _SEV_RANK[f.severity] ?? 0
+    const conf = _CONF_RANK[f.confidence] ?? 1
+    return sev * 1_000_000 + conf * 100_000 + Math.log10(impactOf(f) + 1) * 1000
+  }
+  return findings
+    .filter(
+      (f) =>
+        !f.is_partial_data &&
+        f.confidence !== "Low" &&
+        !(f.category?.toLowerCase().includes("convergence"))
+    )
+    .sort(
+      (a, b) =>
+        heroScore(b) - heroScore(a) ||
+        (b.priority_score ?? 0) - (a.priority_score ?? 0)
+    )
+    .slice(0, n)
+}
+
 export function metricValue(f: WasteFinding, rankBy: RankBy): number {
   if (rankBy === "impact") return impactOf(f)
   if (rankBy === "confidence") return f.confidence_score ?? 0
