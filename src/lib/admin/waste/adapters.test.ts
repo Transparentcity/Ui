@@ -141,6 +141,26 @@ describe("adaptFinding — plain-English narrator (admin/waste port)", () => {
     expect(f.why ?? "").toBe("");
   });
 
+  it("preserves raw fields needed for source drill-through", () => {
+    const f = adaptFinding({
+      id: 4,
+      finding_id: "F-4",
+      detector_key: "vendor_d19_sole_source",
+      detector_name: "D19 Sole Source",
+      category: "contracts",
+      subcategory: "Sole Source Abuse",
+      entity_name: "Color Health",
+      estimated_dollar_impact: 84000000,
+      severity: "high",
+      finding_status: "open",
+    } as unknown as WasteAdminFindingRow);
+    expect(f.category).toBe("contracts");
+    expect(f.subcategory).toBe("Sole Source Abuse");
+    expect(f.entity).toBe("Color Health");
+    expect(f.tool).toBe("D19 Sole Source");
+    expect(f.amountValue).toBe(84000000);
+  });
+
   it("strips internal detector codes from the rendered detail", () => {
     const f = adaptFinding({
       id: 3,

@@ -180,6 +180,11 @@ export function adaptFinding(f: WasteAdminFindingRow): Finding {
     flagged: relativeTime(f.created_at),
     detail,
     why,
+    category: cleanText(f.category),
+    subcategory,
+    entity,
+    tool: cleanText(f.detector_name) || f.detector_key,
+    amountValue: f.estimated_dollar_impact ?? f.amount ?? null,
     severity: severityFromBackend(f.severity),
     status: statusFromBackend(f.finding_status),
   };

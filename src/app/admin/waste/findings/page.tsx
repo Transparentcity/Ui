@@ -47,6 +47,9 @@ function FindingsPageView() {
   const params = useSearchParams();
 
   const citySlug = getWasteApiSlug(params.get("city"));
+  // Numeric city id for the source drill-through (Socrata domain/columns differ
+  // by city); getCitySocrataConfig treats 3 as Chicago, else SF.
+  const drillCityId = citySlug === "chicago" ? 3 : 1;
   const filter = asEnum<FindingsFilter>(params.get("filter"), VALID_FILTERS, "all");
   const period = asEnum<FindingsPeriod>(params.get("period"), VALID_PERIODS, "today");
   const view = asEnum<ViewMode>(params.get("view"), VALID_VIEWS, "full");
@@ -205,7 +208,7 @@ function FindingsPageView() {
           degradedCount={ui.failingCount}
           degradedDetectorId={ui.failingDetectorId}
         />
-        <ProvenancePanel detector={selectedDetector} finding={selectedFinding} />
+        <ProvenancePanel detector={selectedDetector} finding={selectedFinding} cityId={drillCityId} />
         {view === "full" ? (
           seymourCollapsed ? (
             <SeymourCollapsedTab

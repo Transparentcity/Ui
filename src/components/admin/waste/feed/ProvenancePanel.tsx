@@ -2,14 +2,81 @@
 
 import { Mono, SectionLabel, SeverityDot } from "@/components/admin/waste/primitives";
 import type { Detector, Finding } from "@/lib/wasteFixtures";
+import type { WasteFinding } from "@/lib/apiClient";
+import {
+  buildSocrataDetailsUrl,
+  humanizeSocrataQuery,
+  formatSoql,
+  buildResearchLinks,
+} from "@/components/waste/waste-finding-card";
 import styles from "./feed.module.css";
 
 type Props = {
   detector: Detector | null;
   finding: Finding | null;
+  cityId?: number;
 };
 
-export function ProvenancePanel({ detector, finding }: Props) {
+// Build the Socrata source query + research links for the selected finding,
+// reusing the forensics drill-through helpers. The admin Finding carries the
+// raw category/subcategory/entity/tool/amount needed to construct the query.
+function SourceRecords({ finding, cityId }: { finding: Finding; cityId: number }) {
+  const shim = {
+    category: finding.category ?? "",
+    subcategory: finding.subcategory ?? "",
+    entity: finding.entity ?? "",
+    amount: finding.amountValue ?? null,
+    tool: finding.tool ?? "",
+    metric: "",
+    metricDetail: "",
+    description: finding.detail ?? "",
+  } as unknown as WasteFinding;
+  const url = buildSocrataDetailsUrl(shim, cityId);
+  if (!url) return null;
+  const q = humanizeSocrataQuery(url);
+  const { datasetUrl, webSearchUrl, cleanEntity } = buildResearchLinks(url, finding.entity);
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardLabel}>Source records &amp; query</div>
+      {q && (
+        <pre
+          style={{
+            fontFamily: "var(--font-data, monospace)",
+            fontSize: "11px",
+            lineHeight: 1.5,
+            color: "#374151",
+            background: "#f9fafb",
+            border: "1px solid #e5e7eb",
+            borderRadius: 6,
+            padding: "8px 10px",
+            margin: "0 0 8px",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {formatSoql(q)}
+        </pre>
+      )}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", fontSize: "12px" }}>
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: "#7c3aed", fontWeight: 600 }}>
+          View source records ↗
+        </a>
+        {datasetUrl && (
+          <a href={datasetUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#7c3aed", fontWeight: 600 }}>
+            Open full dataset ↗
+          </a>
+        )}
+        {webSearchUrl && (
+          <a href={webSearchUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#7c3aed", fontWeight: 600 }}>
+            Search the web for {cleanEntity} ↗
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ProvenancePanel({ detector, finding, cityId = 1 }: Props) {
   if (!detector) {
     return (
       <aside className={styles.provenance} aria-label="Provenance panel">
@@ -73,6 +140,8 @@ export function ProvenancePanel({ detector, finding }: Props) {
             </div>
           </div>
         )}
+
+        {finding && <SourceRecords finding={finding} cityId={cityId} />}
 
         <div className={styles.sourcesBlock}>
           <div className={styles.cardLabel}>Data sources joined</div>
