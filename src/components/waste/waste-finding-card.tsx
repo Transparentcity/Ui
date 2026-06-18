@@ -117,6 +117,11 @@ interface CitySocrataConfig {
   campaignAmountCol: string
   campaignDateCol: string
   campaignRecordTypeFilter: string
+  // Employee-name column on the compensation dataset, for drilling integrity
+  // (RD) findings to a person's own pay records across departments/years. Empty
+  // disables it (e.g. Chicago, whose public payroll dataset is a name-only
+  // current snapshot with no year/overtime/cross-dept depth — a poor source).
+  compEmployeeCol: string
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -138,6 +143,7 @@ const SF_SOCRATA: CitySocrataConfig = {
   campaignAmountCol: "transaction_amount_1",
   campaignDateCol: "transaction_date",
   campaignRecordTypeFilter: "record_type = 'RCPT'",
+  compEmployeeCol: "employee_identifier",
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -159,6 +165,7 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   campaignAmountCol: "",
   campaignDateCol: "",
   campaignRecordTypeFilter: "",
+  compEmployeeCol: "",
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -546,6 +553,20 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
              return `${SVC_REQ}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(`${cfg.districtColumn} = '${dist}'`)}&$order=requested_datetime DESC&$limit=${DETAILS_LIMIT}`
         }
     }
+  }
+
+  // INTEGRITY (RD1-4) — drill to the employee's own compensation rows so an
+  // investigator can see the cross-department / dual-role pay behind the
+  // finding. SF only; Chicago's public payroll dataset is a name-only snapshot.
+  if (cat.includes("integrity")) {
+    if (!cfg.compEmployeeCol) return null
+    const employee = escapeSoqlLike(
+      (finding.entity || "").split(/ \(| — | → /)[0].trim()
+    )
+    if (!employee) return null
+    const select = `year,department,${cfg.compEmployeeCol},job,salaries,overtime,total_salary`
+    const where = `upper(${cfg.compEmployeeCol}) like upper('%${employee}%')`
+    return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
   }
 
   // INFLUENCE (D18 Pay-to-Play, D17 Lobbyist) — drill to the source campaign
@@ -1050,6 +1071,33 @@ export function WasteFindingCard({
                      <td className="px-3 py-2 text-gray-600">{row.status_description}</td>
                      <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_datetime)}</td>
                      <td className="px-3 py-2 text-gray-600 truncate max-w-[100px]">{row.neighborhoods_sffind_boundaries || row.community_area || row.ward || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        )
+    }
+
+    if (cat.includes("integrity")) {
+        return (
+            <table className="min-w-full text-xs">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Year</th>
+                  <th className="px-3 py-2 text-left font-medium">Department</th>
+                  <th className="px-3 py-2 text-left font-medium">Employee</th>
+                  <th className="px-3 py-2 text-left font-medium">Job</th>
+                  <th className="px-3 py-2 text-left font-medium">Total comp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailsRows.map((row, idx) => (
+                  <tr key={idx} className="border-t border-gray-100">
+                     <td className="px-3 py-2 text-gray-600">{row.year || "—"}</td>
+                     <td className="px-3 py-2 text-gray-800 truncate max-w-[150px]" title={row.department}>{row.department || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[150px]" title={row.employee_identifier}>{row.employee_identifier || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600 truncate max-w-[120px]" title={row.job}>{row.job || "—"}</td>
+                     <td className="px-3 py-2 text-gray-600">{formatCurrency(row.total_salary)}</td>
                   </tr>
                 ))}
               </tbody>

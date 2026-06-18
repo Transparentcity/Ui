@@ -525,6 +525,37 @@ describe("formatSoql", () => {
   })
 })
 
+describe("buildSocrataDetailsUrl — integrity", () => {
+  it("drills an RD finding to the employee's own compensation rows (SF)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "integrity",
+        subcategory: "Cross-Department Double Dipping",
+        tool: "RD3 Cross-Dept Double Dip",
+        entity: "Mary Tse",
+      }),
+      1
+    )!
+    const dec = decodeURIComponent(url)
+    expect(url).toContain("88g8-5mnd") // SF compensation dataset
+    expect(dec).toContain("upper(employee_identifier) like upper('%Mary Tse%')")
+    expect(dec).toContain("department") // cross-dept visibility
+  })
+
+  it("returns null for Chicago integrity (snapshot dataset is a poor source)", () => {
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "integrity",
+        subcategory: "Cross-Department Double Dipping",
+        tool: "RD3 Cross-Dept Double Dip",
+        entity: "Some Person",
+      }),
+      3
+    )
+    expect(url).toBeNull()
+  })
+})
+
 describe("buildSocrataDetailsUrl — influence", () => {
   it("drills a D18 finding to the SF contributions dataset for the contributor", () => {
     const url = buildSocrataDetailsUrl(
