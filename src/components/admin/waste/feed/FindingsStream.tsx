@@ -5,7 +5,7 @@ import type { Detector, Finding } from "@/lib/wasteFixtures";
 import styles from "./feed.module.css";
 
 export type FindingsFilter = "all" | "high" | "med";
-export type FindingsPeriod = "today" | "week" | "month";
+export type FindingsPeriod = "today" | "week" | "month" | "all";
 
 type Props = {
   findings: readonly Finding[];
@@ -27,6 +27,16 @@ const FILTER_LABEL: Record<FindingsFilter, string> = {
   all: "All",
   high: "High only",
   med: "Medium+",
+};
+
+// "all" is the cumulative, never-windowed view (default); the others narrow to a
+// rolling first-seen window.
+const PERIODS: readonly FindingsPeriod[] = ["all", "today", "week", "month"];
+const PERIOD_LABEL: Record<FindingsPeriod, string> = {
+  all: "All",
+  today: "Today",
+  week: "Week",
+  month: "Month",
 };
 
 export function FindingsStream({
@@ -53,7 +63,7 @@ export function FindingsStream({
         </div>
         <span className={styles.toolbarDivider} />
         <div className={styles.chipGroup} role="group" aria-label="Period filter">
-          {(["today", "week", "month"] as const).map(p => (
+          {PERIODS.map(p => (
             <button
               key={p}
               type="button"
@@ -61,7 +71,7 @@ export function FindingsStream({
               className={`${styles.chip} ${period === p ? styles.chipActive : ""}`}
               aria-pressed={period === p}
             >
-              {p}
+              {PERIOD_LABEL[p]}
             </button>
           ))}
         </div>
@@ -87,10 +97,14 @@ export function FindingsStream({
           </div>
         ) : isQuiet ? (
           <div className={styles.emptyState}>
-            <div className={styles.emptyTitle}>Quiet day.</div>
+            <div className={styles.emptyTitle}>
+              {period === "all" ? "Nothing recorded yet." : "Quiet day."}
+            </div>
             <p className={styles.emptyBody}>
-              All {detectorCount} detectors ran clean for {period}. Seymour will surface anything
-              new on the next scheduled run.
+              {period === "all"
+                ? `All ${detectorCount} detectors have run clean — no findings recorded yet.`
+                : `All ${detectorCount} detectors ran clean for ${period}.`}{" "}
+              Seymour will surface anything new on the next scheduled run.
             </p>
           </div>
         ) : findings.length === 0 ? (
