@@ -40,7 +40,7 @@ export interface WasteAdminDetectorRow {
   available: boolean;
 }
 
-export type WasteAdminPeriod = "today" | "week" | "month";
+export type WasteAdminPeriod = "today" | "week" | "month" | "all";
 export type WasteAdminSeverityFilter = "all" | "high" | "med";
 
 export interface WasteAdminFindingRow {

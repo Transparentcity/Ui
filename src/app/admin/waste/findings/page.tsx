@@ -35,7 +35,7 @@ import styles from "@/components/admin/waste/feed/feed.module.css";
 import { WasteLoading } from "@/components/admin/waste/WasteLoading";
 
 const VALID_FILTERS: readonly FindingsFilter[] = ["all", "high", "med"];
-const VALID_PERIODS: readonly FindingsPeriod[] = ["today", "week", "month"];
+const VALID_PERIODS: readonly FindingsPeriod[] = ["all", "today", "week", "month"];
 const VALID_VIEWS = ["full", "brief"] as const;
 type ViewMode = (typeof VALID_VIEWS)[number];
 
@@ -52,7 +52,12 @@ function FindingsPageView() {
   // by city); getCitySocrataConfig treats 3 as Chicago, else SF.
   const drillCityId = citySlug === "chicago" ? 3 : 1;
   const filter = asEnum<FindingsFilter>(params.get("filter"), VALID_FILTERS, "all");
-  const period = asEnum<FindingsPeriod>(params.get("period"), VALID_PERIODS, "today");
+  // Default to the cumulative "all" view so the page shows the full persisted
+  // findings list (newest on top) and is essentially never empty — a "today"
+  // default left it blank whenever the pipeline hadn't run that day, and even a
+  // 30-day window hides long-standing active findings (created_at is frozen at
+  // first-seen). The windowed chips remain for narrowing.
+  const period = asEnum<FindingsPeriod>(params.get("period"), VALID_PERIODS, "all");
   const view = asEnum<ViewMode>(params.get("view"), VALID_VIEWS, "full");
 
   const findingsQ = useWasteAdminFindings({ citySlug, period, filter });
@@ -203,7 +208,7 @@ function FindingsPageView() {
           filter={filter}
           onFilterChange={f => updateParams({ filter: f === "all" ? null : f })}
           period={period}
-          onPeriodChange={p => updateParams({ period: p === "today" ? null : p })}
+          onPeriodChange={p => updateParams({ period: p === "all" ? null : p })}
           isQuiet={isQuiet}
           isDegraded={ui.failingCount > 0}
           detectorCount={detectorsQ.data?.length ?? 0}
