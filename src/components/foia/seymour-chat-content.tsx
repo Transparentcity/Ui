@@ -9,13 +9,16 @@ import {
   User,
   ChevronDown,
   ChevronUp,
+  Copy,
+  Check,
+  Share2,
 } from "lucide-react"
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible"
-import { sendChatMessageStream, createNewSession } from "@/lib/apiClient"
+import { sendChatMessageStream, createNewSession, toggleSessionPublic } from "@/lib/apiClient"
 import type { ChatMessageRequest } from "@/lib/apiClient"
 
 // ---------------------------------------------------------------------------
@@ -67,6 +70,10 @@ export function SeymourChatContent() {
   const [sending, setSending] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [showTools, setShowTools] = useState(false)
+  // Index of the assistant message whose text / share link was just copied.
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [copiedShareIndex, setCopiedShareIndex] = useState<number | null>(null)
+  const [isSharing, setIsSharing] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -180,6 +187,41 @@ export function SeymourChatContent() {
     }
   }
 
+  async function handleCopyAnswer(content: string, index: number) {
+    if (!content) return
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedIndex(index)
+      setTimeout(() => {
+        setCopiedIndex((i) => (i === index ? null : i))
+      }, 1500)
+    } catch {
+      // Clipboard may be unavailable; fail silently.
+    }
+  }
+
+  // Share the whole conversation: make the session public (idempotent) and copy
+  // its /chat/{hash} link. Mirrors the share flow used elsewhere in the app.
+  async function handleShareConversation(index: number) {
+    if (!sessionId || isSharing) return
+    setIsSharing(true)
+    try {
+      const token = await getToken()
+      if (!token) return
+      const data = await toggleSessionPublic(sessionId, true, token)
+      if (!data.public_url) return
+      await navigator.clipboard.writeText(`${window.location.origin}${data.public_url}`)
+      setCopiedShareIndex(index)
+      setTimeout(() => {
+        setCopiedShareIndex((i) => (i === index ? null : i))
+      }, 1500)
+    } catch {
+      // Share / clipboard may fail; fail silently.
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]">
       {/* Header */}
@@ -267,6 +309,31 @@ export function SeymourChatContent() {
                 <span className="inline-block mt-1">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" />
                 </span>
+              )}
+              {msg.role === "assistant" && !msg.isStreaming && msg.content && (
+                <div className="mt-2 flex items-center gap-1 border-t border-gray-100 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyAnswer(msg.content, i)}
+                    aria-label={copiedIndex === i ? "Answer copied" : "Copy answer"}
+                    title={copiedIndex === i ? "Copied" : "Copy answer"}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-purple-600"
+                  >
+                    {copiedIndex === i ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                  {sessionId && (
+                    <button
+                      type="button"
+                      onClick={() => handleShareConversation(i)}
+                      disabled={isSharing}
+                      aria-label={copiedShareIndex === i ? "Share link copied" : "Copy share link"}
+                      title={copiedShareIndex === i ? "Link copied" : "Copy link to this conversation"}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-purple-600 disabled:opacity-50"
+                    >
+                      {copiedShareIndex === i ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             {msg.role === "user" && (

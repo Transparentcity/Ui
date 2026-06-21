@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useAuth0 } from "@auth0/auth0-react"
 import { useRouter } from "next/navigation"
 import {
+  Check,
+  Copy,
   Loader2,
   PanelRightClose,
   PanelRightOpen,
+  Share2,
   Sparkles,
   X,
 } from "lucide-react"
@@ -15,6 +18,7 @@ import {
   getSessionStats,
   createChatJob,
   getJob,
+  toggleSessionPublic,
   type SessionStats,
   type WasteFinding,
 } from "@/lib/apiClient"
@@ -193,6 +197,10 @@ export function WasteSeymourPanel({
   const [isResizing, setIsResizing] = useState(false)
   const [promptDraft, setPromptDraft] = useState("")
   const [analysisResult, setAnalysisResult] = useState("")
+  const [analysisSessionId, setAnalysisSessionId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [copiedShare, setCopiedShare] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null)
@@ -211,6 +219,9 @@ export function WasteSeymourPanel({
     const nextPrompt = buildAnalysisPrompt(finding)
     setPromptDraft(nextPrompt)
     setAnalysisResult("")
+    setAnalysisSessionId(null)
+    setCopied(false)
+    setCopiedShare(false)
     setAnalysisError(null)
     setUsageStats(null)
     setIsAnalyzing(false)
@@ -258,6 +269,9 @@ export function WasteSeymourPanel({
     setAnalysisElapsedSeconds(0)
     setAnalysisError(null)
     setAnalysisResult("")
+    setAnalysisSessionId(null)
+    setCopied(false)
+    setCopiedShare(false)
     setUsageStats(null)
 
     let jobId: string | null = null
@@ -311,6 +325,7 @@ export function WasteSeymourPanel({
           if (analysisGenerationRef.current !== myGeneration) return
           const result = job.result as { response?: string; session_id?: string }
           setAnalysisResult(result?.response || "Analysis completed.")
+          setAnalysisSessionId(result?.session_id ?? null)
 
           if (result?.session_id) {
             try {
@@ -349,6 +364,36 @@ export function WasteSeymourPanel({
 
   const handleAnalyze = async () => {
     await runAnalysis(promptDraft)
+  }
+
+  const handleCopyAnalysis = async () => {
+    if (!analysisResult) return
+    try {
+      await navigator.clipboard.writeText(analysisResult)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard may be unavailable; fail silently.
+    }
+  }
+
+  // Share the analysis conversation: make its session public (idempotent) and
+  // copy the /chat/{hash} link. Mirrors the share flow used elsewhere.
+  const handleShareAnalysis = async () => {
+    if (!analysisSessionId || isSharing) return
+    setIsSharing(true)
+    try {
+      const token = await getAccessTokenSilently()
+      const data = await toggleSessionPublic(analysisSessionId, true, token)
+      if (!data.public_url) return
+      await navigator.clipboard.writeText(`${window.location.origin}${data.public_url}`)
+      setCopiedShare(true)
+      setTimeout(() => setCopiedShare(false), 1500)
+    } catch {
+      // Share / clipboard may fail; fail silently.
+    } finally {
+      setIsSharing(false)
+    }
   }
 
   const handleOpenFullChat = () => {
@@ -489,6 +534,31 @@ export function WasteSeymourPanel({
               <div>Prompt: {formatTokens(usageStats.total_prompt_tokens ?? 0)}</div>
               <div>Completion: {formatTokens(usageStats.total_completion_tokens ?? 0)}</div>
               <div>Cost: {formatCost(usageStats.estimated_cost_usd ?? 0)}</div>
+            </div>
+          ) : null}
+          {!isAnalyzing && analysisResult ? (
+            <div className="mt-3 flex items-center gap-1 border-t border-gray-200 pt-2">
+              <button
+                type="button"
+                onClick={handleCopyAnalysis}
+                aria-label={copied ? "Analysis copied" : "Copy analysis"}
+                title={copied ? "Copied" : "Copy analysis"}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-purple-600"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+              {analysisSessionId ? (
+                <button
+                  type="button"
+                  onClick={handleShareAnalysis}
+                  disabled={isSharing}
+                  aria-label={copiedShare ? "Share link copied" : "Copy share link"}
+                  title={copiedShare ? "Link copied" : "Copy link to this analysis"}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-purple-600 disabled:opacity-50"
+                >
+                  {copiedShare ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

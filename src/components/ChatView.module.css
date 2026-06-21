@@ -100,6 +100,45 @@
   color: inherit;
 }
 
+.messageActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-primary);
+}
+
+.messageActionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.messageActionButton:hover:not(:disabled) {
+  color: var(--brand-primary);
+  background: var(--bg-secondary);
+}
+
+.messageActionButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.messageActionButton svg {
+  flex-shrink: 0;
+}
+
 /* Markdown rules */
 .messageContent p {
   margin: var(--space-sm) 0;
@@ -723,6 +762,11 @@
 
 :global([data-theme="dark"]) .messageContent blockquote,
 :global(.dark) .messageContent blockquote {
+  color: var(--text-secondary, #cbd5e1);
+}
+
+:global([data-theme="dark"]) .messageActionButton,
+:global(.dark) .messageActionButton {
   color: var(--text-secondary, #cbd5e1);
 }
 
