@@ -253,7 +253,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         if (districts.length === 0 && fallbackDc?.districts) {
           districts = fallbackDc.districts
             .map((d) => d.district)
-            .filter((n) => n > 0)
+            .filter((n): n is number => typeof n === "number" && n > 0)
             .sort((a, b) => a - b);
         }
       }

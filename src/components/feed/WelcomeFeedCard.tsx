@@ -82,7 +82,7 @@ export default function WelcomeFeedCard({ slug, newsletters }: Props) {
 
       <h3 className={styles.heading}>Welcome to your feed</h3>
       <p className={styles.body}>
-        These are the stories shaping your Sunday newsletter. The more you read here,
+        These are the stories shaping your weekly newsletter. The more you read here,
         the better we get at picking what lands in your inbox.
       </p>
 

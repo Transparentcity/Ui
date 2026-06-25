@@ -93,18 +93,29 @@ export default function DistrictComparisonTable({
     };
   }, [metricId, comparisonType, currentPeriodEnd, prefetchedDistricts]);
 
+  const formatAreaLabel = (district: number | string): string =>
+    typeof district === "string" && /[a-zA-Z]/.test(district)
+      ? district
+      : `District ${district}`;
+
   const sortedDistricts = useMemo(() => {
     if (!data?.districts) return [];
 
     return [...data.districts].sort((a, b) => {
+      if (sortField === "district") {
+        const aDistrict = a.district;
+        const bDistrict = b.district;
+        const cmp =
+          typeof aDistrict === "number" && typeof bDistrict === "number"
+            ? aDistrict - bDistrict
+            : String(aDistrict).localeCompare(String(bDistrict));
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
+
       let aVal: number | null;
       let bVal: number | null;
 
       switch (sortField) {
-        case "district":
-          aVal = a.district;
-          bVal = b.district;
-          break;
         case "current":
           aVal = a.current_value;
           bVal = b.current_value;
@@ -294,7 +305,7 @@ export default function DistrictComparisonTable({
             const tone = getChangeTone(district.change_percent);
             return (
               <tr key={district.district}>
-                <td className="district-cell">District {district.district}</td>
+                <td className="district-cell">{formatAreaLabel(district.district)}</td>
                 <td className="numeric">{formatValue(district.comparison_value)}</td>
                 <td className="numeric">{formatValue(district.current_value)}</td>
                 <td className={`numeric change-cell ${tone}`}>
@@ -318,7 +329,7 @@ export default function DistrictComparisonTable({
       {showCaption && (
         <p className="district-comparison-caption">
           So far in {currentYear}, {cityName} had {formatValue(totals.current_value)} {metricName.toLowerCase()} {itemNoun} through {currentPeriodEndFormatted}.
-          {topDistrict ? ` District ${topDistrict.district} had the most (${formatValue(topDistrict.current_value)}).` : ""}
+          {topDistrict ? ` ${formatAreaLabel(topDistrict.district)} had the most (${formatValue(topDistrict.current_value)}).` : ""}
         </p>
       )}
     </div>

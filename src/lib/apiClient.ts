@@ -4846,9 +4846,9 @@ export interface GenerateSampleNewsletterRequest {
   district?: number | null;
   frequency?: string;
   prompt_override?: string | null;
-  /** Default "stories" matches weekly send; "seymour" runs the LLM + tools personalized prompt. */
-  generation_mode?: "stories" | "seymour";
-  /** When generation_mode is seymour, optional model key from /api/chat/models; omit for server default. */
+  /** @deprecated No longer used — all generation is Seymour. Accepted by server but ignored. */
+  generation_mode?: string;
+  /** Optional model key from /api/chat/models; omit for server default. */
   seymour_model_key?: string | null;
 }
 

@@ -40,6 +40,11 @@ describe("computeMetricMapEmbedViewSpecs", () => {
       map_config: {
         available_views: [
           {
+            type: "points",
+            point_count: 1200,
+            is_default: false,
+          },
+          {
             type: "choropleth",
             shape_layer_instance_id: 10,
             identifier_field: "supervisor_district",
@@ -121,8 +126,8 @@ describe("computeMetricMapEmbedViewSpecs", () => {
     }
   });
 
-  it("keeps points as primary when chart_type_preference is point even with many rows", () => {
-    const rows = Array.from({ length: 1200 }, (_, i) => ({
+  it("keeps points as primary when chart_type_preference is point and count is below data_point_threshold", () => {
+    const rows = Array.from({ length: 400 }, (_, i) => ({
       lat: 37.7 + i * 0.0001,
       lon: -122.4 + i * 0.0001,
       supervisor_district: String((i % 11) + 1),
@@ -131,6 +136,7 @@ describe("computeMetricMapEmbedViewSpecs", () => {
       location_data: rows,
       map_config: {
         chart_type_preference: "point",
+        data_point_threshold: 500,
         available_views: [
           {
             type: "choropleth",
@@ -157,5 +163,49 @@ describe("computeMetricMapEmbedViewSpecs", () => {
     });
     const { primary } = computeMetricMapEmbedViewSpecs(map);
     expect(primary.kind).toBe("points");
+  });
+
+  it("uses neighborhood choropleth when count exceeds metric data_point_threshold", () => {
+    const rows = Array.from({ length: 912 }, (_, i) => ({
+      lat: 39.1 + i * 0.00001,
+      lon: -84.5 + i * 0.00001,
+      sna_neighborhood: ["Westwood", "Hyde Park", "Over-the-Rhine"][i % 3],
+    }));
+    const map = baseSavedMap({
+      location_data: rows,
+      map_config: {
+        chart_type_preference: "point",
+        data_point_threshold: 500,
+        available_views: [
+          {
+            type: "choropleth",
+            shape_layer_instance_id: 99,
+            identifier_field: "SNA_NAME",
+            data_field: "sna_neighborhood",
+            display_name: "Neighborhoods",
+            row_count: 45,
+            is_city_district: true,
+          },
+        ],
+        aggregations: {
+          "99": {
+            identifier_field: "SNA_NAME",
+            data_field: "sna_neighborhood",
+            display_name: "Neighborhoods",
+            rows: [
+              { sna_neighborhood: "Westwood", count: 300 },
+              { sna_neighborhood: "Hyde Park", count: 312 },
+              { sna_neighborhood: "Over-the-Rhine", count: 300 },
+            ],
+          },
+        },
+        default_view: { type: "points" },
+      },
+    });
+    const { primary } = computeMetricMapEmbedViewSpecs(map);
+    expect(primary.kind).toBe("choropleth");
+    if (primary.kind === "choropleth") {
+      expect(primary.shapeLayerId).toBe("99");
+    }
   });
 });

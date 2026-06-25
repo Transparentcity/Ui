@@ -187,7 +187,7 @@ export default async function CityCategoryPage({
       if (dc?.districts)
         districts = dc.districts
           .map((d) => d.district)
-          .filter((n) => n > 0)
+          .filter((n): n is number => typeof n === "number" && n > 0)
           .sort((a, b) => a - b);
     }
   } catch {

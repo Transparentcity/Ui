@@ -183,7 +183,7 @@ export default async function DistrictPage({ params }: PageProps) {
           if (districts.length === 0)
             districts = dc.districts
               .map((x) => x.district)
-              .filter((n) => n > 0)
+              .filter((n): n is number => typeof n === "number" && n > 0)
               .sort((a, b) => a - b);
         }
       }

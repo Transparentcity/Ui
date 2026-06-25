@@ -378,7 +378,11 @@ export default function DeltaMapView({
 
         const feature = e.features[0];
         const props = feature.properties || {};
-        const district = (props._district as string) || "Unknown";
+        const district = (props._district as string | number) || "Unknown";
+        const areaLabel =
+          typeof district === "string" && /[a-zA-Z]/.test(district)
+            ? district
+            : `District ${district}`;
         const changePercent = (props._change_percent as number | null) ?? null;
         const currentValue = (props._current_value as number | null) ?? null;
         const comparisonValue = (props._comparison_value as number | null) ?? null;
@@ -418,7 +422,7 @@ export default function DeltaMapView({
           .setLngLat(e.lngLat)
           .setHTML(
             `<div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: ${titleColor};">
-              <div style="font-weight: 600; margin-bottom: 4px;">District ${district}</div>
+              <div style="font-weight: 600; margin-bottom: 4px;">${areaLabel}</div>
               <div style="color: ${muted};">Last Year: ${formatValue(comparisonValue)}</div>
               <div style="color: ${muted};">This Year: ${formatValue(currentValue)}</div>
               <div style="color: ${changeColor}; font-weight: 600;">

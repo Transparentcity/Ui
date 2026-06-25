@@ -283,7 +283,6 @@ export default function DashboardPage() {
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
   const [sampleNewsletterSubject, setSampleNewsletterSubject] = useState<string | null>(null);
   const [resendingWelcomeEmail, setResendingWelcomeEmail] = useState(false);
-  const [testNewsletterGenerationMode, setTestNewsletterGenerationMode] = useState<"stories" | "seymour">("stories");
   const [showEditHomeLocationModal, setShowEditHomeLocationModal] = useState(false);
   const identityScopeKey = impersonationState
     ? `impersonated:${impersonationState.userId}`
@@ -1577,7 +1576,6 @@ export default function DashboardPage() {
           district: district ? Number(district) : null,
           frequency: editableNewsletterFrequency,
           prompt_override: promptOverride,
-          generation_mode: testNewsletterGenerationMode,
         },
         token
       );
@@ -2469,28 +2467,11 @@ export default function DashboardPage() {
                           Monthly
                         </label>
                       </div>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "8px", marginTop: "16px" }}>
-                        Test email generation
-                      </label>
-                      <select
-                        className={styles.settingsTextarea}
-                        value={testNewsletterGenerationMode}
-                        onChange={(e) => setTestNewsletterGenerationMode(e.target.value as "stories" | "seymour")}
-                        aria-label="Test newsletter generation mode"
-                        style={{ minHeight: "unset", height: "44px", padding: "10px 12px", cursor: "pointer", maxWidth: "100%" }}
-                      >
-                        <option value="stories">Feed stories (same as weekly send)</option>
-                        <option value="seymour">Seymour — full personalized prompt (LLM + tools)</option>
-                      </select>
                       <button type="button" className={styles.settingsGenerateBtn} onClick={handleGenerateSampleNewsletter} disabled={generatingSampleNewsletter}>
                         {generatingSampleNewsletter ? (
                           <>
                             <Loader size="sm" color="white" />
-                            <span>
-                              {testNewsletterGenerationMode === "seymour"
-                                ? "Running Seymour (may take a minute)…"
-                                : "Sending test…"}
-                            </span>
+                            <span>Running Seymour (may take a minute)…</span>
                           </>
                         ) : (
                           "Send test newsletter"

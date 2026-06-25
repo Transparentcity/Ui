@@ -811,7 +811,7 @@ export function getPublicMetricCompletenessDaily(
 
 // District comparisons for choropleth map
 export type PublicDistrictComparison = {
-  district: number;
+  district: number | string;
   current_value: number | null;
   comparison_value: number | null;
   change_percent: number | null;

@@ -215,10 +215,15 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
   )
     .trim()
     .toLowerCase();
-  /** Backend already chose points when chart_type_preference is point; do not override with choropleth. */
-  const forcePointChart = chartPref === "point";
+  const dataPointThresholdRaw = mapData.map_config?.data_point_threshold;
+  const dataPointThreshold =
+    dataPointThresholdRaw != null && Number.isFinite(Number(dataPointThresholdRaw))
+      ? Number(dataPointThresholdRaw)
+      : 1000;
+  /** Backend already chose points when chart_type_preference is point; do not override with choropleth unless enough points. */
+  const forcePointChart = chartPref === "point" && locationDataCount <= dataPointThreshold;
 
-  const fewPoints = locationDataCount <= 1000;
+  const fewPoints = locationDataCount <= dataPointThreshold;
   const choroLayerId = resolveChoroShapeLayerId(
     aggregations,
     availableViews,
@@ -229,7 +234,7 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
     !forcePointChart &&
     choroLayerId != null &&
     !fewPoints &&
-    locationDataCount > 1000 &&
+    locationDataCount > dataPointThreshold &&
     aggregationKeys.length > 0;
 
   let primary: MetricMapViewSpec;
@@ -266,7 +271,7 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
     }
   } else if (
     initialShapeLayers.length > 0 &&
-    locationDataCount > 1000 &&
+    locationDataCount > dataPointThreshold &&
     !forcePointChart
   ) {
     const sid = String(initialShapeLayers[0].shape_layer_instance_id);
@@ -275,7 +280,7 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
       shapeLayerId: sid,
       label: labelForShapeLayer(sid, initialShapeLayers, shapeLayersFromConfig),
     };
-  } else if (shapeLayersFromConfig?.length && locationDataCount > 1000 && !forcePointChart) {
+  } else if (shapeLayersFromConfig?.length && locationDataCount > dataPointThreshold && !forcePointChart) {
     const first = shapeLayersFromConfig[0];
     const sid = String(first.shape_layer_instance_id);
     primary = {

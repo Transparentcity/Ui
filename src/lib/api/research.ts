@@ -154,7 +154,8 @@ export interface GenerateSampleNewsletterRequest {
   district?: number | null;
   frequency?: string;
   prompt_override?: string | null;
-  generation_mode?: "stories" | "seymour";
+  /** @deprecated No longer used; accepted by server but ignored. */
+  generation_mode?: string;
 }
 
 export interface GenerateSampleNewsletterResponse {

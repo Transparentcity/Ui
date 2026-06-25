@@ -28,6 +28,16 @@
 .city-view-hero-header .city-header-overlay {
   position: relative;
   box-shadow: none;
+  padding: 12px 16px;
+}
+
+.city-view-hero-header .city-header-overlay .city-header-left {
+  padding-left: 0;
+}
+
+/* Offset city emoji/name for TitleBar hamburger only when the sidebar is collapsed */
+.sidebar-collapsed .city-view-hero-header .city-header-overlay .city-header-left {
+  padding-left: 40px;
 }
 
 /* Pinned bar: Official / Location selector only – sticks as map and content scroll under it */
@@ -838,7 +848,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-left: 32px; /* Wide: beside hamburger (overlay 24px + 32px clears 16+40) */
+  padding-left: 0;
 }
 
 .city-header-overlay .city-header-hamburger {
@@ -3125,9 +3135,13 @@ button.metrics-table-row {
     gap: 4px;
   }
 
+  .city-view-hero-header .city-header-overlay {
+    padding: 8px 12px;
+  }
+
   /* Position city icon beside hamburger on narrow: 12px TitleBar + 36px hamburger + 4px gap */
-  .city-header-overlay .city-header-left {
-    padding-left: 52px;
+  .sidebar-collapsed .city-view-hero-header .city-header-overlay .city-header-left {
+    padding-left: 40px;
     padding-right: 0;
   }
   
@@ -3193,8 +3207,8 @@ button.metrics-table-row {
 
 @media (max-width: 480px) {
   /* Very narrow: 8px TitleBar + 36px hamburger + 4px gap — a little left so beside, not overlapping */
-  .city-header-overlay .city-header-left {
-    padding-left: 48px;
+  .sidebar-collapsed .city-view-hero-header .city-header-overlay .city-header-left {
+    padding-left: 36px;
   }
 }
 
