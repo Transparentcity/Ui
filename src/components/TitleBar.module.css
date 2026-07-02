@@ -49,6 +49,14 @@
   transition: 0.3s;
 }
 
+.giftButtonContainer {
+  position: fixed;
+  top: var(--space-md);
+  right: 56px;   /* sits left of the job badge */
+  z-index: 10002;
+  pointer-events: auto;
+}
+
 .jobBadgeContainer {
   position: fixed;
   top: var(--space-md);
@@ -84,6 +92,11 @@
     width: 18px;
   }
   
+  .giftButtonContainer {
+    top: var(--space-sm);
+    right: 52px;
+  }
+
   .jobBadgeContainer {
     top: var(--space-sm);
     right: var(--space-sm);

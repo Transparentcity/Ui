@@ -1,0 +1,55 @@
+.giftBtn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-tertiary, rgba(17, 24, 39, 0.08));
+  color: var(--text-secondary, rgba(17, 24, 39, 0.7));
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+  pointer-events: auto;
+}
+
+.giftBtn:hover {
+  background: linear-gradient(
+    135deg,
+    var(--brand-primary, #ad35fa) 0%,
+    #8b5cf6 100%
+  );
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.giftBtn:active {
+  transform: translateY(0);
+}
+
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--brand-primary, #ad35fa);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  border-radius: 9px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg-primary, #ffffff);
+}
+
+@media (max-width: 768px) {
+  .giftBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+}

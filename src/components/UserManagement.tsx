@@ -848,7 +848,32 @@ export default function UserManagement({
                 users.map((user) => (
                   <tr key={user.id} className={styles.tableRow}>
                     <td className={styles.tableCell}>
-                      <div className={styles.tableCellText}>{user.email}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span className={styles.tableCellText}>{user.email}</span>
+                        {user.is_gift_recipient && (
+                          <span
+                            className={styles.roleBadge}
+                            style={{
+                              background: "rgba(173, 53, 250, 0.1)",
+                              color: "#ad35fa",
+                              cursor: "default",
+                              position: "relative",
+                            }}
+                            title={
+                              user.gift_info
+                                ? [
+                                    `Gifted by: ${user.gift_info.from_name || user.gift_info.from_email || "unknown"}`,
+                                    `Location: ${user.gift_info.place_label || "—"}`,
+                                    `Sent: ${user.gift_info.sent_at ? new Date(user.gift_info.sent_at).toLocaleDateString() : "—"}`,
+                                    `Clicked: ${user.gift_info.clicked_at ? new Date(user.gift_info.clicked_at).toLocaleDateString() : "Not yet opened"}`,
+                                  ].join("\n")
+                                : "Gift subscription"
+                            }
+                          >
+                            🎁 Gift
+                          </span>
+                        )}
+                      </div>
                       <div className={styles.tableCellSubtext}>ID: {user.id}</div>
                     </td>
                     <td className={styles.tableCell}>

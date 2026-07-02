@@ -1,0 +1,85 @@
+.remaining {
+  color: var(--brand-primary, #ad35fa);
+  font-weight: 600;
+}
+
+.fields {
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.55));
+}
+
+.required {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.fieldHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary, rgba(17, 24, 39, 0.55));
+  line-height: 1.4;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text-primary, #111827);
+  background: var(--bg-primary, #ffffff);
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--brand-primary, #ad35fa);
+  box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.12);
+}
+
+.input::placeholder {
+  color: var(--text-secondary, rgba(17, 24, 39, 0.4));
+}
+
+.typeaheadWrapper {
+  /* Ensure CityTypeahead dropdown renders correctly inside the modal */
+  position: relative;
+  z-index: 10;
+}
+
+.errorMsg {
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #dc2626;
+  line-height: 1.4;
+}
+
+@media (max-width: 480px) {
+  .fields {
+    padding: 0 16px;
+  }
+}

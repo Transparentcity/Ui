@@ -3709,6 +3709,14 @@ export interface User {
   government_city_id?: number | null;
   government_district?: number | null;
   custom_email_prompt?: string | null;
+  is_gift_recipient?: boolean;
+  gift_info?: {
+    from_name?: string | null;
+    from_email?: string | null;
+    place_label?: string | null;
+    sent_at?: string | null;
+    clicked_at?: string | null;
+  } | null;
 }
 
 export interface UpdateUserGovernmentStatusRequest {
@@ -3739,6 +3747,8 @@ export interface UserStats {
   total_datasets: number;
   datasets_by_status: Record<string, number>;
   database_size?: string | null;
+  gift_subscriptions_sent?: number;
+  gift_email_clicks?: number;
 }
 
 export function listUsers(
@@ -7875,4 +7885,42 @@ export function markAllInboxRead(
     { item_ids: itemIds },
     token
   );
+}
+
+// ---------------------------------------------------------------------------
+// Gift Subscriptions
+// ---------------------------------------------------------------------------
+
+export interface GiftSentItem {
+  recipient_email: string;
+  recipient_name: string | null;
+  place_label: string;
+  city_id: number;
+  district: string | null;
+  sent_at: string | null;
+  clicked_at: string | null;
+}
+
+export interface SendGiftRequest {
+  recipient_email: string;
+  recipient_name?: string | null;
+  city_id: number;
+  district?: string | null;
+  place_label: string;
+}
+
+export interface SendGiftResponse {
+  gifts_sent: number;
+  gifts_remaining: number;
+}
+
+export function sendGift(
+  token: string,
+  body: SendGiftRequest
+): Promise<SendGiftResponse> {
+  return request<SendGiftResponse>("/api/gift/send", "POST", body, token);
+}
+
+export function getMyGifts(token: string): Promise<GiftSentItem[]> {
+  return request<GiftSentItem[]>("/api/gift/my-gifts", "GET", undefined, token);
 }

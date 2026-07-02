@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
+import GiftButton from "./GiftButton";
 import JobBadge from "./JobBadge";
 import JobDropdown from "./JobDropdown";
 import styles from "./TitleBar.module.css";
@@ -59,6 +60,13 @@ export default function TitleBar({
           </button>
         )}
       </header>
+      {/* Gift subscription button — visible to all authenticated users */}
+      {isAuthenticated && (
+        <div className={styles.giftButtonContainer}>
+          <GiftButton />
+        </div>
+      )}
+
       {/* Job Status Badge - Fixed in top right, only visible to admins */}
       {isAuthenticated && isAdmin && (
         <div className={styles.jobBadgeContainer}>

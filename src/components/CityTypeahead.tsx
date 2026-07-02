@@ -23,6 +23,7 @@ interface CityTypeaheadProps {
   className?: string;
   activeCityId?: number | null;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
+  onPlaceLabelChange?: (label: string) => void;
 }
 
 export default function CityTypeahead({
@@ -31,6 +32,7 @@ export default function CityTypeahead({
   className = "",
   activeCityId = null,
   onGPSLocation,
+  onPlaceLabelChange,
 }: CityTypeaheadProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [cityQuery, setCityQuery] = useState("");
@@ -310,7 +312,7 @@ export default function CityTypeahead({
       if (coordinates && onGPSLocation) {
         onGPSLocation(coordinates);
       }
-      selectCity(city);
+      selectCity(city, suggestion.place_name);
     } catch (e) {
       setGeoError(e instanceof Error ? e.message : "Could not find city for this address.");
     } finally {
@@ -318,12 +320,16 @@ export default function CityTypeahead({
     }
   };
 
-  const selectCity = (city: PublicCitySearchResult) => {
-    setCityQuery("");
+  const selectCity = (city: PublicCitySearchResult, placeLabel?: string) => {
+    const label = placeLabel ?? city.display_name;
+    setCityQuery(label);
     setCityDropdownOpen(false);
     setSelectedIndex(-1);
     setHoveredCityId(null);
     onCitySelect(city.id);
+    if (onPlaceLabelChange) {
+      onPlaceLabelChange(placeLabel ?? city.display_name);
+    }
   };
 
   const loadSavedCities = async () => {
