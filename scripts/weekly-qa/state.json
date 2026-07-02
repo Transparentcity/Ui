@@ -89,6 +89,26 @@
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-06-18"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
+      "metricKey": "denver_311_abandoned_vehicle",
+      "metricId": 541,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-07-02"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🎨 Graffiti Removal Requests (Denver)",
+      "metricKey": "denver_311_graffiti",
+      "metricId": 540,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_graffiti",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-07-02"
     }
   ],
   "knownLags": [
@@ -1196,7 +1216,33 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-25"
+    },
+    {
+      "city": "SF",
+      "metricName": "🛍️ New Retail Registrations",
+      "metricKey": "retail_new_retail_registrations_16",
+      "metricId": 97,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/retail_new_retail_registrations_16",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-02"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📋📥 New Residential Construction Permits Filed",
+      "metricKey": "cincinnati_true_new_residential_construction_permits_filed",
+      "metricId": 585,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_true_new_residential_construction_permits_filed",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-02"
     }
   ],
-  "lastRunDate": "2026-06-25"
+  "lastRunDate": "2026-07-02"
 }
