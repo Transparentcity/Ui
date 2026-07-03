@@ -60,10 +60,10 @@ export default function TitleBar({
           </button>
         )}
       </header>
-      {/* Gift subscription button — visible to all authenticated users */}
-      {isAuthenticated && (
+      {/* Gift subscription button — admins only while feature is in beta */}
+      {isAuthenticated && isAdmin && (
         <div className={styles.giftButtonContainer}>
-          <GiftButton />
+          <GiftButton isAdmin={isAdmin} />
         </div>
       )}
 

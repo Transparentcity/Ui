@@ -13,6 +13,25 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** Prettify a city slug into a display name when the API omits city_name. */
+function prettifySlug(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/** Rough word count from HTML for the "N-min read" estimate. */
+function estimateReadMinutes(html: string): number {
+  const words = html
+    .replace(/<[^>]+>/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
 export default async function NewsletterEmbedPage({ params }: PageProps) {
   const { slug, date: hash } = await params;
 
@@ -34,26 +53,57 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
       })
     : null;
 
-  const districtLabel = edition.district > 0 ? ` · District ${edition.district}` : "";
+  const cityDisplay = edition.city_name ?? prettifySlug(slug);
+  const scopeLabel = edition.district > 0 ? `District ${edition.district}` : "Citywide";
+  const readMinutes = estimateReadMinutes(edition.body_html);
+  const metaParts = [editionDateStr, cityDisplay, scopeLabel, `${readMinutes}-min read`].filter(
+    Boolean
+  );
+
+  const cityDashboardHref = `/c/${slug}`;
+  const districtDashboardHref =
+    edition.district > 0 ? `/c/${slug}/district/${edition.district}` : null;
 
   return (
     <>
       <article className="embed-article">
-        {/* Slim edition header */}
-        <div className="embed-header">
-          <span className="embed-badge">Weekly{districtLabel}</span>
-          {editionDateStr && <span className="embed-date">{editionDateStr}</span>}
-        </div>
+        {/* Masthead: mirrors the place-level email header — brand lockup,
+            product title, issue meta, and dashboard shortcuts. */}
+        <header className="embed-masthead">
+          <a className="embed-brand" href={cityDashboardHref}>
+            <span className="embed-brand-name">transparent</span>
+            <span className="embed-brand-tld">.city</span>
+          </a>
+          <h1 className="embed-title">The Spotlight</h1>
+          {metaParts.length > 0 && (
+            <p className="embed-meta">{metaParts.join(" · ")}</p>
+          )}
 
-        {/* Intro section */}
-        {edition.intro_html && (
-          <div
-            className="embed-intro"
-            dangerouslySetInnerHTML={{ __html: edition.intro_html }}
-          />
-        )}
+          <div className="embed-dashcards">
+            {districtDashboardHref && (
+              <a className="embed-dashcard" href={districtDashboardHref}>
+                <span className="embed-dashcard-label">Your district</span>
+                <span className="embed-dashcard-name">District {edition.district}</span>
+                <span className="embed-dashcard-link">
+                  District {edition.district} dashboard&nbsp;&rarr;
+                </span>
+              </a>
+            )}
+            <a className="embed-dashcard" href={cityDashboardHref}>
+              <span className="embed-dashcard-label">Your city</span>
+              <span className="embed-dashcard-name">{cityDisplay}</span>
+              <span className="embed-dashcard-link">
+                {cityDisplay} dashboard&nbsp;&rarr;
+              </span>
+            </a>
+          </div>
+        </header>
 
-        {/* Edition body */}
+        {/* Purple accent rule separating the masthead from the body */}
+        <div className="embed-rule" aria-hidden="true" />
+
+        {/* Edition body (still leads with the headline + intro, so no need to
+            render intro_html separately — that caused the duplicate title). */}
         <div
           className="embed-body"
           dangerouslySetInnerHTML={{ __html: edition.body_html }}
@@ -114,46 +164,85 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
           margin: 0 auto;
         }
 
-        /* ── Header row ─────────────────────────────────── */
-        .embed-header {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          align-items: center;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid var(--c-border);
+        /* ── Masthead (mirrors place-level email header) ── */
+        .embed-masthead {
+          margin-bottom: 20px;
         }
 
-        .embed-badge {
+        .embed-brand {
           display: inline-block;
-          padding: 2px 8px;
-          border-radius: 10px;
-          font-size: 10px;
-          font-weight: 600;
-          letter-spacing: 0.08em;
+          text-decoration: none;
+          font-size: 11px;
+          line-height: 14px;
+          font-weight: 700;
+          letter-spacing: 0.22em;
           text-transform: uppercase;
-          background: rgba(173, 53, 250, 0.12);
-          color: var(--c-brand);
+        }
+        .embed-brand-name { color: var(--c-text); }
+        .embed-brand-tld { color: var(--c-brand); }
+
+        .embed-title {
+          margin: 6px 0 0;
+          font-size: 1.5rem;
+          line-height: 1.15;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          color: var(--c-text);
         }
 
-        .embed-date {
-          font-size: 12px;
+        .embed-meta {
+          margin: 8px 0 0;
+          font-size: 12.5px;
+          line-height: 1.5;
           color: var(--c-muted);
         }
 
-        /* ── Intro section ──────────────────────────────── */
-        .embed-intro {
-          font-size: 0.9375rem;
-          line-height: 1.75;
-          color: var(--c-text2);
-          margin-bottom: 24px;
-          padding-bottom: 20px;
-          border-bottom: 1px solid var(--c-border);
+        /* Dashboard shortcut cards — the citywide analog of the place-level
+           "officials" cards, linking to the city / district dashboards. */
+        .embed-dashcards {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 16px;
         }
-        .embed-intro p { margin: 0 0 0.75rem; }
-        .embed-intro p:last-child { margin-bottom: 0; }
-        .embed-intro a { color: var(--c-brand); }
+        .embed-dashcard {
+          flex: 1 1 200px;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          text-decoration: none;
+          background: rgba(173, 53, 250, 0.07);
+          border: 1px solid rgba(173, 53, 250, 0.2);
+        }
+        .embed-dashcard-label {
+          font-size: 10px;
+          line-height: 14px;
+          font-weight: 700;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--c-brand);
+        }
+        .embed-dashcard-name {
+          font-size: 14px;
+          line-height: 20px;
+          font-weight: 700;
+          color: var(--c-text);
+        }
+        .embed-dashcard-link {
+          font-size: 10px;
+          line-height: 14px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          color: var(--c-brand);
+        }
+
+        /* Purple accent rule */
+        .embed-rule {
+          border-top: 2px solid var(--c-brand);
+          margin: 0 0 24px;
+        }
 
         /* ── Body typography ────────────────────────────── */
         .embed-body { color: var(--c-text2); }

@@ -3717,6 +3717,8 @@ export interface User {
     sent_at?: string | null;
     clicked_at?: string | null;
   } | null;
+  gifts_sent_count?: number;
+  gift_quota?: number;
 }
 
 export interface UpdateUserGovernmentStatusRequest {
@@ -3749,6 +3751,7 @@ export interface UserStats {
   database_size?: string | null;
   gift_subscriptions_sent?: number;
   gift_email_clicks?: number;
+  gift_accounts_onboarded?: number;
 }
 
 export function listUsers(
@@ -3937,6 +3940,14 @@ export function makeUserAdmin(userId: number, token: string): Promise<{ message:
     undefined,
     token
   );
+}
+
+export function adminSetGiftQuota(
+  userId: number,
+  extraQuota: number,
+  token: string
+): Promise<User> {
+  return request<User>(`/api/admin/users/${userId}/gift-quota`, "PATCH", { extra_quota: extraQuota }, token);
 }
 
 export function getUserStats(token: string): Promise<UserStats> {
@@ -7907,6 +7918,9 @@ export interface SendGiftRequest {
   city_id: number;
   district?: string | null;
   place_label: string;
+  lat?: number | null;
+  lng?: number | null;
+  custom_prompt?: string | null;
 }
 
 export interface SendGiftResponse {
@@ -7921,6 +7935,38 @@ export function sendGift(
   return request<SendGiftResponse>("/api/gift/send", "POST", body, token);
 }
 
-export function getMyGifts(token: string): Promise<GiftSentItem[]> {
-  return request<GiftSentItem[]>("/api/gift/my-gifts", "GET", undefined, token);
+export interface MyGiftsResponse {
+  gifts: GiftSentItem[];
+  gifts_remaining: number;
+}
+
+export function getMyGifts(token: string): Promise<MyGiftsResponse> {
+  return request<MyGiftsResponse>("/api/gift/my-gifts", "GET", undefined, token);
+}
+
+export interface GiftMetaResponse {
+  recipient_email: string;
+  recipient_name: string | null;
+  gifter_display: string;
+  place_label: string | null;
+  city_id: number | null;
+  city_name: string | null;
+  already_activated: boolean;
+  trial_ends_at: string | null;
+}
+
+export function getGiftMeta(token: string): Promise<GiftMetaResponse> {
+  return fetch(`${getApiBaseUrl()}/api/gift/meta/${encodeURIComponent(token)}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "omit",
+  }).then(async (res) => {
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      const err = new Error(`Gift meta fetch failed: ${res.status} ${text}`);
+      (err as any).status = res.status;
+      throw err;
+    }
+    return res.json() as Promise<GiftMetaResponse>;
+  });
 }

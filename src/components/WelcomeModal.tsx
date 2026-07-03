@@ -45,6 +45,7 @@ import {
   stripUnsupportedHomeRequest,
 } from "@/lib/onboardingHomeLocation";
 import { recordProductEvent, useProductEvent } from "@/lib/productAnalytics";
+import { trackMetaOnboardingStep } from "@/lib/metaPixel";
 import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
@@ -226,6 +227,7 @@ export default function WelcomeModal({
       preferences: "onboarding_step3_viewed",
     };
     recordProductEvent(eventMap[step]);
+    trackMetaOnboardingStep(step);
   }, [isOpen, step]);
 
   // Close address dropdown when clicking outside

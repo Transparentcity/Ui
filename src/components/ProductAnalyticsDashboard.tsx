@@ -27,9 +27,11 @@ import SignupFunnelDashboard from "@/components/SignupFunnelDashboard";
 import {
   getProductAnalyticsOverview,
   getTokenUsageDailySeries,
+  getUserStats,
   type ProductAnalyticsOverview,
   type TokenUsageDailySeries,
   type TokenUsageSourceRow,
+  type UserStats,
 } from "@/lib/apiClient";
 import styles from "./ProductAnalyticsDashboard.module.css";
 
@@ -278,6 +280,7 @@ export default function ProductAnalyticsDashboard() {
   const [audience, setAudience] = useState<AudienceFilter>("logged_in");
   const [overview, setOverview] = useState<ProductAnalyticsOverview | null>(null);
   const [tokenSeries, setTokenSeries] = useState<TokenUsageDailySeries | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -288,12 +291,14 @@ export default function ProductAnalyticsDashboard() {
       const d = overrideDays ?? days;
       try {
         const token = await getAccessTokenSilently();
-        const [ov, ts] = await Promise.all([
+        const [ov, ts, us] = await Promise.all([
           getProductAnalyticsOverview(token, { days: d }),
           getTokenUsageDailySeries(token, { days: d }),
+          getUserStats(token),
         ]);
         setOverview(ov);
         setTokenSeries(ts);
+        setUserStats(us);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load analytics");
       } finally {
@@ -655,6 +660,48 @@ export default function ProductAnalyticsDashboard() {
               />
             </div>
           </div>
+
+          {/* Gift trials section */}
+          {userStats && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Gift trials</div>
+              <div className={styles.statGrid}>
+                <StatCard
+                  label="Trials sent"
+                  value={fmt(userStats.gift_subscriptions_sent ?? 0)}
+                  sub="gift emails dispatched"
+                />
+                <StatCard
+                  label="Email opens"
+                  value={fmt(userStats.gift_email_clicks ?? 0)}
+                  sub="recipients clicked CTA"
+                />
+                <StatCard
+                  label="Accounts activated"
+                  value={fmt(userStats.gift_accounts_onboarded ?? 0)}
+                  sub="completed sign-in"
+                  highlight
+                />
+                <StatCard
+                  label="Activation rate"
+                  value={
+                    (userStats.gift_subscriptions_sent ?? 0) > 0
+                      ? `${Math.round(
+                          ((userStats.gift_accounts_onboarded ?? 0) /
+                            (userStats.gift_subscriptions_sent ?? 1)) *
+                            100
+                        )}%`
+                      : "—"
+                  }
+                  sub="trials → active accounts"
+                />
+              </div>
+              <p className={styles.note}>
+                &ldquo;Accounts activated&rdquo; = gift recipients who completed Auth0 sign-in.
+                Click-through tracked via <code>/api/gift/click/&#123;token&#125;</code>.
+              </p>
+            </div>
+          )}
         </>
       )}
 

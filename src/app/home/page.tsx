@@ -58,6 +58,10 @@ import {
   type SignupEventContext,
 } from "@/lib/analytics";
 import {
+  trackMetaSignupComplete,
+  trackMetaOnboardingComplete,
+} from "@/lib/metaPixel";
+import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
@@ -604,6 +608,7 @@ export default function DashboardPage() {
           };
           trackSignupAuthReturn(completionCtx);
           trackSignupComplete(signupIntent, user.sub, completionCtx);
+          trackMetaSignupComplete(signupIntent, completionCtx);
           trackUserActivation("signup_complete");
         } else {
           trackLogin(user.sub);
@@ -656,6 +661,7 @@ export default function DashboardPage() {
           };
           trackSignupAuthReturn(baseCtx);
           trackSignupComplete(signupIntent, user.sub, baseCtx);
+          trackMetaSignupComplete(signupIntent, baseCtx);
           trackUserActivation("signup_complete");
           void (async () => {
             try {
@@ -1659,6 +1665,11 @@ export default function DashboardPage() {
 
     if (user?.sub) {
       trackOnboardingComplete(user.sub);
+      trackMetaOnboardingComplete({
+        city_id: ctx.cityId,
+        city_name: ctx.cityName,
+        district: ctx.district ?? null,
+      });
       trackUserActivation("onboarding_complete");
     }
 

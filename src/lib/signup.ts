@@ -20,6 +20,7 @@ import {
   recordFunnelEventBackend,
   type SignupEventContext,
 } from "./analytics";
+import { trackMetaSignupStart } from "./metaPixel";
 
 /**
  * Auth0 authorize params for signup.
@@ -68,6 +69,7 @@ export async function startSignup(
   // Fire analytics events before the redirect
   trackSignupStart(intent, ctx);
   trackSignupClick(intent, ctx);
+  trackMetaSignupStart(intent, ctx);
   recordFunnelEventBackend("signup_start", ctx);
 
   // Persist intent + surface so the post-auth return can attribute correctly

@@ -24,6 +24,7 @@ interface CityTypeaheadProps {
   activeCityId?: number | null;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
   onPlaceLabelChange?: (label: string) => void;
+  onCoordinatesChange?: (coords: { lat: number; lng: number } | null) => void;
 }
 
 export default function CityTypeahead({
@@ -33,6 +34,7 @@ export default function CityTypeahead({
   activeCityId = null,
   onGPSLocation,
   onPlaceLabelChange,
+  onCoordinatesChange,
 }: CityTypeaheadProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [cityQuery, setCityQuery] = useState("");
@@ -312,7 +314,9 @@ export default function CityTypeahead({
       if (coordinates && onGPSLocation) {
         onGPSLocation(coordinates);
       }
-      selectCity(city, suggestion.place_name);
+      // Pass precise coords from the suggestion (more accurate than geocode result)
+      const suggestionCoords = { lat: suggestion.lat, lng: suggestion.lon };
+      selectCity(city, suggestion.place_name, suggestionCoords);
     } catch (e) {
       setGeoError(e instanceof Error ? e.message : "Could not find city for this address.");
     } finally {
@@ -320,7 +324,11 @@ export default function CityTypeahead({
     }
   };
 
-  const selectCity = (city: PublicCitySearchResult, placeLabel?: string) => {
+  const selectCity = (
+    city: PublicCitySearchResult,
+    placeLabel?: string,
+    coords?: { lat: number; lng: number },
+  ) => {
     const label = placeLabel ?? city.display_name;
     setCityQuery(label);
     setCityDropdownOpen(false);
@@ -328,7 +336,10 @@ export default function CityTypeahead({
     setHoveredCityId(null);
     onCitySelect(city.id);
     if (onPlaceLabelChange) {
-      onPlaceLabelChange(placeLabel ?? city.display_name);
+      onPlaceLabelChange(label);
+    }
+    if (onCoordinatesChange) {
+      onCoordinatesChange(coords ?? null);
     }
   };
 

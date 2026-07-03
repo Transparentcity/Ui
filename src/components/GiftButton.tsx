@@ -6,9 +6,11 @@ import { getMyGifts } from "@/lib/apiClient";
 import GiftModal from "./GiftModal";
 import styles from "./GiftButton.module.css";
 
-const MAX_GIFTS = 2;
+interface GiftButtonProps {
+  isAdmin?: boolean;
+}
 
-export default function GiftButton() {
+export default function GiftButton({ isAdmin = false }: GiftButtonProps) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const [giftsRemaining, setGiftsRemaining] = useState<number | null>(null);
   const [isGiftRecipient, setIsGiftRecipient] = useState(false);
@@ -20,9 +22,9 @@ export default function GiftButton() {
     let cancelled = false;
     getAccessTokenSilently()
       .then((token) => getMyGifts(token))
-      .then((gifts) => {
+      .then((data) => {
         if (cancelled) return;
-        setGiftsRemaining(MAX_GIFTS - gifts.length);
+        setGiftsRemaining(data.gifts_remaining);
       })
       .catch(() => {
         // Could be a gift recipient (403) — hide button gracefully
@@ -36,17 +38,16 @@ export default function GiftButton() {
 
   const handleGiftSent = (remaining: number) => {
     setGiftsRemaining(remaining);
-    if (remaining <= 0) setModalOpen(false);
   };
 
-  if (!isAuthenticated || isGiftRecipient || giftsRemaining === 0) return null;
+  if (!isAuthenticated || isGiftRecipient || (giftsRemaining === 0 && !modalOpen)) return null;
 
   return (
     <>
       <button
         className={styles.giftBtn}
         onClick={() => setModalOpen(true)}
-        aria-label={`Send a gift subscription. ${giftsRemaining ?? MAX_GIFTS} remaining.`}
+        aria-label={`Send a gift subscription. ${giftsRemaining ?? "…"} remaining.`}
         title="Send a gift subscription"
       >
         <GiftIcon />
@@ -54,7 +55,8 @@ export default function GiftButton() {
 
       {modalOpen && (
         <GiftModal
-          giftsRemaining={giftsRemaining ?? MAX_GIFTS}
+          giftsRemaining={giftsRemaining ?? 0}
+          isAdmin={isAdmin}
           onClose={() => setModalOpen(false)}
           onGiftSent={handleGiftSent}
         />

@@ -32,6 +32,12 @@ function extractFirstH2(html: string): string {
   return match ? stripHtml(match[1]) : "";
 }
 
+/** Rough word count from HTML for the "N-min read" estimate. */
+function estimateReadMinutes(html: string): number {
+  const words = stripHtml(html).split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, date: hash } = await params;
   try {
@@ -112,6 +118,11 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
     : null;
 
   const districtLabel = edition.district > 0 ? ` — District ${edition.district}` : "";
+  const scopeLabel = edition.district > 0 ? `District ${edition.district}` : "Citywide";
+  const readMinutes = estimateReadMinutes(edition.body_html);
+  const metaParts = [editionDateStr, cityDisplay, scopeLabel, `${readMinutes}-min read`].filter(
+    Boolean
+  );
 
   return (
     <SignupEmailProvider>
@@ -129,65 +140,45 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
           { label: "Newsletter" },
         ]} />
 
-        {/* Edition label */}
-        <div style={{ marginBottom: 16 }}>
-          <span
-            style={{
-              display: "inline-block",
-              padding: "3px 10px",
-              borderRadius: 12,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              background: "var(--accent-muted, rgba(173,53,250,0.1))",
-              color: "var(--brand-primary, #ad35fa)",
-            }}
-          >
-            Newsletter{districtLabel}
-          </span>
-        </div>
+        {/* Masthead: mirrors the place-level email header — brand lockup,
+            product title, issue meta, and dashboard shortcuts. Replaces the
+            old label + headline + intro stack, which duplicated the lead
+            story's own headline and lede already present in the body. */}
+        <header className="newsletter-masthead">
+          <Link href={backHref} className="newsletter-brand">
+            <span className="newsletter-brand-name">transparent</span>
+            <span className="newsletter-brand-tld">.city</span>
+          </Link>
+          <h1 className="newsletter-title">The Spotlight</h1>
+          {metaParts.length > 0 && (
+            <p className="newsletter-meta">{metaParts.join(" · ")}</p>
+          )}
 
-        {/* Summary headline */}
-        <h1
-          style={{
-            fontSize: "clamp(1.6rem, 4vw, 2.2rem)",
-            fontWeight: 700,
-            lineHeight: 1.2,
-            marginBottom: 16,
-            color: "var(--text-primary)",
-          }}
-        >
-          {edition.summary_headline || edition.subject || extractFirstH2(edition.body_html)}
-        </h1>
+          <div className="newsletter-dashcards">
+            {districtHref && (
+              <Link href={districtHref} className="newsletter-dashcard">
+                <span className="newsletter-dashcard-label">Your district</span>
+                <span className="newsletter-dashcard-name">District {edition.district}</span>
+                <span className="newsletter-dashcard-link">
+                  District {edition.district} dashboard&nbsp;&rarr;
+                </span>
+              </Link>
+            )}
+            <Link href={backHref} className="newsletter-dashcard">
+              <span className="newsletter-dashcard-label">Your city</span>
+              <span className="newsletter-dashcard-name">{cityDisplay}</span>
+              <span className="newsletter-dashcard-link">
+                {cityDisplay} dashboard&nbsp;&rarr;
+              </span>
+            </Link>
+          </div>
+        </header>
 
-        {/* Meta */}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            marginBottom: 32,
-            fontSize: 13,
-            color: "var(--text-secondary)",
-          }}
-        >
-          {editionDateStr && <span>{editionDateStr}</span>}
-          <span>
-            {cityDisplay}
-            {edition.district > 0 ? ` · District ${edition.district}` : ""}
-          </span>
-        </div>
+        {/* Purple accent rule separating the masthead from the body */}
+        <div className="newsletter-masthead-rule" aria-hidden="true" />
 
-        {/* Intro / summary section */}
-        {edition.intro_html && (
-          <div
-            className="newsletter-intro-html"
-            dangerouslySetInnerHTML={{ __html: edition.intro_html }}
-          />
-        )}
-
-        {/* Edition body */}
+        {/* Edition body (still leads with the headline + lede, so no separate
+            intro_html render — that was the duplicate). */}
         <div
           className="newsletter-edition-body"
           style={{ lineHeight: 1.75, fontSize: "1rem" }}
@@ -234,18 +225,80 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
           }
         }
 
-        /* Intro section */
-        .newsletter-intro-html {
-          font-size: 1.0625rem;
-          line-height: 1.75;
-          color: var(--text-secondary);
-          margin-bottom: 32px;
-          padding-bottom: 32px;
-          border-bottom: 1px solid var(--border-primary);
+        /* Masthead (mirrors place-level email header) */
+        .newsletter-masthead { margin-bottom: 24px; }
+        .newsletter-brand {
+          display: inline-block;
+          text-decoration: none;
+          font-size: 11px;
+          line-height: 14px;
+          font-weight: 700;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
         }
-        .newsletter-intro-html p { margin: 0 0 0.75rem; }
-        .newsletter-intro-html p:last-child { margin-bottom: 0; }
-        .newsletter-intro-html a { color: var(--brand-primary); }
+        .newsletter-brand-name { color: var(--text-primary); }
+        .newsletter-brand-tld { color: var(--brand-primary, #ad35fa); }
+        .newsletter-title {
+          margin: 8px 0 0;
+          font-size: clamp(1.6rem, 4vw, 2.2rem);
+          line-height: 1.15;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          color: var(--text-primary);
+        }
+        .newsletter-meta {
+          margin: 10px 0 0;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--text-secondary);
+        }
+        .newsletter-dashcards {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 20px;
+        }
+        .newsletter-dashcard {
+          flex: 1 1 220px;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          padding: 14px 16px;
+          border-radius: 12px;
+          text-decoration: none;
+          background: var(--accent-muted, rgba(173, 53, 250, 0.07));
+          border: 1px solid rgba(173, 53, 250, 0.2);
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .newsletter-dashcard:hover {
+          background: rgba(173, 53, 250, 0.12);
+          border-color: rgba(173, 53, 250, 0.35);
+        }
+        .newsletter-dashcard-label {
+          font-size: 10px;
+          line-height: 14px;
+          font-weight: 700;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--brand-primary, #ad35fa);
+        }
+        .newsletter-dashcard-name {
+          font-size: 15px;
+          line-height: 20px;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+        .newsletter-dashcard-link {
+          font-size: 10px;
+          line-height: 14px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          color: var(--brand-primary, #ad35fa);
+        }
+        .newsletter-masthead-rule {
+          border-top: 2px solid var(--brand-primary, #ad35fa);
+          margin: 0 0 28px;
+        }
 
         /* Body */
         .newsletter-edition-body h1 {

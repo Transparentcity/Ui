@@ -8,6 +8,7 @@ import { JobWebSocketProvider } from "@/contexts/JobWebSocketContext";
 import { DEFAULT_INDEXABLE_ROBOTS } from "@/lib/defaultRobots";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import MetaPixel from "@/components/MetaPixel";
 import { ToasterProvider } from "@/components/providers/toaster-provider";
 import AuthErrorToast from "@/components/AuthErrorToast";
 import { SiteStructuredData } from "@/components/StructuredData";
@@ -104,6 +105,7 @@ export default function RootLayout({
         <ToasterProvider />
         <AuthErrorToast />
         <GoogleAnalytics />
+        <MetaPixel />
         <Analytics />
         <SpeedInsights />
         <AuthProvider>

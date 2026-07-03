@@ -10,25 +10,38 @@ import styles from "./GiftModal.module.css";
 
 interface GiftModalProps {
   giftsRemaining: number;
+  isAdmin?: boolean;
   onClose: () => void;
   onGiftSent: (giftsRemaining: number) => void;
 }
 
 type ModalState = "idle" | "submitting" | "success" | "error";
 
-export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftModalProps) {
+export default function GiftModal({ giftsRemaining, isAdmin = false, onClose, onGiftSent }: GiftModalProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [cityId, setCityId] = useState<number | null>(null);
   const [placeLabel, setPlaceLabel] = useState("");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [customPrompt, setCustomPrompt] = useState("");
 
   const [modalState, setModalState] = useState<ModalState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [successEmail, setSuccessEmail] = useState("");
-  const [successPlaceLabel, setSuccessPlaceLabel] = useState("");
   const [successRemaining, setSuccessRemaining] = useState(0);
+
+  const resetForm = () => {
+    setRecipientName("");
+    setRecipientEmail("");
+    setCityId(null);
+    setPlaceLabel("");
+    setCoords(null);
+    setCustomPrompt("");
+    setErrorMsg("");
+    setModalState("idle");
+  };
 
   const handleCitySelect = (selectedCityId: number) => {
     setCityId(selectedCityId);
@@ -37,7 +50,7 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cityId) {
-      setErrorMsg("Please select a location for your friend.");
+      setErrorMsg("Please choose a city or neighbourhood.");
       setModalState("error");
       return;
     }
@@ -57,22 +70,24 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
         recipient_name: recipientName.trim() || null,
         city_id: cityId,
         place_label: placeLabel || "their city",
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
+        custom_prompt: customPrompt.trim() || null,
       });
 
       setSuccessEmail(recipientEmail.trim());
-      setSuccessPlaceLabel(placeLabel || "their city");
       setSuccessRemaining(result.gifts_remaining);
       setModalState("success");
       onGiftSent(result.gifts_remaining);
     } catch (err: unknown) {
       const msg =
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.";
+        err instanceof Error ? err.message : "Something went wrong. Please try again.";
       setErrorMsg(msg);
       setModalState("error");
     }
   };
+
+  const currentGiftsRemaining = modalState === "success" ? successRemaining : giftsRemaining;
 
   const content = (
     <div
@@ -84,18 +99,14 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
       aria-label="Send a gift subscription"
     >
       <div
-        className={authStyles.modal}
-        style={{ maxWidth: 440, overflow: "visible" }}
+        className={`${authStyles.modal} ${styles.modal}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className={authStyles.header}>
-          <h2 className={authStyles.title}>
-            {modalState === "success" ? "🎁 Gift sent!" : "Give the gift of transparency"}
-          </h2>
+        {/* Close button */}
+        <div className={styles.closeRow}>
           <button
             type="button"
-            className={authStyles.closeBtn}
+            className={styles.closeBtn}
             onClick={onClose}
             aria-label="Close"
           >
@@ -104,19 +115,54 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
         </div>
 
         {modalState === "success" ? (
-          <>
-            <p className={authStyles.subtitle}>
-              <strong>{successEmail}</strong> will receive a welcome email about{" "}
-              <strong>{successPlaceLabel}</strong>. Their personal dashboard and weekly
-              neighbourhood letter are on their way.
+          /* ── Success state ── */
+          <div className={styles.successContent}>
+            <div className={styles.successIconWrap} aria-hidden="true">
+              <svg
+                className={styles.successCheck}
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+
+            <h2 className={styles.successHeadline}>Free trial sent!</h2>
+
+            <p className={styles.successBody}>
+              We&rsquo;ve sent <strong>{successEmail}</strong> a free
+              transparent.city trial. When they click through, they&rsquo;ll
+              activate their subscription and start receiving their weekly
+              briefing.
             </p>
+
             {successRemaining > 0 && (
-              <p className={authStyles.subtitle} style={{ marginTop: 0 }}>
-                You have <strong>{successRemaining}</strong> gift
-                {successRemaining === 1 ? "" : "s"} remaining.
+              <p className={styles.giftCountNote}>
+                You have{" "}
+                <strong>
+                  {successRemaining}{" "}
+                  {successRemaining === 1 ? "gift" : "gifts"}
+                </strong>{" "}
+                remaining.
               </p>
             )}
-            <div className={authStyles.actions}>
+
+            <div className={styles.successActions}>
+              {successRemaining > 0 && (
+                <button
+                  type="button"
+                  className={`${authStyles.button} ${authStyles.buttonOutline}`}
+                  onClick={resetForm}
+                >
+                  Send another trial
+                </button>
+              )}
               <button
                 type="button"
                 className={`${authStyles.button} ${authStyles.buttonPrimary}`}
@@ -125,22 +171,29 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
                 Done
               </button>
             </div>
-          </>
+          </div>
         ) : (
-          <>
-            <p className={authStyles.subtitle}>
-              Your friend gets a personal dashboard and weekly letter about their
-              neighbourhood.{" "}
-              <span className={styles.remaining}>
-                {giftsRemaining === 1 ? "1 gift remaining." : `${giftsRemaining} gifts remaining.`}
-              </span>
-            </p>
+          /* ── Form state ── */
+          <div className={styles.formContent}>
+            <div className={styles.formHeader}>
+              <h2 className={styles.formTitle}>Gift a free trial subscription</h2>
+              <p className={styles.formSubtitle}>
+                Your friend gets a free transparent.city trial &mdash; a weekly
+                AI briefing and personal dashboard powered by public records.{" "}
+                <span className={styles.remaining}>
+                  {currentGiftsRemaining === 1
+                    ? "1 gift remaining."
+                    : `${currentGiftsRemaining} gifts remaining.`}
+                </span>
+              </p>
+            </div>
 
             <form onSubmit={handleSubmit} noValidate>
               <div className={styles.fields}>
                 <div className={styles.field}>
                   <label className={styles.label} htmlFor="gift-name">
-                    Friend&rsquo;s name <span className={styles.optional}>(optional)</span>
+                    Friend&rsquo;s name{" "}
+                    <span className={styles.optional}>(optional)</span>
                   </label>
                   <input
                     id="gift-name"
@@ -170,24 +223,47 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
 
                 <div className={styles.field}>
                   <label className={styles.label}>
-                    Their location <span className={styles.required}>*</span>
+                    Starting location <span className={styles.required}>*</span>
                   </label>
                   <p className={styles.fieldHint}>
-                    Enter their address, intersection, neighbourhood, city, or zip code.
+                    City, neighbourhood, or address. They&rsquo;ll be able to
+                    refine this when they activate their subscription.
                   </p>
                   <div className={styles.typeaheadWrapper}>
                     <CityTypeahead
                       onCitySelect={handleCitySelect}
                       onPlaceLabelChange={setPlaceLabel}
-                      placeholder="e.g. Valencia St & 24th, San Francisco"
+                      onCoordinatesChange={setCoords}
+                      placeholder="e.g. Mission District, San Francisco"
                       onGPSLocation={(loc) => {
-                        void loc;
+                        if (loc) setCoords(loc);
                       }}
                     />
                   </div>
                 </div>
 
-                {(modalState === "error") && errorMsg && (
+                {isAdmin && (
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="gift-custom-prompt">
+                      Personalized prompt{" "}
+                      <span className={styles.optional}>(admin only)</span>
+                    </label>
+                    <p className={styles.fieldHint}>
+                      Added to Seymour&rsquo;s weekly briefing for this recipient. E.g. &ldquo;Focus on school board decisions and park safety.&rdquo;
+                    </p>
+                    <textarea
+                      id="gift-custom-prompt"
+                      className={styles.textarea}
+                      placeholder="Optional focus or emphasis for their weekly newsletter…"
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      maxLength={2000}
+                      rows={3}
+                    />
+                  </div>
+                )}
+
+                {modalState === "error" && errorMsg && (
                   <p className={styles.errorMsg} role="alert">
                     {errorMsg}
                   </p>
@@ -206,13 +282,15 @@ export default function GiftModal({ giftsRemaining, onClose, onGiftSent }: GiftM
                 <button
                   type="submit"
                   className={`${authStyles.button} ${authStyles.buttonPrimary}`}
-                  disabled={modalState === "submitting" || !cityId || !recipientEmail.trim()}
+                  disabled={
+                    modalState === "submitting" || !cityId || !recipientEmail.trim()
+                  }
                 >
-                  {modalState === "submitting" ? "Sending…" : "Send gift 🎁"}
+                  {modalState === "submitting" ? "Sending…" : "Send free trial →"}
                 </button>
               </div>
             </form>
-          </>
+          </div>
         )}
       </div>
     </div>

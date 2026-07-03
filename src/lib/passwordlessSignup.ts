@@ -27,6 +27,7 @@ import {
   trackSignupStart,
   type SignupEventContext,
 } from "./analytics";
+import { trackMetaSignupStart } from "./metaPixel";
 
 const POST_LOGIN_RETURN_KEY = "auth_return_after_check_email";
 
@@ -100,6 +101,7 @@ export function persistPasswordlessSignupContext(
 
   trackSignupStart(intent, ctx);
   trackSignupClick(intent, ctx);
+  trackMetaSignupStart(intent, ctx);
   recordFunnelEventBackend("signup_start", ctx);
 
   return ctx;

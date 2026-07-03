@@ -15,6 +15,7 @@ import {
   getUserNewsletterSubscriptions,
   setUserNewsletterSubscriptions,
   listLeadersForClaim,
+  adminSetGiftQuota,
   type User,
   type UserUpdateRequest,
   type UpdateUserGovernmentStatusRequest,
@@ -70,6 +71,10 @@ export default function UserManagement({
   const [addSubCityOpen, setAddSubCityOpen] = useState(false);
   const [addSubDistrict, setAddSubDistrict] = useState("0");
   const [addSubFrequency, setAddSubFrequency] = useState<"weekly" | "monthly">("weekly");
+
+  // Gift quota state
+  const [editGiftExtraQuota, setEditGiftExtraQuota] = useState(0);
+  const [editGiftQuotaDirty, setEditGiftQuotaDirty] = useState(false);
 
   // Government user state
   const [editGovernmentVerified, setEditGovernmentVerified] = useState(false);
@@ -213,6 +218,9 @@ export default function UserManagement({
     setEditGovernmentCityId(user.government_city_id ?? "");
     setLeadersForElected([]);
     setEditGovernmentDirty(false);
+    // Gift quota: extra = total quota − base 2
+    setEditGiftExtraQuota(Math.max(0, (user.gift_quota ?? 2) - 2));
+    setEditGiftQuotaDirty(false);
   };
 
   const handleCloseEdit = () => {
@@ -237,6 +245,8 @@ export default function UserManagement({
     setEditGovernmentCityId("");
     setLeadersForElected([]);
     setEditGovernmentDirty(false);
+    setEditGiftExtraQuota(0);
+    setEditGiftQuotaDirty(false);
   };
 
   // Load city lead assignments fresh when modal opens (source of truth is backend)
@@ -315,6 +325,10 @@ export default function UserManagement({
 
       if (editNewsletterDirty) {
         await setUserNewsletterSubscriptions(editingUser.id, editNewsletterSubs, token);
+      }
+
+      if (editGiftQuotaDirty) {
+        await adminSetGiftQuota(editingUser.id, editGiftExtraQuota, token);
       }
 
       if (editGovernmentDirty) {
@@ -1226,6 +1240,56 @@ export default function UserManagement({
                   style={{ resize: "vertical", minHeight: 80 }}
                 />
               </div>
+
+              {/* Gift subscription slots — only relevant for non-gift-recipients */}
+              {!editingUser.is_gift_recipient && (
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Gift subscription slots</label>
+                  <p className={styles.helpText} style={{ marginBottom: 8 }}>
+                    Default quota is 2. Grant extra slots so this user can send additional gift trials.
+                    {editingUser.gifts_sent_count !== undefined && (
+                      <> Currently <strong>{editingUser.gifts_sent_count}</strong> sent of <strong>{editingUser.gift_quota ?? 2}</strong> total.</>
+                    )}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <label className={styles.formLabel} style={{ margin: 0, minWidth: 100 }}>
+                      Extra slots
+                    </label>
+                    <button
+                      type="button"
+                      className={styles.addCityBtn}
+                      onClick={() => {
+                        if (editGiftExtraQuota > 0) {
+                          setEditGiftExtraQuota(editGiftExtraQuota - 1);
+                          setEditGiftQuotaDirty(true);
+                        }
+                      }}
+                      disabled={editGiftExtraQuota <= 0}
+                      style={{ width: 32, minWidth: 32, padding: "0 8px" }}
+                    >
+                      −
+                    </button>
+                    <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: "center" }}>
+                      {editGiftExtraQuota}
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.addCityBtn}
+                      onClick={() => {
+                        setEditGiftExtraQuota(editGiftExtraQuota + 1);
+                        setEditGiftQuotaDirty(true);
+                      }}
+                      disabled={editGiftExtraQuota >= 18}
+                      style={{ width: 32, minWidth: 32, padding: "0 8px" }}
+                    >
+                      +
+                    </button>
+                    <span className={styles.helpText} style={{ margin: 0 }}>
+                      = {2 + editGiftExtraQuota} total slots
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Government user</label>
