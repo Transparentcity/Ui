@@ -2,11 +2,7 @@
 
 import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import {
-  initializeMetaPixel,
-  trackMetaPageView,
-  META_PIXEL_ID,
-} from "@/lib/metaPixel";
+import { trackMetaPageView } from "@/lib/metaPixel";
 
 /**
  * Inner component that uses useSearchParams (requires a Suspense boundary).
@@ -16,14 +12,11 @@ function MetaPixelInner() {
   const searchParams = useSearchParams();
   const didInitialView = useRef(false);
 
-  // Inject the pixel base code + fire the initial PageView once on mount.
-  useEffect(() => {
-    initializeMetaPixel();
-  }, []);
-
-  // Fire a PageView on every client-side route change. The very first
-  // PageView is emitted by initializeMetaPixel(); skip it here to avoid a
-  // duplicate, then track subsequent SPA navigations.
+  // The Meta Pixel base code and the initial PageView are emitted from the
+  // root layout <head> (see src/app/layout.tsx). This effect only tracks
+  // client-side (SPA) route changes so navigations after the first paint are
+  // counted as PageViews. Skip the first run to avoid double-counting the
+  // initial load already reported by the base snippet.
   useEffect(() => {
     if (!pathname) return;
     if (!didInitialView.current) {
@@ -33,23 +26,14 @@ function MetaPixelInner() {
     trackMetaPageView();
   }, [pathname, searchParams]);
 
-  return (
-    <noscript>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        height="1"
-        width="1"
-        style={{ display: "none" }}
-        src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
-        alt=""
-      />
-    </noscript>
-  );
+  return null;
 }
 
 /**
- * Meta (Facebook) Pixel loader. Initializes the pixel and tracks page views.
- * Mounted once in the root layout, mirroring <GoogleAnalytics />.
+ * Meta (Facebook) Pixel SPA page-view tracker. Mounted once in the root
+ * layout, mirroring <GoogleAnalytics />. The base pixel code lives in the
+ * layout <head>; this component keeps PageViews in sync across App Router
+ * navigation.
  */
 export default function MetaPixel() {
   return (
