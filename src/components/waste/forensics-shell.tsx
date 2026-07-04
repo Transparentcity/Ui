@@ -4,13 +4,7 @@ import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import {
-  LayoutList,
-  FileSearch,
-  Users,
-  Building2,
-  Layers,
-} from "lucide-react"
+import { Building2, Layers, FileText } from "lucide-react"
 
 type ForensicsTab = {
   key: string
@@ -19,14 +13,12 @@ type ForensicsTab = {
   icon: React.ComponentType<{ className?: string }>
 }
 
-// Browse-and-investigate hierarchy. Cases lives as its own top-level tab;
-// exports moved into Reports — both removed here to avoid duplication.
+// Simplified navigation: category browsing is the primary entry point,
+// with department profiles and reports alongside it.
 const FORENSICS_TABS: ForensicsTab[] = [
-  { key: "overview", name: "Summary", href: "/waste/forensics", icon: LayoutList },
-  { key: "findings", name: "All findings", href: "/waste/forensics/findings", icon: FileSearch },
   { key: "categories", name: "By category", href: "/waste/forensics/categories", icon: Layers },
   { key: "departments", name: "By department", href: "/waste/forensics/departments", icon: Building2 },
-  { key: "entities", name: "By entity", href: "/waste/forensics/entities", icon: Users },
+  { key: "reports", name: "Reports", href: "/waste/executive", icon: FileText },
 ]
 
 interface ForensicsShellProps {
@@ -37,10 +29,8 @@ interface ForensicsShellProps {
 export function ForensicsShell({ children, title }: ForensicsShellProps) {
   const pathname = usePathname()
 
-  const isTabActive = (tab: ForensicsTab) => {
-    if (tab.href === "/waste/forensics") return pathname === "/waste/forensics"
-    return pathname === tab.href || pathname.startsWith(`${tab.href}/`)
-  }
+  const isTabActive = (tab: ForensicsTab) =>
+    pathname === tab.href || pathname.startsWith(`${tab.href}/`)
 
   return (
     <div>

@@ -9,6 +9,7 @@ import {
 import { useWasteCity } from "./WasteCityContext"
 import type { WasteEntityScore, WasteFinding } from "@/lib/apiClient"
 import { WasteShell } from "./waste-shell"
+import { ForensicsShell } from "./forensics-shell"
 import { WasteReportBuilder } from "./waste-report-builder"
 import { TCScoreBadge, scoreTier, TIER_STYLES } from "./tc-score-badge"
 import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
@@ -413,6 +414,7 @@ export function ExecutiveSummaryPage() {
       title="Reports"
       description="Department risk briefings and downloadable audit reports"
     >
+      <ForensicsShell>
       {/* Report builder — surfaces CSV/JSON/Excel downloads with filters */}
       <div className="mb-6">
         <WasteReportBuilder />
@@ -497,6 +499,7 @@ export function ExecutiveSummaryPage() {
           View detailed department profiles <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
+      </ForensicsShell>
     </WasteShell>
   )
 }

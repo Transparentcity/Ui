@@ -1,5 +1,5 @@
-import { ForensicsOverviewPage } from "@/components/waste/forensics-overview-page"
+import { redirect } from "next/navigation"
 
 export default function ForensicsRoute() {
-  return <ForensicsOverviewPage />
+  redirect("/waste/forensics/categories")
 }

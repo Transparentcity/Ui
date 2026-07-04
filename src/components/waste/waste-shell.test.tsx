@@ -83,11 +83,19 @@ describe("WasteShell", () => {
     expect(screen.getByTestId("child")).toBeInTheDocument()
   })
 
-  it("renders tab navigation links", () => {
+  it("does not render the old top-level tab navigation", () => {
     render(<WasteShell title="Test">Content</WasteShell>)
-    expect(screen.getByText("Findings")).toBeInTheDocument()
-    expect(screen.getByText("Overview")).toBeInTheDocument()
-    expect(screen.getByText("Cases")).toBeInTheDocument()
-    expect(screen.getByText("Reports")).toBeInTheDocument()
+    expect(screen.queryByText("Overview")).not.toBeInTheDocument()
+    expect(screen.queryByText("Findings")).not.toBeInTheDocument()
+    expect(screen.queryByText("Cases")).not.toBeInTheDocument()
+    expect(screen.queryByText("Reports")).not.toBeInTheDocument()
+  })
+
+  it("keeps the Seymour toggle and admin tools in the top bar", () => {
+    render(<WasteShell title="Test">Content</WasteShell>)
+    expect(screen.getByText("Seymour")).toBeInTheDocument()
+    expect(screen.getByLabelText("Admin tools")).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText("Admin tools"))
+    expect(screen.getByText("Methodology")).toBeInTheDocument()
   })
 })
