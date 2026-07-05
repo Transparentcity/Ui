@@ -2,14 +2,9 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
   ShieldAlert,
-  LayoutGrid,
-  Activity,
-  FolderOpen,
-  FileText,
   ArrowLeft,
   LogIn,
   MapPin,
@@ -37,40 +32,7 @@ type TabItem = {
   name: string
   href: string
   icon: React.ComponentType<{ className?: string }>
-  /** Routes that should highlight this tab (in addition to href). */
-  matchPrefixes?: string[]
 }
-
-// Four functional top-level tabs, plus the gear menu for admin tools.
-const TOP_TABS: TabItem[] = [
-  {
-    key: "overview",
-    name: "Overview",
-    href: "/waste/dashboard",
-    icon: Activity,
-  },
-  {
-    key: "findings",
-    name: "Findings",
-    href: "/waste/forensics",
-    icon: LayoutGrid,
-    matchPrefixes: ["/waste", "/waste/forensics", "/waste/scores"],
-  },
-  {
-    key: "cases",
-    name: "Cases",
-    href: "/waste/queue",
-    icon: FolderOpen,
-    matchPrefixes: ["/waste/queue", "/waste/investigations"],
-  },
-  {
-    key: "reports",
-    name: "Reports",
-    href: "/waste/executive",
-    icon: FileText,
-    matchPrefixes: ["/waste/executive", "/waste/methodology"],
-  },
-]
 
 const GEAR_LINKS: TabItem[] = [
   {
@@ -119,7 +81,6 @@ function WasteShellInner({
   description,
   actions,
 }: WasteShellProps) {
-  const pathname = usePathname()
   const { isAuthenticated, isLoading: authLoading, loginWithRedirect } =
     useAuth0()
   const {
@@ -205,20 +166,6 @@ function WasteShellInner({
     )
   }
 
-  const isTabActive = (tab: TabItem) => {
-    if (tab.href === "/waste") {
-      // Findings tab is active on root + forensics/scores routes
-      if (pathname === "/waste") return true
-      return (tab.matchPrefixes ?? []).some(
-        (p) => pathname === p || pathname.startsWith(`${p}/`),
-      )
-    }
-    if (pathname === tab.href || pathname.startsWith(`${tab.href}/`)) return true
-    return (tab.matchPrefixes ?? []).some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`),
-    )
-  }
-
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Top bar */}
@@ -293,88 +240,63 @@ function WasteShellInner({
               <ArrowLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Main App</span>
             </Link>
-          </div>
-        </div>
 
-        {/* Tab bar */}
-        <nav className="flex items-center gap-0 px-4 lg:px-6">
-          <div className="flex items-center gap-0 flex-1 overflow-x-auto scrollbar-hide">
-            {TOP_TABS.map((tab) => {
-              const Icon = tab.icon
-              const active = isTabActive(tab)
-              return (
-                <Link
-                  key={tab.key}
-                  href={tab.href}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap no-underline border-b-2 transition-colors",
-                    active
-                      ? "text-purple-600 border-purple-600"
-                      : "text-gray-500 border-transparent hover:text-gray-900 hover:border-gray-300",
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.name}
-                </Link>
-              )
-            })}
-          </div>
-
-          <div className="flex items-center gap-1 pl-2 shrink-0">
-            <button
-              onClick={toggleSeymour}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors",
-                seymourOpen
-                  ? "bg-purple-50 text-purple-700 border-purple-200"
-                  : "bg-white text-gray-500 border-gray-200 hover:text-purple-700 hover:border-purple-200",
-              )}
-              title={seymourOpen ? "Hide Seymour" : "Ask Seymour"}
-            >
-              {seymourOpen ? (
-                <Sparkles className="w-3.5 h-3.5" />
-              ) : (
-                <PanelRightOpen className="w-3.5 h-3.5" />
-              )}
-              Seymour
-            </button>
-
-            <div className="relative" ref={gearRef}>
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => setGearOpen((v) => !v)}
+                onClick={toggleSeymour}
                 className={cn(
-                  "p-1.5 rounded text-gray-500 hover:text-gray-900 border border-transparent",
-                  gearOpen && "bg-gray-100 border-gray-200",
+                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors",
+                  seymourOpen
+                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                    : "bg-white text-gray-500 border-gray-200 hover:text-purple-700 hover:border-purple-200",
                 )}
-                title="Admin tools"
-                aria-label="Admin tools"
+                title={seymourOpen ? "Hide Seymour" : "Ask Seymour"}
               >
-                <SettingsIcon className="w-4 h-4" />
+                {seymourOpen ? (
+                  <Sparkles className="w-3.5 h-3.5" />
+                ) : (
+                  <PanelRightOpen className="w-3.5 h-3.5" />
+                )}
+                Seymour
               </button>
-              {gearOpen && (
-                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
-                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                    Admin tools
-                  </p>
-                  {GEAR_LINKS.map((g) => {
-                    const Icon = g.icon
-                    return (
-                      <Link
-                        key={g.key}
-                        href={g.href}
-                        onClick={() => setGearOpen(false)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 no-underline"
-                      >
-                        <Icon className="w-3.5 h-3.5 text-gray-400" />
-                        {g.name}
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
+
+              <div className="relative" ref={gearRef}>
+                <button
+                  onClick={() => setGearOpen((v) => !v)}
+                  className={cn(
+                    "p-1.5 rounded text-gray-500 hover:text-gray-900 border border-transparent",
+                    gearOpen && "bg-gray-100 border-gray-200",
+                  )}
+                  title="Admin tools"
+                  aria-label="Admin tools"
+                >
+                  <SettingsIcon className="w-4 h-4" />
+                </button>
+                {gearOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                    <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      Admin tools
+                    </p>
+                    {GEAR_LINKS.map((g) => {
+                      const Icon = g.icon
+                      return (
+                        <Link
+                          key={g.key}
+                          href={g.href}
+                          onClick={() => setGearOpen(false)}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 no-underline"
+                        >
+                          <Icon className="w-3.5 h-3.5 text-gray-400" />
+                          {g.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </nav>
+        </div>
       </header>
 
       {/* Page header */}

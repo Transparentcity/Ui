@@ -2,10 +2,13 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap, type PublicCitySitemapItem } from "@/lib/publicApiClient"
+import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 
 const STORAGE_KEY = "waste:selectedCityId"
+
+// The waste module is limited to a small pilot set of cities.
+const WASTE_ENABLED_CITY_SLUGS = new Set(["san-francisco", "chicago"])
 
 function readStoredCityId(): number | null {
   if (typeof window === "undefined") return null
@@ -25,7 +28,10 @@ export function useWasteSelectedCity() {
   const eligibleCities = useMemo(
     () =>
       (citiesQuery.data ?? []).filter(
-        (c) => (c.datasets_count ?? 0) > 0 && c.is_launched === true,
+        (c) =>
+          WASTE_ENABLED_CITY_SLUGS.has(c.slug ?? "") &&
+          (c.datasets_count ?? 0) > 0 &&
+          c.is_launched === true,
       ),
     [citiesQuery.data],
   )
