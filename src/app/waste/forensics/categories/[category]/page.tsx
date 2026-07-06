@@ -1,13 +1,10 @@
-"use client"
+import { redirect } from "next/navigation"
 
-import { use } from "react"
-import { ForensicsCategoryDetailPage } from "@/components/waste/forensics-category-detail-page"
-
-export default function ForensicsCategoryRoute({
+export default async function CategoryRedirect({
   params,
 }: {
   params: Promise<{ category: string }>
 }) {
-  const { category } = use(params)
-  return <ForensicsCategoryDetailPage category={category} />
+  const { category } = await params
+  redirect(`/waste/categories/${encodeURIComponent(category)}`)
 }

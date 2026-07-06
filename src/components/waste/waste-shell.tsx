@@ -14,12 +14,12 @@ import {
   Code2,
   SlidersHorizontal,
   BookOpen,
-  Cpu,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteCityPicker } from "./waste-city-picker"
+import { WasteRefreshPanel } from "./waste-refresh-panel"
 import { useLatestWasteRun } from "@/lib/hooks/useWaste"
 import {
   WasteSeymourProvider,
@@ -35,12 +35,6 @@ type TabItem = {
 }
 
 const GEAR_LINKS: TabItem[] = [
-  {
-    key: "detectors",
-    name: "Detectors & Data",
-    href: "/waste#detectors",
-    icon: Cpu,
-  },
   {
     key: "methodology",
     name: "Methodology",
@@ -273,7 +267,9 @@ function WasteShellInner({
                   <SettingsIcon className="w-4 h-4" />
                 </button>
                 {gearOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                    <WasteRefreshPanel />
+                    <div className="my-1 border-t border-gray-100" />
                     <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                       Admin tools
                     </p>

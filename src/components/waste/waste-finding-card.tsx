@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check, History, Layers } from "lucide-react"
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion, AlertCircle, Sparkles, Map as MapIcon, Triangle, Copy, Check, History, Layers, Loader2, Table2 } from "lucide-react"
 import { type WasteFinding, type WasteDispositionType } from "@/lib/apiClient"
 import {
   formatDollar,
@@ -1011,6 +1011,26 @@ export function WasteFindingCard({
   const carriedOverTitle = carriedOverAsOf
     ? `Carried over from an earlier run (${new Date(carriedOverAsOf).toLocaleDateString()}) — latest detector run errored for this category.`
     : "Carried over from an earlier run — latest detector run errored for this category."
+
+  // All data-quality caveats render as one compact note block.
+  const dataNotes: string[] = []
+  if (finding.caveat) dataNotes.push(finding.caveat)
+  if (finding.is_partial_data && !finding.caveat?.includes("partial")) {
+    dataNotes.push(
+      "Based on partial fiscal year data. Values may change when the full year is available.",
+    )
+  }
+  if (
+    finding.capApplied != null &&
+    finding.capApplied > 0 &&
+    finding.amount != null &&
+    finding.amount > finding.capApplied
+  ) {
+    dataNotes.push(
+      `This finding's real exposure is ${formatDollar(finding.amount)}. Section totals use a $${(finding.capApplied / 1e6).toFixed(0)}M per-finding cap so one wide-net finding can't dominate the rollup.`,
+    )
+  }
+  if (isCarriedOver) dataNotes.push(carriedOverTitle)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -1436,15 +1456,24 @@ export function WasteFindingCard({
             </div>
           ) : (
             <div className="mb-3">
-              <p className="text-sm font-semibold text-gray-900 leading-relaxed mb-1">
-                {stripDetectorCodes(headline)}
-              </p>
-              {whySuspicious(finding) && (
-                <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
-                  <span><span className="font-medium">Why this is suspicious:</span> {whySuspicious(finding)}</span>
+              {/* Why flagged: confidence + reason in one line instead of a
+                  headline repeat, an amber banner, and a floating badge. */}
+              <div className="flex items-start gap-2 mb-2">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border shrink-0",
+                    conf.bg,
+                    conf.text,
+                    conf.border,
+                  )}
+                >
+                  <ConfIcon className="w-3.5 h-3.5" />
+                  {conf.label}
+                </span>
+                <p className="text-xs text-gray-600 leading-relaxed pt-0.5">
+                  {whySuspicious(finding) || finding.confidence_reason || ""}
                 </p>
-              )}
+              </div>
               <p className="text-sm text-gray-700 leading-relaxed">
                 {stripDetectorCodes(finding.description)}
               </p>
@@ -1457,9 +1486,19 @@ export function WasteFindingCard({
                 type="button"
                 onClick={handleToggleDetails}
                 aria-expanded={isDetailsOpen}
-                className="text-xs font-medium text-violet-700 hover:text-violet-800 underline"
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  isDetailsOpen
+                    ? "bg-violet-50 text-violet-700 border-violet-200"
+                    : "bg-white text-violet-700 border-violet-200 hover:bg-violet-50",
+                )}
               >
-                {isDetailsOpen ? "Hide details" : "Show details"}
+                {isDetailsLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Table2 className="w-3.5 h-3.5" />
+                )}
+                {isDetailsOpen ? "Hide source records" : "Show source records"}
               </button>
               {isDetailsOpen && (
                 <div className="mt-2 rounded-md border border-gray-200 bg-white overflow-x-auto">
@@ -1489,20 +1528,6 @@ export function WasteFindingCard({
             </div>
           )}
 
-          {/* Confidence badge — hidden for convergence meta-findings */}
-          {!isConvergence && (
-            <div className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs mb-3",
-              conf.bg, conf.text, "border", conf.border
-            )}>
-              <ConfIcon className="w-3.5 h-3.5" />
-              <span className="font-medium">{conf.label}</span>
-              {finding.confidence_reason && (
-                <span className="text-gray-500 ml-1">— {finding.confidence_reason}</span>
-              )}
-            </div>
-          )}
-
           {/* Consolidated / supporting findings list */}
           {supportingCount > 0 && finding.supporting_findings && (
             <DetectorsTriggeredPanel
@@ -1512,41 +1537,16 @@ export function WasteFindingCard({
             />
           )}
 
-          {/* Carried-over banner (expanded detail) */}
-          {isCarriedOver && (
-            <div className="flex items-start gap-2 mb-3 p-2 bg-purple-50 border border-purple-100 rounded-md">
-              <History className="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-purple-700">{carriedOverTitle}</p>
-            </div>
-          )}
-
-          {/* Cap notice — explains why section totals differ from the
-              real exposure shown on this card. Backend no longer buries
-              the cap in finding.caveat; it's a structured field now. */}
-          {finding.capApplied != null && finding.capApplied > 0 && finding.amount != null && finding.amount > finding.capApplied && (
+          {/* Data-quality notes — one compact block instead of a stack of
+              separate banners (caveat, partial year, cap, carried-over). */}
+          {dataNotes.length > 0 && (
             <div className="flex items-start gap-2 mb-3 p-2 bg-amber-50 border border-amber-100 rounded-md">
               <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">
-                This finding's real exposure is <strong>{formatDollar(finding.amount)}</strong>. Section totals use a ${(finding.capApplied / 1e6).toFixed(0)}M per-finding cap so one wide-net finding can't dominate the rollup.
-              </p>
-            </div>
-          )}
-
-          {/* Caveat / data quality warning */}
-          {finding.caveat && (
-            <div className="flex items-start gap-2 mb-3 p-2 bg-amber-50 border border-amber-100 rounded-md">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">{finding.caveat}</p>
-            </div>
-          )}
-
-          {/* Partial data indicator */}
-          {finding.is_partial_data && !finding.caveat?.includes("partial") && (
-            <div className="flex items-start gap-2 mb-3 p-2 bg-amber-50 border border-amber-100 rounded-md">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">
-                Based on partial fiscal year data. Values may change when the full year is available.
-              </p>
+              <div className="text-xs text-amber-700 space-y-0.5">
+                {dataNotes.map((note, i) => (
+                  <p key={i}>{note}</p>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1559,30 +1559,28 @@ export function WasteFindingCard({
             />
           )}
 
-          {/* Tool tag + Ask Seymour */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span className="bg-gray-50 px-2 py-0.5 rounded">
-                {stripRoadmapLabel(finding.tool)}
-              </span>
+          {/* Footer: one muted metadata line + actions */}
+          <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-gray-50">
+            <p className="text-[11px] text-gray-400 truncate">
+              {[
+                stripRoadmapLabel(finding.tool),
+                finding.id,
+                finding.fiscal_year ? `FY${finding.fiscal_year}` : null,
+                finding.priority_score != null
+                  ? `Priority ${finding.priority_score}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               {isOnRoadmap(finding) && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+                <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide align-middle">
                   <MapIcon className="w-2.5 h-2.5" />
                   On Roadmap
                 </span>
               )}
-              <span>{finding.id}</span>
-              {finding.fiscal_year && (
-                <span className="text-gray-500">
-                  FY{finding.fiscal_year}
-                </span>
-              )}
-              <span className="text-gray-300">
-                Priority: {finding.priority_score ?? "—"}
-              </span>
-            </div>
+            </p>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* Copy Case Study */}
               <CopyCaseStudyButton finding={finding} />
 
@@ -1596,7 +1594,7 @@ export function WasteFindingCard({
                 )}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Ask Seymour for analysis
+                Ask Seymour
               </button>
             </div>
           </div>

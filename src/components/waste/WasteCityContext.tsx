@@ -1,12 +1,14 @@
 "use client"
 
 import React, { createContext, useContext } from "react"
-import { useWasteSelectedCity } from "@/lib/hooks/useWasteSelectedCity"
-import type { PublicCitySitemapItem } from "@/lib/publicApiClient"
+import {
+  useWasteSelectedCity,
+  type WasteCityOption,
+} from "@/lib/hooks/useWasteSelectedCity"
 
 interface WasteCityContextValue {
   selectedCityId: number
-  eligibleCities: PublicCitySitemapItem[]
+  eligibleCities: WasteCityOption[]
   isLoading: boolean
   isFetching: boolean
   cityLoadError: Error | null

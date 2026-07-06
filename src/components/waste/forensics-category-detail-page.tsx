@@ -81,7 +81,7 @@ export function ForensicsCategoryDetailPage({
     >
       <ForensicsShell title={label}>
         <Link
-          href="/waste/forensics/categories"
+          href="/waste"
           className="inline-flex items-center gap-1 text-xs text-gray-500 no-underline hover:text-purple-600 mb-3"
         >
           <ArrowLeft className="w-3 h-3" />

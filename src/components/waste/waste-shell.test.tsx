@@ -25,6 +25,12 @@ vi.mock("@/components/Loader", () => ({
   default: () => <div data-testid="loader">Loading...</div>,
 }))
 
+vi.mock("./waste-refresh-panel", () => ({
+  WasteRefreshPanel: () => (
+    <div data-testid="waste-refresh-panel">Weekly data refresh</div>
+  ),
+}))
+
 vi.mock("@/lib/hooks/useWaste", () => ({
   useLatestWasteRun: vi.fn().mockReturnValue({
     data: null,
@@ -97,5 +103,13 @@ describe("WasteShell", () => {
     expect(screen.getByLabelText("Admin tools")).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText("Admin tools"))
     expect(screen.getByText("Methodology")).toBeInTheDocument()
+  })
+
+  it("shows the weekly refresh panel inside the gear menu", () => {
+    render(<WasteShell title="Test">Content</WasteShell>)
+    fireEvent.click(screen.getByLabelText("Admin tools"))
+    expect(screen.getByTestId("waste-refresh-panel")).toBeInTheDocument()
+    // The dead "Detectors & Data" link is gone.
+    expect(screen.queryByText("Detectors & Data")).not.toBeInTheDocument()
   })
 })

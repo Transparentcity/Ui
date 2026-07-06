@@ -1,11 +1,11 @@
 "use client"
 
-import type { PublicCitySitemapItem } from "@/lib/publicApiClient"
+import type { WasteCityOption } from "@/lib/hooks/useWasteSelectedCity"
 import { Loader2 } from "lucide-react"
 
 interface WasteCityPickerProps {
   selectedCityId: number
-  cities: PublicCitySitemapItem[]
+  cities: WasteCityOption[]
   isLoading?: boolean
   isFetching?: boolean
   onChange: (cityId: number | null) => void

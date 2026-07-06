@@ -55,10 +55,10 @@ describe("WasteFindingCard", () => {
 
   // ── Show details button (loading + error) ─────────────────────────────────
 
-  it("shows 'Show details' button for payroll findings when expanded", () => {
+  it("shows 'Show source records' button for payroll findings when expanded", () => {
     const finding = makeFinding({ category: "Payroll", entity: "Fire Department" })
     render(<WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />)
-    expect(screen.getByText("Show details")).toBeInTheDocument()
+    expect(screen.getByText("Show source records")).toBeInTheDocument()
   })
 
   it("shows loading indicator when details are being fetched", async () => {
@@ -69,7 +69,7 @@ describe("WasteFindingCard", () => {
     const finding = makeFinding({ category: "Payroll", entity: "Fire Department" })
     render(<WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />)
 
-    fireEvent.click(screen.getByText("Show details"))
+    fireEvent.click(screen.getByText("Show source records"))
     await waitFor(() => {
       expect(screen.getByText("Loading details...")).toBeInTheDocument()
     })
@@ -80,7 +80,7 @@ describe("WasteFindingCard", () => {
     const finding = makeFinding({ category: "Payroll", entity: "Fire Department" })
     render(<WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />)
 
-    fireEvent.click(screen.getByText("Show details"))
+    fireEvent.click(screen.getByText("Show source records"))
     await waitFor(() => {
       expect(screen.getByText("Network error")).toBeInTheDocument()
     })
@@ -96,7 +96,7 @@ describe("WasteFindingCard", () => {
     const finding = makeFinding({ category: "Payroll", entity: "Fire Department" })
     render(<WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />)
 
-    fireEvent.click(screen.getByText("Show details"))
+    fireEvent.click(screen.getByText("Show source records"))
     await waitFor(() => {
       expect(screen.getByText("EMP001")).toBeInTheDocument()
     })
@@ -114,7 +114,7 @@ describe("WasteFindingCard", () => {
         onAskSeymour={onAskSeymour}
       />
     )
-    fireEvent.click(screen.getByText("Ask Seymour for analysis"))
+    fireEvent.click(screen.getByText("Ask Seymour"))
     expect(onAskSeymour).toHaveBeenCalledWith(finding)
   })
 
@@ -127,7 +127,7 @@ describe("WasteFindingCard", () => {
         onAskSeymour={onAskSeymour}
       />
     )
-    expect(screen.queryByText("Ask Seymour for analysis")).not.toBeInTheDocument()
+    expect(screen.queryByText("Ask Seymour")).not.toBeInTheDocument()
   })
 
   // ── Keyboard & Accessibility ──────────────────────────────────────────────
@@ -169,7 +169,7 @@ describe("WasteFindingCard", () => {
     const finding = makeFinding({ category: "Payroll", entity: "Fire Department" })
     render(<WasteFindingCard finding={finding} isExpanded={true} onToggle={onToggle} />)
 
-    fireEvent.click(screen.getByText("Show details"))
+    fireEvent.click(screen.getByText("Show source records"))
     await waitFor(() => {
       expect(screen.getByText("Retry")).toBeInTheDocument()
     })

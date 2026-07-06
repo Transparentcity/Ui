@@ -120,7 +120,7 @@ export function ForensicsCategoriesPage() {
               return (
                 <Link
                   key={key}
-                  href={`/waste/forensics/categories/${key}`}
+                  href={`/waste/categories/${key}`}
                   className="group flex flex-col rounded-xl bg-white border border-gray-200 p-5 no-underline hover:shadow-md transition-all relative overflow-hidden"
                 >
                   <div

@@ -1,5 +1,5 @@
-import { ExecutiveSummaryPage } from "@/components/waste/executive-summary-page"
+import { redirect } from "next/navigation"
 
-export default function ExecutiveSummaryRoute() {
-  return <ExecutiveSummaryPage />
+export default function ExecutiveRedirect() {
+  redirect("/waste/reports")
 }

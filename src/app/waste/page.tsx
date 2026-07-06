@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation"
+import { ForensicsCategoriesPage } from "@/components/waste/forensics-categories-page"
 
 export default function WastePage() {
-  redirect("/waste/forensics/categories")
+  return <ForensicsCategoriesPage />
 }

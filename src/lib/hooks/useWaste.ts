@@ -499,8 +499,19 @@ export function useLatestPersistedWasteResult(cityId: number | null) {
     queryFn: async () => {
       if (!cityId) return null
       const token = await getAccessTokenSilently()
-      const runs = await listWasteRuns(token, cityId, undefined, 5, "completed")
-      if (runs.length === 0) return null
+      // 10 completed runs ≈ 10 weeks of carry-over headroom: a detector
+      // family has to fail that many consecutive runs before its category
+      // can go blank.
+      const allRuns = await listWasteRuns(token, cityId, undefined, 10, "completed")
+      if (allRuns.length === 0) return null
+
+      // Coverage-aware merge: a category-scoped run legitimately has zero
+      // findings for every other category, and the merge would read that as
+      // "this category is clean" and blank it. Only full runs
+      // (category === null) are authoritative; fall back to whatever exists
+      // if no full run has ever completed.
+      const fullRuns = allRuns.filter((run) => run.category == null)
+      const runs = fullRuns.length > 0 ? fullRuns : allRuns
 
       const bundles = await Promise.all(
         runs.map(async (run) => {
