@@ -74,15 +74,20 @@ const CATEGORY_META: Record<
 
 export function ForensicsCategoriesPage() {
   const { selectedCityId: cityId, selectedCityName } = useWasteCity()
-  const { data: analysisData, isLoading } =
-    useLatestPersistedWasteResult(cityId)
+  const {
+    data: analysisData,
+    isLoading,
+    isError,
+    error,
+  } = useLatestPersistedWasteResult(cityId)
   const allFindings = useMemo(
     () => analysisData?.findings ?? [],
     [analysisData],
   )
   // analysisData === null means no completed run exists for this city yet:
-  // a first-run state, not "the city is clean".
-  const hasNoRuns = !isLoading && analysisData == null
+  // a first-run state, not "the city is clean". A query error means we
+  // don't know either way and must not invite an unnecessary refresh run.
+  const hasNoRuns = !isLoading && !isError && analysisData == null
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, { total: number; critical: number; amount: number }> = {}
@@ -113,6 +118,15 @@ export function ForensicsCategoriesPage() {
               />
             ))}
           </div>
+        ) : isError ? (
+          <p
+            className="max-w-lg mx-auto mt-8 text-sm text-red-600 text-center"
+            role="alert"
+          >
+            Couldn&apos;t load findings for {selectedCityName}:{" "}
+            {error instanceof Error ? error.message : "Unknown error"}. Reload
+            to retry.
+          </p>
         ) : hasNoRuns ? (
           <div className="max-w-lg mx-auto mt-8 bg-white rounded-xl border border-gray-200 p-6 text-center">
             <h3 className="text-base font-semibold text-gray-900 mb-1">

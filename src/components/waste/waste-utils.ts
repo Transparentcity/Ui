@@ -820,6 +820,37 @@ const MERGEABLE_CATEGORIES: WasteCategoryKey[] = [
   "convergence",
 ]
 
+const MERGEABLE_SET = new Set<WasteCategoryKey>(MERGEABLE_CATEGORIES)
+
+export type RunScope =
+  | { kind: "full" }
+  | { kind: "category"; category: WasteCategoryKey }
+  | { kind: "unknown" }
+
+/**
+ * Strictly resolve a run's scope label. `null`/empty means a full run.
+ * A label that doesn't clearly name a mergeable category is "unknown" and
+ * the run is treated as covering nothing: normalizeWasteCategory falls back
+ * to "payroll" for unrecognized inputs, and letting e.g. a future
+ * category="all" run pass as a payroll-scoped run would blank the payroll
+ * category with its zero findings.
+ */
+export function resolveRunScope(label: string | null | undefined): RunScope {
+  if (label == null || String(label).trim() === "") return { kind: "full" }
+  const lower = String(label).toLowerCase()
+  const normalized = normalizeWasteCategory(String(label))
+  if (!MERGEABLE_SET.has(normalized)) return { kind: "unknown" }
+  if (
+    normalized === "payroll" &&
+    !lower.includes("payroll") &&
+    !lower.includes("compensation")
+  ) {
+    // The normalizer's unknown-input fallback, not a genuine payroll scope.
+    return { kind: "unknown" }
+  }
+  return { kind: "category", category: normalized }
+}
+
 /**
  * Merge findings across the most recent completed runs. For each canonical
  * category we trust the newest run that did NOT record an error for that
@@ -840,8 +871,9 @@ export function mergePersistedRuns(
   const carriedOver: CarriedOverCategoryInfo[] = []
   const seenIds = new Set<string>()
 
-  // Precompute each run's failed-category set once.
+  // Precompute each run's failed-category set and scope once.
   const errorsByRun = runs.map((r) => categoriesWithErrors(r.errors))
+  const scopeByRun = runs.map((r) => resolveRunScope(r.category))
 
   for (const category of MERGEABLE_CATEGORIES) {
     // Walk newest → oldest, skipping runs that explicitly errored for this
@@ -850,15 +882,15 @@ export function mergePersistedRuns(
     // not be read as "clean"). The first non-errored covering run is
     // authoritative.
     let pickedIndex = -1
+    let newerCoveringErrored = false
     for (let i = 0; i < runs.length; i++) {
-      const runCategory = runs[i].category
-      if (
-        runCategory != null &&
-        normalizeWasteCategory(runCategory) !== category
-      ) {
+      const scope = scopeByRun[i]
+      if (scope.kind === "unknown") continue
+      if (scope.kind === "category" && scope.category !== category) continue
+      if (errorsByRun[i].has(category)) {
+        newerCoveringErrored = true
         continue
       }
-      if (errorsByRun[i].has(category)) continue
       pickedIndex = i
       break
     }
@@ -878,10 +910,11 @@ export function mergePersistedRuns(
     const catSummary = summaryForCategory(picked.response.summary, category)
     if (catSummary) mergedCategorySummaries.push(catSummary)
 
-    // Only flag as carried-over when we actually pulled data from an older
-    // run that the latest run couldn't provide. No label for "picked i=0"
-    // or for "every run was empty for this category".
-    if (pickedIndex > 0 && findingsForCat.length > 0) {
+    // Only flag as carried-over when a NEWER covering run errored for this
+    // family and we fell back to an older one. Being skipped for coverage
+    // (e.g. the newest run was scoped to another category) is normal and
+    // must not stamp every finding with a stale-data badge.
+    if (newerCoveringErrored && findingsForCat.length > 0) {
       carriedOver.push({
         category,
         analysisTimestamp: picked.analysisTimestamp,

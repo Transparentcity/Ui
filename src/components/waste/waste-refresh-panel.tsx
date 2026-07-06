@@ -107,16 +107,29 @@ export function WasteRefreshPanel() {
     job?.status === "running"
   const cityResults = parseCityResults(job?.result)
 
-  // When a run we started finishes, fresh findings may exist.
+  // When a run we started reaches ANY terminal state (or we lose track of
+  // it entirely), release liveJobId so the button doesn't stay disabled and
+  // polling doesn't run forever. Fresh findings may exist on completion.
   const liveJobStatus = liveJobId ? job?.status : undefined
+  const liveJobLost = liveJobId != null && jobQuery.failureCount >= 4
   useEffect(() => {
     if (!liveJobId) return
-    if (liveJobStatus !== "completed" && liveJobStatus !== "failed") return
+    const terminal =
+      liveJobStatus === "completed" ||
+      liveJobStatus === "failed" ||
+      liveJobStatus === "cancelled"
+    if (!terminal && !liveJobLost) return
     setLiveJobId(null)
+    if (liveJobLost) {
+      setStartError(
+        "Lost track of the running job. Check Job Administration for its status.",
+      )
+      return
+    }
     queryClient.invalidateQueries({ queryKey: ["waste", "persisted"] })
     queryClient.invalidateQueries({ queryKey: ["waste", "runs"] })
     queryClient.invalidateQueries({ queryKey: ["waste", "refresh-schedule"] })
-  }, [liveJobId, liveJobStatus, queryClient])
+  }, [liveJobId, liveJobStatus, liveJobLost, queryClient])
 
   const startRun = async () => {
     if (!schedule || isStarting || isRunning) return

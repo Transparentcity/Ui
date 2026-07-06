@@ -117,10 +117,13 @@ export function useLatestPersistedWasteResult(cityId: number | null) {
       const allRuns = await listWasteRuns(token, cityId, undefined, 10, "completed")
       if (allRuns.length === 0) return null
 
-      // The run list already carries each run's errors. Older runs only
-      // matter as carry-over sources when a newer run errored, so stop
-      // fetching result payloads at the first full run with no errors.
-      // In the common healthy case this fetches exactly one result.
+      // The run list already carries each run's errors (both the list and
+      // the result endpoint read the same waste_runs.errors column, so
+      // stopping on list-level errors can't diverge from what the merge
+      // sees). Older runs only matter as carry-over sources when a newer
+      // run errored, so stop fetching result payloads at the first full run
+      // with no errors. In the common healthy case this fetches exactly one
+      // result.
       const cleanFullIndex = allRuns.findIndex(
         (run) => run.category == null && (run.errors ?? []).length === 0,
       )
@@ -146,7 +149,14 @@ export function useLatestPersistedWasteResult(cityId: number | null) {
       const usable: PersistedRunBundle[] = bundles.filter(
         (b): b is Exclude<(typeof bundles)[number], null> => b !== null
       )
-      if (usable.length === 0) return null
+      // Runs exist but every result fetch failed: that's an outage, not a
+      // first-run state. Throw so the query errors instead of returning the
+      // null that consumers read as "no analysis has run yet".
+      if (usable.length === 0) {
+        throw new Error(
+          `Failed to load results for ${runs.length} completed run(s)`,
+        )
+      }
 
       const merged = mergePersistedRuns(usable)
       return merged?.response ?? null

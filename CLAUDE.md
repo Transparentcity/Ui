@@ -1,5 +1,15 @@
 # Transparent City — UI repo
 
+## Waste module
+
+The admin-only waste module lives at `/waste` (landing page = findings by
+category; tabs: By category / By department / Reports). Architecture, data
+flow, the never-blank run merge, and the weekly-refresh (job #2) wiring are
+documented in `src/components/waste/README.md` — read that before changing
+anything under `src/components/waste/` or `src/app/waste/`. The city picker
+is backend-driven (`configured && launched` from `/api/admin/waste/cities`);
+launching a new waste city requires no UI change.
+
 ## Weekly QA
 
 The automated weekly QA runs via `.github/workflows/weekly-qa.yml` every Thursday at 7 AM PT.
