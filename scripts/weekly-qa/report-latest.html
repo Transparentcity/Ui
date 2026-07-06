@@ -1,0 +1,970 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Transparent City QA: 44 metric issues across 9 cities</title><style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 28px 20px; line-height: 1.5; }
+    h1 { font-size: 1.15rem; margin: 0 0 4px; }
+    h2 { font-size: 1rem; margin: 28px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+    h3 { font-size: 0.9rem; margin: 18px 0 6px; color: #374151; text-transform: uppercase; letter-spacing: 0.04em; }
+    p, li { font-size: 0.875rem; margin: 5px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 8px 0 18px; font-size: 0.825rem; }
+    th { background: #f3f4f6; text-align: left; padding: 6px 10px; font-weight: 600; border: 1px solid #e5e7eb; }
+    td { padding: 6px 10px; border: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .pass { color: #16a34a; font-weight: 600; }
+    .fail { color: #dc2626; font-weight: 600; }
+    .note { font-size: 0.78rem; color: #6b7280; }
+    .summary { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 20px; font-size: 0.875rem; }
+  </style></head><body><h1>Transparent City QA: 44 metric issues across 9 cities</h1><div class="summary"><strong>Run:</strong> Thursday, July 2, 2026 at 7:12 AM PDT &nbsp;|&nbsp; <strong>Cards checked:</strong> 221 &nbsp;|&nbsp; <strong>Failures:</strong> <span class="fail">44</span></div><h2>Passing cities</h2><p class="pass">Oakland, Austin</p><h2>Failures</h2><h3>SF</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/homicides">💀 Homicides</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (36d lag, expected ≤13d)</td>
+          <td class="note">Metric ends: May 25, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_commercial">⏱️ Avg Days to Permit — Full Review Commercial (SF)</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (60d lag, expected ≤35d)</td>
+          <td class="note">Metric ends: May 1, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_residential">⏱️ Avg Days to Permit — Full Review Residential (SF)</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (60d lag, expected ≤35d)</td>
+          <td class="note">Metric ends: May 1, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_commercial">⏱️ Avg Days to Permit — OTC Commercial (SF)</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (60d lag, expected ≤35d)</td>
+          <td class="note">Metric ends: May 1, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_residential">⏱️ Avg Days to Permit — OTC Residential (SF)</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (60d lag, expected ≤35d)</td>
+          <td class="note">Metric ends: May 1, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc">⏱️ Avg Days to Permit — OTC (SF)</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (60d lag, expected ≤35d)</td>
+          <td class="note">Metric ends: May 1, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/beach_fecal_coliform">🦠 Beach Fecal Coliform Level</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/fire_ems_patient_deaths">💀 Fire/EMS Patient Deaths</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sustained_police_misconduct">⚖️ Sustained Police Misconduct</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (120d lag, expected ≤111d)</td>
+          <td class="note">Metric ends: Mar 2, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_total_vendor_payments">💰 Total Vendor Payments</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/sf_vendor_payment_count">🧾 Vendor Payment Transactions</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/overdose_related_911_calls">🚑 Overdose-Related 911 Calls</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (93d lag, expected ≤68d)</td>
+          <td class="note">Metric ends: Mar 29, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/retail_new_retail_registrations_16">🛍️ New Retail Registrations</a></td>
+          <td>Data lag detected (14d behind city consensus) — added to Appendix B</td>
+          <td class="note">Metric ends: Jun 16, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/speed_camera_warnings_citations">⚠️ Speed Camera Warnings</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (91d lag, expected ≤66d)</td>
+          <td class="note">Metric ends: Mar 31, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/san-francisco/metrics/speed_camera_citations">⚡ Speed Camera Citations</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (91d lag, expected ≤66d)</td>
+          <td class="note">Metric ends: Mar 31, 2026 | City consensus: Jun 30, 2026</td>
+        </tr></tbody></table><h3>Chicago</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_completed">📋🏁 New Residential Construction Permits Completed</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (88d lag, expected ≤66d)</td>
+          <td class="note">Metric ends: Apr 3, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/chicago/metrics/chicago_traffic_crashes">🚗 Traffic Crashes</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr></tbody></table><h3>Detroit</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/detroit/metrics/detroit_blight_tickets">🏚️ Blight Tickets Issued</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (50d lag, expected ≤24d)</td>
+          <td class="note">Metric ends: May 12, 2026 | City consensus: Jul 1, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/detroit/metrics/detroit_blight_tickets">🏚️ Blight Tickets Issued</a></td>
+          <td>Implausible value: current-year is 0.03% of prior-year — possible stalled data feed</td>
+          <td class="note">Current: 7 | Prior: 27,367</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/detroit/metrics/detroit_911_calls_police_serviced">📞 911 Calls (Police Serviced) — Detroit</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (66d lag, expected ≤40d)</td>
+          <td class="note">Metric ends: Apr 26, 2026 | City consensus: Jul 1, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/detroit/metrics/detroit_311_improve_detroit_issues">📞 Improve Detroit Issues</a></td>
+          <td>Missing current-year YTD value</td>
+          <td class="note">Current: No data | Prior: 51,132 | Window: Jan 1, 2026 – Jul 2, 2026</td>
+        </tr></tbody></table><h3>Denver</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/denver/metrics/denver_311_service_requests">📞 311 Service Requests</a></td>
+          <td>Missing current-year YTD value</td>
+          <td class="note">Current: No data | Prior: — | Window: Jan 1, 2026 – Jul 2, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle">🚗 Abandoned Vehicle Complaints (Denver)</a></td>
+          <td>Missing prior-year YTD value (new — added to Appendix A)</td>
+          <td class="note">Current: 4,204 | Prior: No data | Window ends: Jun 29, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/denver/metrics/denver_drug_crime_incidents">💊 Drug Crime Incidents</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (85d lag, expected ≤60d)</td>
+          <td class="note">Metric ends: Apr 5, 2026 | City consensus: Jun 29, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/denver/metrics/denver_311_graffiti">🎨 Graffiti Removal Requests (Denver)</a></td>
+          <td>Missing prior-year YTD value (new — added to Appendix A)</td>
+          <td class="note">Current: 256 | Prior: No data | Window ends: Jun 27, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/denver/metrics/denver_total_crime_incidents">👮 Total Crime Incidents</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (110d lag, expected ≤85d)</td>
+          <td class="note">Metric ends: Mar 11, 2026 | City consensus: Jun 29, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/denver/metrics/denver_traffic_accidents">🚗 Traffic Accidents</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr></tbody></table><h3>Cincinnati</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_true_new_residential_construction_permits_filed">📋📥 New Residential Construction Permits Filed</a></td>
+          <td>Data lag detected (8d behind city consensus) — added to Appendix B</td>
+          <td class="note">Metric ends: Jun 22, 2026 | City consensus: Jun 30, 2026</td>
+        </tr></tbody></table><h3>NYC</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_911_calls_for_service">📞 911 Calls for Service (NYPD)</a></td>
+          <td>Missing current-year YTD value</td>
+          <td class="note">Current: No data | Prior: 3,566,883 | Window: Jan 1, 2026 – Jul 2, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_building_permits_issued">🏗️ Building Permits Issued</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (52d lag, expected ≤27d)</td>
+          <td class="note">Metric ends: May 9, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_business_license_registrations">🏢 Business License Registrations</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (75d lag, expected ≤50d)</td>
+          <td class="note">Metric ends: Apr 16, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests">💊 Drug Crime Incidents</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (91d lag, expected ≤82d)</td>
+          <td class="note">Metric ends: Mar 31, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_new_residential_housing_units_completed">🏠🏁 New Residential Housing Units Completed</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_new_residential_housing_units_issued">🏠✅ New Residential Housing Units Issued</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_311_service_requests">🗽 NYC 311 Service Requests</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (85d lag, expected ≤60d)</td>
+          <td class="note">Metric ends: Apr 6, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_traffic_fatalities">☠️ NYC Traffic Fatalities</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (60d lag, expected ≤35d)</td>
+          <td class="note">Metric ends: May 1, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd">👮 NYPD Arrests (YTD)</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (91d lag, expected ≤82d)</td>
+          <td class="note">Metric ends: Mar 31, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_nypd_shooting_incidents">🔫 NYPD Shooting Incidents</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_property_crime_fbi_type_ii">📦 Property Crime Incidents</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (91d lag, expected ≤82d)</td>
+          <td class="note">Metric ends: Mar 31, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_property_crime_fbi_type_ii">📦 Property Crime Incidents</a></td>
+          <td>Implausible value: current-year is 193× prior-year — possible data error</td>
+          <td class="note">Current: 39,515 | Prior: 205</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_fbi_type_i">🚨 Violent Crime Incidents</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (91d lag, expected ≤82d)</td>
+          <td class="note">Metric ends: Mar 31, 2026 | City consensus: Jun 30, 2026</td>
+        </tr></tbody></table><h3>Seattle</h3><table><thead><tr><th>Metric</th><th>Failure type</th><th>On-page values</th></tr></thead><tbody><tr>
+          <td><a href="https://transparent.city/c/seattle/metrics/seattle_business_license_registrations">🏢 Business License Registrations</a></td>
+          <td>Data lag exceeds normal range — possible stalled feed (35d lag, expected ≤25d)</td>
+          <td class="note">Metric ends: May 26, 2026 | City consensus: Jun 30, 2026</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/seattle/metrics/seattle_311_noise">🔊 Noise Complaints (Seattle)</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr><tr>
+          <td><a href="https://transparent.city/c/seattle/metrics/seattle_traffic_crashes">🚗 Traffic Crashes</a></td>
+          <td>No YTD comparison data returned by API</td>
+          <td class="note">API returned empty for this metric</td>
+        </tr></tbody></table><!--FACTCHECK_SECTION_START--><h2>Fact-check candidates</h2><p class="note">Three healthy (non-failing) metrics per city, selected at random this week for independent web-search verification — verdicts are filled in by the fact-check step.</p><table><thead><tr><th>City</th><th>Metric</th><th>Current YTD</th><th>Window</th><th>Verdict</th><th>Notes / sources</th></tr></thead><tbody><tr>
+      <td>SF</td>
+      <td><a href="https://transparent.city/c/san-francisco/metrics/business_expirations">📋 Business Expirations</a></td>
+      <td>2,078</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>SF</td>
+      <td><a href="https://transparent.city/c/san-francisco/metrics/da_conviction_rate">📊 DA Conviction Rate</a></td>
+      <td>42.6</td>
+      <td>Jan 1, 2026 – Jun 18, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>SF</td>
+      <td><a href="https://transparent.city/c/san-francisco/metrics/sf_sole_source_contract_share">📊 Sole-Source Contract Share</a></td>
+      <td>0.15</td>
+      <td>Jan 1, 2026 – Jun 1, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Oakland</td>
+      <td><a href="https://transparent.city/c/oakland/metrics/oakland_311_service_requests">📞 Oakland 311 Service Requests</a></td>
+      <td>55,242</td>
+      <td>Jan 1, 2026 – Jul 1, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Oakland</td>
+      <td><a href="https://transparent.city/c/oakland/metrics/oakland_311_street_sidewalk">🚧 Street &amp; Sidewalk 311 Cases</a></td>
+      <td>2,333</td>
+      <td>Jan 1, 2026 – Jul 1, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Oakland</td>
+      <td><a href="https://transparent.city/c/oakland/metrics/oakland_homicides">💀 Homicides</a></td>
+      <td>17</td>
+      <td>Jan 1, 2026 – Jun 24, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Chicago</td>
+      <td><a href="https://transparent.city/c/chicago/metrics/chicago_311_rodent">🐀 Rodent Baiting / Rat Complaints (Chicago)</a></td>
+      <td>19,416</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Chicago</td>
+      <td><a href="https://transparent.city/c/chicago/metrics/chicago_violent_crime_fbi_type_i">🚨 Violent Crime Incidents</a></td>
+      <td>12,507</td>
+      <td>Jan 1, 2026 – Jun 22, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Chicago</td>
+      <td><a href="https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_issued">📋✅ New Residential Construction Permits Issued</a></td>
+      <td>296</td>
+      <td>Jan 1, 2026 – Jun 29, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Detroit</td>
+      <td><a href="https://transparent.city/c/detroit/metrics/detroit_demolition_permits">📋🔨 Demolition Permits Issued</a></td>
+      <td>317</td>
+      <td>Jan 1, 2026 – Jun 25, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Detroit</td>
+      <td><a href="https://transparent.city/c/detroit/metrics/detroit_drug_crime">💊 Drug Crime Incidents</a></td>
+      <td>508</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Detroit</td>
+      <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_construction_permits_completed">📋🏁 New Residential Construction Permits Completed</a></td>
+      <td>38</td>
+      <td>Jan 1, 2026 – Jun 29, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Denver</td>
+      <td><a href="https://transparent.city/c/denver/metrics/denver_property_crime_incidents">📦 Property Crime Incidents</a></td>
+      <td>9,838</td>
+      <td>Jan 1, 2026 – Jun 29, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Denver</td>
+      <td><a href="https://transparent.city/c/denver/metrics/denver_burglary">🏠 Burglary</a></td>
+      <td>1,778</td>
+      <td>Jan 1, 2026 – Jun 29, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Denver</td>
+      <td><a href="https://transparent.city/c/denver/metrics/denver_auto_theft">🚗 Auto Theft</a></td>
+      <td>2,165</td>
+      <td>Jan 1, 2026 – Jun 29, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Cincinnati</td>
+      <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_311_service_requests">📞 311 Service Requests</a></td>
+      <td>85,664</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Cincinnati</td>
+      <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_street_sidewalk_cleaning_311">🧹 Street &amp; Sidewalk Cleaning Requests (311)</a></td>
+      <td>5,611</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Cincinnati</td>
+      <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_911_calls">📞 911 Calls</a></td>
+      <td>164,287</td>
+      <td>Jan 1, 2026 – Jun 28, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>NYC</td>
+      <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_traffic_collisions_total">🚗 NYC Traffic Collisions (Total)</a></td>
+      <td>9,700</td>
+      <td>Jan 1, 2026 – Jun 11, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>NYC</td>
+      <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_311_parking">🚗 NYC Illegal Parking Complaints (311)</a></td>
+      <td>315,200</td>
+      <td>Jan 1, 2026 – Jul 1, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>NYC</td>
+      <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_311_total">📞 NYC 311 Total Requests</a></td>
+      <td>1,994,599</td>
+      <td>Jan 1, 2026 – Jul 1, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Austin</td>
+      <td><a href="https://transparent.city/c/austin/metrics/austin_traffic_crashes">🚗 Traffic Crashes</a></td>
+      <td>4,574</td>
+      <td>Jan 1, 2026 – Jun 17, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Austin</td>
+      <td><a href="https://transparent.city/c/austin/metrics/austin_apd_911_calls">🚔 APD 911 Calls for Service</a></td>
+      <td>116,262</td>
+      <td>Jan 1, 2026 – May 31, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Austin</td>
+      <td><a href="https://transparent.city/c/austin/metrics/austin_311_garbage_recycling">🗑️ Austin Garbage &amp; Recycling 311 Requests</a></td>
+      <td>36,614</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Seattle</td>
+      <td><a href="https://transparent.city/c/seattle/metrics/seattle_311_abandoned_vehicle">🚗 Abandoned Vehicle Complaints (Seattle)</a></td>
+      <td>30,092</td>
+      <td>Jan 1, 2026 – Jul 1, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Seattle</td>
+      <td><a href="https://transparent.city/c/seattle/metrics/seattle_311_graffiti">🎨 Graffiti Complaints (Seattle)</a></td>
+      <td>17,801</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr><tr>
+      <td>Seattle</td>
+      <td><a href="https://transparent.city/c/seattle/metrics/seattle_drug_crime">💊 Drug Crime Incidents</a></td>
+      <td>890</td>
+      <td>Jan 1, 2026 – Jun 30, 2026</td>
+      <td class="note"><span class="note">pending</span></td>
+      <td class="note"></td>
+    </tr></tbody></table><!--FACTCHECK_SECTION_END--><h2>Appendix A: Known Data Outages</h2><table><thead><tr><th>City</th><th>Metric</th><th>Missing window</th><th>Reason</th><th>Added</th></tr></thead><tbody><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/speed_camera_warnings_citations">⚠️ Speed Camera Warnings</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/speed_camera_citations">⚡ Speed Camera Citations</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Oakland</td>
+        <td><a href="https://transparent.city/c/oakland/metrics/oakland_auto_burglary">🔓 Auto Burglary Reports</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Oakland</td>
+        <td><a href="https://transparent.city/c/oakland/metrics/oakland_stolen_vehicles">🚗💨 Stolen Vehicle Reports</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_911_calls_police_serviced">📞 911 Calls (Police Serviced) — Detroit</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_311_service_requests">📞 311 Service Requests</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_pavement_lane_miles_treated">🛣️ Pavement Lane-Miles Treated</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests">💊 Drug Crime Incidents</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd">👮 NYPD Arrests (YTD)</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle">🚗 Abandoned Vehicle Complaints (Denver)</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-07-02</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_311_graffiti">🎨 Graffiti Removal Requests (Denver)</a></td>
+        <td>prior-year YTD</td>
+        <td>reason unconfirmed</td>
+        <td>2026-07-02</td>
+      </tr></tbody></table><h2>Appendix B: Known Data Lag</h2><table><thead><tr><th>City</th><th>Metric</th><th>Normal lag range (days)</th><th>Source</th><th>Added</th></tr></thead><tbody><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_311_sla_compliance_rate">📊 311 SLA Compliance Rate</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_commercial">⏱️ Avg Days to Permit — Full Review Commercial (SF)</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_residential">⏱️ Avg Days to Permit — Full Review Residential (SF)</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_commercial">⏱️ Avg Days to Permit — OTC Commercial (SF)</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_residential">⏱️ Avg Days to Permit — OTC Residential (SF)</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc">⏱️ Avg Days to Permit — OTC (SF)</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/bicycle_collisions">🚴 Bicycle Collisions</a></td>
+        <td>90–98</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_restaurant_permit_days">🍽️ Days to Permit a New Restaurant Opening</a></td>
+        <td>42–50</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_demolition_permits_issued">📋🔨 Demolition Permits Issued</a></td>
+        <td>13–21</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/fatal_traffic_collisions">💀 Fatal Traffic Collisions</a></td>
+        <td>90–98</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/pedestrian_collisions">🚶 Pedestrian Collisions</a></td>
+        <td>90–98</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/police_misconduct_allegations">🚔 Police Misconduct Allegations</a></td>
+        <td>60–68</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sfo_total_landings">🛬 SFO Total Landings</a></td>
+        <td>88–96</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sfo_total_passengers">✈️ SFO Total Passengers</a></td>
+        <td>88–96</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/traffic_collisions">🚗 Traffic Collisions</a></td>
+        <td>89–97</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/fire_fire_incidents_ytd_8">🔥 Fire Incidents</a></td>
+        <td>99–107</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/fatalities_fire_fatalities_ytd_9">🚒 Fire Fatalities</a></td>
+        <td>99–107</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/overdose_related_911_calls">🚑 Overdose-Related 911 Calls</a></td>
+        <td>60–68</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/unintentional_drug_overdose_deaths">💀 Unintentional Drug Overdose Deaths</a></td>
+        <td>57–65</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/public_safety_sfpd_drone_flights">🚁 SFPD Drone Flights</a></td>
+        <td>58–66</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_new_residential_housing_units_completed">🏠🏁 New Residential Housing Units Completed</a></td>
+        <td>30–38</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/retail_closures_retail_closures_17">🏪 Retail Closures</a></td>
+        <td>7–15</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/speed_camera_warnings_citations">⚠️ Speed Camera Warnings</a></td>
+        <td>58–66</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/speed_camera_citations">⚡ Speed Camera Citations</a></td>
+        <td>58–66</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_311_aircraft_noise">✈️ Aircraft Noise Complaints (Chicago)</a></td>
+        <td>23–31</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_building_permits_issued">🏗️ Building Permits Issued</a></td>
+        <td>23–31</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_property_crime_fbi_type_ii">📦 Property Crime Incidents</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_violent_crime_fbi_type_i">🚨 Violent Crime Incidents</a></td>
+        <td>5–13</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_blight_tickets">🏚️ Blight Tickets Issued</a></td>
+        <td>16–24</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_911_calls_police_serviced">📞 911 Calls (Police Serviced) — Detroit</a></td>
+        <td>32–40</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_fire_incidents">🔥 Fire Incidents</a></td>
+        <td>15–23</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_construction_permits_completed">📋🏁 New Residential Construction Permits Completed</a></td>
+        <td>6–14</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_construction_permits_filed">📋📥 New Residential Construction Permits Filed</a></td>
+        <td>53–61</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_new_residential_units_completed">🏠🏁 New Residential Housing Units Completed</a></td>
+        <td>6–14</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_drug_crime_incidents">💊 Drug Crime Incidents</a></td>
+        <td>52–60</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_homicides">🔫 Homicides</a></td>
+        <td>6–14</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_total_crime_incidents">👮 Total Crime Incidents</a></td>
+        <td>77–85</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Cincinnati</td>
+        <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_homicides">💀 Homicides</a></td>
+        <td>8–16</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_building_permits_issued">🏗️ Building Permits Issued</a></td>
+        <td>19–27</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_business_license_registrations">🏢 Business License Registrations</a></td>
+        <td>42–50</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_311_service_requests">🗽 NYC 311 Service Requests</a></td>
+        <td>52–60</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_traffic_collisions_total">🚗 NYC Traffic Collisions (Total)</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_traffic_collisions_injuries">🚑 NYC Traffic Collisions (With Injuries)</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_traffic_fatalities">☠️ NYC Traffic Fatalities</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Austin</td>
+        <td><a href="https://transparent.city/c/austin/metrics/austin_911_calls_ems_incidents">📞 911 Calls (EMS Incidents)</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Austin</td>
+        <td><a href="https://transparent.city/c/austin/metrics/austin_apd_911_calls">🚔 APD 911 Calls for Service</a></td>
+        <td>28–36</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>Austin</td>
+        <td><a href="https://transparent.city/c/austin/metrics/austin_traffic_crashes">🚗 Traffic Crashes</a></td>
+        <td>10–18</td>
+        <td>unconfirmed</td>
+        <td>2026-06-03</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_sole_source_contract_share">📊 Sole-Source Contract Share</a></td>
+        <td>27–35</td>
+        <td>unconfirmed</td>
+        <td>2026-06-04</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_drug_crime">💊 Drug Crime Incidents</a></td>
+        <td>9–17</td>
+        <td>unconfirmed</td>
+        <td>2026-06-04</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_filed">📋📥 New Residential Construction Permits Filed</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-04</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/homicides">💀 Homicides</a></td>
+        <td>5–13</td>
+        <td>unconfirmed</td>
+        <td>2026-06-11</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_completed">📋🏁 New Residential Construction Permits Completed</a></td>
+        <td>58–66</td>
+        <td>unconfirmed</td>
+        <td>2026-06-11</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_311_rodent">🐀 Rodent Baiting / Rat Complaints (Chicago)</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-11</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_311_street_light_out">💡 Street Light Out Complaints (Chicago)</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-11</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/arrests_arrests_presented_to_da_6">🚓 Arrests Presented to DA</a></td>
+        <td>6–14</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/da_charges_filed">📄 DA Charges Filed</a></td>
+        <td>9–17</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_active_supplier_contracts">📋 Active Supplier Contracts</a></td>
+        <td>12–20</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_contract_award_value">💵 Contract Award Value</a></td>
+        <td>12–20</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/da_charge_rate">📊 DA Charge Rate</a></td>
+        <td>9–17</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/da_conviction_rate">📊 DA Conviction Rate</a></td>
+        <td>9–17</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sustained_police_misconduct">⚖️ Sustained Police Misconduct</a></td>
+        <td>103–111</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Oakland</td>
+        <td><a href="https://transparent.city/c/oakland/metrics/oakland_homicides">💀 Homicides</a></td>
+        <td>13–21</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_311_graffiti">🎨 Graffiti Removal Requests (Denver)</a></td>
+        <td>11–19</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_pavement_lane_miles_treated">🛣️ Pavement Lane-Miles Treated</a></td>
+        <td>11–19</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_property_crime_incidents">📦 Property Crime Incidents</a></td>
+        <td>103–111</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Cincinnati</td>
+        <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_avg_days_permit_new_residential_full_plan_review">⏱️ Avg Days to Permit — New Residential Construction (Full Plan Review)</a></td>
+        <td>10–18</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Cincinnati</td>
+        <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_issued">📋✅ New Residential Construction Permits Issued</a></td>
+        <td>11–19</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests">💊 Drug Crime Incidents</a></td>
+        <td>74–82</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd">👮 NYPD Arrests (YTD)</a></td>
+        <td>74–82</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_property_crime_fbi_type_ii">📦 Property Crime Incidents</a></td>
+        <td>74–82</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_fbi_type_i">🚨 Violent Crime Incidents</a></td>
+        <td>74–82</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>Seattle</td>
+        <td><a href="https://transparent.city/c/seattle/metrics/seattle_business_license_registrations">🏢 Business License Registrations</a></td>
+        <td>17–25</td>
+        <td>unconfirmed</td>
+        <td>2026-06-18</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_new_residential_construction_permits_completed">📋🏁 New Residential Construction Permits Completed</a></td>
+        <td>7–15</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/sf_new_residential_construction_permits_filed">📋📥 New Residential Construction Permits Filed</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_danger_to_life_10">🚑 911 Response (minutes) - Priority A</a></td>
+        <td>18–26</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_danger_to_property_11">🚑 911 Response (minutes) - Priority B</a></td>
+        <td>18–26</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_no_danger_to_life_or_property_12">🚑 911 Response (minutes) - Priority C</a></td>
+        <td>18–26</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_311_graffiti">🎨 Graffiti Removal Requests (Chicago)</a></td>
+        <td>19–27</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Chicago</td>
+        <td><a href="https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_issued">📋✅ New Residential Construction Permits Issued</a></td>
+        <td>19–27</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_drug_crime">💊 Drug Crime Incidents</a></td>
+        <td>19–27</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_property_crime_incidents">📦 Property Crime Incidents</a></td>
+        <td>19–27</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Detroit</td>
+        <td><a href="https://transparent.city/c/detroit/metrics/detroit_violent_crime_fbi_type_i">🚨 Violent Crime Incidents</a></td>
+        <td>19–27</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Denver</td>
+        <td><a href="https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle">🚗 Abandoned Vehicle Complaints (Denver)</a></td>
+        <td>16–24</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>Cincinnati</td>
+        <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_demolition_permits_issued">📋🔨 Demolition Permits Issued</a></td>
+        <td>10–18</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>NYC</td>
+        <td><a href="https://transparent.city/c/new-york-city/metrics/nyc_pedestrian_collisions">🚶 NYC Pedestrian Collisions</a></td>
+        <td>9–17</td>
+        <td>unconfirmed</td>
+        <td>2026-06-25</td>
+      </tr><tr>
+        <td>SF</td>
+        <td><a href="https://transparent.city/c/san-francisco/metrics/retail_new_retail_registrations_16">🛍️ New Retail Registrations</a></td>
+        <td>10–18</td>
+        <td>unconfirmed</td>
+        <td>2026-07-02</td>
+      </tr><tr>
+        <td>Cincinnati</td>
+        <td><a href="https://transparent.city/c/cincinnati/metrics/cincinnati_true_new_residential_construction_permits_filed">📋📥 New Residential Construction Permits Filed</a></td>
+        <td>4–12</td>
+        <td>unconfirmed</td>
+        <td>2026-07-02</td>
+      </tr></tbody></table><p class="note" style="margin-top:32px">Generated by weekly-qa/index.mjs · Thursday, July 2, 2026 at 7:12 AM PDT</p></body></html>
