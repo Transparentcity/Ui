@@ -7,75 +7,56 @@ import {
   useWasteKeyMetrics,
   formatMetricValue,
 } from "@/lib/hooks/useWasteKeyMetrics"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteRefreshPanel } from "./waste-refresh-panel"
 import { useWasteCity } from "./WasteCityContext"
 import { normalizeWasteCategory, formatDollar } from "./waste-utils"
-import {
-  Users,
-  ShoppingCart,
-  Wrench,
-  Handshake,
-  UserCheck,
-  FileCheck,
-  TriangleAlert,
-  ArrowRight,
-} from "lucide-react"
 
 const CATEGORY_META: Record<
   string,
   {
     label: string
-    icon: React.ComponentType<{ className?: string }>
     description: string
-    color: string
   }
 > = {
   payroll: {
     label: "Payroll & Personnel",
-    icon: Users,
     description: "Overtime anomalies, compensation patterns, ghost employees, and personnel integrity issues",
-    color: "from-indigo-500 to-indigo-700",
   },
   contracts: {
     label: "Contracts & Procurement",
-    icon: ShoppingCart,
     description: "Vendor concentration, split purchase orders, ghost vendors, contract drift, and address matching",
-    color: "from-orange-500 to-orange-700",
   },
   infrastructure: {
     label: "Infrastructure & Services",
-    icon: Wrench,
     description: "311 service clusters, pavement failure hotspots, and geographic service pattern analysis",
-    color: "from-teal-500 to-teal-700",
   },
   influence: {
     label: "Influence & Pay-to-Play",
-    icon: Handshake,
     description: "Campaign contribution patterns, lobbying disclosure gaps, and political influence networks",
-    color: "from-pink-500 to-pink-700",
   },
   integrity: {
     label: "Personnel Integrity",
-    icon: UserCheck,
     description: "Conflict of interest indicators, outside employment violations, and ethical compliance",
-    color: "from-purple-500 to-purple-700",
   },
   confirmed: {
     label: "Confirmed Cases",
-    icon: FileCheck,
     description: "Previously confirmed fraud, waste, and abuse cases for pattern learning and calibration",
-    color: "from-red-500 to-red-700",
   },
   convergence: {
     label: "Cross-Domain Convergence",
-    icon: TriangleAlert,
     description: "Entities flagged across multiple independent detector categories indicating systemic risk",
-    color: "from-yellow-500 to-yellow-700",
   },
 }
+
+const DATA_FONT = { fontFamily: "var(--font-data)" } as const
+const HEADING_FONT = {
+  fontFamily: "var(--font-heading)",
+  fontWeight: 800,
+  letterSpacing: "-0.02em",
+} as const
 
 export function ForensicsCategoriesPage() {
   const { selectedCityId: cityId, selectedCityName } = useWasteCity()
@@ -117,13 +98,13 @@ export function ForensicsCategoriesPage() {
       title="Findings"
       description="Browse and investigate detected anomalies"
     >
-      <ForensicsShell title="Analysis Categories">
+      <ForensicsShell>
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-px">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-32 bg-gray-100 rounded-lg animate-pulse"
+                className="h-[72px] bg-gray-100 rounded animate-pulse"
               />
             ))}
           </div>
@@ -150,7 +131,42 @@ export function ForensicsCategoriesPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            {/* Band header: section label + right-aligned column headers. */}
+            <div
+              className="flex items-center px-3 py-[10px] border-t border-b"
+              style={{ background: "#f8f9fa", borderColor: "#e5e7eb" }}
+            >
+              <span
+                className="flex-1 text-[12px] font-bold uppercase"
+                style={{ color: "#6b7280", letterSpacing: "0.06em" }}
+              >
+                Analysis Categories
+              </span>
+              <div className="hidden md:flex items-center shrink-0">
+                <span
+                  className="w-[110px] text-right text-[11px] uppercase"
+                  style={{ color: "#9ca3af" }}
+                >
+                  Findings
+                </span>
+                <span
+                  className="w-[110px] text-right text-[11px] uppercase"
+                  style={{ color: "#9ca3af" }}
+                >
+                  High+
+                </span>
+                <span
+                  className="w-[190px] text-right text-[11px] uppercase"
+                  style={{ color: "#9ca3af" }}
+                >
+                  Exposure
+                </span>
+                <span className="w-[96px]" aria-hidden />
+              </div>
+            </div>
+
+            {/* One row per category. */}
             {categoryKeys.map((key) => {
               const meta = CATEGORY_META[key]
               const counts = categoryCounts[key] ?? {
@@ -158,51 +174,28 @@ export function ForensicsCategoriesPage() {
                 critical: 0,
                 amount: 0,
               }
-              const Icon = meta.icon
+              const headline = (keyMetricsByCategory[key] ?? []).find(
+                (m) => m.value != null,
+              )
               return (
                 <Link
                   key={key}
                   href={`/waste/categories/${key}`}
-                  className="group flex flex-col rounded-xl bg-white border border-gray-200 p-5 no-underline hover:shadow-md transition-all relative overflow-hidden"
+                  className="group flex flex-col md:flex-row md:items-start gap-2 px-3 py-4 no-underline border-b hover:bg-gray-50/60 transition-colors"
+                  style={{ borderColor: "#f3f4f6" }}
                 >
-                  <div
-                    className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${meta.color}`}
-                  />
-                  <div className="flex items-center gap-3 mb-2">
-                    <div
-                      className={`p-1.5 rounded-lg bg-gradient-to-br ${meta.color} text-white`}
+                  {/* Left: label + description + (optional) headline metric */}
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className="text-[#111827]"
+                      style={{ ...HEADING_FONT, fontSize: "15.5px" }}
                     >
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-gray-900">
                       {meta.label}
                     </h3>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-                    {meta.description}
-                  </p>
-                  <div className="flex items-center gap-4 mt-auto">
-                    <span className="text-lg font-bold text-gray-900 tabular-nums">
-                      {counts.total}
-                    </span>
-                    <span className="text-xs text-gray-500">findings</span>
-                    {counts.critical > 0 && (
-                      <span className="text-xs font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
-                        {counts.critical} high+
-                      </span>
-                    )}
-                    {counts.amount > 0 && (
-                      <span className="text-xs text-gray-500 ml-auto">
-                        {formatDollar(counts.amount)}
-                      </span>
-                    )}
-                  </div>
-                  {(() => {
-                    const headline = (keyMetricsByCategory[key] ?? []).find(
-                      (m) => m.value != null,
-                    )
-                    if (!headline) return null
-                    return (
+                    <p className="text-[13px] mt-0.5" style={{ color: "#6b7280" }}>
+                      {meta.description}
+                    </p>
+                    {headline && (
                       <p
                         className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"
                         data-testid={`headline-metric-${key}`}
@@ -220,10 +213,36 @@ export function ForensicsCategoriesPage() {
                           <TrendingDown className="w-3 h-3 text-gray-400" />
                         )}
                       </p>
-                    )
-                  })()}
-                  <div className="flex items-center gap-1 text-xs font-medium text-purple-600 mt-3 group-hover:gap-2 transition-all">
-                    Analyze <ArrowRight className="w-3 h-3" />
+                    )}
+                  </div>
+
+                  {/* Right: aligned numeric columns + Analyze link. */}
+                  <div className="flex items-center md:items-start shrink-0 gap-x-4 md:gap-x-0">
+                    <span
+                      className="md:w-[110px] text-right text-[15px] font-bold tabular-nums"
+                      style={{ ...DATA_FONT, color: "#111827" }}
+                    >
+                      {counts.total}
+                    </span>
+                    <span
+                      className="md:w-[110px] text-right text-[13px] font-bold tabular-nums"
+                      style={{ ...DATA_FONT, color: "#dc2626" }}
+                    >
+                      {counts.critical > 0 ? `${counts.critical} high+` : ""}
+                    </span>
+                    <span
+                      className="md:w-[190px] text-right text-[15px] font-bold tabular-nums"
+                      style={{ ...DATA_FONT, color: "#111827" }}
+                    >
+                      {counts.amount > 0 ? formatDollar(counts.amount) : ""}
+                    </span>
+                    <span
+                      className="md:w-[96px] flex items-center justify-end gap-1 text-[13px] font-semibold shrink-0"
+                      style={{ color: "#ad35fa" }}
+                    >
+                      Analyze
+                      <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                    </span>
                   </div>
                 </Link>
               )
