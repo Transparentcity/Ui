@@ -34,6 +34,7 @@ const CITIES = [
 function mockCities(overrides: Partial<Record<string, unknown>> = {}) {
   useWasteAdminCities.mockReturnValue({
     data: CITIES,
+    isPending: false,
     isLoading: false,
     isFetching: false,
     error: null,
@@ -80,6 +81,42 @@ describe("useWasteSelectedCity", () => {
   it("ignores a stored id that is no longer eligible", () => {
     window.localStorage.setItem("waste:selectedCityId", "99001") // Oakland: not configured
     const { result } = renderHook(() => useWasteSelectedCity())
+    expect(result.current.selectedCityId).toBe(57260)
+  })
+
+  it("trusts the stored choice while the city list is still pending", () => {
+    // Optimistic resolution: the waste data queries key off this id, so
+    // returning the stored choice during the list fetch lets them start in
+    // parallel instead of fetching the default city first.
+    window.localStorage.setItem("waste:selectedCityId", "56838")
+    mockCities({ data: undefined, isPending: true, isLoading: true })
+    const { result } = renderHook(() => useWasteSelectedCity())
+    expect(result.current.selectedCityId).toBe(56838)
+  })
+
+  it("trusts the stored choice while the query is disabled pre-auth (isPending, not isLoading)", () => {
+    // During Auth0 init the cities query is disabled: isLoading is false
+    // but isPending is true. The optimistic branch must still hold, or the
+    // first authenticated render kicks off a wasted default-city fetch.
+    window.localStorage.setItem("waste:selectedCityId", "56838")
+    mockCities({ data: undefined, isPending: true, isLoading: false })
+    const { result } = renderHook(() => useWasteSelectedCity())
+    expect(result.current.selectedCityId).toBe(56838)
+  })
+
+  it("uses the default city while pending when nothing is stored", () => {
+    mockCities({ data: undefined, isPending: true, isLoading: true })
+    const { result } = renderHook(() => useWasteSelectedCity())
+    expect(result.current.selectedCityId).toBe(1)
+  })
+
+  it("switches off a stored id the loaded list says is ineligible", () => {
+    window.localStorage.setItem("waste:selectedCityId", "99001") // not configured
+    mockCities({ data: undefined, isPending: true, isLoading: true })
+    const { result, rerender } = renderHook(() => useWasteSelectedCity())
+    expect(result.current.selectedCityId).toBe(99001) // optimistic
+    mockCities() // list arrives; 99001 is ineligible
+    rerender()
     expect(result.current.selectedCityId).toBe(57260)
   })
 

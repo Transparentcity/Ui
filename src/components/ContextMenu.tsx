@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
+import { clearPersistedWasteCache } from "@/lib/wasteQueryPersister";
 
 import styles from "./ContextMenu.module.css";
 
@@ -36,6 +37,10 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
         // Clear all local storage and session data
         localStorage.clear();
         sessionStorage.clear();
+        // The persisted waste cache lives in IndexedDB, which the clears
+        // above don't touch; without this the next account on the same
+        // browser profile would restore this user's waste findings.
+        await clearPersistedWasteCache();
 
         // Logout from Auth0
         await logout({

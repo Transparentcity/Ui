@@ -30,6 +30,24 @@ Two backend surfaces feed the module:
 2. **Admin read endpoints** (`/api/admin/waste/*`): the city picker
    (`/cities`), and the Reports workpapers (`/reports`, `/reports/{slug}`).
 
+### Load-time performance
+
+Two mechanisms keep `/waste` fast; both live outside this directory:
+
+- **Optimistic city resolution** (`useWasteSelectedCity`): while the city
+  list loads, the stored `waste:selectedCityId` is trusted so the runs /
+  result / key-metric queries start in parallel with the `/cities` fetch.
+- **Cross-visit cache** (`src/lib/wasteQueryPersister.ts`, wired into
+  `src/app/providers.tsx`): an exact allowlist of weekly artifacts — the
+  merged persisted result and the city list — persists to IndexedDB for
+  7 days, so return visits paint from last week's data and revalidate in
+  the background. Mutable state (queue, accuracy, thresholds) is
+  deliberately not persisted. Invariants: bump `WASTE_CACHE_BUSTER` on
+  breaking payload-shape changes; persisted queries keep
+  `gcTime: WASTE_CACHE_MAX_AGE` (an in-memory GC would drop them from disk
+  on the next write); logout calls `clearPersistedWasteCache()` because
+  IndexedDB outlives the localStorage clears.
+
 ### The never-blank merge (`mergePersistedRuns` in `waste-utils.ts`)
 
 - Fetches up to 10 recent completed runs, but stops downloading result
