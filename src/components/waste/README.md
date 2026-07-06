@@ -53,6 +53,19 @@ outcomes parsed from the job result — the schedule-level status can read
 "completed" even when every city failed — plus next run time and a Run Now
 trigger via `runCustomScheduledJob`. Run Now always executes full runs.
 
+## Triage (the learning loop)
+
+Finding cards on category detail pages carry Flag / Dismiss / Skip controls
+(`QuickDisposition`). Flag posts `under_investigation`; Dismiss posts a
+reason (`false_positive` / `data_error` / `inconclusive`); Skip writes
+nothing. Dispositions feed detector precision on the backend, which
+calibrates severity, so triaging findings directly sharpens the detectors.
+Cards also show an auditor-validated precision chip ("87% precision · 23
+reviewed") once a detector has 3+ reviewed findings.
+
+The triage buttons require the numeric `db_id` on the finding payload
+(Platform PR #123); older payloads degrade to no triage row.
+
 ## Cities
 
 The picker is backend-driven: `useWasteSelectedCity` filters

@@ -185,3 +185,95 @@ describe("WasteFindingCard", () => {
     expect(entityEl).toBeVisible()
   })
 })
+
+describe("WasteFindingCard triage and precision", () => {
+  const onToggle = vi.fn()
+
+  it("shows triage buttons only when onDispose is set AND the finding has a db_id", () => {
+    const onDispose = vi.fn()
+    const { rerender } = render(
+      <WasteFindingCard
+        finding={makeFinding({ db_id: 4321 })}
+        isExpanded={true}
+        onToggle={onToggle}
+        onDispose={onDispose}
+      />,
+    )
+    expect(screen.getByText("Flag")).toBeInTheDocument()
+
+    // Older backend payloads without db_id: degrade to no triage row.
+    rerender(
+      <WasteFindingCard
+        finding={makeFinding({ db_id: null })}
+        isExpanded={true}
+        onToggle={onToggle}
+        onDispose={onDispose}
+      />,
+    )
+    expect(screen.queryByText("Flag")).not.toBeInTheDocument()
+  })
+
+  it("flagging calls onDispose with under_investigation and shows a confirmation", () => {
+    const onDispose = vi.fn()
+    const finding = makeFinding({ db_id: 4321 })
+    render(
+      <WasteFindingCard
+        finding={finding}
+        isExpanded={true}
+        onToggle={onToggle}
+        onDispose={onDispose}
+      />,
+    )
+    fireEvent.click(screen.getByText("Flag"))
+    expect(onDispose).toHaveBeenCalledWith(finding, "under_investigation")
+    expect(screen.getByTestId("triage-confirmation").textContent).toContain(
+      "Flagged for investigation",
+    )
+    // Buttons replaced by the confirmation — no double submissions.
+    expect(screen.queryByText("Flag")).not.toBeInTheDocument()
+  })
+
+  it("dismissing via a reason shows the dismissed confirmation", () => {
+    const onDispose = vi.fn()
+    render(
+      <WasteFindingCard
+        finding={makeFinding({ db_id: 7 })}
+        isExpanded={true}
+        onToggle={onToggle}
+        onDispose={onDispose}
+      />,
+    )
+    fireEvent.click(screen.getByText("Dismiss"))
+    fireEvent.click(screen.getByText("Not real"))
+    expect(onDispose).toHaveBeenCalledWith(expect.anything(), "false_positive")
+    expect(screen.getByTestId("triage-confirmation").textContent).toContain(
+      "Dismissed",
+    )
+  })
+
+  it("shows the precision chip when the detector has 3+ reviewed findings", () => {
+    render(
+      <WasteFindingCard
+        finding={makeFinding()}
+        isExpanded={true}
+        onToggle={onToggle}
+        precision={{ rate: 0.87, total: 23 }}
+      />,
+    )
+    expect(screen.getByTestId("precision-chip").textContent).toContain(
+      "87% precision",
+    )
+  })
+
+  it("hides the precision chip below the review threshold", () => {
+    render(
+      <WasteFindingCard
+        finding={makeFinding()}
+        isExpanded={true}
+        onToggle={onToggle}
+        precision={{ rate: 1, total: 2 }}
+      />,
+    )
+    expect(screen.queryByTestId("precision-chip")).not.toBeInTheDocument()
+  })
+})

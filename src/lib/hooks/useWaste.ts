@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
+  createWasteDisposition,
   getWasteDetectorAccuracy,
   getWasteAnalysis,
   getWasteRunResult,
@@ -14,6 +15,7 @@ import {
   getWasteThresholds,
   listWasteRuns,
   updateWasteThresholds,
+  type CreateWasteDispositionRequest,
   type UpdateThresholdRequest,
   type WasteDetectorAccuracy,
   type WasteEntityScoresPage,
@@ -206,6 +208,31 @@ export function useWasteReviewQueue(params: {
     enabled,
     staleTime: 30 * 1000,
     refetchOnWindowFocus: false,
+  })
+}
+
+/**
+ * Record an auditor verdict (flag / dismiss) on a finding. Dispositions feed
+ * detector precision, which in turn calibrates finding severity — this is
+ * the learning loop, so every triage click makes the detectors sharper.
+ */
+export function useCreateWasteDisposition() {
+  const { getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      findingId: number
+      data: CreateWasteDispositionRequest
+    }) => {
+      const token = await getAccessTokenSilently()
+      return createWasteDisposition(token, payload.findingId, payload.data)
+    },
+    onSuccess: (_result, payload) => {
+      queryClient.invalidateQueries({
+        queryKey: ["waste", "accuracy", payload.data.city_id],
+      })
+    },
   })
 }
 
