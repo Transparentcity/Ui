@@ -68,7 +68,10 @@ export function WasteKeyMetricsStrip({ category }: { category: string }) {
               <span className="text-xs text-gray-500 max-w-[160px] truncate">
                 {m.name}
               </span>
-              <span className="text-sm font-semibold text-gray-900 tabular-nums">
+              <span
+                className="text-sm font-semibold text-gray-900 tabular-nums"
+                style={{ fontFamily: "var(--font-data)" }}
+              >
                 {m.value != null
                   ? formatMetricValue(m.value)
                   : valuesLoading
@@ -79,7 +82,10 @@ export function WasteKeyMetricsStrip({ category }: { category: string }) {
               </span>
               <TrendIcon trend={m.trend} />
               {m.trend && m.trend.dir !== "flat" && (
-                <span className="text-[10px] text-gray-500 tabular-nums">
+                <span
+                  className="text-[10px] text-gray-500 tabular-nums"
+                  style={{ fontFamily: "var(--font-data)" }}
+                >
                   {m.trend.pct > 0 ? "+" : ""}
                   {m.trend.pct.toFixed(1)}%
                 </span>

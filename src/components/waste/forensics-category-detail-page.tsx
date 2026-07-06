@@ -39,6 +39,42 @@ const CATEGORY_LABELS: Record<string, string> = {
   convergence: "Cross-Domain Convergence",
 }
 
+function SummaryCell({
+  label,
+  value,
+  color,
+  divider,
+  wide,
+}: {
+  label: string
+  value: string
+  color: string
+  divider?: boolean
+  wide?: boolean
+}) {
+  return (
+    <div
+      className={`p-4 ${wide ? "flex-[2]" : "flex-1"} ${
+        divider ? "border-l" : ""
+      }`}
+      style={divider ? { borderColor: "#f3f4f6" } : undefined}
+    >
+      <p
+        className="text-[11px] font-bold uppercase"
+        style={{ color: "#9ca3af", letterSpacing: "0.04em" }}
+      >
+        {label}
+      </p>
+      <p
+        className="text-[24px] font-bold tabular-nums mt-1"
+        style={{ fontFamily: "var(--font-data)", color }}
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
+
 interface ForensicsCategoryDetailPageProps {
   category: string
 }
@@ -134,46 +170,44 @@ export function ForensicsCategoryDetailPage({
             findings live inside (e.g. overtime share above overtime findings) */}
         <WasteKeyMetricsStrip category={normalizedCat} />
 
-        {/* Summary stats */}
+        {/* Summary stats: one card divided into aligned cells. */}
         {categoryFindings.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <p className="text-xs text-gray-500">Findings</p>
-              <p className="text-2xl font-bold">
-                {categoryFindings.length}
-              </p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <p className="text-xs text-gray-500">Critical</p>
-              <p className="text-2xl font-bold text-red-600">
-                {
-                  categoryFindings.filter(
-                    (f) => f.severity?.toLowerCase() === "critical"
-                  ).length
-                }
-              </p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <p className="text-xs text-gray-500">High</p>
-              <p className="text-2xl font-bold text-amber-600">
-                {
-                  categoryFindings.filter(
-                    (f) => f.severity?.toLowerCase() === "high"
-                  ).length
-                }
-              </p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <p className="text-xs text-gray-500">Exposure</p>
-              <p className="text-2xl font-bold">
-                {formatDollar(
-                  categoryFindings.reduce(
-                    (sum, f) => sum + (f.amount ?? 0),
-                    0
-                  ) || null
-                )}
-              </p>
-            </div>
+          <div className="mb-4 flex bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <SummaryCell
+              label="Findings"
+              value={String(categoryFindings.length)}
+              color="#111827"
+            />
+            <SummaryCell
+              label="Critical"
+              value={String(
+                categoryFindings.filter(
+                  (f) => f.severity?.toLowerCase() === "critical",
+                ).length,
+              )}
+              color="#dc2626"
+              divider
+            />
+            <SummaryCell
+              label="High"
+              value={String(
+                categoryFindings.filter(
+                  (f) => f.severity?.toLowerCase() === "high",
+                ).length,
+              )}
+              color="#b45309"
+              divider
+            />
+            <SummaryCell
+              label="Exposure"
+              value={formatDollar(
+                categoryFindings.reduce((sum, f) => sum + (f.amount ?? 0), 0) ||
+                  null,
+              )}
+              color="#111827"
+              divider
+              wide
+            />
           </div>
         )}
 

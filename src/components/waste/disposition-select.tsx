@@ -95,7 +95,7 @@ export function QuickDisposition({
             e.stopPropagation()
             onDispose("under_investigation")
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
         >
           <Flag className="w-3.5 h-3.5" />
           Flag
@@ -108,7 +108,7 @@ export function QuickDisposition({
             e.stopPropagation()
             setShowDismissReasons(!showDismissReasons)
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
         >
           <X className="w-3.5 h-3.5" />
           Dismiss
