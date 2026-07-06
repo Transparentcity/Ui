@@ -1,5 +1,5 @@
-import { DashboardPage } from "@/components/waste/dashboard-page"
+import { redirect } from "next/navigation"
 
-export default function WasteDashboardRoute() {
-  return <DashboardPage />
+export default function LegacyWasteRedirect() {
+  redirect("/waste")
 }

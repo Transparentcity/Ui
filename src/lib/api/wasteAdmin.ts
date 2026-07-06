@@ -216,7 +216,7 @@ export function getWasteAdminReport(
 ): Promise<WasteAdminReportDetail> {
   const q = new URLSearchParams({ city: citySlug });
   return request<WasteAdminReportDetail>(
-    `/api/admin/waste/reports/${slug}?${q.toString()}`,
+    `/api/admin/waste/reports/${encodeURIComponent(slug)}?${q.toString()}`,
     "GET",
     undefined,
     token

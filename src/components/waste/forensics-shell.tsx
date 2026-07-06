@@ -16,9 +16,9 @@ type ForensicsTab = {
 // Simplified navigation: category browsing is the primary entry point,
 // with department profiles and reports alongside it.
 const FORENSICS_TABS: ForensicsTab[] = [
-  { key: "categories", name: "By category", href: "/waste/forensics/categories", icon: Layers },
-  { key: "departments", name: "By department", href: "/waste/forensics/departments", icon: Building2 },
-  { key: "reports", name: "Reports", href: "/waste/executive", icon: FileText },
+  { key: "categories", name: "By category", href: "/waste", icon: Layers },
+  { key: "departments", name: "By department", href: "/waste/departments", icon: Building2 },
+  { key: "reports", name: "Reports", href: "/waste/reports", icon: FileText },
 ]
 
 interface ForensicsShellProps {
@@ -29,8 +29,13 @@ interface ForensicsShellProps {
 export function ForensicsShell({ children, title }: ForensicsShellProps) {
   const pathname = usePathname()
 
-  const isTabActive = (tab: ForensicsTab) =>
-    pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+  const isTabActive = (tab: ForensicsTab) => {
+    if (tab.href === "/waste") {
+      // Category browsing is the module root; keep it active on detail pages.
+      return pathname === "/waste" || pathname.startsWith("/waste/categories")
+    }
+    return pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+  }
 
   return (
     <div>

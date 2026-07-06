@@ -1,14 +1,18 @@
 "use client"
 
 import { useState, useMemo, useCallback, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient"
+import { useWasteAdminCities } from "@/lib/hooks/useWasteAdmin"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 
 const STORAGE_KEY = "waste:selectedCityId"
 
-// The waste module is limited to a small pilot set of cities.
-const WASTE_ENABLED_CITY_SLUGS = new Set(["san-francisco", "chicago"])
+/** Minimal city shape the waste module needs for its picker. */
+export interface WasteCityOption {
+  id: number
+  name: string
+  slug: string
+  emoji?: string
+}
 
 function readStoredCityId(): number | null {
   if (typeof window === "undefined") return null
@@ -19,37 +23,40 @@ function readStoredCityId(): number | null {
 }
 
 export function useWasteSelectedCity() {
-  const citiesQuery = useQuery({
-    queryKey: ["public", "cities", "sitemap"],
-    queryFn: listPublicCitiesForSitemap,
-    staleTime: 5 * 60 * 1000,
-  })
+  // The backend is the source of truth for which cities the waste module
+  // supports: /api/admin/waste/cities marks each city `configured` (has a
+  // dataset registry entry) and `launched`. Launching a new city therefore
+  // requires no UI change. Reuses the shared admin cities query so both
+  // consumers share one cache entry and one set of query options.
+  const citiesQuery = useWasteAdminCities()
 
-  const eligibleCities = useMemo(
+  const eligibleCities = useMemo<WasteCityOption[]>(
     () =>
-      (citiesQuery.data ?? []).filter(
-        (c) =>
-          WASTE_ENABLED_CITY_SLUGS.has(c.slug ?? "") &&
-          (c.datasets_count ?? 0) > 0 &&
-          c.is_launched === true,
-      ),
+      (citiesQuery.data ?? [])
+        .filter((c) => c.configured && c.launched)
+        .map((c) => ({
+          id: Number(c.id),
+          name: c.name,
+          slug: c.slug,
+          emoji: c.flag ?? undefined,
+        })),
     [citiesQuery.data],
   )
 
   const [userChoice, setUserChoice] = useState<number | null>(() => readStoredCityId())
 
   const resolvedCityId = useMemo(() => {
-    if (userChoice && eligibleCities.some((c) => Number(c.id) === userChoice)) {
+    if (userChoice && eligibleCities.some((c) => c.id === userChoice)) {
       return userChoice
     }
     if (eligibleCities.length > 0) {
-      return Number(eligibleCities[0].id)
+      return eligibleCities[0].id
     }
     return CRM_DEFAULT_CITY_ID
   }, [userChoice, eligibleCities])
 
   const isCityFallback = useMemo(
-    () => !eligibleCities.some((c) => Number(c.id) === resolvedCityId),
+    () => !eligibleCities.some((c) => c.id === resolvedCityId),
     [eligibleCities, resolvedCityId],
   )
 

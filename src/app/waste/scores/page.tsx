@@ -1,5 +1,5 @@
-import { EntityScoresPage } from "@/components/waste/entity-scores-page"
+import { redirect } from "next/navigation"
 
-export default function WasteScoresRoute() {
-  return <EntityScoresPage />
+export default function LegacyWasteRedirect() {
+  redirect("/waste/departments")
 }

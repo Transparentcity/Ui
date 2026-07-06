@@ -602,6 +602,7 @@ function makeRun(args: {
   ts: string
   errors?: string[]
   findings?: WasteFinding[]
+  category?: string | null
   categorySummaries?: Array<{
     category: string
     finding_count: number
@@ -613,6 +614,7 @@ function makeRun(args: {
   return {
     analysisTimestamp: args.ts,
     errors: args.errors ?? [],
+    category: args.category ?? null,
     response: {
       findings,
       summary: {
@@ -1194,5 +1196,140 @@ describe("categoriesWithErrors with per-detector strings", () => {
       "payroll: KeyError 'employee_identifier'",
     ])
     expect(failed.has("payroll")).toBe(true)
+  })
+})
+
+// ── mergePersistedRuns: run-coverage awareness ──────────────────────────────
+//
+// A category-scoped run legitimately has zero findings for every other
+// category; the merge must not read that as "those categories are clean".
+
+describe("mergePersistedRuns run coverage", () => {
+  it("does not blank other categories when the newest run is category-scoped", () => {
+    const newestPayrollOnly = makeRun({
+      ts: "2026-07-01",
+      category: "Payroll & Compensation",
+      findings: [makeFinding("payroll", "p-new")],
+    })
+    const olderFull = makeRun({
+      ts: "2026-06-25",
+      findings: [
+        makeFinding("payroll", "p-old"),
+        makeFinding("contracts", "c-old"),
+        makeFinding("infrastructure", "i-old"),
+      ],
+    })
+    const merged = mergePersistedRuns([newestPayrollOnly, olderFull])
+    const ids = merged!.response.findings.map((f) => f.id).sort()
+    // payroll comes from the scoped run; contracts + infrastructure survive
+    // from the older full run instead of being blanked.
+    expect(ids).toEqual(["c-old", "i-old", "p-new"])
+  })
+
+  it("treats a category-scoped run as authoritative for its own category", () => {
+    const newestContractsOnly = makeRun({
+      ts: "2026-07-01",
+      category: "Contracts & Procurement",
+      findings: [makeFinding("contracts", "c-new")],
+    })
+    const olderFull = makeRun({
+      ts: "2026-06-25",
+      findings: [makeFinding("contracts", "c-old")],
+    })
+    const merged = mergePersistedRuns([newestContractsOnly, olderFull])
+    const contractIds = merged!.response.findings
+      .filter((f) => normalizeWasteCategory(f.category) === "contracts")
+      .map((f) => f.id)
+    expect(contractIds).toEqual(["c-new"])
+  })
+
+  it("merges only category-scoped runs without inventing clean categories", () => {
+    const payrollOnly = makeRun({
+      ts: "2026-07-01",
+      category: "Payroll & Compensation",
+      findings: [makeFinding("payroll", "p1")],
+    })
+    const contractsOnly = makeRun({
+      ts: "2026-06-30",
+      category: "Contracts & Procurement",
+      findings: [makeFinding("contracts", "c1")],
+    })
+    const merged = mergePersistedRuns([payrollOnly, contractsOnly])
+    const ids = merged!.response.findings.map((f) => f.id).sort()
+    expect(ids).toEqual(["c1", "p1"])
+  })
+
+  it("full runs (category null) remain authoritative for every category", () => {
+    const full = makeRun({
+      ts: "2026-07-01",
+      category: null,
+      findings: [makeFinding("payroll", "p1")],
+    })
+    const olderContracts = makeRun({
+      ts: "2026-06-25",
+      category: "Contracts & Procurement",
+      findings: [makeFinding("contracts", "c-stale")],
+    })
+    const merged = mergePersistedRuns([full, olderContracts])
+    // The full run ran contracts and found nothing: a legitimate zero. The
+    // older scoped run must NOT resurrect stale contracts findings...
+    // unless the newest covering run has no data, which is exactly what the
+    // scoped run provides here. Contracts had no error in the full run, so
+    // the zero stands.
+    const contractIds = merged!.response.findings
+      .filter((f) => normalizeWasteCategory(f.category) === "contracts")
+      .map((f) => f.id)
+    expect(contractIds).toEqual([])
+  })
+})
+
+describe("mergePersistedRuns carried-over and unknown-scope semantics", () => {
+  it("does not mark categories carried-over when skipped only for coverage", () => {
+    // Newest run is contracts-scoped and clean; the older full run supplies
+    // every other category as NORMAL latest data, not stale carry-over.
+    const newestScoped = makeRun({
+      ts: "2026-07-01",
+      category: "Contracts & Procurement",
+      findings: [makeFinding("contracts", "c-new")],
+    })
+    const olderFull = makeRun({
+      ts: "2026-06-25",
+      findings: [makeFinding("payroll", "p-old")],
+    })
+    const merged = mergePersistedRuns([newestScoped, olderFull])
+    expect(merged!.carriedOver).toEqual([])
+  })
+
+  it("still marks carried-over when a newer covering run errored", () => {
+    const newestFullErrored = makeRun({
+      ts: "2026-07-01",
+      errors: ["payroll: timed out after 120s"],
+      findings: [makeFinding("contracts", "c-new")],
+    })
+    const olderFull = makeRun({
+      ts: "2026-06-25",
+      findings: [makeFinding("payroll", "p-old")],
+    })
+    const merged = mergePersistedRuns([newestFullErrored, olderFull])
+    expect(merged!.carriedOver.map((c) => c.category)).toEqual(["payroll"])
+  })
+
+  it("treats a run with an unrecognized scope label as covering nothing", () => {
+    // normalizeWasteCategory falls back to "payroll" for unknown inputs; a
+    // mystery-scoped run must not blank payroll with its zero findings.
+    const mysteryScoped = makeRun({
+      ts: "2026-07-01",
+      category: "all",
+      findings: [],
+    })
+    const olderFull = makeRun({
+      ts: "2026-06-25",
+      findings: [makeFinding("payroll", "p-old")],
+    })
+    const merged = mergePersistedRuns([mysteryScoped, olderFull])
+    const payrollIds = merged!.response.findings
+      .filter((f) => normalizeWasteCategory(f.category) === "payroll")
+      .map((f) => f.id)
+    expect(payrollIds).toEqual(["p-old"])
   })
 })

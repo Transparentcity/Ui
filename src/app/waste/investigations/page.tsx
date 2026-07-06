@@ -1,5 +1,5 @@
-import { InvestigationsListPage } from "@/components/waste/investigations-list-page"
+import { redirect } from "next/navigation"
 
-export default function WasteInvestigationsRoute() {
-  return <InvestigationsListPage />
+export default function LegacyWasteRedirect() {
+  redirect("/waste")
 }

@@ -1,5 +1,5 @@
-import { ReviewQueuePage } from "@/components/waste/review-queue-page"
+import { redirect } from "next/navigation"
 
-export default function WasteQueueRoute() {
-  return <ReviewQueuePage />
+export default function LegacyWasteRedirect() {
+  redirect("/waste")
 }

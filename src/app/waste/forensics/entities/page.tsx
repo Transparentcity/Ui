@@ -1,5 +1,5 @@
-import { ForensicsEntitiesPage } from "@/components/waste/forensics-entities-page"
+import { redirect } from "next/navigation"
 
-export default function ForensicsEntitiesRoute() {
-  return <ForensicsEntitiesPage />
+export default function LegacyWasteRedirect() {
+  redirect("/waste/departments")
 }

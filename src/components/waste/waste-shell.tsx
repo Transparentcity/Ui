@@ -14,12 +14,12 @@ import {
   Code2,
   SlidersHorizontal,
   BookOpen,
-  Cpu,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/Loader"
 import { useWasteCity } from "./WasteCityContext"
 import { WasteCityPicker } from "./waste-city-picker"
+import { WasteRefreshPanel } from "./waste-refresh-panel"
 import { useLatestWasteRun } from "@/lib/hooks/useWaste"
 import {
   WasteSeymourProvider,
@@ -35,12 +35,6 @@ type TabItem = {
 }
 
 const GEAR_LINKS: TabItem[] = [
-  {
-    key: "detectors",
-    name: "Detectors & Data",
-    href: "/waste#detectors",
-    icon: Cpu,
-  },
   {
     key: "methodology",
     name: "Methodology",
@@ -61,10 +55,6 @@ interface WasteShellProps {
   title: string
   description?: string
   actions?: React.ReactNode
-  /** @deprecated kept for backward compat with WastePageContent */
-  activeCategory?: string
-  /** @deprecated kept for backward compat with WastePageContent */
-  onCategoryChange?: (category: string) => void
 }
 
 export function WasteShell(props: WasteShellProps) {
@@ -88,6 +78,7 @@ function WasteShellInner({
     eligibleCities,
     isLoading: citiesLoading,
     isFetching,
+    cityLoadError,
     setSelectedCityId,
     selectedCityName,
   } = useWasteCity()
@@ -273,7 +264,9 @@ function WasteShellInner({
                   <SettingsIcon className="w-4 h-4" />
                 </button>
                 {gearOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                    <WasteRefreshPanel />
+                    <div className="my-1 border-t border-gray-100" />
                     <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                       Admin tools
                     </p>
@@ -298,6 +291,18 @@ function WasteShellInner({
           </div>
         </div>
       </header>
+
+      {/* City list failure: without this banner a 403 (non-admin) or outage
+          leaves an empty picker and silently falls back to the default city. */}
+      {cityLoadError && !citiesLoading && (
+        <div className="bg-red-50 border-b border-red-200 px-4 lg:px-6 py-2">
+          <p className="text-xs text-red-700">
+            {(cityLoadError as { status?: number }).status === 403
+              ? "Your account doesn't have admin access to the waste module, so the city list can't be loaded."
+              : `Couldn't load the waste city list: ${cityLoadError.message}. Data shown below may be for the wrong city.`}
+          </p>
+        </div>
+      )}
 
       {/* Page header */}
       <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">

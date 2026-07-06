@@ -5,9 +5,9 @@ import Link from "next/link"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
+import { WasteRefreshPanel } from "./waste-refresh-panel"
 import { useWasteCity } from "./WasteCityContext"
 import { normalizeWasteCategory, formatDollar } from "./waste-utils"
-import { cn } from "@/lib/utils"
 import {
   Users,
   ShoppingCart,
@@ -73,10 +73,21 @@ const CATEGORY_META: Record<
 }
 
 export function ForensicsCategoriesPage() {
-  const { selectedCityId: cityId } = useWasteCity()
-  const { data: analysisData, isLoading } =
-    useLatestPersistedWasteResult(cityId)
-  const allFindings = analysisData?.findings ?? []
+  const { selectedCityId: cityId, selectedCityName } = useWasteCity()
+  const {
+    data: analysisData,
+    isLoading,
+    isError,
+    error,
+  } = useLatestPersistedWasteResult(cityId)
+  const allFindings = useMemo(
+    () => analysisData?.findings ?? [],
+    [analysisData],
+  )
+  // analysisData === null means no completed run exists for this city yet:
+  // a first-run state, not "the city is clean". A query error means we
+  // don't know either way and must not invite an unnecessary refresh run.
+  const hasNoRuns = !isLoading && !isError && analysisData == null
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, { total: number; critical: number; amount: number }> = {}
@@ -107,6 +118,28 @@ export function ForensicsCategoriesPage() {
               />
             ))}
           </div>
+        ) : isError ? (
+          <p
+            className="max-w-lg mx-auto mt-8 text-sm text-red-600 text-center"
+            role="alert"
+          >
+            Couldn&apos;t load findings for {selectedCityName}:{" "}
+            {error instanceof Error ? error.message : "Unknown error"}. Reload
+            to retry.
+          </p>
+        ) : hasNoRuns ? (
+          <div className="max-w-lg mx-auto mt-8 bg-white rounded-xl border border-gray-200 p-6 text-center">
+            <h3 className="text-base font-semibold text-gray-900 mb-1">
+              No analysis has run for {selectedCityName} yet
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Findings appear here after the weekly waste refresh completes
+              its first run for this city. You can start one now:
+            </p>
+            <div className="text-left border border-gray-200 rounded-lg">
+              <WasteRefreshPanel />
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {categoryKeys.map((key) => {
@@ -120,7 +153,7 @@ export function ForensicsCategoriesPage() {
               return (
                 <Link
                   key={key}
-                  href={`/waste/forensics/categories/${key}`}
+                  href={`/waste/categories/${key}`}
                   className="group flex flex-col rounded-xl bg-white border border-gray-200 p-5 no-underline hover:shadow-md transition-all relative overflow-hidden"
                 >
                   <div
