@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Archivo, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import "./tokens.css";
 import "./ui.css";
@@ -14,6 +15,22 @@ import AuthErrorToast from "@/components/AuthErrorToast";
 import { SiteStructuredData } from "@/components/StructuredData";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+
+// Display + data typefaces for the waste module (and any surface that opts in
+// via the --font-heading / --font-data tokens in tokens.css). Self-hosted via
+// next/font; the CDN <link> below still carries Inter for the rest of the app.
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["800", "900"],
+  variable: "--font-archivo",
+  display: "swap",
+});
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-ibm-plex",
+  display: "swap",
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -70,7 +87,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${archivo.variable} ${ibmPlexSans.variable}`}>
       <head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         {/* Fonts for PublicRecordBanner. */}
