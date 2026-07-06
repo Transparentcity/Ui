@@ -192,6 +192,8 @@ interface WasteFindingCardProps {
    * along with the metric value that tripped it.
    */
   allFindings?: WasteFinding[]
+  /** Auditor-validated precision for this finding's detector, when known. */
+  precision?: { rate: number; total: number } | null
 }
 
 interface PayrollDetailRow {
@@ -993,6 +995,7 @@ export function WasteFindingCard({
   isCarriedOver = false,
   carriedOverAsOf = null,
   allFindings,
+  precision,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
@@ -1031,6 +1034,9 @@ export function WasteFindingCard({
     )
   }
   if (isCarriedOver) dataNotes.push(carriedOverTitle)
+  const [triaged, setTriaged] = useState<WasteDispositionType | "skipped" | null>(
+    null,
+  )
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -1550,13 +1556,40 @@ export function WasteFindingCard({
             </div>
           )}
 
-          {/* Quick disposition: Flag / Dismiss / Skip */}
-          {onDispose && (
+          {/* Quick disposition: Flag / Dismiss / Skip. Requires the numeric
+              db_id (older backend payloads lack it — degrade to no triage).
+              After a verdict, show a confirmation instead of the buttons. */}
+          {onDispose && finding.db_id != null && triaged == null && (
             <QuickDisposition
-              onDispose={(disposition) => onDispose(finding, disposition)}
-              onSkip={onSkip ? () => onSkip(finding) : undefined}
+              onDispose={(disposition) => {
+                setTriaged(disposition)
+                onDispose(finding, disposition)
+              }}
+              onSkip={
+                onSkip
+                  ? () => {
+                      setTriaged("skipped")
+                      onSkip(finding)
+                    }
+                  : undefined
+              }
               className="mb-3"
             />
+          )}
+          {triaged != null && triaged !== "skipped" && (
+            <p
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border mb-3",
+                triaged === "under_investigation"
+                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                  : "bg-gray-50 text-gray-600 border-gray-200",
+              )}
+              data-testid="triage-confirmation"
+            >
+              {triaged === "under_investigation"
+                ? "Flagged for investigation. Your verdict trains this detector."
+                : "Dismissed. Your verdict trains this detector."}
+            </p>
           )}
 
           {/* Footer: one muted metadata line + actions */}
@@ -1572,6 +1605,16 @@ export function WasteFindingCard({
               ]
                 .filter(Boolean)
                 .join(" · ")}
+              {precision != null && precision.total >= 3 && (
+                <span
+                  className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 align-middle"
+                  title={`Auditor-validated precision for this detector: ${precision.total} findings reviewed`}
+                  data-testid="precision-chip"
+                >
+                  {Math.round(precision.rate * 100)}% precision ·{" "}
+                  {precision.total} reviewed
+                </span>
+              )}
               {isOnRoadmap(finding) && (
                 <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide align-middle">
                   <MapIcon className="w-2.5 h-2.5" />

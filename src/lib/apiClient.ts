@@ -6103,6 +6103,9 @@ export function getDefaultExecuteStartDateByPeriod(periodType: string): string {
 
 export interface WasteFinding {
   id: string;
+  /** Numeric waste_findings row id (persisted runs only) — required by the
+   *  disposition endpoint. Absent on payloads from older backends. */
+  db_id?: number | null;
   category: "payroll" | "contracts" | "infrastructure" | "integrity" | "influence" | "confirmed";
   subcategory: string;
   severity: "critical" | "high" | "medium" | "low" | "info";

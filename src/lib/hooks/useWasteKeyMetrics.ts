@@ -1,0 +1,147 @@
+"use client"
+
+import { useMemo } from "react"
+import { useMetrics, useBatchComparisons } from "@/lib/hooks/useMetrics"
+import type { AdminMetricListItem } from "@/lib/apiClient"
+
+/**
+ * Waste metrics (category="waste") grouped onto the waste module's category
+ * tabs. Metric subcategories come from the metric rows themselves; the
+ * mapping mirrors how the detector categories are organized. "readout"
+ * metrics are findings-count KPIs and are intentionally excluded (the
+ * category cards already show findings counts).
+ */
+const SUBCATEGORY_TO_MODULE_CATEGORY: Record<string, string> = {
+  procurement: "contracts",
+  payroll: "payroll",
+  capital: "infrastructure",
+  service_delivery: "infrastructure",
+  fraud_risk: "convergence",
+}
+
+export interface WasteKeyMetric {
+  id: number
+  metricKey: string | null
+  name: string
+  subcategory: string
+  /** Latest (YTD current-period) value, when the metric has one. */
+  value: number | null
+  trend: { pct: number; dir: "up" | "down" | "flat" } | null
+  status: "completed" | "failed" | "running" | "never"
+}
+
+function statusKind(status?: string | null): WasteKeyMetric["status"] {
+  const s = (status ?? "").toLowerCase()
+  if (s === "completed" || s === "success") return "completed"
+  if (s === "failed" || s === "error") return "failed"
+  if (s === "running" || s === "pending") return "running"
+  return "never"
+}
+
+function computeTrend(
+  current: number | null | undefined,
+  prior: number | null | undefined,
+): WasteKeyMetric["trend"] {
+  if (
+    current == null ||
+    prior == null ||
+    !Number.isFinite(current) ||
+    !Number.isFinite(prior) ||
+    prior === 0
+  ) {
+    return null
+  }
+  const pct = ((current - prior) / Math.abs(prior)) * 100
+  if (!Number.isFinite(pct)) return null
+  const dir = Math.abs(pct) < 0.05 ? "flat" : pct > 0 ? "up" : "down"
+  return { pct, dir }
+}
+
+/** Compact display for metric values (mirrors the admin metric-values page). */
+export function formatMetricValue(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—"
+  const abs = Math.abs(v)
+  if (abs >= 1000) {
+    return new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v)
+  }
+  if (abs < 1 && abs > 0) {
+    return v.toPrecision(3).replace(/\.?0+$/, "")
+  }
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(v)
+}
+
+/**
+ * All waste metrics for a city, grouped by module category, with YTD values
+ * and trends. One shared query pair: the categories grid and every category
+ * detail strip read the same cache entries.
+ */
+export function useWasteKeyMetrics(cityId: number | null) {
+  const metricsQuery = useMetrics(
+    { category: "waste", city_id: cityId ?? -1 },
+    { enabled: cityId != null },
+  )
+  const metrics = useMemo<AdminMetricListItem[]>(
+    () => (cityId != null ? metricsQuery.data ?? [] : []),
+    [cityId, metricsQuery.data],
+  )
+
+  const metricIds = useMemo(
+    () => metrics.map((m) => m.id).filter((id): id is number => !!id),
+    [metrics],
+  )
+  const batchRequest = useMemo(
+    () =>
+      metricIds.length
+        ? {
+            metric_ids: metricIds,
+            district: null,
+            comparison_types: ["ytd" as const],
+          }
+        : null,
+    [metricIds],
+  )
+  const comparisonsQuery = useBatchComparisons(batchRequest)
+  const comparisons = comparisonsQuery.data
+
+  const byCategory = useMemo(() => {
+    const grouped: Record<string, WasteKeyMetric[]> = {}
+    for (const m of metrics) {
+      const sub = (m.subcategory ?? "").trim().toLowerCase()
+      const moduleCategory = SUBCATEGORY_TO_MODULE_CATEGORY[sub]
+      if (!moduleCategory) continue
+      const comp = comparisons?.[m.id]?.ytd
+      const entry: WasteKeyMetric = {
+        id: m.id,
+        metricKey: m.metric_key ?? null,
+        name: m.metric_name,
+        subcategory: sub,
+        value: comp?.current_period_value ?? null,
+        trend: computeTrend(
+          comp?.current_period_value,
+          comp?.comparison_period_value,
+        ),
+        status: statusKind(m.last_execution_status),
+      }
+      if (!grouped[moduleCategory]) grouped[moduleCategory] = []
+      grouped[moduleCategory].push(entry)
+    }
+    // Valued metrics first, then alphabetical, so the best chips lead.
+    for (const list of Object.values(grouped)) {
+      list.sort(
+        (a, b) =>
+          Number(b.value != null) - Number(a.value != null) ||
+          a.name.localeCompare(b.name),
+      )
+    }
+    return grouped
+  }, [metrics, comparisons])
+
+  return {
+    byCategory,
+    isLoading: metricsQuery.isLoading,
+    valuesLoading: comparisonsQuery.isLoading,
+  }
+}

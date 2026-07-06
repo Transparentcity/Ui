@@ -84,6 +84,8 @@ interface WasteSubcategoryGroupProps {
   carriedOverAsOf?: (f: WasteFinding) => string | null
   /** Full pool of findings for resolving consolidated supporting IDs. */
   allFindings?: WasteFinding[]
+  /** Resolve a finding's detector to its auditor-validated precision. */
+  precisionFor?: (f: WasteFinding) => { rate: number; total: number } | null
 }
 
 export function WasteSubcategoryGroup({
@@ -99,6 +101,7 @@ export function WasteSubcategoryGroup({
   isCarriedOver,
   carriedOverAsOf,
   allFindings,
+  precisionFor,
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [expandedSubGroup, setExpandedSubGroup] = useState<string | null>(null)
@@ -185,6 +188,7 @@ export function WasteSubcategoryGroup({
                           isCarriedOver={isCarriedOver?.(finding) ?? false}
                           carriedOverAsOf={carriedOverAsOf?.(finding) ?? null}
                           allFindings={allFindings}
+                          precision={precisionFor?.(finding) ?? null}
                         />
                       ))}
                     </div>
@@ -207,6 +211,7 @@ export function WasteSubcategoryGroup({
                 isCarriedOver={isCarriedOver?.(finding) ?? false}
                 carriedOverAsOf={carriedOverAsOf?.(finding) ?? null}
                 allFindings={allFindings}
+                precision={precisionFor?.(finding) ?? null}
               />
             ))
           )}

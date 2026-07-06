@@ -1,13 +1,22 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useCallback, useState, useMemo } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
-import type { WasteFinding } from "@/lib/apiClient"
+import {
+  useCreateWasteDisposition,
+  useLatestPersistedWasteResult,
+  useWasteDetectorAccuracy,
+} from "@/lib/hooks/useWaste"
+import type { WasteDispositionType, WasteFinding } from "@/lib/apiClient"
+import {
+  canonicalNarratorKey,
+  localKeyFromBackendKey,
+} from "./waste-finding-narrator"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
+import { WasteKeyMetricsStrip } from "./waste-key-metrics-strip"
 import { WasteSeverityFilter } from "./waste-severity-filter"
 import { WasteExport } from "./waste-export"
 import { WasteClusterMap } from "./waste-cluster-map"
@@ -49,6 +58,39 @@ export function ForensicsCategoryDetailPage({
   const { data: analysisData, isLoading } =
     useLatestPersistedWasteResult(cityId)
 
+  // Triage: flag/dismiss verdicts feed detector precision (the learning
+  // loop). Cards without a numeric db_id (older backend payloads) simply
+  // don't render the triage buttons.
+  const disposeMutation = useCreateWasteDisposition()
+  const handleDispose = useCallback(
+    (finding: WasteFinding, disposition: WasteDispositionType) => {
+      if (finding.db_id == null || !cityId) return
+      disposeMutation.mutate({
+        findingId: finding.db_id,
+        data: { city_id: cityId, disposition },
+      })
+    },
+    [disposeMutation, cityId],
+  )
+
+  // Per-detector auditor-validated precision, keyed by the shared local
+  // detector key so accuracy rows (backend detector_key) match findings
+  // (display tool label).
+  const { data: accuracyData } = useWasteDetectorAccuracy(cityId)
+  const precisionFor = useCallback(
+    (finding: WasteFinding) => {
+      if (!accuracyData?.length) return null
+      const findingKey = canonicalNarratorKey(finding.tool)
+      if (!findingKey) return null
+      const row = accuracyData.find(
+        (a) => localKeyFromBackendKey(a.detector_key) === findingKey,
+      )
+      if (!row || row.total_findings <= 0) return null
+      return { rate: row.precision_rate, total: row.total_findings }
+    },
+    [accuracyData],
+  )
+
   const categoryFindings = useMemo(() => {
     if (!analysisData?.findings) return []
     return analysisData.findings.filter(
@@ -87,6 +129,10 @@ export function ForensicsCategoryDetailPage({
           <ArrowLeft className="w-3 h-3" />
           All categories
         </Link>
+
+        {/* Key metrics: the underlying citywide numbers this category's
+            findings live inside (e.g. overtime share above overtime findings) */}
+        <WasteKeyMetricsStrip category={normalizedCat} />
 
         {/* Summary stats */}
         {categoryFindings.length > 0 && (
@@ -157,7 +203,23 @@ export function ForensicsCategoryDetailPage({
             ))}
           </div>
         ) : (
-          <WasteFindingsList findings={filteredFindings} onAskSeymour={handleAskSeymour} cityId={cityId} />
+          <>
+            {disposeMutation.isError && (
+              <p className="mb-2 text-xs text-red-600" role="alert">
+                Couldn&apos;t save that verdict:{" "}
+                {disposeMutation.error instanceof Error
+                  ? disposeMutation.error.message
+                  : "Unknown error"}
+              </p>
+            )}
+            <WasteFindingsList
+              findings={filteredFindings}
+              onAskSeymour={handleAskSeymour}
+              onDispose={handleDispose}
+              cityId={cityId}
+              precisionFor={precisionFor}
+            />
+          </>
         )}
 
         <WasteSeymourPanel

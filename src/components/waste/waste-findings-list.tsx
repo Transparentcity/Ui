@@ -33,6 +33,8 @@ interface WasteFindingsListProps {
   sortMode?: FindingSortMode
   cityId?: number
   carriedOverCategories?: CarriedOverCategoryMeta[]
+  /** Resolve a finding's detector to its auditor-validated precision. */
+  precisionFor?: (f: WasteFinding) => { rate: number; total: number } | null
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
@@ -87,6 +89,7 @@ export function WasteFindingsList({
   sortMode = "severity",
   cityId,
   carriedOverCategories,
+  precisionFor,
 }: WasteFindingsListProps) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
 
@@ -198,6 +201,7 @@ export function WasteFindingsList({
               isCarriedOver={isCarriedOver(finding)}
               carriedOverAsOf={carriedOverAsOf(finding)}
               allFindings={findings}
+              precision={precisionFor?.(finding) ?? null}
             />
           </div>
         ))}
@@ -222,6 +226,7 @@ export function WasteFindingsList({
           isCarriedOver={isCarriedOver}
           carriedOverAsOf={carriedOverAsOf}
           allFindings={findings}
+          precisionFor={precisionFor}
         />
       ))}
     </div>

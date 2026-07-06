@@ -39,9 +39,20 @@ vi.mock("@/lib/hooks/useWaste", () => ({
     useLatestPersistedWasteResult(cityId),
 }))
 
+const useWasteKeyMetrics = vi.fn()
+vi.mock("@/lib/hooks/useWasteKeyMetrics", () => ({
+  useWasteKeyMetrics: (cityId: number | null) => useWasteKeyMetrics(cityId),
+  formatMetricValue: (v: number | null) => (v == null ? "—" : `${v}%`),
+}))
+
 describe("ForensicsCategoriesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useWasteKeyMetrics.mockReturnValue({
+      byCategory: {},
+      isLoading: false,
+      valuesLoading: false,
+    })
   })
 
   it("shows the first-run empty state with the refresh panel when no runs exist", () => {
@@ -98,7 +109,49 @@ describe("ForensicsCategoriesPage", () => {
   })
 })
 
+describe("ForensicsCategoriesPage headline metrics", () => {
+  it("shows the first valued key metric on its category card", () => {
+    useLatestPersistedWasteResult.mockReturnValue({
+      data: { findings: [] },
+      isLoading: false,
+    })
+    useWasteKeyMetrics.mockReturnValue({
+      byCategory: {
+        payroll: [
+          {
+            id: 634,
+            metricKey: "overtime-share",
+            name: "Overtime Share of Regular Pay",
+            subcategory: "payroll",
+            value: 11.8,
+            trend: { pct: 1.2, dir: "up" },
+            status: "completed",
+          },
+        ],
+      },
+      isLoading: false,
+      valuesLoading: false,
+    })
+    render(<ForensicsCategoriesPage />)
+    const headline = screen.getByTestId("headline-metric-payroll")
+    expect(headline.textContent).toContain("Overtime Share of Regular Pay")
+    expect(headline.textContent).toContain("11.8%")
+    // Categories without valued metrics render no headline line.
+    expect(
+      screen.queryByTestId("headline-metric-contracts"),
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe("ForensicsCategoriesPage error handling", () => {
+  beforeEach(() => {
+    useWasteKeyMetrics.mockReturnValue({
+      byCategory: {},
+      isLoading: false,
+      valuesLoading: false,
+    })
+  })
+
   it("shows an error (not the first-run empty state) when the query fails", () => {
     useLatestPersistedWasteResult.mockReturnValue({
       data: undefined,

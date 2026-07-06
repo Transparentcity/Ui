@@ -3,6 +3,11 @@
 import { useMemo } from "react"
 import Link from "next/link"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
+import {
+  useWasteKeyMetrics,
+  formatMetricValue,
+} from "@/lib/hooks/useWasteKeyMetrics"
+import { TrendingUp, TrendingDown } from "lucide-react"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteRefreshPanel } from "./waste-refresh-panel"
@@ -88,6 +93,10 @@ export function ForensicsCategoriesPage() {
   // a first-run state, not "the city is clean". A query error means we
   // don't know either way and must not invite an unnecessary refresh run.
   const hasNoRuns = !isLoading && !isError && analysisData == null
+
+  // One headline metric per category card: the underlying citywide number
+  // (e.g. overtime share on the payroll card) next to the findings count.
+  const { byCategory: keyMetricsByCategory } = useWasteKeyMetrics(cityId)
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, { total: number; critical: number; amount: number }> = {}
@@ -188,6 +197,31 @@ export function ForensicsCategoriesPage() {
                       </span>
                     )}
                   </div>
+                  {(() => {
+                    const headline = (keyMetricsByCategory[key] ?? []).find(
+                      (m) => m.value != null,
+                    )
+                    if (!headline) return null
+                    return (
+                      <p
+                        className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"
+                        data-testid={`headline-metric-${key}`}
+                      >
+                        <span className="truncate max-w-[220px]">
+                          {headline.name}
+                        </span>
+                        <span className="font-semibold text-gray-700 tabular-nums">
+                          {formatMetricValue(headline.value)}
+                        </span>
+                        {headline.trend?.dir === "up" && (
+                          <TrendingUp className="w-3 h-3 text-gray-400" />
+                        )}
+                        {headline.trend?.dir === "down" && (
+                          <TrendingDown className="w-3 h-3 text-gray-400" />
+                        )}
+                      </p>
+                    )
+                  })()}
                   <div className="flex items-center gap-1 text-xs font-medium text-purple-600 mt-3 group-hover:gap-2 transition-all">
                     Analyze <ArrowRight className="w-3 h-3" />
                   </div>
