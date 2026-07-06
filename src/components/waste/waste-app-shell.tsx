@@ -100,6 +100,11 @@ export function WasteAppShell({ children }: { children: ReactNode }) {
 
   const handleViewChange = useCallback(
     (view: string) => {
+      // My Places click handlers in Sidebar fire onCityClick/onDistrictClick/
+      // onPlaceClick AND onViewChange("city") in the same click; the dedicated
+      // handler already pushes /home?city_id=…, so ignore "city" here to avoid
+      // a second router.push("/home") that would clobber the deep link.
+      if (view === "city") return
       // /home only understands `feed` and `inbox` as view deep links; anything
       // else lands on the default feed.
       goHome(view === "inbox" ? "view=inbox" : undefined)

@@ -1314,7 +1314,7 @@ export function WasteFindingCard({
   return (
     <div
       className={cn(
-        "bg-white border-t transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-inset outline-none",
+        "group bg-white border-t transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-inset outline-none",
         isExpanded ? "bg-gray-50/40" : "hover:bg-gray-50/60"
       )}
       style={{ borderColor: "#f3f4f6" }}
@@ -1442,10 +1442,9 @@ export function WasteFindingCard({
         {/* Chevron */}
         <ChevronDown
           className={cn(
-            "w-4 h-4 shrink-0 transition-transform group-hover:text-gray-500",
+            "w-4 h-4 shrink-0 transition-transform text-[#d1d5db] group-hover:text-gray-500",
             isExpanded && "rotate-180"
           )}
-          style={{ color: "#d1d5db" }}
         />
       </div>
 
