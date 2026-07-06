@@ -41,35 +41,29 @@ export function WasteAppShell({ children }: { children: ReactNode }) {
   const [govStatus, setGovStatus] =
     useState<GovernmentVerificationStatus | null>(null)
 
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [narrow, setNarrow] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState<number>(DEFAULT_SIDEBAR_WIDTH)
-
-  // Restore the persisted rail width (shared with /home) and collapse the rail
-  // on first paint when the viewport is narrow.
-  useEffect(() => {
+  // Narrow / open / width are seeded from the client environment up front (the
+  // rail only ever renders after client-side auth resolves, so there is no SSR
+  // paint to mismatch), then the effect just subscribes to viewport changes.
+  const [narrow, setNarrow] = useState<boolean>(isNarrowScreen)
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => !isNarrowScreen())
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_SIDEBAR_WIDTH
     const saved = window.localStorage.getItem("sidebar-width")
-    if (saved) {
-      const parsed = Number(saved)
-      if (Number.isFinite(parsed) && parsed >= 200) setSidebarWidth(parsed)
-    }
-    const narrowNow = isNarrowScreen()
-    setNarrow(narrowNow)
-    setSidebarOpen(!narrowNow)
+    const parsed = saved ? Number(saved) : NaN
+    return Number.isFinite(parsed) && parsed >= 200 ? parsed : DEFAULT_SIDEBAR_WIDTH
+  })
+
+  useEffect(() => {
     const onResize = () => setNarrow(isNarrowScreen())
     window.addEventListener("resize", onResize)
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
   // Mirror /home's single-round-trip sidebar bootstrap so the rail reflects the
-  // real user (admin sections, government logo mark, etc.).
+  // real user (admin sections, government logo mark, etc.). Logged-out defaults
+  // are the initial state; the shell only shows the rail when authenticated.
   useEffect(() => {
-    if (!isAuthenticated) {
-      setIsAdmin(false)
-      setCityLeadCityIds([])
-      setGovStatus(null)
-      return
-    }
+    if (!isAuthenticated) return
     let cancelled = false
     ;(async () => {
       try {
