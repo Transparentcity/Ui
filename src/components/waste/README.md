@@ -4,6 +4,21 @@ Admin-only surface for browsing waste/fraud/abuse findings produced by the
 backend detector pipeline. Simplified in July 2026 to three tabs over one
 landing page.
 
+## Shell
+
+The module renders inside the standard app shell. `src/app/waste/layout.tsx`
+wraps every route in `WasteAppShell` (`waste-app-shell.tsx`), which renders the
+shared `/home` `Sidebar` on the left and offsets the content beside it. The rail
+is navigation-only here: its actions route to the `/home` SPA via the deep-link
+query params `/home` consumes on mount (`?city_id=` / `?district=` / `?place_id=`
+for places, `?view=feed|inbox` for the two rail nav items). `WasteShell`
+(`waste-shell.tsx`) is the per-page right column: the ADMIN VIEW banner (which
+carries the admin-tools gear), the city header row (city picker + last-pull
+label + Seymour toggle), and the purple-eyebrow module head, above the tabbed
+content and the persistent Seymour rail. The visual language is a grayscale
+"ledger" (aligned tabular numbers in `--font-data`, headings in `--font-heading`,
+purple reserved for links/actions and the eyebrow).
+
 ## Routes
 
 | Route | Renders |
