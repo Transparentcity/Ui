@@ -26,7 +26,7 @@ type Props = {
  */
 const TOUCH_SCROLL_THRESHOLD = 6;
 
-/** Scroll the iframe's embed container (not window — see embed page CSS). */
+/** Scroll the iframe's embed container (not window; see embed page CSS). */
 function scrollIframeContent(win: Window, deltaX: number, deltaY: number): void {
   const container =
     win.document.querySelector<HTMLElement>(".embed-article") ??
@@ -189,7 +189,7 @@ export default function HeroNewsletterEmbed({
         <iframe
           ref={iframeRef}
           src={embedSrc}
-          title={`Sample weekly briefing — ${label}`}
+          title={`Sample weekly briefing: ${label}`}
           loading="eager"
           className={styles.newsletterIframe}
           scrolling="yes"

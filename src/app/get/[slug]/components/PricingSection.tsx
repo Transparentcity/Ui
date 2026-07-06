@@ -91,7 +91,7 @@ export default function PricingSection({ citySlug, cityName, cityId }: Props) {
             )}
           </div>
 
-          {/* Ongoing — featured */}
+          {/* Ongoing (featured) */}
           <div className={`${styles.pricingCard} ${styles.pricingCardFeatured}`}>
             <div className={styles.pricingFeaturedBadge}>Most popular</div>
             <div className={styles.pricingHeader}>
@@ -111,15 +111,15 @@ export default function PricingSection({ citySlug, cityName, cityId }: Props) {
             </ul>
             {!isAuthenticated && (
               <button onClick={handleSignup} className={styles.pricingCtaPrimary}>
-                Start free — $5/mo after
+                Start free, $5/mo after
               </button>
             )}
           </div>
         </div>
 
         <p className={styles.pricingNote}>
-          Payment processing is coming soon. Sign up now and your free month starts immediately — no
-          interruption when billing launches.
+          Payment processing is coming soon. Sign up now and your free month starts immediately,
+          with no interruption when billing launches.
         </p>
       </div>
     </section>

@@ -1,5 +1,5 @@
 /* ============================================================
-   Get landing page — /get/[slug]
+   Get landing page: /get/[slug]
    Tokens: see src/app/landing.css :root
    ============================================================ */
 
@@ -34,7 +34,7 @@
   gap: 16px;
 }
 
-/* Clickable copy area — any click on the badge/title/subtitle focuses the
+/* Clickable copy area: any click on the badge/title/subtitle focuses the
    hero email signup field below. The form itself sits outside this wrapper
    so inputs/buttons keep their native behavior. */
 .heroLeftCopy {

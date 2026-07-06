@@ -71,7 +71,7 @@ export default function PersonalizationSection({ cityName }: { cityName: string 
               <div className={styles.radiusLabel700}>7 blocks</div>
             </div>
             <p className={styles.radiusCaption}>
-              You choose the radius. The data is scoped to exactly that zone — pulled fresh each week from {cityName}&rsquo;s official open data portal.
+              You choose the radius. The data is scoped to exactly that zone, pulled fresh each week from {cityName}&rsquo;s official open data portal.
             </p>
           </div>
 

@@ -5,13 +5,13 @@ const HOW_STEPS = [
     icon: "🏛️",
     title: "Official open data",
     body:
-      "Every number in your weekly comes directly from your city's open data portal — the same data the city publishes. Nothing is estimated, modeled, or invented.",
+      "Every number in your weekly comes directly from your city's open data portal, the same data the city publishes. Nothing is estimated, modeled, or invented.",
   },
   {
     icon: "🔍",
     title: "Automated anomaly detection",
     body:
-      "Seymour, our AI analyst, runs statistical checks across hundreds of metrics every week to surface what changed and what's unusual — so you don't have to sift through spreadsheets.",
+      "Seymour, our AI analyst, runs statistical checks across hundreds of metrics every week to surface what changed and what's unusual, so you don't have to sift through spreadsheets.",
   },
   {
     icon: "✍️",
@@ -30,7 +30,7 @@ const HOW_STEPS = [
 const FAQ_ITEMS = [
   {
     q: "Where does the data come from?",
-    a: "Your city's official open data portal. We connect directly to published datasets — police incident reports, building permits, 311 service requests, spending records, and more.",
+    a: "Your city's official open data portal. We connect directly to published datasets: police incident reports, building permits, 311 service requests, spending records, and more.",
   },
   {
     q: "How is the weekly report generated?",
@@ -42,11 +42,11 @@ const FAQ_ITEMS = [
   },
   {
     q: "What cities are available?",
-    a: "We currently cover several major U.S. cities and are adding more. If your city isn't launched yet, you can request it — we'll notify you when it goes live.",
+    a: "We currently cover several major U.S. cities and are adding more. If your city isn't launched yet, you can request it and we'll notify you when it goes live.",
   },
   {
     q: "What happens after the free month?",
-    a: "After your first free month the newsletter continues at $5/month. You can cancel any time. Payment is coming soon — for now, sign up and enjoy the free period.",
+    a: "After your first free month the newsletter continues at $5/month. You can cancel any time. Payment is coming soon. For now, sign up and enjoy the free period.",
   },
 ];
 
