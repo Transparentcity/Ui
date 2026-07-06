@@ -30,6 +30,7 @@ import {
   mergePersistedRuns,
   type PersistedRunBundle,
 } from "@/components/waste/waste-utils"
+import { WASTE_CACHE_MAX_AGE } from "@/lib/wasteQueryPersister"
 
 /**
  * Fetch waste analysis findings with TanStack Query.
@@ -165,6 +166,10 @@ export function useLatestPersistedWasteResult(cityId: number | null) {
     },
     enabled: isAuthenticated && !!cityId,
     staleTime: 10 * 60 * 1000, // 10 min — persisted data doesn't change often
+    // This query is persisted to IndexedDB (see wasteQueryPersister.ts);
+    // its in-memory lifetime must be >= the persisted maxAge or an
+    // in-memory GC would drop it from disk on the next persist write.
+    gcTime: WASTE_CACHE_MAX_AGE,
     refetchOnWindowFocus: false,
   })
 }
