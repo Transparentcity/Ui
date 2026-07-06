@@ -53,6 +53,18 @@ outcomes parsed from the job result — the schedule-level status can read
 "completed" even when every city failed — plus next run time and a Run Now
 trigger via `runCustomScheduledJob`. Run Now always executes full runs.
 
+## Key metrics
+
+Waste metrics are ordinary platform metrics with `category="waste"`, built
+via Seymour and grouped by subcategory (`procurement`, `payroll`, `capital`,
+`service_delivery`, `fraud_risk`; `readout` metrics are findings-count KPIs
+and excluded from display). `useWasteKeyMetrics` maps subcategories onto the
+module's categories and joins YTD values/trends from the batch-comparisons
+API. Surfaces: a headline number on each `/waste` category card, and the
+`WasteKeyMetricsStrip` chips above each category's findings (click for the
+full chart). Year-grain share metrics populate once Platform PR #122 is
+deployed and the metrics re-run.
+
 ## Triage (the learning loop)
 
 Finding cards on category detail pages carry Flag / Dismiss / Skip controls

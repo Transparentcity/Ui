@@ -16,6 +16,7 @@ import {
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteFindingsList } from "./waste-findings-list"
+import { WasteKeyMetricsStrip } from "./waste-key-metrics-strip"
 import { WasteSeverityFilter } from "./waste-severity-filter"
 import { WasteExport } from "./waste-export"
 import { WasteClusterMap } from "./waste-cluster-map"
@@ -128,6 +129,10 @@ export function ForensicsCategoryDetailPage({
           <ArrowLeft className="w-3 h-3" />
           All categories
         </Link>
+
+        {/* Key metrics: the underlying citywide numbers this category's
+            findings live inside (e.g. overtime share above overtime findings) */}
+        <WasteKeyMetricsStrip category={normalizedCat} />
 
         {/* Summary stats */}
         {categoryFindings.length > 0 && (
