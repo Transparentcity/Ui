@@ -17,12 +17,19 @@ import { WasteReportStatusChip } from "./waste-report-status-chip"
  * briefings, which duplicated the By-department tab.
  */
 export function WasteReportsPage() {
-  const { selectedCityId, eligibleCities } = useWasteCity()
-  const citySlug =
-    eligibleCities.find((c) => c.id === selectedCityId)?.slug ?? null
+  const {
+    selectedCitySlug: citySlug,
+    isLoading: citiesLoading,
+    cityLoadError,
+  } = useWasteCity()
 
   const { data, isLoading, error } = useWasteAdminReports(citySlug)
   const rows = (data ?? []).map(adaptReportRow)
+  // While citySlug is unresolved the reports query is disabled, and disabled
+  // queries report isLoading=false: without these flags the page would show
+  // "No workpapers yet" during city-list load (or forever on failure).
+  const waitingOnCity = citiesLoading
+  const cityUnresolved = !citiesLoading && citySlug == null
 
   return (
     <WasteShell
@@ -30,7 +37,7 @@ export function WasteReportsPage() {
       description="Build custom exports and browse audit workpapers"
     >
       <ForensicsShell>
-        {/* Report builder — CSV/JSON/Excel downloads with filters */}
+        {/* Report builder: CSV/JSON/Excel downloads with filters */}
         <div className="mb-6">
           <WasteReportBuilder />
         </div>
@@ -45,12 +52,18 @@ export function WasteReportsPage() {
             </span>
           </div>
 
-          {error ? (
+          {cityUnresolved ? (
+            <p className="px-5 py-4 text-sm text-red-600" role="alert">
+              {cityLoadError
+                ? `Couldn't load the city list: ${cityLoadError.message}`
+                : "The selected city isn't available in the waste module."}
+            </p>
+          ) : error ? (
             <p className="px-5 py-4 text-sm text-red-600" role="alert">
               Couldn&apos;t load workpapers:{" "}
               {error instanceof Error ? error.message : "Unknown error"}
             </p>
-          ) : isLoading ? (
+          ) : isLoading || waitingOnCity ? (
             <div className="p-5 space-y-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />

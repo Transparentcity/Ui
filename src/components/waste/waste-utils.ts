@@ -363,6 +363,9 @@ export interface PersistedRunBundle {
   analysisTimestamp: string | null
   errors: string[]
   response: WasteAnalyzeResponse
+  /** The run's scope: null/undefined = full run (covers every category),
+   *  a label = category-scoped run (authoritative only for that category). */
+  category?: string | null
 }
 
 export interface CarriedOverCategoryInfo {
@@ -842,9 +845,19 @@ export function mergePersistedRuns(
 
   for (const category of MERGEABLE_CATEGORIES) {
     // Walk newest → oldest, skipping runs that explicitly errored for this
-    // category. The first non-errored run is authoritative.
+    // category and runs that didn't cover it (a category-scoped run
+    // legitimately has zero findings for every other category, which must
+    // not be read as "clean"). The first non-errored covering run is
+    // authoritative.
     let pickedIndex = -1
     for (let i = 0; i < runs.length; i++) {
+      const runCategory = runs[i].category
+      if (
+        runCategory != null &&
+        normalizeWasteCategory(runCategory) !== category
+      ) {
+        continue
+      }
       if (errorsByRun[i].has(category)) continue
       pickedIndex = i
       break

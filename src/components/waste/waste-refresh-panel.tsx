@@ -50,7 +50,7 @@ function formatWhen(iso: string | null | undefined): string {
  * Shows the last run's per-city outcome (the schedule-level status can say
  * "completed" even when every city failed, so we parse the job result),
  * the next scheduled run, and a Run-now trigger. Run-now executes the
- * weekly-refresh code path — full runs for all configured cities — so it
+ * weekly-refresh code path (full runs for all configured cities), so it
  * can't create the category-scoped partial runs the merge logic dislikes.
  */
 export function WasteRefreshPanel() {
@@ -72,7 +72,7 @@ export function WasteRefreshPanel() {
       )
     },
     enabled: isAuthenticated,
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   })
   const schedule = scheduleQuery.data
@@ -86,15 +86,25 @@ export function WasteRefreshPanel() {
       return getJob(trackedJobId as string, token)
     },
     enabled: isAuthenticated && !!trackedJobId,
-    // Poll while a triggered run is in flight.
+    // Poll while a run we started is in flight. Keyed on liveJobId (not the
+    // fetched status) so polling survives a transient getJob error right
+    // after the trigger, before the job row is visible.
     refetchInterval: (query) => {
+      if (liveJobId) return 5000
       const status = query.state.data?.status
       return status === "pending" || status === "running" ? 5000 : false
     },
+    // A finished job never changes; only the poll path needs freshness.
+    staleTime: liveJobId ? 0 : Infinity,
     refetchOnWindowFocus: false,
   })
   const job = jobQuery.data
-  const isRunning = job?.status === "pending" || job?.status === "running"
+  // liveJobId counts as running even before the first poll returns, so the
+  // Run button can't re-enable in the gap and double-trigger a refresh.
+  const isRunning =
+    liveJobId != null ||
+    job?.status === "pending" ||
+    job?.status === "running"
   const cityResults = parseCityResults(job?.result)
 
   // When a run we started finishes, fresh findings may exist.
@@ -116,10 +126,16 @@ export function WasteRefreshPanel() {
       const token = await getAccessTokenSilently()
       const res = await runCustomScheduledJob(schedule.id, token)
       const jobId = res?.job_id
-      if (typeof jobId === "string" && jobId) {
+      if (res?.status === "skipped") {
+        // The backend declined to run (schedule paused, or a run already in
+        // flight). Without this the click appears to do nothing.
+        setStartError(
+          res?.message || "Run was skipped: a refresh may already be running.",
+        )
+      } else if (typeof jobId === "string" && jobId) {
         setLiveJobId(jobId)
       } else {
-        // Started but not trackable — refetch the schedule for last_run info.
+        // Started but not trackable; refetch the schedule for last_run info.
         queryClient.invalidateQueries({
           queryKey: ["waste", "refresh-schedule"],
         })
@@ -139,7 +155,9 @@ export function WasteRefreshPanel() {
   if (!schedule) {
     return (
       <p className="px-3 py-2 text-xs text-gray-500">
-        Weekly refresh schedule not found.
+        Weekly refresh schedule not found. Seed it from Job Administration on
+        the home page, or set SEED_WEEKLY_WASTE_REFRESH_SCHEDULE on the
+        backend and restart the scheduler.
       </p>
     )
   }

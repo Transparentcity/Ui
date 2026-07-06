@@ -1,9 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { useAuth0 } from "@auth0/auth0-react"
-import { listWasteAdminCities } from "@/lib/api/wasteAdmin"
+import { useWasteAdminCities } from "@/lib/hooks/useWasteAdmin"
 import { CRM_DEFAULT_CITY_ID } from "@/lib/apiBase"
 
 const STORAGE_KEY = "waste:selectedCityId"
@@ -25,21 +23,12 @@ function readStoredCityId(): number | null {
 }
 
 export function useWasteSelectedCity() {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0()
-
   // The backend is the source of truth for which cities the waste module
   // supports: /api/admin/waste/cities marks each city `configured` (has a
   // dataset registry entry) and `launched`. Launching a new city therefore
-  // requires no UI change.
-  const citiesQuery = useQuery({
-    queryKey: ["waste-admin", "cities"],
-    queryFn: async () => {
-      const token = await getAccessTokenSilently()
-      return listWasteAdminCities(token)
-    },
-    enabled: isAuthenticated,
-    staleTime: 5 * 60 * 1000,
-  })
+  // requires no UI change. Reuses the shared admin cities query so both
+  // consumers share one cache entry and one set of query options.
+  const citiesQuery = useWasteAdminCities()
 
   const eligibleCities = useMemo<WasteCityOption[]>(
     () =>

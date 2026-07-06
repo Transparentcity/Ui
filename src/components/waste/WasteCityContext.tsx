@@ -15,6 +15,9 @@ interface WasteCityContextValue {
   isCityFallback: boolean
   setSelectedCityId: (id: number | null) => void
   selectedCityName: string
+  /** Slug of the selected city, or null while the city list is loading or
+   *  when the selected id isn't in the eligible list. */
+  selectedCitySlug: string | null
 }
 
 const WasteCityCtx = createContext<WasteCityContextValue | null>(null)
@@ -22,12 +25,16 @@ const WasteCityCtx = createContext<WasteCityContextValue | null>(null)
 export function WasteCityProvider({ children }: { children: React.ReactNode }) {
   const city = useWasteSelectedCity()
 
-  const selectedCityName =
-    city.eligibleCities.find((c) => Number(c.id) === city.selectedCityId)?.name ??
-    "City"
+  const selectedCity = city.eligibleCities.find(
+    (c) => Number(c.id) === city.selectedCityId,
+  )
+  const selectedCityName = selectedCity?.name ?? "City"
+  const selectedCitySlug = selectedCity?.slug ?? null
 
   return (
-    <WasteCityCtx.Provider value={{ ...city, selectedCityName }}>
+    <WasteCityCtx.Provider
+      value={{ ...city, selectedCityName, selectedCitySlug }}
+    >
       {children}
     </WasteCityCtx.Provider>
   )

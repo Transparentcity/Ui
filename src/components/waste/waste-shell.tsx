@@ -55,10 +55,6 @@ interface WasteShellProps {
   title: string
   description?: string
   actions?: React.ReactNode
-  /** @deprecated kept for backward compat with WastePageContent */
-  activeCategory?: string
-  /** @deprecated kept for backward compat with WastePageContent */
-  onCategoryChange?: (category: string) => void
 }
 
 export function WasteShell(props: WasteShellProps) {
@@ -82,6 +78,7 @@ function WasteShellInner({
     eligibleCities,
     isLoading: citiesLoading,
     isFetching,
+    cityLoadError,
     setSelectedCityId,
     selectedCityName,
   } = useWasteCity()
@@ -294,6 +291,18 @@ function WasteShellInner({
           </div>
         </div>
       </header>
+
+      {/* City list failure: without this banner a 403 (non-admin) or outage
+          leaves an empty picker and silently falls back to the default city. */}
+      {cityLoadError && !citiesLoading && (
+        <div className="bg-red-50 border-b border-red-200 px-4 lg:px-6 py-2">
+          <p className="text-xs text-red-700">
+            {(cityLoadError as { status?: number }).status === 403
+              ? "Your account doesn't have admin access to the waste module, so the city list can't be loaded."
+              : `Couldn't load the waste city list: ${cityLoadError.message}. Data shown below may be for the wrong city.`}
+          </p>
+        </div>
+      )}
 
       {/* Page header */}
       <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">

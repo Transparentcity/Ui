@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import Link from "next/link"
 import { ArrowLeft, Download } from "lucide-react"
 import { WasteShell } from "./waste-shell"
@@ -7,7 +8,7 @@ import { ForensicsShell } from "./forensics-shell"
 import { useWasteCity } from "./WasteCityContext"
 import { useWasteAdminReport } from "@/lib/hooks/useWasteAdmin"
 import { adaptFinding, adaptReportDetail } from "@/lib/admin/waste/adapters"
-import type { WasteAdminReportDetail } from "@/lib/api/wasteAdmin"
+import { reportToCsv, triggerDownload } from "@/lib/waste/report-csv"
 import { WasteReportStatusChip } from "./waste-report-status-chip"
 import { cn } from "@/lib/utils"
 
@@ -17,75 +18,36 @@ const SEVERITY_STYLES: Record<string, string> = {
   low: "bg-gray-50 text-gray-600 border-gray-200",
 }
 
-function triggerDownload(filename: string, mime: string, content: string) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
-type ReportFinding = WasteAdminReportDetail["findings"][number]
-
-const CSV_COLUMNS: ReadonlyArray<[string, (f: ReportFinding) => unknown]> = [
-  ["finding_id", (f) => f.finding_id],
-  ["detector_key", (f) => f.detector_key],
-  ["detector_name", (f) => f.detector_name],
-  ["category", (f) => f.category],
-  ["subcategory", (f) => f.subcategory],
-  ["severity", (f) => f.severity],
-  ["status", (f) => f.finding_status],
-  ["entity_name", (f) => f.entity_name],
-  ["department", (f) => f.department],
-  ["estimated_dollar_impact", (f) => f.estimated_dollar_impact ?? f.amount],
-  ["confidence", (f) => f.confidence],
-  ["created_at", (f) => f.created_at],
-  ["headline", (f) => f.headline],
-  ["description", (f) => f.description],
-]
-
-function csvCell(value: unknown): string {
-  if (value == null) return ""
-  let s = String(value)
-  // Defuse spreadsheet formula injection for text cells.
-  if (typeof value === "string" && /^[\s]*[=+\-@\t\r]/.test(s)) {
-    s = `'${s}`
-  }
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
-function reportToCsv(report: WasteAdminReportDetail): string {
-  const header = CSV_COLUMNS.map(([name]) => name).join(",")
-  const rows = (report.findings ?? []).map((f) =>
-    CSV_COLUMNS.map(([, get]) => csvCell(get(f))).join(","),
-  )
-  return [header, ...rows].join("\r\n")
-}
-
 /** Workpaper detail: methodology, standards basis, caveats, and findings
  *  ranked by exposure, with CSV/JSON export. */
 export function WasteWorkpaperPage({ slug }: { slug: string }) {
-  const { selectedCityId, eligibleCities } = useWasteCity()
-  const citySlug =
-    eligibleCities.find((c) => c.id === selectedCityId)?.slug ?? null
+  const {
+    selectedCitySlug: citySlug,
+    isLoading: citiesLoading,
+    cityLoadError,
+  } = useWasteCity()
 
   const { data, isLoading, error } = useWasteAdminReport(slug, citySlug)
   const notFound = (error as { status?: number } | null)?.status === 404
+  // With citySlug null the report query is disabled (data undefined, error
+  // null forever), so city-resolution problems need their own error path
+  // instead of an infinite skeleton.
+  const cityUnresolved = !citiesLoading && citySlug == null
 
-  const report = data ? adaptReportDetail(data) : null
-  const findings = data
-    ? [...(data.findings ?? [])]
-        .sort((a, b) => {
-          const av = a.estimated_dollar_impact ?? a.amount ?? 0
-          const bv = b.estimated_dollar_impact ?? b.amount ?? 0
-          return bv - av
-        })
-        .map(adaptFinding)
-    : []
+  const report = useMemo(() => (data ? adaptReportDetail(data) : null), [data])
+  const findings = useMemo(
+    () =>
+      data
+        ? [...(data.findings ?? [])]
+            .sort((a, b) => {
+              const av = a.estimated_dollar_impact ?? a.amount ?? 0
+              const bv = b.estimated_dollar_impact ?? b.amount ?? 0
+              return bv - av
+            })
+            .map(adaptFinding)
+        : [],
+    [data],
+  )
 
   return (
     <WasteShell
@@ -101,7 +63,13 @@ export function WasteWorkpaperPage({ slug }: { slug: string }) {
           All workpapers
         </Link>
 
-        {error ? (
+        {cityUnresolved ? (
+          <p className="text-sm text-red-600" role="alert">
+            {cityLoadError
+              ? `Couldn't load the city list: ${cityLoadError.message}`
+              : "The selected city isn't available in the waste module, so this workpaper can't be loaded."}
+          </p>
+        ) : error ? (
           <p className="text-sm text-red-600" role="alert">
             {notFound
               ? `No workpaper named "${slug}" for this city. It may have been removed, or the link is out of date.`
