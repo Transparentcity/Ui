@@ -38,22 +38,55 @@ vi.mock("@/lib/hooks/useWaste", () => ({
   }),
 }))
 
+const useWasteCity = vi.fn()
 vi.mock("./WasteCityContext", () => ({
-  useWasteCity: () => ({
-    selectedCityId: 57260,
-    eligibleCities: [{ id: 57260, name: "San Francisco", slug: "san-francisco", datasets_count: 10 }],
-    isLoading: false,
-    isFetching: false,
-    cityLoadError: null,
-    isCityFallback: false,
-    setSelectedCityId: vi.fn(),
-    selectedCityName: "San Francisco",
-  }),
+  useWasteCity: () => useWasteCity(),
 }))
+
+const CITY_DEFAULT = {
+  selectedCityId: 57260,
+  eligibleCities: [{ id: 57260, name: "San Francisco", slug: "san-francisco", datasets_count: 10 }],
+  isLoading: false,
+  isFetching: false,
+  cityLoadError: null,
+  isCityFallback: false,
+  setSelectedCityId: vi.fn(),
+  selectedCityName: "San Francisco",
+  selectedCitySlug: "san-francisco",
+  refetchCities: vi.fn(),
+}
 
 describe("WasteShell", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useWasteCity.mockReturnValue(CITY_DEFAULT)
+  })
+
+  it("shows a Retry button on a city-load error and refetches on click", () => {
+    const refetchCities = vi.fn()
+    useWasteCity.mockReturnValue({
+      ...CITY_DEFAULT,
+      cityLoadError: Object.assign(new Error("504 Gateway Timeout"), {
+        status: 504,
+      }),
+      refetchCities,
+    })
+    render(<WasteShell title="Test">Content</WasteShell>)
+    expect(
+      screen.getByText(/Couldn't load the waste city list/),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Retry"))
+    expect(refetchCities).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not offer Retry for a 403 (no admin access) error", () => {
+    useWasteCity.mockReturnValue({
+      ...CITY_DEFAULT,
+      cityLoadError: Object.assign(new Error("403 Forbidden"), { status: 403 }),
+    })
+    render(<WasteShell title="Test">Content</WasteShell>)
+    expect(screen.getByText(/doesn't have admin access/)).toBeInTheDocument()
+    expect(screen.queryByText("Retry")).not.toBeInTheDocument()
   })
 
   it("renders title and description in the header", () => {
