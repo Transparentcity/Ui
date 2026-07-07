@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuth0 } from "@auth0/auth0-react"
-import { CheckCircle2, XCircle, Loader2, Play, RefreshCw } from "lucide-react"
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Loader2,
+  Play,
+  RefreshCw,
+} from "lucide-react"
 import {
   getAllScheduledJobs,
   getJob,
@@ -11,12 +18,14 @@ import {
   type CustomScheduledJob,
 } from "@/lib/apiClient"
 import { cn } from "@/lib/utils"
+import { parseWasteTimestamp } from "./waste-utils"
 
 interface CityRunResult {
-  city_id: number
+  city_id?: number
   city_name: string
   status: string
   error?: string
+  errors?: string[]
 }
 
 /** Parse the per-city outcomes out of a weekly_waste_refresh job result. */
@@ -34,8 +43,8 @@ function parseCityResults(result: unknown): CityRunResult[] {
 
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return "—"
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "—"
+  const d = parseWasteTimestamp(iso)
+  if (!d) return "—"
   return d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -220,21 +229,43 @@ export function WasteRefreshPanel() {
           {cityResults.length > 0 && (
             <ul className="mt-1 space-y-0.5">
               {cityResults.map((c) => {
-                const ok = c.status === "completed" || c.status === "success"
+                const status = c.status ?? ""
+                const ok = status === "completed" || status === "success"
+                // A city can finish with findings persisted but some detector
+                // families errored — the backend reports that as a
+                // "completed…"-prefixed status and/or a non-empty errors array.
+                // That is a partial success (amber), not a hard failure (red).
+                const errs = c.errors ?? (c.error ? [c.error] : [])
+                const partial =
+                  !ok &&
+                  (status === "partial" ||
+                    status.startsWith("completed") ||
+                    (errs.length > 0 && status.startsWith("success")))
+                const tooltip = errs.length > 0 ? errs.join("\n") : undefined
                 return (
                   <li
-                    key={c.city_id}
+                    key={c.city_id ?? c.city_name}
                     className="flex items-center gap-1.5 text-xs"
-                    title={c.error || undefined}
+                    title={tooltip}
                   >
                     {ok ? (
                       <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                    ) : partial ? (
+                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
                     ) : (
                       <XCircle className="w-3 h-3 text-red-500 shrink-0" />
                     )}
                     <span className="text-gray-700">{c.city_name}</span>
-                    <span className={ok ? "text-emerald-600" : "text-red-600"}>
-                      {ok ? "ok" : c.status}
+                    <span
+                      className={
+                        ok
+                          ? "text-emerald-600"
+                          : partial
+                            ? "text-amber-600"
+                            : "text-red-600"
+                      }
+                    >
+                      {ok ? "ok" : status || "unknown"}
                     </span>
                   </li>
                 )

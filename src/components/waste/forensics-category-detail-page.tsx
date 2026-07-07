@@ -25,7 +25,11 @@ import {
   type WasteSeymourRequest,
 } from "./waste-seymour-panel"
 import { useWasteCity } from "./WasteCityContext"
-import { normalizeWasteCategory, formatDollar } from "./waste-utils"
+import {
+  normalizeWasteCategory,
+  formatDollar,
+  aggregateAmount,
+} from "./waste-utils"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
@@ -99,9 +103,13 @@ export function ForensicsCategoryDetailPage({
   // don't render the triage buttons.
   const disposeMutation = useCreateWasteDisposition()
   const handleDispose = useCallback(
-    (finding: WasteFinding, disposition: WasteDispositionType) => {
-      if (finding.db_id == null || !cityId) return
-      disposeMutation.mutate({
+    async (finding: WasteFinding, disposition: WasteDispositionType) => {
+      // Reject (rather than silently return) so the card can roll back its
+      // optimistic "triaged" state and restore the buttons on failure.
+      if (finding.db_id == null || !cityId) {
+        throw new Error("Cannot record disposition: missing finding id or city")
+      }
+      await disposeMutation.mutateAsync({
         findingId: finding.db_id,
         data: { city_id: cityId, disposition },
       })
@@ -200,10 +208,7 @@ export function ForensicsCategoryDetailPage({
             />
             <SummaryCell
               label="Exposure"
-              value={formatDollar(
-                categoryFindings.reduce((sum, f) => sum + (f.amount ?? 0), 0) ||
-                  null,
-              )}
+              value={formatDollar(aggregateAmount(categoryFindings) || null)}
               color="#111827"
               divider
               wide
@@ -249,7 +254,7 @@ export function ForensicsCategoryDetailPage({
             <WasteFindingsList
               findings={filteredFindings}
               onAskSeymour={handleAskSeymour}
-              onDispose={handleDispose}
+              onDispose={cityId ? handleDispose : undefined}
               cityId={cityId}
               precisionFor={precisionFor}
             />

@@ -22,7 +22,7 @@ const STORE_NAME = "persisted"
 const KEY = "waste"
 
 /** Bump to invalidate previously persisted caches on breaking shape changes. */
-export const WASTE_CACHE_BUSTER = "waste-v1"
+export const WASTE_CACHE_BUSTER = "waste-v2"
 
 /**
  * Persisted entries older than this are discarded on restore. The persisted

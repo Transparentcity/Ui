@@ -41,6 +41,7 @@ const DETECTORS: DetectorInfo[] = [
   { code: "D20", category: "vendor", name: "Debarment Bypass", checks: "Payments to a vendor on the federal SAM.gov debarment list." },
   { code: "D21", category: "vendor", name: "Vendor Location Verification", checks: "Vendor's claimed location can't be verified or doesn't match work site." },
   { code: "D22", category: "vendor", name: "Emergency Contract Runaway", checks: "Emergency-contract spend continues long after the emergency is over." },
+  { code: "D23", category: "vendor", name: "Threshold Clustering", checks: "Contract awards cluster just under a competitive-bid or approval ceiling." },
 
   // Payroll
   { code: "D1", category: "payroll", name: "OT-to-Base Ratio", checks: "Employee's overtime as a fraction of base pay exceeds peer-job-class threshold." },
@@ -79,6 +80,7 @@ const DETECTORS: DetectorInfo[] = [
   { code: "NP3", category: "nonprofit", name: "Fiscal Sponsor Opacity", checks: "Fiscal-sponsor relationship hides ultimate recipient or beneficiary." },
   { code: "NP4", category: "nonprofit", name: "Charity Registration Compliance", checks: "Recipient nonprofit's state charity registration is missing or expired." },
   { code: "NP5", category: "nonprofit", name: "Nonprofit-Vendor Overlap", checks: "Nonprofit grant recipient is also a paid vendor to the same department." },
+  { code: "NP6", category: "nonprofit", name: "Grant Ramp Concentration", checks: "A grantee's city funding ramps up sharply or concentrates in one department." },
 ]
 
 // Build code → list of candidates for fast lookup.

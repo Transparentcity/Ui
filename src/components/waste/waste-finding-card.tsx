@@ -200,7 +200,10 @@ interface WasteFindingCardProps {
   isExpanded: boolean
   onToggle: () => void
   onAskSeymour?: (finding: WasteFinding) => void
-  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onDispose?: (
+    finding: WasteFinding,
+    disposition: WasteDispositionType,
+  ) => void | Promise<void>
   onSkip?: (finding: WasteFinding) => void
   cityId?: number
   isCarriedOver?: boolean
@@ -1059,8 +1062,18 @@ export function WasteFindingCard({
     )
   }
   if (isCarriedOver) dataNotes.push(carriedOverTitle)
+  // Rehydrate triage state from the backend's latest_disposition
+  // ({ disposition, created_at }) so a finding already triaged in a prior
+  // session doesn't render Flag/Dismiss again (re-dismissing the same finding
+  // week after week corrupts the detector's precision counters).
+  const priorDisposition = (
+    (finding as unknown as Record<string, unknown>)["latest_disposition"] as
+      | { disposition?: string }
+      | null
+      | undefined
+  )?.disposition
   const [triaged, setTriaged] = useState<WasteDispositionType | "skipped" | null>(
-    null,
+    (priorDisposition as WasteDispositionType | undefined) ?? null,
   )
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
@@ -1590,8 +1603,13 @@ export function WasteFindingCard({
           {onDispose && finding.db_id != null && triaged == null && (
             <QuickDisposition
               onDispose={(disposition) => {
+                // Optimistically show the confirmation, but roll back to the
+                // buttons if the write fails (e.g. a stale db_id from cache or
+                // a 403) so the verdict isn't silently lost.
                 setTriaged(disposition)
-                onDispose(finding, disposition)
+                Promise.resolve(onDispose(finding, disposition)).catch(() => {
+                  setTriaged(null)
+                })
               }}
               onSkip={
                 onSkip
