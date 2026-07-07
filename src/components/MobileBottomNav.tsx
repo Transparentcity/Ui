@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import styles from "./MobileBottomNav.module.css";
 
-export type MobileTab = "feed" | "my-places" | "inbox" | "more";
+export type MobileTab = "home" | "my-places" | "more";
 
 interface MobileBottomNavProps {
   activeTab: MobileTab;
@@ -30,7 +30,7 @@ function isTextInput(el: Element | null): boolean {
 
 /**
  * Persistent bottom navigation bar for mobile (<=768px).
- * Three tabs: Feed | My Places | More.
+ * Three tabs: Home | My Places | More.
  *
  * Hides when the virtual keyboard is open using three combined signals:
  * 1. visualViewport resize (primary, most reliable)
@@ -109,15 +109,22 @@ export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCou
 
   const tabs: { id: MobileTab; label: string; icon: React.ReactNode }[] = [
     {
-      id: "feed",
-      label: "Feed",
+      id: "home",
+      label: "Home",
       icon: (
-        <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
-          <path d="M18 14h-8" />
-          <path d="M15 18h-5" />
-          <path d="M10 6h8v4h-8V6Z" />
-        </svg>
+        <span className={styles.tabIconWrapper}>
+          <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9.5 12 3l9 6.5" />
+            <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10" />
+            <path d="M10 21v-6h4v6" />
+          </svg>
+          {inboxUnreadCount > 0 && (
+            <span
+              className={styles.tabUnreadDot}
+              aria-label={`${inboxUnreadCount} unread`}
+            />
+          )}
+        </span>
       ),
     },
     {
@@ -128,24 +135,6 @@ export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCou
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />
         </svg>
-      ),
-    },
-    {
-      id: "inbox",
-      label: "Inbox",
-      icon: (
-        <span className={styles.tabIconWrapper}>
-          <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-            <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-          </svg>
-          {inboxUnreadCount > 0 && (
-            <span
-              className={styles.tabUnreadDot}
-              aria-label={`${inboxUnreadCount} unread`}
-            />
-          )}
-        </span>
       ),
     },
     {
@@ -174,8 +163,8 @@ export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCou
           className={`${styles.tab}${activeTab === tab.id ? ` ${styles.tabActive}` : ""}`}
           onClick={() => onTabChange(tab.id)}
           aria-label={
-            tab.id === "inbox" && inboxUnreadCount > 0
-              ? `Inbox, ${inboxUnreadCount} unread`
+            tab.id === "home" && inboxUnreadCount > 0
+              ? `Home, ${inboxUnreadCount} unread`
               : tab.label
           }
           aria-current={activeTab === tab.id ? "page" : undefined}

@@ -31,30 +31,56 @@ import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
 import MetricDetailModal from "@/components/MetricDetailModal";
 import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
-import PlaceDashboardStories from "@/components/PlaceDashboardStories";
+import BriefingHome from "@/components/BriefingHome";
 import { resolveGeographicUnitLabel } from "@/lib/geographicUnitLabel";
+import {
+  resolveDistrictFromShapefiles,
+  primaryStructureIdFromLeaders,
+} from "@/lib/findDistrictFromCoordinates";
 import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
 
-type CityViewSection = "dashboard" | "map" | "alerts";
+export type CityViewSection = "briefing" | "full_dashboard" | "map" | "alerts";
 
-function getVisibleCityViewSections(isAdmin: boolean): CityViewSection[] {
-  return isAdmin ? ["dashboard", "map", "alerts"] : ["dashboard"];
+const SECTION_LABELS: Record<CityViewSection, string> = {
+  briefing: "Overview",
+  full_dashboard: "All metrics",
+  map: "Map",
+  alerts: "Alerts",
+};
+
+function getVisibleCityViewSections(
+  isAdmin: boolean,
+  canAccessMap: boolean,
+): CityViewSection[] {
+  // Regular users only get the briefing overview (no tab bar); the full
+  // metrics table is reachable via its "Browse all metrics" expand.
+  if (!isAdmin) return ["briefing"];
+  const sections: CityViewSection[] = ["briefing", "full_dashboard"];
+  if (canAccessMap) sections.push("map");
+  sections.push("alerts");
+  return sections;
 }
 
 function resolveCityViewSection(
-  section: CityViewSection | null | undefined,
+  section: CityViewSection | "dashboard" | null | undefined,
   isAdmin: boolean,
+  canAccessMap: boolean,
 ): CityViewSection {
-  if (!section || section === "dashboard") return "dashboard";
-  if (!isAdmin) return "dashboard";
+  if (!section || section === "briefing") return "briefing";
+  // Legacy alias from older nav shortcuts.
+  if (section === "dashboard") return isAdmin ? "full_dashboard" : "briefing";
+  if (!isAdmin) return "briefing";
+  if (section === "map" && !canAccessMap) return "briefing";
   return section;
 }
 
 interface CityViewProps {
   cityId: number;
   isAdmin: boolean;
+  /** Global platform admin (not city-lead elevation). Map in place mode requires this. */
+  isGlobalAdmin?: boolean;
   gpsLocation?: { lat: number; lng: number } | null;
   initialDistrict?: number | null;
   /** When set, select this saved place in the dashboard scope (e.g. from sidebar My Places). */
@@ -76,9 +102,11 @@ interface CityViewProps {
   /** Notify parent to set bootstrap id when user saves a new place from the city header (DistrictNavigation). */
   onRequestPlaceMetricsBootstrap?: (placeId: number) => void;
   /** When set, scroll to this section on mount (e.g. from sidebar Dashboard shortcut). */
-  initialSection?: CityViewSection | null;
+  initialSection?: CityViewSection | "dashboard" | null;
   /** Called when user selects a different city from the city switcher, passing the new city id and current tab. */
   onCityChange?: (cityId: number, section: CityViewSection) => void;
+  /** Label of a place whose metrics are still being computed (onboarding); shows the "your place is loading" banner on the citywide briefing. */
+  pendingPlaceLabel?: string | null;
 }
 
 interface MetricWithYTD {
@@ -2075,6 +2103,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 export default function CityView({
   cityId,
   isAdmin,
+  isGlobalAdmin = false,
   gpsLocation,
   initialDistrict,
   initialPlaceId,
@@ -2088,11 +2117,8 @@ export default function CityView({
   onRequestPlaceMetricsBootstrap,
   initialSection,
   onCityChange,
+  pendingPlaceLabel = null,
 }: CityViewProps) {
-  const visibleSections = useMemo(
-    () => getVisibleCityViewSections(isAdmin),
-    [isAdmin],
-  );
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   // alertsSectionVisible removed – anomalies section hidden
   const [openDistrictTrigger, setOpenDistrictTrigger] = useState(0);
@@ -2114,6 +2140,14 @@ export default function CityView({
     }
     return [];
   });
+  // Map tab: city leads may use it citywide/district, but not in place mode.
+  // Global admins may use it in all scopes.
+  const canAccessMap =
+    isAdmin && (selectedPlaceId == null || isGlobalAdmin);
+  const visibleSections = useMemo(
+    () => getVisibleCityViewSections(isAdmin, canAccessMap),
+    [isAdmin, canAccessMap],
+  );
   const [placesRefreshKey, setPlacesRefreshKey] = useState(0);
   const [districtGPSLocation, setDistrictGPSLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [mapLeaders, setMapLeaders] = useState<any[]>([]);
@@ -2127,11 +2161,36 @@ export default function CityView({
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const dashboardSectionRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<CityViewSection>(() =>
-    resolveCityViewSection(initialSection, isAdmin),
+    resolveCityViewSection(
+      initialSection,
+      isAdmin,
+      isAdmin && (initialPlaceId == null || isGlobalAdmin),
+    ),
   );
+  // Lazy-mount map only after the Map tab is opened (avoids map-data storms on dashboard/place views).
+  const [mapTabMounted, setMapTabMounted] = useState<boolean>(() => {
+    const canMap = isAdmin && (initialPlaceId == null || isGlobalAdmin);
+    return initialSection === "map" && canMap;
+  });
   const [alertsTabMounted, setAlertsTabMounted] = useState<boolean>(
     initialSection === "alerts" && isAdmin,
   );
+  // Legacy full dashboard: lazy-mounted the first time it's needed (admin
+  // "All metrics" tab, briefing "Browse all metrics" expand, or place scope,
+  // which relies on its place-metrics bootstrap/job wiring).
+  const [fullDashboardMounted, setFullDashboardMounted] = useState<boolean>(
+    () =>
+      initialPlaceId != null ||
+      resolveCityViewSection(
+        initialSection,
+        isAdmin,
+        isAdmin && (initialPlaceId == null || isGlobalAdmin),
+      ) === "full_dashboard",
+  );
+  const [browseAllExpanded, setBrowseAllExpanded] = useState(false);
+  // Briefing movers period: YTD by default (toggleable to MTD).
+  const [briefingComparisonType, setBriefingComparisonType] =
+    useState<ComparisonType>("ytd");
   const [isCityDataReady, setIsCityDataReady] = useState(false);
   const previousCityIdRef = useRef<number | null>(null);
   useEffect(() => {
@@ -2156,6 +2215,59 @@ export default function CityView({
     () => resolveGeographicUnitLabel(mapLeaders, cityData?.geographic_structures),
     [mapLeaders, cityData?.geographic_structures],
   );
+
+  // ── Briefing data: one batch comparisons call for the current scope ──
+  const briefingMetrics = useMemo(
+    () => (cityData?.metrics ?? []) as any[],
+    [cityData?.metrics],
+  );
+  const briefingMetricIds = useMemo(
+    () => briefingMetrics.map((m) => m.id).filter((id): id is number => !!id),
+    [briefingMetrics],
+  );
+  const briefingBatchRequest = useMemo(() => {
+    if (selectedPlaceId != null || briefingMetricIds.length === 0) return null;
+    const d = selectedDistrict ?? 0;
+    return {
+      metric_ids: briefingMetricIds,
+      district: d === 0 ? null : d,
+      comparison_types: [briefingComparisonType],
+    };
+  }, [selectedPlaceId, briefingMetricIds, selectedDistrict, briefingComparisonType]);
+  const briefingPlaceRequest = useMemo(() => {
+    if (selectedPlaceId == null || briefingMetricIds.length === 0) return null;
+    return {
+      metric_ids: briefingMetricIds,
+      comparison_types: [briefingComparisonType],
+    };
+  }, [selectedPlaceId, briefingMetricIds, briefingComparisonType]);
+  const { data: briefingBatchComparisons, isLoading: briefingBatchLoading } =
+    useBatchComparisons(briefingBatchRequest);
+  const {
+    data: briefingPlaceComparisons,
+    isLoading: briefingPlaceLoading,
+  } = usePlaceBatchComparisons(selectedPlaceId ?? null, briefingPlaceRequest);
+  const briefingComparisonsMap = (
+    selectedPlaceId != null ? briefingPlaceComparisons : briefingBatchComparisons
+  ) as Record<number, Record<ComparisonType, ComparisonResponse>> | undefined;
+  const briefingComparisonsLoading =
+    selectedPlaceId != null ? briefingPlaceLoading : briefingBatchLoading;
+
+  // District containing the selected place (point-in-polygon over loaded
+  // shapefiles) so the briefing can show the place's district rep.
+  const briefingPlaceDistrict = useMemo(() => {
+    if (selectedPlaceId == null) return null;
+    const place = userPlaces.find((p) => p.id === selectedPlaceId);
+    const lat = place?.lat ?? initialPlaceGps?.lat;
+    const lng = place?.lng ?? initialPlaceGps?.lng;
+    if (lat == null || lng == null || mapShapefiles.length === 0) return null;
+    return resolveDistrictFromShapefiles(
+      lat,
+      lng,
+      mapShapefiles,
+      primaryStructureIdFromLeaders(mapLeaders),
+    );
+  }, [selectedPlaceId, userPlaces, initialPlaceGps, mapShapefiles, mapLeaders]);
 
   // When city has district-level data but no leaders in structure (e.g. Chicago, Oakland), build synthetic leaders so district nav still shows
   const syntheticLeadersFromDistricts = useMemo((): CityLeader[] => {
@@ -2364,19 +2476,33 @@ export default function CityView({
   // Sync activeSection when initialSection prop changes (e.g. sidebar Dashboard/Map shortcut)
   useEffect(() => {
     if (initialSection) {
-      setActiveSection(resolveCityViewSection(initialSection, isAdmin));
+      setActiveSection(
+        resolveCityViewSection(initialSection, isAdmin, canAccessMap),
+      );
     }
-  }, [initialSection, isAdmin]);
+  }, [initialSection, isAdmin, canAccessMap]);
 
   useEffect(() => {
-    if (!isAdmin && activeSection !== "dashboard") {
-      setActiveSection("dashboard");
+    if (!isAdmin && activeSection !== "briefing") {
+      setActiveSection("briefing");
+      return;
     }
-  }, [isAdmin, activeSection]);
+    // Place mode for non-global-admins: leave the map tab and unmount it.
+    if (!canAccessMap && activeSection === "map") {
+      setActiveSection("briefing");
+    }
+  }, [isAdmin, canAccessMap, activeSection]);
 
-  // Non-admins do not get the map tab; load leaders/shapefiles for district navigation only.
   useEffect(() => {
-    if (isAdmin || !cityLoaded || !cityId) return;
+    if (!canAccessMap) {
+      setMapTabMounted(false);
+    }
+  }, [canAccessMap]);
+
+  // Load leaders/shapefiles for district navigation when the map is not mounted.
+  // (Map tab used to always mount for admins and supply this via onDataReady.)
+  useEffect(() => {
+    if (mapTabMounted || !cityLoaded || !cityId) return;
 
     let cancelled = false;
 
@@ -2414,7 +2540,7 @@ export default function CityView({
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, cityLoaded, cityId, getAccessTokenSilently]);
+  }, [mapTabMounted, cityLoaded, cityId, getAccessTokenSilently]);
 
   // When switching to the Map tab, Mapbox needs a resize event to recalculate
   // its canvas dimensions (the container was display:none while hidden).
@@ -2428,6 +2554,14 @@ export default function CityView({
     }
   }, [activeSection]);
 
+  // Lazy-mount the Map tab only once the admin opens it, so map-data and
+  // structure queries do not run while the user is on Dashboard / place views.
+  useEffect(() => {
+    if (activeSection === "map" && canAccessMap && !mapTabMounted) {
+      setMapTabMounted(true);
+    }
+  }, [activeSection, canAccessMap, mapTabMounted]);
+
   // Lazy-mount the Alerts tab only once the admin first opens it, so its
   // queries don't fire for users who never visit the tab.
   useEffect(() => {
@@ -2435,6 +2569,20 @@ export default function CityView({
       setAlertsTabMounted(true);
     }
   }, [activeSection, alertsTabMounted]);
+
+  // Lazy-mount the legacy full dashboard when first needed: the admin
+  // "All metrics" tab, the briefing "Browse all metrics" expand, or place
+  // scope (place metrics bootstrap/job polling lives inside it).
+  useEffect(() => {
+    if (
+      !fullDashboardMounted &&
+      (activeSection === "full_dashboard" ||
+        browseAllExpanded ||
+        selectedPlaceId != null)
+    ) {
+      setFullDashboardMounted(true);
+    }
+  }, [activeSection, browseAllExpanded, selectedPlaceId, fullDashboardMounted]);
 
   // Close admin drawer on Escape
   useEffect(() => {
@@ -2494,169 +2642,68 @@ export default function CityView({
     return null;
   }
 
-  return (
-    <div className="city-view city-view-single-page">
-      {/* Scrollable body: hero header scrolls away, then Official/Location selector sticks; map and content scroll under it */}
-      <main id="main-content" className="city-view-scroll-body">
-        {/* Hero header (city name, icon, follow, admin) – scrolls up and off */}
-        <div className="city-view-hero-header">
-          <CityHeader
-            emoji={cityData.emoji || undefined}
-            name={cityData.name}
-            subtitle={undefined}
-            metricDateRange={metricDateRange}
-            onMetricDateRangeChange={setMetricDateRange}
-            variant="overlay"
-            visible={true}
-            showDateRange={false}
-            cityId={cityId}
-            selectedDistrict={selectedDistrict}
-            districtUnitLabel={geographicUnitLabel}
-            isFollowed={isFollowed}
-            followPending={followPending}
-            followerCount={headerFollowerCount}
-            onFollowToggle={
-              followInlineWithDistrictSelector ? undefined : handleHeaderFollowToggle
-            }
-            showAdminIcon={isAdmin}
-            onAdminClick={() => setAdminDrawerOpen(true)}
-            followedCities={savedCities.filter((c) => c.id !== cityId)}
-            onCityChange={onCityChange ? (id) => onCityChange(id, activeSection) : undefined}
-          />
-        </div>
+  /** Official/place selector — rendered as the header bar on legacy admin
+   *  tabs, or bar-less (modal only) on the briefing where the hero card is
+   *  the trigger. */
+  const renderDistrictNavigation = (hideBar: boolean) => (
+    <DistrictNavigation
+      selectedDistrict={selectedDistrict}
+      leaders={effectiveLeaders}
+      shapefiles={mapShapefiles}
+      onDistrictSelect={(district) => {
+        setSelectedDistrict(district);
+        setSelectedPlaceId(null);
+        setDistrictGPSLocation(null);
+      }}
+      onGPSLocation={(location) => setDistrictGPSLocation(location)}
+      leaderFollowerCounts={leaderFollowerCounts}
+      cityId={cityId}
+      newsletterQueriesEnabled={cityLoaded}
+      onDistrictFollowToggle={
+        followInlineWithDistrictSelector ? handleHeaderFollowToggle : undefined
+      }
+      isDistrictFollowed={isFollowed}
+      districtFollowPending={followPending}
+      districtFollowerCount={headerFollowerCount}
+      userPlaces={userPlaces}
+      selectedPlaceId={selectedPlaceId}
+      onPlaceSelect={(id) => {
+        setSelectedPlaceId(id);
+        if (id != null) {
+          setSelectedDistrict(null);
+        }
+      }}
+      onPlaceSaved={(place) => {
+        setPlacesRefreshKey((k) => k + 1);
+        onRequestPlaceMetricsBootstrap?.(place.id);
+      }}
+      openTrigger={openDistrictTrigger}
+      hideTriggerBar={hideBar}
+      placeRefreshLastRunAt={lastPlaceRefreshAt}
+      geographicStructures={cityData.geographic_structures}
+    />
+  );
 
-        {/* Pinned bar: Official / Location selector – becomes sticky as content scrolls up under it */}
-        <header className="city-view-sticky-header">
-          {/* Show DistrictNavigation only when there are multiple districts or a place is selected */}
-          {isCityDataReady && effectiveLeaders.length > 0 && (effectiveLeaders.some(l => {
-            const d = l.district === null || l.district === undefined ? 0 : Number(l.district);
-            return d !== 0;
-          }) || selectedPlaceId != null) ? (
-            <div className="city-view-place-selector-row">
-              <DistrictNavigation
-                selectedDistrict={selectedDistrict}
-                leaders={effectiveLeaders}
-                shapefiles={mapShapefiles}
-                onDistrictSelect={(district) => {
-                  setSelectedDistrict(district);
-                  setSelectedPlaceId(null);
-                  setDistrictGPSLocation(null);
-                }}
-                onGPSLocation={(location) => setDistrictGPSLocation(location)}
-                leaderFollowerCounts={leaderFollowerCounts}
-                cityId={cityId}
-                newsletterQueriesEnabled={cityLoaded}
-                onDistrictFollowToggle={
-                  followInlineWithDistrictSelector ? handleHeaderFollowToggle : undefined
-                }
-                isDistrictFollowed={isFollowed}
-                districtFollowPending={followPending}
-                districtFollowerCount={headerFollowerCount}
-                userPlaces={userPlaces}
-                selectedPlaceId={selectedPlaceId}
-                onPlaceSelect={(id) => {
-                  setSelectedPlaceId(id);
-                  if (id != null) {
-                    setSelectedDistrict(null);
-                  }
-                }}
-                onPlaceSaved={(place) => {
-                  setPlacesRefreshKey((k) => k + 1);
-                  onRequestPlaceMetricsBootstrap?.(place.id);
-                }}
-                openTrigger={openDistrictTrigger}
-                placeRefreshLastRunAt={lastPlaceRefreshAt}
-                geographicStructures={cityData.geographic_structures}
-              />
-            </div>
-          ) : null}
-          {/* Tab nav: Dashboard | Map | Alerts (map + alerts admin only) */}
-          {visibleSections.length > 1 ? (
-            <nav className="city-view-tab-nav" aria-label="City view tabs" role="tablist">
-              {visibleSections.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`city-view-tab-btn${activeSection === s ? " city-view-tab-btn-active" : ""}`}
-                  onClick={() => setActiveSection(s)}
-                  aria-selected={activeSection === s}
-                  role="tab"
-                >
-                  {s === "dashboard" ? "Dashboard" : s === "map" ? "Map" : "Alerts"}
-                </button>
-              ))}
-            </nav>
-          ) : null}
-        </header>
-        {(() => {
-          const selectedPlace =
-            selectedPlaceId != null
-              ? userPlaces.find((p) => p.id === selectedPlaceId)
-              : null;
-          const selectedPlaceGps =
-            selectedPlace?.lat != null && selectedPlace?.lng != null
-              ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
-              : selectedPlaceId != null && initialPlaceGps != null
-                ? { lat: initialPlaceGps.lat, lng: initialPlaceGps.lng }
-                : undefined;
-          const selectedPlaceRadiusM =
-            selectedPlace?.radius_m ??
-            (selectedPlaceId != null ? initialPlaceGps?.radius_m : undefined);
+  const isBriefingActive = activeSection === "briefing";
 
-          return (
-            <>
-        {/* Map tab content (admin only): mounted to preserve map state, hidden via CSS when inactive */}
-        {isAdmin ? (
-          <section
-            ref={mapSectionRef}
-            className={`city-view-map-section city-view-tab-content${activeSection !== "map" ? " city-view-tab-hidden" : ""}`}
-            id="map-section"
-            aria-label="Map"
-            role="tabpanel"
-            aria-hidden={activeSection !== "map"}
-          >
-            <div className="city-view-map-date-overlay">
-              <MetricDateRangeSelector
-                value={metricDateRange}
-                onChange={setMetricDateRange}
-              />
-            </div>
-            <CityMapView
-              cityId={cityId}
-              isAdmin={isAdmin}
-              cityData={cityData}
-              metricDateRange={metricDateRange}
-              gpsLocation={
-                selectedPlaceId != null
-                  ? selectedPlaceGps ?? ((districtGPSLocation || gpsLocation) ?? undefined)
-                  : selectedDistrict != null && selectedDistrict !== 0
-                    ? undefined
-                    : (districtGPSLocation || gpsLocation) ?? undefined
-              }
-              selectedPlaceRadiusM={selectedPlaceId != null ? selectedPlaceRadiusM : undefined}
-              placeLabel={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null) : null}
-              selectedDistrict={selectedDistrict}
-              onDistrictChange={setSelectedDistrict}
-              onDataReady={(data) => {
-                setMapLeaders(data.leaders);
-                setMapShapefiles(data.shapefiles);
-                setIsCityDataReady(true);
-              }}
-            />
-          </section>
-        ) : null}
-
-        {/* Dashboard tab content: always mounted to preserve scroll position */}
+  /** Legacy full dashboard ("All metrics"): rendered inline under the
+   *  briefing's "Browse all metrics" button, or as the admin tab panel.
+   *  Single element so the place metrics bootstrap/job wiring inside
+   *  DashboardMetricsSection never mounts twice. */
+  const fullDashboardVisible =
+    activeSection === "full_dashboard" ||
+    (activeSection === "briefing" && browseAllExpanded);
+  const fullDashboardEl = !fullDashboardMounted ? null : (
         <section
           ref={dashboardSectionRef}
-          className={`city-view-dashboard-section city-view-tab-content${activeSection !== "dashboard" ? " city-view-tab-hidden" : ""}`}
+          className={`city-view-dashboard-section city-view-tab-content${!fullDashboardVisible ? " city-view-tab-hidden" : ""}`}
           id="dashboard-section"
-          aria-label="Dashboard"
+          aria-label="All metrics"
           role="tabpanel"
-          aria-hidden={activeSection !== "dashboard"}
+          aria-hidden={!fullDashboardVisible}
         >
-          {/* Place job running: replace dashboard + stories with billboard-style indicator */}
-          {isPlaceJobRunning && selectedPlaceId != null && (
+          {/* Place job running: replace dashboard with billboard-style indicator */}
+          {isPlaceJobRunning && selectedPlaceId != null && fullDashboardVisible && (
               <div className="city-view-place-job-billboard" role="status" aria-live="polite">
                 <Loader size="sm" color="purple" className="city-view-place-job-billboard__loader" />
                 <div className="city-view-place-job-billboard__body">
@@ -2670,7 +2717,6 @@ export default function CityView({
               </div>
           )}
 
-          {/* "Dashboard" heading removed – the tab already says Dashboard */}
           {/* DashboardMetricsSection stays mounted while job runs so polling continues */}
           <div style={isPlaceJobRunning && selectedPlaceId != null ? { display: "none" } : undefined}>
             <DashboardMetricsSection
@@ -2708,17 +2754,215 @@ export default function CityView({
               onEditMetrics={() => setUserOrderDialogOpen(true)}
               onJobRunningChange={setIsPlaceJobRunning}
             />
-            {selectedPlaceId != null && (
-              <PlaceDashboardStories
-                placeId={selectedPlaceId}
-                placeLabel={
-                  userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null
-                }
-                isAdmin={isAdmin}
-              />
-            )}
           </div>
         </section>
+  );
+
+  return (
+    <div className="city-view city-view-single-page">
+      {/* Scrollable body: everything scrolls as a single page. On the briefing
+          the hero card is the page header; legacy admin tabs keep the old
+          city header + selector bar. */}
+      <main id="main-content" className="city-view-scroll-body">
+        {/* Legacy header (city name, follow, admin) — only on non-briefing tabs */}
+        {!isBriefingActive && (
+        <div className="city-view-hero-header">
+          <CityHeader
+            emoji={cityData.emoji || undefined}
+            name={cityData.name}
+            subtitle={undefined}
+            metricDateRange={metricDateRange}
+            onMetricDateRangeChange={setMetricDateRange}
+            variant="overlay"
+            visible={true}
+            showDateRange={false}
+            cityId={cityId}
+            selectedDistrict={selectedDistrict}
+            districtUnitLabel={geographicUnitLabel}
+            isFollowed={isFollowed}
+            followPending={followPending}
+            followerCount={headerFollowerCount}
+            onFollowToggle={
+              followInlineWithDistrictSelector ? undefined : handleHeaderFollowToggle
+            }
+            showAdminIcon={isAdmin}
+            onAdminClick={() => setAdminDrawerOpen(true)}
+            followedCities={savedCities.filter((c) => c.id !== cityId)}
+            onCityChange={onCityChange ? (id) => onCityChange(id, activeSection) : undefined}
+          />
+        </div>
+        )}
+
+        {/* Sticky bar: tabs (admins). Selector bar only on legacy tabs — on the
+            briefing the hero card opens the selector modal instead. */}
+        {(visibleSections.length > 1 || !isBriefingActive) && (
+        <header className="city-view-sticky-header">
+          {/* Tab nav: Overview | All metrics | Map | Alerts (all but Overview admin only) */}
+          {visibleSections.length > 1 ? (
+            <nav className="city-view-tab-nav" aria-label="City view tabs" role="tablist">
+              {visibleSections.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`city-view-tab-btn${activeSection === s ? " city-view-tab-btn-active" : ""}`}
+                  onClick={() => setActiveSection(s)}
+                  aria-selected={activeSection === s}
+                  role="tab"
+                >
+                  {SECTION_LABELS[s]}
+                </button>
+              ))}
+            </nav>
+          ) : null}
+          {/* Show DistrictNavigation bar only on legacy tabs, when there are districts or a place */}
+          {!isBriefingActive && isCityDataReady && effectiveLeaders.length > 0 && (effectiveLeaders.some(l => {
+            const d = l.district === null || l.district === undefined ? 0 : Number(l.district);
+            return d !== 0;
+          }) || selectedPlaceId != null) ? (
+            <div className="city-view-place-selector-row">
+              {renderDistrictNavigation(false)}
+            </div>
+          ) : null}
+        </header>
+        )}
+        {(() => {
+          const selectedPlace =
+            selectedPlaceId != null
+              ? userPlaces.find((p) => p.id === selectedPlaceId)
+              : null;
+          const selectedPlaceGps =
+            selectedPlace?.lat != null && selectedPlace?.lng != null
+              ? { lat: selectedPlace.lat, lng: selectedPlace.lng }
+              : selectedPlaceId != null && initialPlaceGps != null
+                ? { lat: initialPlaceGps.lat, lng: initialPlaceGps.lng }
+                : undefined;
+          const selectedPlaceRadiusM =
+            selectedPlace?.radius_m ??
+            (selectedPlaceId != null ? initialPlaceGps?.radius_m : undefined);
+
+          return (
+            <>
+        {/* Map tab: only for users with map access; content mounts on first open and
+            stays mounted but inactive (no map-data calls) while another tab is selected.
+            Place mode is global-admin only — city leads do not mount the map there. */}
+        {canAccessMap ? (
+          <section
+            ref={mapSectionRef}
+            className={`city-view-map-section city-view-tab-content${activeSection !== "map" ? " city-view-tab-hidden" : ""}`}
+            id="map-section"
+            aria-label="Map"
+            role="tabpanel"
+            aria-hidden={activeSection !== "map"}
+          >
+            {mapTabMounted ? (
+              <>
+                <div className="city-view-map-date-overlay">
+                  <MetricDateRangeSelector
+                    value={metricDateRange}
+                    onChange={setMetricDateRange}
+                  />
+                </div>
+                <CityMapView
+                  cityId={cityId}
+                  isAdmin={isAdmin}
+                  isActive={activeSection === "map"}
+                  cityData={cityData}
+                  metricDateRange={metricDateRange}
+                  gpsLocation={
+                    selectedPlaceId != null
+                      ? selectedPlaceGps ?? ((districtGPSLocation || gpsLocation) ?? undefined)
+                      : selectedDistrict != null && selectedDistrict !== 0
+                        ? undefined
+                        : (districtGPSLocation || gpsLocation) ?? undefined
+                  }
+                  selectedPlaceRadiusM={selectedPlaceId != null ? selectedPlaceRadiusM : undefined}
+                  placeLabel={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.label ?? null) : null}
+                  selectedDistrict={selectedDistrict}
+                  onDistrictChange={setSelectedDistrict}
+                  onDataReady={(data) => {
+                    setMapLeaders(data.leaders);
+                    setMapShapefiles(data.shapefiles);
+                    setIsCityDataReady(true);
+                  }}
+                />
+              </>
+            ) : null}
+          </section>
+        ) : null}
+
+        {/* Briefing (Overview) — the default fast path for everyone */}
+        <section
+          className={`city-view-briefing-section city-view-tab-content${activeSection !== "briefing" ? " city-view-tab-hidden" : ""}`}
+          id="briefing-section"
+          aria-label="Overview"
+          role="tabpanel"
+          aria-hidden={activeSection !== "briefing"}
+        >
+          {/* Place job running (e.g. newly saved place): show billboard above the briefing */}
+          {isPlaceJobRunning && selectedPlaceId != null && (
+            <div className="city-view-place-job-billboard" role="status" aria-live="polite">
+              <Loader size="sm" color="purple" className="city-view-place-job-billboard__loader" />
+              <div className="city-view-place-job-billboard__body">
+                <p className="city-view-place-job-billboard__title">
+                  Building your My Place dashboard
+                </p>
+                <p className="city-view-place-job-billboard__text">
+                  Pulling public data for My Place. Prior newsletters below. New edition every Sunday.
+                </p>
+              </div>
+            </div>
+          )}
+          <BriefingHome
+            cityId={cityId}
+            scopeLabel={
+              selectedPlaceId != null
+                ? selectedPlace?.label ?? initialPlaceLabel ?? "My place"
+                : (selectedDistrict ?? 0) > 0
+                  ? `${geographicUnitLabel} ${selectedDistrict}`
+                  : cityData.name
+            }
+            scopeContext={
+              selectedPlaceId != null
+                ? `${cityData.name}${selectedPlaceRadiusM ? ` · ${selectedPlaceRadiusM}m` : ""}`
+                : (selectedDistrict ?? 0) > 0
+                  ? cityData.name
+                  : heroSubtitle ?? null
+            }
+            selectedDistrict={selectedDistrict}
+            selectedPlaceId={selectedPlaceId}
+            placeDistrict={briefingPlaceDistrict}
+            metrics={briefingMetrics}
+            comparisonsMap={briefingComparisonsMap ?? {}}
+            comparisonsLoading={briefingComparisonsLoading}
+            comparisonType={briefingComparisonType}
+            onComparisonTypeChange={setBriefingComparisonType}
+            leaders={effectiveLeaders}
+            isFollowing={isFollowed}
+            followPending={followPending}
+            onFollowToggle={handleHeaderFollowToggle}
+            cityEmoji={cityData.emoji ?? null}
+            geographicUnitLabel={geographicUnitLabel}
+            onOpenScopeSelector={() => setOpenDistrictTrigger((t) => t + 1)}
+            placeLoadingLabel={selectedPlaceId == null ? pendingPlaceLabel : null}
+            onMetricClick={(metricId: number) => {
+              setSelectedMetricId(metricId);
+              setSelectedMetricDistrict(selectedDistrict);
+            }}
+            browseAllExpanded={browseAllExpanded}
+            onToggleBrowseAll={() => setBrowseAllExpanded((v) => !v)}
+            onDistrictSelect={(d) => {
+              setSelectedDistrict(d);
+              setSelectedPlaceId(null);
+            }}
+            fullDashboardSlot={isBriefingActive ? fullDashboardEl : null}
+          />
+          {/* Selector modal (bar-less) — the hero card above triggers it */}
+          {isBriefingActive && renderDistrictNavigation(true)}
+        </section>
+
+        {/* Legacy full dashboard as the admin "All metrics" tab panel. On the
+            briefing it renders inline via fullDashboardSlot instead. */}
+        {!isBriefingActive && fullDashboardEl}
 
         {/* Alerts tab content (admin only) – lazy-mounted the first time the tab is opened */}
         {isAdmin && (

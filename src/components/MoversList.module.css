@@ -1,0 +1,227 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ── Controls ────────────────────────────────────────────────────────── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.periodToggle {
+  display: inline-flex;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.periodBtn {
+  border: none;
+  background: transparent;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.periodBtnActive {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.sortSelect {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+/* ── Section label ───────────────────────────────────────────────────── */
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+/* ── Rows ────────────────────────────────────────────────────────────── */
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-primary);
+}
+
+.rowButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.rowButton:hover {
+  background: var(--bg-secondary);
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.newBadge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  border-radius: 4px;
+  padding: 2px 5px;
+  flex-shrink: 0;
+}
+
+.rowValues {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.rowValues strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.rowFrom {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.rowChange {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.rowChangePct {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rowChangeDiff {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.changeGood .rowChangePct {
+  color: var(--success);
+}
+
+.changeBad .rowChangePct {
+  color: var(--error);
+}
+
+.changeNeutral .rowChangePct {
+  color: var(--text-secondary);
+}
+
+/* ── Loading / empty / show more ─────────────────────────────────────── */
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.skeletonRow {
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-secondary) 50%,
+    var(--bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: moversShimmer 1.4s infinite;
+}
+
+@keyframes moversShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-lg);
+  font-size: 13px;
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.showMore {
+  align-self: center;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.showMore:hover {
+  background: var(--bg-secondary);
+}

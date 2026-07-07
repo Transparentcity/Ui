@@ -383,48 +383,17 @@ export default function Sidebar({
         </div>
         
         <div className={styles.navItems} id="nav-items">
-          {/* Feed - always at top */}
+          {/* Home — briefing at the user's default scope. Unread editions dot
+              lives here (prior editions render inline on the briefing). */}
           <button
-            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
-            id="feed-btn"
+            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "city" ? styles.navItemActive : ""}`}
+            id="home-btn"
+            aria-label={inboxUnreadCount > 0 ? `Home, ${inboxUnreadCount} unread` : "Home"}
+            aria-current={currentView === "city" ? "page" : undefined}
             onClick={() =>
               handleActionWithClose(() => {
                 if (onViewChange) {
-                  onViewChange("feed");
-                }
-              })
-            }
-          >
-            <span className={styles.navIcon}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
-                <path d="M18 14h-8"></path>
-                <path d="M15 18h-5"></path>
-                <path d="M10 6h8v4h-8V6Z"></path>
-              </svg>
-            </span>
-            <span>Feed</span>
-          </button>
-
-          {/* Inbox */}
-          <button
-            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "inbox" ? styles.navItemActive : ""}`}
-            id="inbox-btn"
-            aria-label={inboxUnreadCount > 0 ? `Inbox, ${inboxUnreadCount} unread` : "Inbox"}
-            aria-current={currentView === "inbox" ? "page" : undefined}
-            onClick={() =>
-              handleActionWithClose(() => {
-                if (onViewChange) {
-                  onViewChange("inbox");
+                  onViewChange("home");
                 }
               })
             }
@@ -441,15 +410,50 @@ export default function Sidebar({
                 strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                <path d="M3 9.5 12 3l9 6.5" />
+                <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10" />
+                <path d="M10 21v-6h4v6" />
               </svg>
               {inboxUnreadCount > 0 && (
                 <span className={styles.navInboxUnreadDot} aria-hidden="true" />
               )}
             </span>
-            <span>Inbox</span>
+            <span>Home</span>
           </button>
+
+          {/* Feed — admin-only content review surface */}
+          {isAdmin && (
+            <button
+              className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "feed" ? styles.navItemActive : ""}`}
+              id="feed-btn"
+              onClick={() =>
+                handleActionWithClose(() => {
+                  if (onViewChange) {
+                    onViewChange("feed");
+                  }
+                })
+              }
+            >
+              <span className={styles.navIcon}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                  <path d="M18 14h-8"></path>
+                  <path d="M15 18h-5"></path>
+                  <path d="M10 6h8v4h-8V6Z"></path>
+                </svg>
+              </span>
+              <span>Feed</span>
+            </button>
+          )}
 
           {/* Chat-enabled items (admin mode) */}
           {chatEnabled && (

@@ -23,6 +23,87 @@ function pointInPolygon(point: [number, number], polygon: [number, number][]): b
   return inside;
 }
 
+/**
+ * Pure point-in-polygon district lookup over already-loaded shapefiles.
+ * Shapefiles matching `primaryGeographicStructureId` are checked first.
+ */
+export function resolveDistrictFromShapefiles(
+  lat: number,
+  lng: number,
+  shapefiles: CityShapefile[],
+  primaryGeographicStructureId: number | null = null
+): number | null {
+  const point: [number, number] = [lng, lat];
+
+  const primaryShapefiles: CityShapefile[] = [];
+  const otherShapefiles: CityShapefile[] = [];
+  shapefiles.forEach((shapefile) => {
+    if (
+      primaryGeographicStructureId &&
+      shapefile.geographic_structure_id === primaryGeographicStructureId
+    ) {
+      primaryShapefiles.push(shapefile);
+    } else {
+      otherShapefiles.push(shapefile);
+    }
+  });
+
+  const shapefilesToCheck = [...primaryShapefiles, ...otherShapefiles];
+
+  for (const shapefile of shapefilesToCheck) {
+    const geometryData = shapefile.geometry_data;
+    if (!geometryData || geometryData.type !== "FeatureCollection") continue;
+
+    for (const feature of geometryData.features) {
+      if (!feature.geometry || !feature.geometry.coordinates) continue;
+      let rings: [number, number][][] = [];
+      if (feature.geometry.type === "Polygon") {
+        rings = [feature.geometry.coordinates[0] as [number, number][]];
+      } else if (feature.geometry.type === "MultiPolygon") {
+        rings = feature.geometry.coordinates.map(
+          (poly: unknown) => (poly as [number, number][][])[0] as [number, number][]
+        );
+      }
+      for (const ring of rings) {
+        if (pointInPolygon(point, ring)) {
+          const identifier = feature.properties?.[shapefile.identifier_field || ""];
+          if (identifier !== undefined && identifier !== null) {
+            const districtNum =
+              typeof identifier === "number"
+                ? identifier
+                : parseInt(String(identifier).replace(/\D/g, ""), 10);
+            if (!isNaN(districtNum)) return districtNum;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** Leaders' most common geographic_structure_id (the council/supervisor layer). */
+export function primaryStructureIdFromLeaders(
+  leaders: Array<{ geographic_structure_id?: number | null }> | null | undefined
+): number | null {
+  if (!leaders || leaders.length === 0) return null;
+  const structureIdCounts = new Map<number, number>();
+  leaders.forEach((leader) => {
+    if (leader.geographic_structure_id) {
+      const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
+      structureIdCounts.set(leader.geographic_structure_id, count + 1);
+    }
+  });
+  let primary: number | null = null;
+  let maxCount = 0;
+  structureIdCounts.forEach((count, structureId) => {
+    if (count > maxCount) {
+      maxCount = count;
+      primary = structureId;
+    }
+  });
+  return primary;
+}
+
 export async function findDistrictFromCoordinates(
   lat: number,
   lng: number,
@@ -39,26 +120,8 @@ export async function findDistrictFromCoordinates(
       return null;
     }
 
-    const point: [number, number] = [lng, lat];
-    let primaryGeographicStructureId: number | null = null;
-
     const leaders = await getCityLeaders(cityId, token);
-    if (leaders && leaders.length > 0) {
-      const structureIdCounts = new Map<number, number>();
-      leaders.forEach((leader) => {
-        if (leader.geographic_structure_id) {
-          const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
-          structureIdCounts.set(leader.geographic_structure_id, count + 1);
-        }
-      });
-      let maxCount = 0;
-      structureIdCounts.forEach((count, structureId) => {
-        if (count > maxCount) {
-          maxCount = count;
-          primaryGeographicStructureId = structureId;
-        }
-      });
-    }
+    let primaryGeographicStructureId = primaryStructureIdFromLeaders(leaders);
 
     if (!primaryGeographicStructureId && cityStructure.geographic_structures) {
       const districtStructure = cityStructure.geographic_structures.find(
@@ -70,7 +133,7 @@ export async function findDistrictFromCoordinates(
           gs.structure_type?.toLowerCase().includes("council")
       );
       if (districtStructure && districtStructure.id !== undefined) {
-        primaryGeographicStructureId = districtStructure.id;
+        primaryGeographicStructureId = districtStructure.id ?? null;
       }
     }
 
@@ -78,50 +141,12 @@ export async function findDistrictFromCoordinates(
       .map((layer) => layer.instance)
       .filter((instance): instance is CityShapefile => instance !== null);
 
-    const primaryShapefiles: CityShapefile[] = [];
-    const otherShapefiles: CityShapefile[] = [];
-    shapefiles.forEach((shapefile) => {
-      if (
-        primaryGeographicStructureId &&
-        shapefile.geographic_structure_id === primaryGeographicStructureId
-      ) {
-        primaryShapefiles.push(shapefile);
-      } else {
-        otherShapefiles.push(shapefile);
-      }
-    });
-
-    const shapefilesToCheck = [...primaryShapefiles, ...otherShapefiles];
-
-    for (const shapefile of shapefilesToCheck) {
-      const geometryData = shapefile.geometry_data;
-      if (!geometryData || geometryData.type !== "FeatureCollection") continue;
-
-      for (const feature of geometryData.features) {
-        if (!feature.geometry || !feature.geometry.coordinates) continue;
-        let rings: [number, number][][] = [];
-        if (feature.geometry.type === "Polygon") {
-          rings = [feature.geometry.coordinates[0] as [number, number][]];
-        } else if (feature.geometry.type === "MultiPolygon") {
-          rings = feature.geometry.coordinates.map(
-            (poly: unknown) => (poly as [number, number][][])[0] as [number, number][]
-          );
-        }
-        for (const ring of rings) {
-          if (pointInPolygon(point, ring)) {
-            const identifier = feature.properties?.[shapefile.identifier_field || ""];
-            if (identifier !== undefined && identifier !== null) {
-              const districtNum =
-                typeof identifier === "number"
-                  ? identifier
-                  : parseInt(String(identifier).replace(/\D/g, ""), 10);
-              if (!isNaN(districtNum)) return districtNum;
-            }
-          }
-        }
-      }
-    }
-    return null;
+    return resolveDistrictFromShapefiles(
+      lat,
+      lng,
+      shapefiles,
+      primaryGeographicStructureId
+    );
   } catch (error) {
     console.error("Error finding district from coordinates:", error);
     return null;

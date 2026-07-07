@@ -24,6 +24,7 @@ export default function GiftModal({ giftsRemaining, isAdmin = false, onClose, on
   const [recipientEmail, setRecipientEmail] = useState("");
   const [cityId, setCityId] = useState<number | null>(null);
   const [placeLabel, setPlaceLabel] = useState("");
+  const [placeName, setPlaceName] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [customPrompt, setCustomPrompt] = useState("");
 
@@ -37,6 +38,7 @@ export default function GiftModal({ giftsRemaining, isAdmin = false, onClose, on
     setRecipientEmail("");
     setCityId(null);
     setPlaceLabel("");
+    setPlaceName("");
     setCoords(null);
     setCustomPrompt("");
     setErrorMsg("");
@@ -70,6 +72,7 @@ export default function GiftModal({ giftsRemaining, isAdmin = false, onClose, on
         recipient_name: recipientName.trim() || null,
         city_id: cityId,
         place_label: placeLabel || "their city",
+        place_name: placeName.trim() || null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         custom_prompt: customPrompt.trim() || null,
@@ -240,6 +243,26 @@ export default function GiftModal({ giftsRemaining, isAdmin = false, onClose, on
                       }}
                     />
                   </div>
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="gift-place-name">
+                    Place nickname{" "}
+                    <span className={styles.optional}>(optional)</span>
+                  </label>
+                  <p className={styles.fieldHint}>
+                    A friendly name Seymour can use in their briefing, e.g.
+                    &ldquo;Mom&rsquo;s block&rdquo; or &ldquo;Our apartment&rdquo;.
+                  </p>
+                  <input
+                    id="gift-place-name"
+                    type="text"
+                    className={styles.input}
+                    placeholder="e.g. Our place on Oak Street"
+                    value={placeName}
+                    onChange={(e) => setPlaceName(e.target.value)}
+                    maxLength={120}
+                  />
                 </div>
 
                 {isAdmin && (

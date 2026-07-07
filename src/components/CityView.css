@@ -185,6 +185,19 @@
   border-top: 1px solid var(--border-primary);
 }
 
+/* Briefing (Overview) section — single-column fast path */
+.city-view-briefing-section {
+  flex-shrink: 0;
+  padding: 16px 12px 24px;
+  background: var(--bg-secondary, #f8f9fa);
+}
+
+@media (max-width: 640px) {
+  .city-view-briefing-section {
+    padding: 12px 8px 20px;
+  }
+}
+
 
 .city-view-dashboard-section .city-view-section-title {
   padding: 0;

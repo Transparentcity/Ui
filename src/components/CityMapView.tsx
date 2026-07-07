@@ -338,6 +338,8 @@ function zoomToDistrictWithGPS(
 interface CityMapViewProps {
   cityId: number;
   isAdmin?: boolean;
+  /** When false, map layer queries (map-data) are paused. */
+  isActive?: boolean;
   cityData?: CityDetail | null; // Optional city data to avoid duplicate API calls
   metricDateRange?: MetricDateRange;
   gpsLocation?: { lat: number; lng: number } | null; // GPS coordinates to zoom to
@@ -354,6 +356,7 @@ interface CityMapViewProps {
 export default function CityMapView({
   cityId,
   isAdmin = false,
+  isActive = true,
   cityData: propCityData,
   metricDateRange,
   gpsLocation,
@@ -1499,11 +1502,12 @@ export default function CityMapView({
           }} 
         />
         
-        {/* City Metrics Map Component - only render when not loading */}
+        {/* City Metrics Map Component - only render when not loading.
+            isActive gates map-data fetches when the Map tab is hidden. */}
         {!loading && (
           <CityMetricsMap
           cityId={cityId}
-          isActive={!loading && structureDataReady}
+          isActive={isActive && !loading && structureDataReady}
           mapInstanceRef={mapInstanceRef}
           mapStyleVersion={mapStyleVersion}
           shapeLayers={availableShapeLayerInstances}

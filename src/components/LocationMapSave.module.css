@@ -176,3 +176,19 @@
   flex: 1;
   min-height: 140px;
 }
+
+/* Embedded in WelcomeModal gift / place onboarding steps */
+.welcomeMapEmbed {
+  width: 100%;
+  margin-top: 4px;
+  border-radius: var(--radius-md, 8px);
+}
+
+.welcomeMapEmbed .mapInteractiveWrap {
+  height: 220px;
+  min-height: 200px;
+}
+
+.welcomeMapEmbed .toolbar {
+  background: var(--bg-secondary, #f8f9fa);
+}

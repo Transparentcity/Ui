@@ -50,7 +50,53 @@ Use the same application as your local build (`NEXT_PUBLIC_AUTH0_CLIENT_ID`). En
 - Filter by **Type**: e.g. “Failed Sent Email”, “Failed Sending Notification”, or “Error”.
 - Reproduce the sign-up (enter email, click Sign up) and see if a log entry appears. That will show whether the failure is in Auth0 (e.g. wrong callback, connection disabled, or email provider error).
 
-## 7. What the App Sends
+## 7. Inline OTP code flow (gift activation, etc.)
+
+Some flows send a **6-digit code** instead of a magic link. Verifying that code
+uses Auth0 grant type `http://auth0.com/oauth/grant-type/passwordless/otp`, which
+**is not allowed on SPA applications** — only on **Regular Web Application** or
+**Native** app types.
+
+### Error: Grant type `…/passwordless/otp` not allowed for the client
+
+This means OTP verify is still using the SPA client. Fix:
+
+1. **Create a Regular Web Application** in Auth0 (e.g. “TransparentCity Passwordless OTP”).
+2. **Settings → Application URIs** — add the same callback / web origins as the SPA:
+   - `https://app.transparent.city`, `http://localhost:3000`, `http://localhost:3001`, etc.
+3. **Settings → Advanced → Grant Types** — enable **Passwordless OTP** (and **Authorization Code** if listed).
+4. **Connections** tab — enable **Email** under Passwordless (same as step 2 above).
+5. Copy **Client ID** and **Client Secret** into server-only env vars (never `NEXT_PUBLIC_*`):
+   ```
+   AUTH0_PASSWORDLESS_CLIENT_ID=<regular-web-app-client-id>
+   AUTH0_PASSWORDLESS_CLIENT_SECRET=<regular-web-app-client-secret>
+   ```
+   Add these in **both** places:
+   - **Local dev:** `.env.local` or `.env` in `transparentcity-ui` (same values as production).
+   - **Vercel:** Project → Settings → Environment Variables (Production + Preview if you test OTP on preview deploys).
+
+   Restart `npm run dev` after adding them locally — Next.js only reads env vars at startup.
+
+   The Regular Web Application must also list your **local origin** in Allowed Callback URLs
+   (e.g. `http://localhost:3001`) or OTP verify will fail with a redirect_uri mismatch.
+6. Redeploy / restart the Next.js server so the API routes pick up the new vars.
+
+The SPA client (`NEXT_PUBLIC_AUTH0_CLIENT_ID`) stays unchanged for normal login.
+Only `/api/auth/passwordless-start` (when `send=code`) and `/api/auth/passwordless-verify`
+use the Regular Web Application credentials.
+
+## 8. Gift activation (trusted welcome-link click)
+
+Gift recipients who click the welcome email within **5 minutes** of send can skip OTP
+when the **platform** has `AUTH0_GIFT_ROPG_CONNECTION` set to an Auth0 Database
+connection (e.g. `Username-Password-Authentication`) plus passwordless/ROPG credentials
+(`AUTH0_PASSWORDLESS_CLIENT_ID` / `AUTH0_PASSWORDLESS_CLIENT_SECRET` on the API server).
+
+Without that, trusted clicks still record email verification but the UI falls back to
+auto-sent OTP when the user opens the link after the trust window, or when instant
+sign-in is not configured.
+
+## 9. What the App Sends
 
 The city/district sign-up form triggers Auth0 with:
 

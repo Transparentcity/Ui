@@ -1909,6 +1909,56 @@
   align-items: center;
 }
 
+/* ── Gift recipient confirm step ───────────────────── */
+.giftConfirmStep {
+  gap: 0;
+}
+
+.giftProfileSection,
+.giftLocationSection,
+.giftPromptSection {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.giftSectionLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary, #6b7280);
+  margin-bottom: 8px;
+}
+
+.optionalTag {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-muted, #9ca3af);
+}
+
+.giftNameRow {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.giftNameRow .textInput {
+  flex: 1;
+}
+
+.giftGeoHint {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary, #374151);
+}
+
+.giftLocationSection .locationSection {
+  margin-top: 0;
+}
+
 .coverageRowEmpty {
   font-size: 12px;
   color: var(--text-tertiary, #9ca3af);

@@ -27,6 +27,7 @@ import {
   unfollowRepresentative,
   subscribeNewsletter,
   unsubscribeNewsletter,
+  getGiftMeta,
   type CityDetail,
   type CityLeader,
 } from "@/lib/apiClient";
@@ -35,7 +36,6 @@ import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
 import {
   DEFAULT_PLACE_RADIUS_M,
   MAX_PLACE_RADIUS_M,
-  buildStaticMapUrl,
 } from "@/lib/mapUtils";
 import {
   mergeNewsletterPreferenceFields,
@@ -46,7 +46,14 @@ import {
 } from "@/lib/onboardingHomeLocation";
 import { recordProductEvent, useProductEvent } from "@/lib/productAnalytics";
 import { trackMetaOnboardingStep } from "@/lib/metaPixel";
-import { useTheme } from "@/contexts/ThemeContext";
+import {
+  type GiftOnboardingContext,
+  giftMetaToOnboardingContext,
+  persistGiftOnboardingContext,
+  splitGiftRecipientName,
+} from "@/lib/giftOnboarding";
+import LocationMapSave from "@/components/LocationMapSave";
+import locationMapStyles from "@/components/LocationMapSave.module.css";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
 
@@ -67,9 +74,11 @@ interface WelcomeModalProps {
   onCityNotFound?: (cityName: string, state: string | null, country: string | null) => void;
   /** Which step to start on when the modal opens. Defaults to "profile". */
   initialStep?: Step;
+  /** Gift recipient fast-path: pre-filled confirm screen instead of full onboarding. */
+  giftContext?: GiftOnboardingContext | null;
 }
 
-type Step = "profile" | "welcome" | "place" | "preferences";
+type Step = "profile" | "welcome" | "place" | "preferences" | "gift_confirm";
 type WelcomeLoadingAction = "search" | "gps" | null;
 
 /** Default saved place label on onboarding step 2 (createPlace only when location is precise). */
@@ -114,9 +123,9 @@ export default function WelcomeModal({
   onComplete,
   onCityNotFound,
   initialStep = "profile",
+  giftContext = null,
 }: WelcomeModalProps) {
   const { getAccessTokenSilently, user } = useAuth0();
-  const { theme } = useTheme();
   const { startJob, startCityLoading } = usePlaceOnboarding();
   const focusTrapRef = useFocusTrap(isOpen);
   const [step, setStep] = useState<Step>("profile");
@@ -158,36 +167,170 @@ export default function WelcomeModal({
   const [showAddressDropdown, setShowAddressDropdown] = useState(false);
   const addressSuggestTimeoutRef = useRef<number | null>(null);
   const locationInputRef = useRef<HTMLDivElement>(null);
+  const giftBootstrapStarted = useRef(false);
+
+  const bootstrapGiftLocation = useCallback(async () => {
+    if (!giftContext?.cityId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const cityDetail = await getCity(giftContext.cityId, token);
+      if (!cityDetail?.is_launched) {
+        if (onCityNotFound) {
+          onCityNotFound(
+            giftContext.cityName || cityDetail?.name || "your city",
+            cityDetail?.state || null,
+            cityDetail?.country || null
+          );
+          onClose();
+        }
+        return;
+      }
+
+      const matchedCity: PublicCitySearchResult = {
+        id: giftContext.cityId,
+        name: cityDetail.name,
+        display_name: cityDetail.name,
+        state: cityDetail.state || null,
+        country: cityDetail.country || null,
+        emoji: cityDetail.emoji || null,
+      };
+
+      const label = giftContext.placeLabel || giftContext.cityName || cityDetail.name;
+      const prefs = await getUserPreferences(token).catch(() => null);
+      const home = prefs?.extra?.home_location as
+        | { place_name?: string; label?: string }
+        | undefined;
+      const placeNameFromPrefs = (home?.place_name || "").trim() || null;
+      const friendlyName =
+        giftContext.placeName?.trim() ||
+        placeNameFromPrefs ||
+        giftContext.placeLabel ||
+        ONBOARDING_PLACE_LABEL_DEFAULT;
+      const coords =
+        giftContext.lat != null && giftContext.lng != null
+          ? { lat: giftContext.lat, lng: giftContext.lng }
+          : null;
+      const districtNum =
+        giftContext.district && giftContext.district !== "0"
+          ? Number(giftContext.district)
+          : null;
+      const hasCoords = coords != null;
+
+      setLocationInput(label);
+      setPlaceLabel(friendlyName);
+      setHomeCoordinates(coords);
+      setHasPreciseLocation(hasCoords);
+
+      const leaders = await getCityLeaders(giftContext.cityId, token).catch(() => []);
+      const district =
+        districtNum && Number.isFinite(districtNum)
+          ? districtNum
+          : hasCoords && coords
+          ? await findDistrictFromCoordinates(
+              coords.lat,
+              coords.lng,
+              giftContext.cityId,
+              token
+            ).catch(() => null)
+          : null;
+
+      setLocationResult({
+        cityName: matchedCity.name,
+        state: matchedCity.state ?? null,
+        country: matchedCity.country ?? null,
+        matchedCity,
+        cityDetail,
+        leaders,
+        mayor: pickMayorFromLeaders(leaders),
+        councilMember: pickRepFromLeaders(leaders, district),
+        district,
+        isActive: true,
+      });
+    } catch (err) {
+      console.error("Gift location bootstrap failed:", err);
+      setError("We couldn't load your gifted location. You can set it manually.");
+    } finally {
+      setLoading(false);
+    }
+  }, [giftContext, getAccessTokenSilently, onCityNotFound, onClose]);
+
+  const handleMapPinChange = useCallback(
+    (nextLat: number, nextLng: number) => {
+      setHomeCoordinates({ lat: nextLat, lng: nextLng });
+      void (async () => {
+        const cityId = locationResult?.matchedCity?.id;
+        if (!cityId) return;
+        try {
+          const token = await getAccessTokenSilently();
+          const district = await findDistrictFromCoordinates(
+            nextLat,
+            nextLng,
+            cityId,
+            token
+          );
+          const leaders =
+            locationResult?.leaders?.length
+              ? locationResult.leaders
+              : await getCityLeaders(cityId, token).catch(() => []);
+          setLocationResult((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  district,
+                  leaders,
+                  councilMember: pickRepFromLeaders(leaders, district),
+                }
+              : prev
+          );
+        } catch {
+          /* non-blocking district refresh */
+        }
+      })();
+    },
+    [getAccessTokenSilently, locationResult]
+  );
 
   // Reset state when modal opens
   useEffect(() => {
     let cancelled = false;
 
     if (isOpen) {
-      setStep(initialStep);
+      const isGiftFlow = !!giftContext;
+      const { firstName, lastName } = splitGiftRecipientName(giftContext?.recipientName);
+
+      setStep(isGiftFlow ? "gift_confirm" : initialStep);
       setLoading(false);
       setLoadingAction(null);
-      setLocationInput("");
+      setLocationInput(giftContext?.placeLabel || "");
       setLocationResult(null);
       setError(null);
 
-      setHomeCoordinates(null);
-      setHasPreciseLocation(false);
-      setPlaceLabel(ONBOARDING_PLACE_LABEL_DEFAULT);
+      setHomeCoordinates(
+        giftContext?.lat != null && giftContext?.lng != null
+          ? { lat: giftContext.lat, lng: giftContext.lng }
+          : null
+      );
+      setHasPreciseLocation(
+        giftContext?.lat != null && giftContext?.lng != null
+      );
+      setPlaceLabel(
+        giftContext?.placeName?.trim() ||
+          giftContext?.placeLabel ||
+          ONBOARDING_PLACE_LABEL_DEFAULT
+      );
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setMayorFollowed(true);
       setRepFollowed(true);
       setLeadersLoading(false);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
-      // Reset preferences
       setWeeklyNewsletterOptIn(true);
-      setNewsletterDescription("");
-      setShowAdvancedNewsletterSettings(false);
-
-      // Pre-fill avatar from Auth0 but leave name fields blank
-      setProfileFirstName("");
-      setProfileLastName("");
+      setNewsletterDescription(giftContext?.customPrompt || "");
+      setShowAdvancedNewsletterSettings(!!giftContext?.customPrompt);
+      setProfileFirstName(firstName);
+      setProfileLastName(lastName);
       if (user) {
         setProfileAvatarPreview(user.picture || null);
       } else {
@@ -195,7 +338,43 @@ export default function WelcomeModal({
       }
       setProfileAvatarFile(null);
 
+      if (isGiftFlow) {
+        giftBootstrapStarted.current = true;
+        void bootstrapGiftLocation();
+        void (async () => {
+          if (!giftContext?.token) return;
+          try {
+            const meta = await getGiftMeta(giftContext.token);
+            if (cancelled) return;
+            const ctx = giftMetaToOnboardingContext(giftContext.token, meta);
+            persistGiftOnboardingContext(ctx);
+            const { firstName, lastName } = splitGiftRecipientName(meta.recipient_name);
+            setProfileFirstName(firstName);
+            setProfileLastName(lastName);
+            setPlaceLabel(
+              meta.place_name?.trim() ||
+                meta.place_label ||
+                ONBOARDING_PLACE_LABEL_DEFAULT
+            );
+            setLocationInput(meta.place_label || "");
+            if (meta.custom_prompt) {
+              setNewsletterDescription(meta.custom_prompt);
+              setShowAdvancedNewsletterSettings(true);
+            }
+            if (meta.lat != null && meta.lng != null) {
+              setHomeCoordinates({ lat: meta.lat, lng: meta.lng });
+              setHasPreciseLocation(true);
+            }
+          } catch (err) {
+            console.error("Failed to refresh gift meta for onboarding:", err);
+          }
+        })();
+      } else {
+        giftBootstrapStarted.current = false;
+      }
+
       const loadSavedNewsletterPreferences = async () => {
+        if (isGiftFlow) return;
         try {
           const token = await getAccessTokenSilently();
           const preferences = await getUserPreferences(token);
@@ -210,12 +389,14 @@ export default function WelcomeModal({
       };
 
       void loadSavedNewsletterPreferences();
+    } else {
+      giftBootstrapStarted.current = false;
     }
 
     return () => {
       cancelled = true;
     };
-  }, [getAccessTokenSilently, initialStep, isOpen]);
+  }, [bootstrapGiftLocation, getAccessTokenSilently, giftContext, initialStep, isOpen, user]);
 
   // Fire step-view analytics whenever the active step changes
   useEffect(() => {
@@ -225,6 +406,7 @@ export default function WelcomeModal({
       welcome: "onboarding_step1_viewed",
       place: "onboarding_step2_viewed",
       preferences: "onboarding_step3_viewed",
+      gift_confirm: "onboarding_gift_confirm_viewed",
     };
     recordProductEvent(eventMap[step]);
     trackMetaOnboardingStep(step);
@@ -763,7 +945,9 @@ export default function WelcomeModal({
 
   // Render step indicator
   const renderStepIndicator = () => {
-    const steps: Step[] = ["profile", "welcome", "place", "preferences"];
+    const steps: Step[] = giftContext
+      ? ["gift_confirm"]
+      : ["profile", "welcome", "place", "preferences"];
     const currentIndex = steps.indexOf(step);
 
     return (
@@ -788,6 +972,259 @@ export default function WelcomeModal({
       <line x1="20" y1="12" x2="22" y2="12" />
     </svg>
   );
+
+  // Gift recipient: branded confirm with map, radius, and place name (matches onboarding).
+  const renderGiftConfirmStep = () => {
+    const gifter = giftContext?.gifterDisplay || "Someone";
+    const cityDisplayName = locationResult
+      ? locationResult.state
+        ? `${locationResult.cityName}, ${locationResult.state}`
+        : locationResult.cityName
+      : giftContext?.cityName || "your city";
+    const searchedLabel =
+      locationInput.trim() ||
+      (hasPreciseLocation ? "your location" : cityDisplayName);
+
+    const handleGiftStart = async () => {
+      if (!locationResult?.matchedCity) {
+        setError("Still loading your location. Please wait a moment.");
+        return;
+      }
+      if (!hasPreciseLocation) {
+        setError("Set your address on the map so Seymour knows your coverage area.");
+        return;
+      }
+      try {
+        const token = await getAccessTokenSilently();
+        if (profileFirstName.trim() || profileLastName.trim()) {
+          await updateUserProfile(token, {
+            first_name: profileFirstName.trim() || null,
+            last_name: profileLastName.trim() || null,
+          }).catch((err) => console.error("[WelcomeModal] gift profile update failed:", err));
+        }
+      } catch (err) {
+        console.error("[WelcomeModal] gift profile save error:", err);
+      }
+      await handleSaveFromEmailPersonalization();
+    };
+
+    return (
+      <div className={`${styles.stepContent} ${styles.emailPersonalizationStep} ${styles.giftConfirmStep}`}>
+        <div className={styles.brandLogo}>
+          <Loader size="lg" color="purple" className="loaderStatic" />
+        </div>
+
+        <h2 className={styles.stepTitle}>Welcome to transparent.city</h2>
+
+        <div className={styles.goodNewsBanner}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15" />
+            <path
+              d="M5 8l2 2 4-4"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {gifter} set you up on transparent.city
+        </div>
+
+        <p className={styles.tagline}>
+          Confirm your name and coverage area below. Seymour will personalize your
+          weekly briefing from {cityDisplayName}&rsquo;s public records.
+        </p>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        <div className={styles.giftProfileSection}>
+          <label className={styles.giftSectionLabel}>Your name</label>
+          <div className={styles.giftNameRow}>
+            <input
+              type="text"
+              placeholder="First name"
+              value={profileFirstName}
+              onChange={(e) => setProfileFirstName(e.target.value)}
+              className={styles.textInput}
+              autoComplete="given-name"
+            />
+            <input
+              type="text"
+              placeholder="Last name"
+              value={profileLastName}
+              onChange={(e) => setProfileLastName(e.target.value)}
+              className={styles.textInput}
+              autoComplete="family-name"
+            />
+          </div>
+        </div>
+
+        <div className={styles.giftLocationSection}>
+          <label className={styles.giftSectionLabel}>Your coverage area</label>
+
+          {!hasPreciseLocation && (
+            <div className={styles.locationSection}>
+              <button
+                type="button"
+                className={styles.gpsHeroButton}
+                onClick={handleGPSLocation}
+                disabled={loading}
+                aria-busy={loading}
+                aria-label="Use my current location"
+              >
+                {loadingAction === "gps" ? (
+                  <Loader size="sm" color="white" />
+                ) : (
+                  <>
+                    {locationGpsIcon}
+                    Use my current location
+                  </>
+                )}
+              </button>
+
+              <div className={styles.locationDivider} aria-hidden="true">
+                <span className={styles.locationDividerLine} />
+                <span className={styles.locationDividerText}>or search</span>
+                <span className={styles.locationDividerLine} />
+              </div>
+
+              <div className={styles.inputGroup} ref={locationInputRef}>
+                <div className={styles.inputWithGPS}>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    placeholder="Enter address or neighbourhood"
+                    value={locationInput}
+                    onChange={(e) => handleLocationInputChange(e.target.value)}
+                    onFocus={() =>
+                      locationInput.trim().length >= 2 && setShowAddressDropdown(true)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddressSubmit();
+                      }
+                    }}
+                    disabled={loading}
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-expanded={showAddressDropdown && addressSuggestions.length > 0}
+                  />
+                </div>
+
+                {showAddressDropdown &&
+                  (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
+                    <div className={styles.dropdown} role="listbox">
+                      {addressSuggestionsLoading ? (
+                        <div className={styles.dropdownItem}>
+                          <Loader size="sm" color="purple" /> Searching…
+                        </div>
+                      ) : (
+                        addressSuggestions.map((suggestion, index) => (
+                          <button
+                            key={`${suggestion.place_name}-${index}`}
+                            type="button"
+                            className={styles.dropdownItem}
+                            onClick={() => handleAddressSuggestionSelect(suggestion)}
+                            role="option"
+                          >
+                            <span>{suggestion.place_name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+              </div>
+
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={handleAddressSubmit}
+                disabled={loading || !locationInput.trim()}
+              >
+                {loadingAction === "search" ? (
+                  <span className={styles.buttonLoader}>
+                    <Loader size="sm" color="purple" />
+                  </span>
+                ) : (
+                  "Find on map"
+                )}
+              </button>
+            </div>
+          )}
+
+          {hasPreciseLocation && locationResult && homeCoordinates && (
+            <>
+              <p className={styles.giftGeoHint}>
+                Covering <strong>{searchedLabel}</strong>
+                {giftContext?.cityName ? ` · ${giftContext.cityName}` : ""}
+              </p>
+
+              <LocationMapSave
+                className={locationMapStyles.welcomeMapEmbed}
+                cityId={locationResult.matchedCity?.id ?? 0}
+                lat={homeCoordinates.lat}
+                lng={homeCoordinates.lng}
+                valueLabel={placeLabel}
+                valueRadiusM={placeRadius}
+                onLabelChange={setPlaceLabel}
+                onRadiusChange={setPlaceRadius}
+                labelPlaceholder="Name your place"
+                draggablePin
+                onPinChange={handleMapPinChange}
+              />
+              <p className={styles.placeSetupHint}>
+                Drag the map to move the pin. Adjust the radius to set how wide an
+                area Seymour searches for stories.
+              </p>
+
+              <button
+                type="button"
+                className={styles.backButton}
+                onClick={() => {
+                  setHasPreciseLocation(false);
+                  setHomeCoordinates(null);
+                }}
+              >
+                Change address
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className={styles.giftPromptSection}>
+          <label className={styles.giftSectionLabel} htmlFor="gift-newsletter-personalization">
+            What should Seymour focus on? <span className={styles.optionalTag}>optional</span>
+          </label>
+          <textarea
+            id="gift-newsletter-personalization"
+            className={styles.newsletterDescriptionInput}
+            rows={3}
+            value={newsletterDescription}
+            onChange={(e) => setNewsletterDescription(e.target.value)}
+            placeholder="e.g. street safety, new permits on my block, 311 response times."
+          />
+        </div>
+
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={handleGiftStart}
+            disabled={loading || !locationResult?.matchedCity || !hasPreciseLocation}
+          >
+            {loading ? (
+              <span className={styles.buttonLoader}>
+                <Loader size="sm" color="white" />
+              </span>
+            ) : (
+              "Start my trial →"
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // Render step 1: Profile (skippable)
   const renderProfileStep = () => {
@@ -1033,45 +1470,6 @@ export default function WelcomeModal({
       ? `${locationResult.cityName}, ${locationResult.state}`
       : locationResult.cityName;
     const searchedLabel = locationInput.trim() || (hasPreciseLocation ? "your location" : cityDisplayName);
-    // Dynamic zoom so the circle always fits comfortably in the frame
-    const mapZoom = homeCoordinates
-      ? Math.max(12, Math.floor(15.5 - Math.log2(placeRadius / 100)))
-      : 15;
-
-    // Build grey radius circle URL — style follows app theme
-    const buildRadiusMapUrl = (): string | null => {
-      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-      if (!token || !homeCoordinates) return null;
-      const { lat, lng } = homeCoordinates;
-      const pts = 32;
-      const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 1e-6);
-      const latDeg = placeRadius / 111320;
-      const lngDeg = placeRadius / (111320 * cosLat);
-      const ring: [number, number][] = [];
-      for (let i = 0; i <= pts; i++) {
-        const a = (i / pts) * 2 * Math.PI;
-        ring.push([lng + lngDeg * Math.cos(a), lat + latDeg * Math.sin(a)]);
-      }
-      const geojson = {
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            geometry: { type: "Polygon", coordinates: [[...ring, ring[0]]] },
-            properties: { fill: "#6b7280", "fill-opacity": 0.12, stroke: "#6b7280", "stroke-width": 1.5, "stroke-opacity": 0.45 },
-          },
-          {
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [lng, lat] },
-            properties: {},
-          },
-        ],
-      };
-      const encoded = encodeURIComponent(JSON.stringify(geojson));
-      const basemap = theme === "dark" ? "dark-v11" : "light-v11";
-      return `https://api.mapbox.com/styles/v1/mapbox/${basemap}/static/geojson(${encoded})/${lng},${lat},${mapZoom}/400x180@2x?access_token=${token}`;
-    };
-    const mapUrl = buildRadiusMapUrl();
 
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
@@ -1090,52 +1488,26 @@ export default function WelcomeModal({
           Pick your location and coverage area.
         </p>
 
-        {/* Name input above the map */}
-        <div className={styles.placeNameAboveMap}>
-          <label className={styles.placeNameAboveLabel} htmlFor="place-step-name">Name your place</label>
-          <input
-            id="place-step-name"
-            type="text"
-            className={styles.placeNameAboveInput}
-            value={placeLabel}
-            onChange={(e) => setPlaceLabel(e.target.value)}
-            autoComplete="off"
+        {/* Interactive map — pan to move pin */}
+        {homeCoordinates && locationResult && (
+          <LocationMapSave
+            className={locationMapStyles.welcomeMapEmbed}
+            cityId={locationResult.matchedCity?.id ?? 0}
+            lat={homeCoordinates.lat}
+            lng={homeCoordinates.lng}
+            valueLabel={placeLabel}
+            valueRadiusM={placeRadius}
+            onLabelChange={setPlaceLabel}
+            onRadiusChange={setPlaceRadius}
+            labelPlaceholder="Name your place"
+            draggablePin
+            onPinChange={handleMapPinChange}
           />
-        </div>
-
-        {/* Grey radius circle map — zoom adjusts with slider */}
-        {mapUrl && (
-          <div className={styles.coverageMapFull}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={mapUrl} alt={`Map of ${locationResult.cityName}`} width={400} height={180} />
-          </div>
         )}
 
-        {/* Distance slider below map */}
-        <div className={styles.placeSetupCard}>
-          <div className={styles.placeSetupRow}>
-            <span className={styles.placeSetupLabel}>Distance</span>
-            <div className={styles.radiusSliderRow}>
-              <input
-                type="range"
-                min={50}
-                max={MAX_PLACE_RADIUS_M}
-                step={50}
-                value={placeRadius}
-                onChange={(e) => setPlaceRadius(Number(e.target.value))}
-                className={styles.radiusSliderInput}
-                aria-label="Place radius in metres"
-              />
-              <span className={styles.radiusSliderValue}>{placeRadius}m</span>
-            </div>
-          </div>
-          <p className={styles.placeSetupHint}>
-            100m ≈ 1 block &nbsp;·&nbsp; 300m ≈ 3 blocks &nbsp;·&nbsp; 700m ≈ 7 blocks
-          </p>
-        </div>
-
         <p className={styles.placeNameHint}>
-          Tell us how wide an area to search for stories around your location.
+          Drag the map to move the pin. Tell us how wide an area to search for
+          stories around your location.
         </p>
 
         {error && <div className={styles.error}>{error}</div>}
@@ -1180,14 +1552,6 @@ export default function WelcomeModal({
 
     // What the user searched — used in the good-news banner
     const searchedLabel = locationInput.trim() || (hasPreciseLocation ? "your location" : cityDisplayName);
-
-    // Simple pin thumbnail for the "My place" row (no radius circle)
-    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    const mapThumbBasemap = theme === "dark" ? "dark-v11" : "light-v11";
-    const mapThumbUrl =
-      hasPreciseLocation && homeCoordinates && mapboxToken
-        ? `https://api.mapbox.com/styles/v1/mapbox/${mapThumbBasemap}/static/pin-s+ad35fa(${homeCoordinates.lng},${homeCoordinates.lat})/${homeCoordinates.lng},${homeCoordinates.lat},15/400x140@2x?access_token=${mapboxToken}`
-        : null;
 
     return (
       <div className={`${styles.stepContent} ${styles.emailPersonalizationStep}`}>
@@ -1531,6 +1895,7 @@ export default function WelcomeModal({
             ...(homeLocationLabelSnapshot
               ? { location_label: homeLocationLabelSnapshot }
               : {}),
+            ...(placeLabel?.trim() ? { place_name: placeLabel.trim() } : {}),
           };
 
           // Save preferences with one retry on failure
@@ -1557,18 +1922,22 @@ export default function WelcomeModal({
             console.error("Newsletter subscription sync failed:", subscriptionErr);
           }
 
-          // Send the personalized backend welcome email for all sign-up types.
-          // For place-level users this is Email 1 (city/district welcome + "building your
-          // block dashboard" copy). Email 2 fires from the place metrics job.
-          sendOnboardingWelcomeEmail(token, {
-            city_id: cityId,
-            district: homeDistrictSnapshot ?? null,
-            place_id: createdPlaceId ?? null,
-            weekly_newsletter: weeklyNewsletterOptIn,
-            scope: hasPreciseLocation ? "place" : (homeDistrictSnapshot ? "district" : "city"),
-          }).catch((err) =>
-            console.error("[WelcomeModal] onboarding welcome email failed:", err)
-          );
+          // Gift invite already covers city/district links and value prop.
+          if (!giftContext) {
+            sendOnboardingWelcomeEmail(token, {
+              city_id: cityId,
+              district: homeDistrictSnapshot ?? null,
+              place_id: createdPlaceId ?? null,
+              weekly_newsletter: weeklyNewsletterOptIn,
+              scope: hasPreciseLocation
+                ? "place"
+                : homeDistrictSnapshot
+                  ? "district"
+                  : "city",
+            }).catch((err) =>
+              console.error("[WelcomeModal] onboarding welcome email failed:", err)
+            );
+          }
         } catch (err) {
           console.error("Error saving preferences in background:", err);
         }
@@ -1609,6 +1978,7 @@ export default function WelcomeModal({
         {step === "welcome" && renderWelcomeStep()}
         {step === "place" && renderPlaceStep()}
         {step === "preferences" && renderPreferencesStep()}
+        {step === "gift_confirm" && renderGiftConfirmStep()}
       </div>
     </div>
   );

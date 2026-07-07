@@ -166,28 +166,30 @@ describe("Top nav (PublicNavBar + CitySignupButton)", () => {
 
 describe("MobileBottomNav", () => {
   it("renders all three tab buttons", () => {
-    render(<MobileBottomNav activeTab="feed" onTabChange={vi.fn()} />);
+    render(<MobileBottomNav activeTab="home" onTabChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: /feed/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /home/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /my places/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /more/i })).toBeInTheDocument();
   });
 
   it("each tab has a visible text label", () => {
-    render(<MobileBottomNav activeTab="feed" onTabChange={vi.fn()} />);
+    render(<MobileBottomNav activeTab="home" onTabChange={vi.fn()} />);
 
-    expect(screen.getByText("Feed")).toBeInTheDocument();
+    expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("My Places")).toBeInTheDocument();
     expect(screen.getByText("More")).toBeInTheDocument();
   });
 
   it("tab labels are not empty strings", () => {
     const { container } = render(
-      <MobileBottomNav activeTab="feed" onTabChange={vi.fn()} />,
+      <MobileBottomNav activeTab="home" onTabChange={vi.fn()} />,
     );
 
-    const labels = container.querySelectorAll("span");
+    const labels = container.querySelectorAll(`.${"tabLabel"}, span`);
     labels.forEach((label) => {
+      // Icon wrapper spans contain only SVG; skip those, check text labels.
+      if (label.querySelector("svg")) return;
       expect(label.textContent?.trim().length).toBeGreaterThan(0);
     });
   });
@@ -199,8 +201,18 @@ describe("MobileBottomNav", () => {
     expect(myPlaces).toHaveAttribute("aria-current", "page");
   });
 
+  it("shows unread dot on Home when there are unread editions", () => {
+    render(
+      <MobileBottomNav activeTab="home" onTabChange={vi.fn()} inboxUnreadCount={3} />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /home, 3 unread/i }),
+    ).toBeInTheDocument();
+  });
+
   it("nav has aria-label for accessibility", () => {
-    render(<MobileBottomNav activeTab="feed" onTabChange={vi.fn()} />);
+    render(<MobileBottomNav activeTab="home" onTabChange={vi.fn()} />);
 
     expect(
       screen.getByRole("navigation", { name: /main navigation/i }),

@@ -3360,6 +3360,11 @@ export interface DbUserProfile {
   onboarding_complete?: boolean;
   user_role_type?: string;
   has_places?: boolean;
+  last_login_at?: string | null;
+  last_newsletter_sent_at?: string | null;
+  /** Cutoff for "what changed since your last briefing" (ISO). */
+  recency_anchor_at?: string | null;
+  recency_anchor_source?: "login" | "newsletter" | "default" | null;
 }
 
 export function getDbUserProfile(token: string): Promise<DbUserProfile> {
@@ -7921,6 +7926,7 @@ export interface SendGiftRequest {
   city_id: number;
   district?: string | null;
   place_label: string;
+  place_name?: string | null;
   lat?: number | null;
   lng?: number | null;
   custom_prompt?: string | null;
@@ -7952,10 +7958,32 @@ export interface GiftMetaResponse {
   recipient_name: string | null;
   gifter_display: string;
   place_label: string | null;
+  place_name: string | null;
   city_id: number | null;
   city_name: string | null;
+  district: string | null;
+  lat: number | null;
+  lng: number | null;
+  custom_prompt: string | null;
   already_activated: boolean;
   trial_ends_at: string | null;
+  sent_at: string | null;
+  requires_otp: boolean;
+  email_trusted_by_click: boolean;
+  trust_expires_at: string | null;
+}
+
+export interface GiftTrustedActivateResponse extends GiftMetaResponse {
+  trusted: boolean;
+}
+
+export interface GiftAuthTokens {
+  access_token: string;
+  id_token: string;
+  refresh_token?: string;
+  token_type?: string;
+  expires_in: number;
+  scope?: string;
 }
 
 export function getGiftMeta(token: string): Promise<GiftMetaResponse> {
@@ -7971,5 +7999,51 @@ export function getGiftMeta(token: string): Promise<GiftMetaResponse> {
       throw err;
     }
     return res.json() as Promise<GiftMetaResponse>;
+  });
+}
+
+export function giftTrustedActivate(token: string): Promise<GiftTrustedActivateResponse> {
+  return fetch(`${getApiBaseUrl()}/api/gift/trusted-activate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "omit",
+    body: JSON.stringify({ token }),
+  }).then(async (res) => {
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const err = new Error(
+        (body.detail as string) || `Gift trusted activate failed: ${res.status}`
+      );
+      (err as any).status = res.status;
+      throw err;
+    }
+    return res.json() as Promise<GiftTrustedActivateResponse>;
+  });
+}
+
+export function giftMintSession(params: {
+  token: string;
+  redirectUri: string;
+  audience?: string;
+}): Promise<GiftAuthTokens> {
+  return fetch(`${getApiBaseUrl()}/api/gift/mint-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "omit",
+    body: JSON.stringify({
+      token: params.token,
+      redirect_uri: params.redirectUri,
+      audience: params.audience,
+    }),
+  }).then(async (res) => {
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const err = new Error(
+        (body.detail as string) || `Gift mint session failed: ${res.status}`
+      );
+      (err as any).status = res.status;
+      throw err;
+    }
+    return res.json() as Promise<GiftAuthTokens>;
   });
 }

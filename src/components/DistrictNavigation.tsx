@@ -121,6 +121,9 @@ interface DistrictNavigationProps {
   onPlaceSaved?: (place: UserPlace) => void;
   /** When this value changes and is > 0, open the modal (e.g. from Search Cities "Find your district"). */
   openTrigger?: number;
+  /** When true, don't render the selector trigger bar — only the modal.
+   *  Used by the briefing hero, which provides its own trigger. */
+  hideTriggerBar?: boolean;
   /** When the batch place-refresh job last ran (ISO string); shown next to place name. */
   placeRefreshLastRunAt?: string | null;
   /** From city detail; used for Ward vs District (and similar) wording in the selector. */
@@ -248,6 +251,7 @@ export default function DistrictNavigation({
   onPlaceSelect,
   onPlaceSaved,
   openTrigger,
+  hideTriggerBar = false,
   placeRefreshLastRunAt,
   geographicStructures,
 }: DistrictNavigationProps) {
@@ -758,6 +762,7 @@ export default function DistrictNavigation({
 
   return (
     <>
+      {!hideTriggerBar && (
       <div className="district-navigation-bar">
         {/* Official / place selector — chevron ends the control; Follow is outside when on a district. */}
         <div
@@ -840,6 +845,7 @@ export default function DistrictNavigation({
           </div>
         )}
       </div>
+      )}
 
       {/* Search Modal */}
       {open &&

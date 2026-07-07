@@ -1,17 +1,35 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth0 } from "@auth0/auth0-react";
 import Link from "next/link";
-import { getGiftMeta, type GiftMetaResponse } from "@/lib/apiClient";
-import { sendPasswordlessMagicLink } from "@/lib/auth0Passwordless";
+import {
+  getGiftMeta,
+  type GiftMetaResponse,
+} from "@/lib/apiClient";
+import {
+  giftTrustedLogin,
+  sendPasswordlessCode,
+  verifyPasswordlessCode,
+} from "@/lib/auth0Passwordless";
 import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
+import {
+  giftMetaToOnboardingContext,
+  persistGiftOnboardingContext,
+} from "@/lib/giftOnboarding";
+import BrandWordmark from "@/components/BrandWordmark";
 import styles from "./activate.module.css";
 
 /* ─── inner page ─── */
 
-type PageState = "loading" | "ready" | "sending" | "email_sent" | "activated" | "error";
+type PageState =
+  | "loading"
+  | "activating"
+  | "code_entry"
+  | "verifying"
+  | "activated"
+  | "error";
 
 function GiftActivateInner() {
   const searchParams = useSearchParams();
@@ -22,31 +40,115 @@ function GiftActivateInner() {
   const [pageState, setPageState] = useState<PageState>("loading");
   const [meta, setMeta] = useState<GiftMetaResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [otp, setOtp] = useState("");
+  const activationStarted = useRef(false);
 
-  // If already authenticated, send to the app.
-  useEffect(() => {
-    if (authLoading || !meta) return;
-    if (isAuthenticated) {
-      window.location.href = "/home";
-    }
-  }, [authLoading, isAuthenticated, meta]);
+  const goToGiftOnboarding = useCallback((giftMeta: GiftMetaResponse) => {
+    if (!token) return;
+    persistGiftOnboardingContext(giftMetaToOnboardingContext(token, giftMeta));
+    window.location.href = "/home";
+  }, [token]);
 
-  // Fetch gift metadata.
-  useEffect(() => {
-    if (!token) {
-      setErrorMsg("This activation link is missing a token. Please check the email and try again.");
+  const handleSendCode = useCallback(async (giftMeta: GiftMetaResponse) => {
+    const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
+    if (!clientId) {
+      setErrorMsg("Auth is not configured. Please contact support.");
       setPageState("error");
       return;
     }
-    getGiftMeta(token)
-      .then((data) => {
-        if (data.already_activated) {
-          setMeta(data);
-          setPageState("activated");
-        } else {
-          setMeta(data);
-          setPageState("ready");
+
+    setErrorMsg("");
+    try {
+      await sendPasswordlessCode({
+        email: giftMeta.recipient_email,
+        clientId,
+      });
+      setOtp("");
+      setPageState("code_entry");
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+      setPageState("code_entry");
+    }
+  }, []);
+
+  const runTrustedActivation = useCallback(
+    async (giftMeta: GiftMetaResponse) => {
+      const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
+      if (!clientId) {
+        setErrorMsg("Auth is not configured. Please contact support.");
+        setPageState("error");
+        return;
+      }
+
+      setPageState("activating");
+      setErrorMsg("");
+
+      try {
+        await giftTrustedLogin({
+          token: token!,
+          clientId,
+          audience: getAuth0ApiAudience(),
+        });
+        goToGiftOnboarding(giftMeta);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Could not activate your trial.";
+        const needsOtp =
+          message.toLowerCase().includes("otp") ||
+          message.toLowerCase().includes("not configured") ||
+          message.toLowerCase().includes("not available");
+        if (needsOtp) {
+          await handleSendCode(giftMeta);
+          setErrorMsg(
+            "Your welcome link is a bit older now — enter the 6-digit code we just emailed you."
+          );
+          return;
         }
+        setErrorMsg(message);
+        setPageState("error");
+      }
+    },
+    [goToGiftOnboarding, handleSendCode, token]
+  );
+
+  // Already authenticated → home with gift onboarding context if present.
+  useEffect(() => {
+    if (authLoading || !meta) return;
+    if (isAuthenticated) {
+      goToGiftOnboarding(meta);
+    }
+  }, [authLoading, isAuthenticated, meta, goToGiftOnboarding]);
+
+  // Fetch gift metadata and start activation automatically.
+  useEffect(() => {
+    if (!token) {
+      setErrorMsg(
+        "This activation link is missing a token. Please check the email and try again."
+      );
+      setPageState("error");
+      return;
+    }
+
+    if (activationStarted.current) return;
+    activationStarted.current = true;
+
+    getGiftMeta(token)
+      .then(async (data) => {
+        setMeta(data);
+        persistGiftOnboardingContext(giftMetaToOnboardingContext(token, data));
+        if (data.already_activated) {
+          setPageState("activated");
+          return;
+        }
+
+        if (data.requires_otp) {
+          await handleSendCode(data);
+          return;
+        }
+
+        await runTrustedActivation(data);
       })
       .catch((err) => {
         const is404 = err?.status === 404;
@@ -57,129 +159,78 @@ function GiftActivateInner() {
         );
         setPageState("error");
       });
-  }, [token]);
+  }, [token, handleSendCode, runTrustedActivation]);
 
-  const handleActivate = async () => {
-    if (!meta) return;
-    setPageState("sending");
-    setErrorMsg("");
+  const handleVerifyCode = async () => {
+    if (!meta || !token) return;
+    const code = otp.trim();
+    if (code.length < 6) {
+      setErrorMsg("Enter the 6-digit code from your email.");
+      return;
+    }
 
     const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
     if (!clientId) {
       setErrorMsg("Auth is not configured. Please contact support.");
-      setPageState("ready");
       return;
     }
 
+    setPageState("verifying");
+    setErrorMsg("");
+
     try {
-      await sendPasswordlessMagicLink({
+      await verifyPasswordlessCode({
         email: meta.recipient_email,
+        otp: code,
         clientId,
         audience: getAuth0ApiAudience(),
-        appState: { returnTo: "/home" },
       });
-      setPageState("email_sent");
+      goToGiftOnboarding(meta);
     } catch (err) {
       setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong. Please try again."
+        err instanceof Error
+          ? err.message
+          : "That code didn't work. Please try again."
       );
-      setPageState("ready");
+      setPageState("code_entry");
     }
   };
-
-  const city = meta?.city_name || meta?.place_label || "your city";
-  const fromName = meta?.gifter_display || "Someone";
-  const trialEnds = meta?.trial_ends_at ?? null;
 
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <span className={styles.wordmark} aria-label="transparent.city">
-          <span className={styles.wordmarkPlain}>transparent</span>
-          <span className={styles.wordmarkAccent}>.city</span>
-        </span>
+        <BrandWordmark className={styles.brandHeader} />
 
         {pageState === "error" && <ErrorView message={errorMsg} />}
         {pageState === "activated" && <AlreadyActivatedView />}
 
-        {pageState === "loading" && (
-          <div className={styles.center}>
-            <div className={styles.spinner} aria-label="Loading…" />
-          </div>
+        {(pageState === "loading" || pageState === "activating") && (
+          <ActivatingView
+            headline={
+              pageState === "activating"
+                ? "Starting your trial…"
+                : "Loading your gift…"
+            }
+            body={
+              meta?.email_trusted_by_click
+                ? "Your email is verified. Setting up your account."
+                : meta
+                ? "Preparing your sign-in."
+                : undefined
+            }
+          />
         )}
 
-        {pageState === "email_sent" && meta && (
-          <EmailSentView email={meta.recipient_email} />
-        )}
-
-        {(pageState === "ready" || pageState === "sending") && meta && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <h1 className={styles.headline}>
-              {fromName} gifted you a free trial
-            </h1>
-            <p className={styles.body}>
-              <strong>Seymour</strong> is transparent.city&rsquo;s AI analyst.
-              Every week he reads public records for <strong>{city}</strong>{" "}
-              — permits, crime, 311, economic data — and sends you a
-              plain-English briefing about what&rsquo;s actually happening in
-              your neighborhood.
-            </p>
-
-            {trialEnds && <TrialBadge trialEndsAt={trialEnds} />}
-
-            <div className={styles.divider} />
-
-            <div className={styles.locationRow}>
-              <span className={styles.locationIcon} aria-hidden="true">📍</span>
-              <div>
-                <span className={styles.locationLabel}>Your city</span>
-                <span className={styles.locationName}>{city}</span>
-              </div>
-            </div>
-
-            <div className={styles.emailRow}>
-              <div>
-                <span className={styles.emailLabel}>Sign-in link will go to</span>
-                <span className={styles.emailAddress}>{meta.recipient_email}</span>
-              </div>
-            </div>
-
-            {errorMsg && (
-              <p className={styles.errorText} role="alert" style={{ fontSize: 13 }}>
-                {errorMsg}
-              </p>
-            )}
-
-            <div className={styles.ctaArea}>
-              <button
-                className={styles.primaryBtn}
-                onClick={handleActivate}
-                disabled={pageState === "sending"}
-              >
-                {pageState === "sending" ? (
-                  <>
-                    <div
-                      className={styles.spinner}
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderWidth: 2,
-                        borderTopColor: "#fff",
-                        borderColor: "rgba(255,255,255,0.3)",
-                      }}
-                    />
-                    Sending link…
-                  </>
-                ) : (
-                  "Send me my sign-in link →"
-                )}
-              </button>
-              <p className={styles.ctaHint}>
-                We&rsquo;ll email a magic sign-in link to{" "}
-                <strong>{meta.recipient_email}</strong>. No password needed.
-              </p>
-            </div>
-          </div>
+        {(pageState === "code_entry" || pageState === "verifying") && meta && (
+          <CodeEntryView
+            email={meta.recipient_email}
+            otp={otp}
+            onOtpChange={setOtp}
+            onSubmit={handleVerifyCode}
+            onResend={() => handleSendCode(meta)}
+            verifying={pageState === "verifying"}
+            errorMsg={errorMsg}
+          />
         )}
       </div>
     </div>
@@ -188,9 +239,43 @@ function GiftActivateInner() {
 
 /* ─── sub-views ─── */
 
-function EmailSentView({ email }: { email: string }) {
+function ActivatingView({
+  headline,
+  body,
+}: {
+  headline: string;
+  body?: string;
+}) {
   return (
-    <div className={styles.center}>
+    <div className={styles.center} style={{ gap: 14 }}>
+      <div className={styles.spinner} aria-label="Loading…" />
+      <h1 className={styles.headline} style={{ fontSize: 20 }}>
+        {headline}
+      </h1>
+      {body && <p className={styles.body}>{body}</p>}
+    </div>
+  );
+}
+
+function CodeEntryView({
+  email,
+  otp,
+  onOtpChange,
+  onSubmit,
+  onResend,
+  verifying,
+  errorMsg,
+}: {
+  email: string;
+  otp: string;
+  onOtpChange: (value: string) => void;
+  onSubmit: () => void;
+  onResend: () => void;
+  verifying: boolean;
+  errorMsg: string;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className={styles.iconWrap} aria-hidden="true">
         <svg
           width="26"
@@ -206,11 +291,64 @@ function EmailSentView({ email }: { email: string }) {
           <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
         </svg>
       </div>
-      <h1 className={styles.headline}>Check your inbox</h1>
+      <h1 className={styles.headline}>Enter your code</h1>
       <p className={styles.body}>
-        We sent a sign-in link to <strong>{email}</strong>. Click it to create
-        your account and start receiving Seymour&rsquo;s briefings.
+        We emailed a 6-digit code to <strong>{email}</strong>. Enter it below to
+        start your trial.
       </p>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit();
+        }}
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      >
+        <input
+          className={styles.codeInput}
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          value={otp}
+          onChange={(e) => onOtpChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="••••••"
+          aria-label="6-digit sign-in code"
+          autoFocus
+          disabled={verifying}
+        />
+
+        {errorMsg && (
+          <p className={styles.errorText} role="alert" style={{ fontSize: 13 }}>
+            {errorMsg}
+          </p>
+        )}
+
+        <button
+          className={styles.primaryBtn}
+          type="submit"
+          disabled={verifying || otp.length < 6}
+        >
+          {verifying ? (
+            <>
+              <div
+                className={styles.spinner}
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderWidth: 2,
+                  borderTopColor: "#fff",
+                  borderColor: "rgba(255,255,255,0.3)",
+                }}
+              />
+              Verifying…
+            </>
+          ) : (
+            "Verify & start my trial →"
+          )}
+        </button>
+      </form>
+
       <p className={styles.note}>
         Didn&rsquo;t get it? Check your spam folder, or{" "}
         <button
@@ -223,9 +361,10 @@ function EmailSentView({ email }: { email: string }) {
             cursor: "pointer",
             fontSize: "inherit",
           }}
-          onClick={() => window.location.reload()}
+          onClick={onResend}
+          disabled={verifying}
         >
-          try again
+          resend the code
         </button>
         .
       </p>
@@ -271,24 +410,6 @@ function AlreadyActivatedView() {
       </Link>
     </div>
   );
-}
-
-function TrialBadge({ trialEndsAt }: { trialEndsAt: string }) {
-  try {
-    const ends = new Date(trialEndsAt);
-    const formatted = ends.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-    return (
-      <div className={styles.trialBadge}>
-        4-week free trial &middot; active until <strong>{formatted}</strong>
-      </div>
-    );
-  } catch {
-    return null;
-  }
 }
 
 /* ─── exported page ─── */

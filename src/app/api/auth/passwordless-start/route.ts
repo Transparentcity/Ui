@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
+import { getPasswordlessServerCredentials } from "@/lib/auth0PasswordlessServer";
 
 /**
  * Server-side proxy for Auth0 /passwordless/start.
  *
  * Auth0's passwordless/start endpoint blocks cross-origin requests from
- * browser SPAs, so we forward through this same-origin route. No client
- * secret is needed — passwordless/start is a public endpoint for SPA
- * clients (public clients don't use client_secret).
+ * browser SPAs, so we forward through this same-origin route.
+ *
+ * Magic-link requests (send=link) use the SPA client_id from the browser.
+ * OTP code requests (send=code) use a Regular Web Application on the server
+ * so the same client can complete the passwordless-OTP grant at /oauth/token.
  */
 export async function POST(request: Request) {
   const auth0Domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN;
@@ -17,14 +20,29 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: unknown;
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json(
       { error: "invalid_request", error_description: "Request body must be JSON." },
       { status: 400 }
     );
+  }
+
+  if (body.send === "code") {
+    const credentials = getPasswordlessServerCredentials();
+    if ("error" in credentials) {
+      return NextResponse.json(
+        { error: "server_misconfigured", error_description: credentials.error },
+        { status: 500 }
+      );
+    }
+    body = {
+      ...body,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+    };
   }
 
   const url = `https://${auth0Domain}/passwordless/start`;

@@ -304,11 +304,53 @@ export function normalizeGeoJsonLngLatPair(
   return null;
 }
 
+/** Zoom so the full place radius fits comfortably in the map frame. */
+export function zoomForPlaceRadiusM(radiusM: number): number {
+  const safe = Math.max(radiusM, 50);
+  return Math.max(12, Math.floor(15.5 - Math.log2(safe / 100)));
+}
+
+/** Closed GeoJSON ring for a radius circle around a WGS84 point. */
+export function buildRadiusCircleRing(
+  lat: number,
+  lng: number,
+  radiusM: number,
+  points = 32
+): [number, number][] {
+  const latDeg = radiusM / 111320;
+  const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 1e-6);
+  const lngDeg = radiusM / (111320 * cosLat);
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= points; i++) {
+    const a = (i / points) * 2 * Math.PI;
+    ring.push([lng + lngDeg * Math.cos(a), lat + latDeg * Math.sin(a)]);
+  }
+  return ring;
+}
+
+export function buildRadiusCircleGeoJson(
+  lat: number,
+  lng: number,
+  radiusM: number
+): GeoJSON.FeatureCollection {
+  const ring = buildRadiusCircleRing(lat, lng, radiusM);
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [ring] },
+        properties: {},
+      },
+    ],
+  };
+}
+
 export function buildStaticMapUrl(
   lat: number,
   lng: number,
   radiusM: number,
-  zoom: number = DEFAULT_MAP_ZOOM,
+  zoom?: number,
   width: number = 340,
   height: number = 160,
   theme: "light" | "dark" = "light"
@@ -317,30 +359,20 @@ export function buildStaticMapUrl(
     typeof process !== "undefined" ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : undefined;
   if (!token) return null;
 
-  const points = 32;
-  const latDeg = radiusM / 111320;
+  const effectiveZoom = zoom ?? zoomForPlaceRadiusM(radiusM);
   const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 1e-6);
-  const lngDeg = radiusM / (111320 * cosLat);
-  const coords: [number, number][] = [];
-  for (let i = 0; i <= points; i++) {
-    const a = (i / points) * 2 * Math.PI;
-    coords.push([lng + lngDeg * Math.cos(a), lat + latDeg * Math.sin(a)]);
-  }
+  const ring = buildRadiusCircleRing(lat, lng, radiusM);
   // Center dot: small circle polygon (~8m) so static API renders a dot, not a pin
   const dotRadiusM = 8;
   const dotLatDeg = dotRadiusM / 111320;
   const dotLngDeg = dotRadiusM / (111320 * cosLat);
-  const dotCoords: [number, number][] = [];
-  for (let i = 0; i <= points; i++) {
-    const a = (i / points) * 2 * Math.PI;
-    dotCoords.push([lng + dotLngDeg * Math.cos(a), lat + dotLatDeg * Math.sin(a)]);
-  }
+  const dotRing = buildRadiusCircleRing(lat, lng, dotRadiusM, 32);
   const geojson = {
     type: "FeatureCollection" as const,
     features: [
       {
         type: "Feature" as const,
-        geometry: { type: "Polygon" as const, coordinates: [[...coords, coords[0]]] },
+        geometry: { type: "Polygon" as const, coordinates: [ring] },
         properties: {
           fill: "#ad35fa",
           "fill-opacity": 0.25,
@@ -350,7 +382,7 @@ export function buildStaticMapUrl(
       },
       {
         type: "Feature" as const,
-        geometry: { type: "Polygon" as const, coordinates: [[...dotCoords, dotCoords[0]]] },
+        geometry: { type: "Polygon" as const, coordinates: [dotRing] },
         properties: {
           fill: "#ad35fa",
           "fill-opacity": 1,
@@ -362,5 +394,5 @@ export function buildStaticMapUrl(
   };
   const encoded = encodeURIComponent(JSON.stringify(geojson));
   const style = theme === "dark" ? "mapbox/dark-v11" : "mapbox/light-v11";
-  return `https://api.mapbox.com/styles/v1/${style}/static/geojson(${encoded})/${lng},${lat},${zoom}/${width}x${height}@2x?access_token=${token}`;
+  return `https://api.mapbox.com/styles/v1/${style}/static/geojson(${encoded})/${lng},${lat},${effectiveZoom}/${width}x${height}@2x?access_token=${token}`;
 }

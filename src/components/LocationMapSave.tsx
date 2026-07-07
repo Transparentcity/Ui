@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
+  buildRadiusCircleGeoJson,
   buildStaticMapUrl,
   DEFAULT_PLACE_RADIUS_M,
   MAX_PLACE_RADIUS_M,
+  zoomForPlaceRadiusM,
 } from "@/lib/mapUtils";
 import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./LocationMapSave.module.css";
@@ -37,12 +39,14 @@ export interface LocationMapSaveProps {
   onCancel?: () => void;
   /** Label for the skip/cancel button (default: Skip). */
   cancelButtonLabel?: string;
-  /** Optional class for the container. */
-  className?: string;
+  /** Optional placeholder for the label input (e.g. "Name your place"). */
+  labelPlaceholder?: string;
   /** When true and Mapbox token is set, show an interactive map (purple pin fixed at center; pan map to move it). */
   draggablePin?: boolean;
   /** Called when the map is panned so the geographic center (pin) changes (only when draggablePin is true). */
   onPinChange?: (lat: number, lng: number) => void;
+  /** Optional extra class on the container (caller-specific layout tweaks). */
+  className?: string;
 }
 
 /** ~10 cm at equator; avoids feedback loops from float noise vs Mapbox center. */
@@ -59,15 +63,52 @@ function roughlySameLatLng(
   );
 }
 
+const RADIUS_SOURCE_ID = "place-radius";
+const RADIUS_FILL_LAYER_ID = "place-radius-fill";
+const RADIUS_LINE_LAYER_ID = "place-radius-line";
+
+function syncRadiusCircle(
+  map: mapboxgl.Map,
+  centerLat: number,
+  centerLng: number,
+  radiusM: number
+): void {
+  const data = buildRadiusCircleGeoJson(centerLat, centerLng, radiusM);
+  // @types/mapbox-gl doesn't export a narrowed GeoJSONSource for getSource;
+  // setData exists on geojson sources at runtime (same pattern as CityMapView).
+  const existing = map.getSource(RADIUS_SOURCE_ID) as
+    | { setData: (data: unknown) => void }
+    | undefined;
+  if (existing) {
+    existing.setData(data);
+    return;
+  }
+  map.addSource(RADIUS_SOURCE_ID, { type: "geojson", data });
+  map.addLayer({
+    id: RADIUS_FILL_LAYER_ID,
+    type: "fill",
+    source: RADIUS_SOURCE_ID,
+    paint: { "fill-color": "#ad35fa", "fill-opacity": 0.2 },
+  });
+  map.addLayer({
+    id: RADIUS_LINE_LAYER_ID,
+    type: "line",
+    source: RADIUS_SOURCE_ID,
+    paint: { "line-color": "#ad35fa", "line-width": 2, "line-opacity": 0.75 },
+  });
+}
+
 /** Pin stays in the center of the viewport; user pans the map to choose coordinates. */
 function CenterPinnedPanMap({
   lat,
   lng,
+  radiusM,
   onPositionChange,
   theme = "light",
 }: {
   lat: number;
   lng: number;
+  radiusM: number;
   onPositionChange: (lat: number, lng: number) => void;
   theme?: "light" | "dark";
 }) {
@@ -75,8 +116,10 @@ function CenterPinnedPanMap({
   const mapRef = useRef<InstanceType<typeof mapboxgl.Map> | null>(null);
   const onPositionChangeRef = useRef(onPositionChange);
   const propsCenterRef = useRef({ lat, lng });
+  const radiusRef = useRef(radiusM);
   onPositionChangeRef.current = onPositionChange;
   propsCenterRef.current = { lat, lng };
+  radiusRef.current = radiusM;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -93,12 +136,17 @@ function CenterPinnedPanMap({
       container: el,
       style: mapStyle,
       center: [lng, lat],
-      zoom: 14,
+      zoom: zoomForPlaceRadiusM(radiusM),
       attributionControl: true,
       accessToken: token,
       dragRotate: false,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+
+    const updateRadiusFromCenter = () => {
+      const c = map.getCenter();
+      syncRadiusCircle(map, c.lat, c.lng, radiusRef.current);
+    };
 
     const emitIfUserMovedCenter = () => {
       const c = map.getCenter();
@@ -107,10 +155,14 @@ function CenterPinnedPanMap({
       onPositionChangeRef.current(c.lat, c.lng);
     };
 
+    map.on("load", updateRadiusFromCenter);
+    map.on("move", updateRadiusFromCenter);
     map.on("moveend", emitIfUserMovedCenter);
 
     mapRef.current = map;
     return () => {
+      map.off("load", updateRadiusFromCenter);
+      map.off("move", updateRadiusFromCenter);
       map.off("moveend", emitIfUserMovedCenter);
       map.remove();
       mapRef.current = null;
@@ -125,6 +177,15 @@ function CenterPinnedPanMap({
     if (roughlySameLatLng(c.lat, c.lng, lat, lng)) return;
     map.setCenter([lng, lat]);
   }, [lat, lng]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    // isStyleLoaded is missing from the bundled Map typings; present at runtime.
+    if (!map || !(map as unknown as { isStyleLoaded(): boolean }).isStyleLoaded()) return;
+    const c = map.getCenter();
+    syncRadiusCircle(map, c.lat, c.lng, radiusM);
+    map.setZoom(zoomForPlaceRadiusM(radiusM));
+  }, [radiusM]);
 
   return (
     <div className={styles.mapInteractiveWrap}>
@@ -168,6 +229,7 @@ export default function LocationMapSave({
   onCancel,
   cancelButtonLabel = "Skip",
   className,
+  labelPlaceholder = "Label (e.g. My place)",
   draggablePin = false,
   onPinChange,
 }: LocationMapSaveProps) {
@@ -217,7 +279,7 @@ export default function LocationMapSave({
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="Label (e.g. My place)"
+          placeholder={labelPlaceholder}
           className={styles.labelInput}
           aria-label="Place label"
         />
@@ -236,7 +298,13 @@ export default function LocationMapSave({
         </span>
       </div>
       {showDraggable ? (
-        <CenterPinnedPanMap lat={lat} lng={lng} onPositionChange={handlePinDrag} theme={theme} />
+        <CenterPinnedPanMap
+          lat={lat}
+          lng={lng}
+          radiusM={radiusM}
+          onPositionChange={handlePinDrag}
+          theme={theme}
+        />
       ) : mapUrl ? (
         <img src={mapUrl} alt="Your location and radius" className={styles.mapImg} />
       ) : (
