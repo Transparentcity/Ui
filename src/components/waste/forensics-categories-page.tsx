@@ -12,7 +12,11 @@ import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteRefreshPanel } from "./waste-refresh-panel"
 import { useWasteCity } from "./WasteCityContext"
-import { normalizeWasteCategory, formatDollar } from "./waste-utils"
+import {
+  normalizeWasteCategory,
+  formatDollar,
+  findingAggregateAmount,
+} from "./waste-utils"
 
 const CATEGORY_META: Record<
   string,
@@ -86,7 +90,10 @@ export function ForensicsCategoriesPage() {
       if (!counts[cat]) counts[cat] = { total: 0, critical: 0, amount: 0 }
       counts[cat].total++
       if (f.severity === "critical" || f.severity === "high") counts[cat].critical++
-      counts[cat].amount += f.amount ?? 0
+      // Cap/override-aware: confirmed-case secondaries carry
+      // amount_for_aggregate=0 and capped findings carry the cap value, so
+      // summing raw `amount` would overstate category exposure.
+      counts[cat].amount += findingAggregateAmount(f)
     })
     return counts
   }, [allFindings])

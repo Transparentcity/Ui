@@ -157,6 +157,103 @@ export function isConfirmedFinding(finding: WasteFinding): boolean {
   return false
 }
 
+// ── Wire-format-tolerant field reads ────────────────────────────────────────
+//
+// The backend emits findings in two shapes:
+//   - Live analyze responses serialize `Finding.to_dict()` with
+//     `by_alias=True`, so aggregation/confidence fields arrive camelCase
+//     (`amountForAggregate`, `capApplied`, `confidenceScore`,
+//     `estimatedDollarImpact`).
+//   - Persisted run results (`/api/waste/runs/{id}/result`, the path this
+//     module actually renders) are rebuilt by `_deserialize_persisted_finding`
+//     and arrive snake_case (`amount_for_aggregate`, `cap_applied`,
+//     `confidence_score`, `estimated_dollar_impact`).
+// Read both forms so neither path silently drops the value.
+
+function asFindingRecord(f: WasteFinding): Record<string, unknown> {
+  return f as unknown as Record<string, unknown>
+}
+
+function numericOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null
+}
+
+/**
+ * The amount a finding contributes to section/category rollups. Honors the
+ * backend's aggregate override (`amount_for_aggregate` — e.g. 0 for
+ * confirmed-case secondary rows, or the cap value for capped findings) and
+ * falls back to `amount` only when no override is present.
+ */
+export function findingAggregateAmount(f: WasteFinding): number {
+  const rec = asFindingRecord(f)
+  const override =
+    numericOrNull(rec["amountForAggregate"]) ??
+    numericOrNull(rec["amount_for_aggregate"])
+  return override ?? f.amount ?? 0
+}
+
+/** Cap value applied to this finding's rollup contribution, if any. */
+export function findingCapApplied(f: WasteFinding): number | null {
+  const rec = asFindingRecord(f)
+  return (
+    numericOrNull(rec["capApplied"]) ?? numericOrNull(rec["cap_applied"])
+  )
+}
+
+/** Sum cap/override-aware exposure across findings for rollup display. */
+export function aggregateAmount(
+  findings: readonly WasteFinding[],
+): number {
+  return findings.reduce((sum, f) => sum + findingAggregateAmount(f), 0)
+}
+
+
+/** Confidence score, tolerating both wire spellings. */
+export function findingConfidenceScore(f: WasteFinding): number {
+  const rec = asFindingRecord(f)
+  return (
+    numericOrNull(rec["confidence_score"]) ??
+    numericOrNull(rec["confidenceScore"]) ??
+    0
+  )
+}
+
+/** Estimated dollar impact, tolerating both wire spellings. */
+export function findingDollarImpact(f: WasteFinding): number | null {
+  const rec = asFindingRecord(f)
+  return (
+    numericOrNull(rec["estimated_dollar_impact"]) ??
+    numericOrNull(rec["estimatedDollarImpact"])
+  )
+}
+
+// ── Timestamp normalization ─────────────────────────────────────────────────
+
+/**
+ * Backend timestamps are UTC but sometimes serialized naive (no `Z` /
+ * offset). `new Date("2026-07-04T20:04:25")` parses as LOCAL time, shifting
+ * the displayed moment by the viewer's UTC offset (and letting "in the
+ * future" artifacts like "-1d ago" appear). Append `Z` when no timezone
+ * marker is present so naive strings are read as the UTC they are.
+ */
+export function normalizeIsoTimestamp(iso: string): string {
+  const s = iso.trim()
+  // Date-only strings ("2026-07-04") already parse as UTC midnight.
+  if (!/[T ]\d{2}:\d{2}/.test(s)) return s
+  // Existing timezone marker (Z or ±hh[:]mm) — leave untouched.
+  if (/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s)) return s
+  return `${s.replace(" ", "T")}Z`
+}
+
+/** Parse a backend timestamp defensively; returns null when unparseable. */
+export function parseWasteTimestamp(
+  iso: string | null | undefined,
+): Date | null {
+  if (!iso) return null
+  const d = new Date(normalizeIsoTimestamp(iso))
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 // ── Dollar formatting ───────────────────────────────────────────────────────
 
 function withCommas(value: number, fractionDigits: number): string {
@@ -944,10 +1041,16 @@ export function mergePersistedRuns(
     mergedFindings.map((f) => f.department).filter((d) => !!d),
   ).size
 
+  // Only fall back to the per-category summary totals when the merge
+  // produced no findings at all (summary-only payloads). Gating per-field on
+  // falsiness would overwrite a legitimate 0 (e.g. zero critical findings
+  // among real findings) with a stale summary count.
+  const useSummaryTotals = mergedFindings.length === 0
+
   const summary: WasteSummaryResponse = {
     ...(latest.response.summary ?? emptySummary()),
-    total_findings: findingsCount || totalFromSummaries.findings,
-    critical_count: criticalCount || totalFromSummaries.critical,
+    total_findings: useSummaryTotals ? totalFromSummaries.findings : findingsCount,
+    critical_count: useSummaryTotals ? totalFromSummaries.critical : criticalCount,
     // We don't know the backend's de-duplicated gross/net math after merging,
     // so report the summed exposure consistently across gross/net/estimated.
     estimated_exposure: totalFromSummaries.amount,

@@ -7,7 +7,13 @@ import type { WasteFinding, WasteDispositionType } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
 import { ConfirmedBadge } from "./confirmed-badge"
 import type { SubGroup } from "./waste-findings-list"
-import { formatDollar, isConfirmedFinding, isConfirmedFraudEntity } from "./waste-utils"
+import {
+  formatDollar,
+  isConfirmedFinding,
+  isConfirmedFraudEntity,
+  aggregateAmount,
+  findingCapApplied,
+} from "./waste-utils"
 
 const ROADMAP_DETECTOR_NAMES = [
   "Address Clustering",
@@ -33,15 +39,12 @@ function stripRoadmapLabel(text: string): string {
 function severityCounts(items: WasteFinding[]) {
   const critCount = items.filter((f) => f.severity?.toLowerCase() === "critical").length
   const highCount = items.filter((f) => f.severity?.toLowerCase() === "high").length
-  // Sum cap-aware amounts so a single capped finding cannot drag the
-  // section total up to its uncapped real exposure. Falls back to
-  // ``amount`` when the backend hasn't populated ``amountForAggregate``
-  // (older payloads, persisted snapshots).
-  const totalAmount = items.reduce(
-    (sum, f) => sum + (f.amountForAggregate ?? f.amount ?? 0),
-    0,
-  )
-  const hasCapped = items.some((f) => (f.capApplied ?? 0) > 0)
+  // Sum cap-aware amounts (shared helper, tolerant of both wire spellings)
+  // so a single capped finding cannot drag the section total up to its
+  // uncapped real exposure. Falls back to ``amount`` when the backend
+  // hasn't populated an aggregate override (older payloads).
+  const totalAmount = aggregateAmount(items)
+  const hasCapped = items.some((f) => (findingCapApplied(f) ?? 0) > 0)
   return { critCount, highCount, totalAmount, hasCapped }
 }
 

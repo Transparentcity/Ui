@@ -26,6 +26,7 @@ import {
   WasteSeymourProvider,
   useWasteSeymour,
 } from "./waste-seymour-context"
+import { parseWasteTimestamp } from "./waste-utils"
 import { WasteSeymourRail } from "./waste-seymour-rail"
 
 type GearLink = {
@@ -112,10 +113,11 @@ function WasteShellInner({
       if (latestRun.status === "running") return "Running…"
       return null
     }
-    const d = new Date(ts)
+    const d = parseWasteTimestamp(ts)
+    if (!d) return null
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
-    const diffDays = Math.floor(diffMs / 86_400_000)
+    const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000))
     const dateStr = d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
