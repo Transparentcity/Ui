@@ -134,6 +134,11 @@ interface CitySocrataConfig {
   // disables it (e.g. Chicago, whose public payroll dataset is a name-only
   // current snapshot with no year/overtime/cross-dept depth — a poor source).
   compEmployeeCol: string
+  // Whether the payroll dataset exposes the SF-shaped detail columns the
+  // payroll drill-through selects (year/hours/overtime/salaries/…). False for
+  // cities like Chicago whose public payroll dataset is a name-only snapshot;
+  // there the drill-through query would 400 (no such column), so it's suppressed.
+  payrollHasDetailColumns: boolean
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -156,6 +161,7 @@ const SF_SOCRATA: CitySocrataConfig = {
   campaignDateCol: "transaction_date",
   campaignRecordTypeFilter: "record_type = 'RCPT'",
   compEmployeeCol: "employee_identifier",
+  payrollHasDetailColumns: true,
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -178,6 +184,7 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   campaignDateCol: "",
   campaignRecordTypeFilter: "",
   compEmployeeCol: "",
+  payrollHasDetailColumns: false,
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -378,6 +385,11 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
 
   // PAYROLL
   if (cat.includes("payroll")) {
+    // Cities whose public payroll dataset lacks the SF-shaped detail columns
+    // (e.g. Chicago's name-only snapshot) have no record set to drill into —
+    // building the query anyway 400s ("no such column"). Skip the button.
+    if (!cfg.payrollHasDetailColumns) return null
+
     const dept = getDepartmentFilter(finding)
     if (!dept) return null
 
