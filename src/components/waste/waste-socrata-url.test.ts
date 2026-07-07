@@ -111,6 +111,21 @@ describe("buildSocrataDetailsUrl", () => {
     expect(url).toContain(encodeURIComponent("overtime desc"))
   })
 
+  it("returns null for Chicago payroll (name-only snapshot lacks the detail columns)", () => {
+    // Chicago's public payroll dataset has no year/hours/overtime columns, so
+    // the SF-shaped drill-through would 400. Suppress the button instead.
+    const url = buildSocrataDetailsUrl(
+      makeFinding({
+        category: "Payroll",
+        subcategory: "Overtime Abuse",
+        tool: "D1 OT-to-Base Ratio",
+        entity: "Fire Department",
+      }),
+      3
+    )
+    expect(url).toBeNull()
+  })
+
   it("builds hours-sorted URL for Hours Feasibility", () => {
     const url = buildSocrataDetailsUrl(makeFinding({
       category: "Payroll",
