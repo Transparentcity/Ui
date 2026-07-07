@@ -4,21 +4,19 @@ import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Building2, Layers, FileText } from "lucide-react"
 
 type ForensicsTab = {
   key: string
   name: string
   href: string
-  icon: React.ComponentType<{ className?: string }>
 }
 
 // Simplified navigation: category browsing is the primary entry point,
 // with department profiles and reports alongside it.
 const FORENSICS_TABS: ForensicsTab[] = [
-  { key: "categories", name: "By category", href: "/waste", icon: Layers },
-  { key: "departments", name: "By department", href: "/waste/departments", icon: Building2 },
-  { key: "reports", name: "Reports", href: "/waste/reports", icon: FileText },
+  { key: "categories", name: "By category", href: "/waste" },
+  { key: "departments", name: "By department", href: "/waste/departments" },
+  { key: "reports", name: "Reports", href: "/waste/reports" },
 ]
 
 interface ForensicsShellProps {
@@ -39,23 +37,22 @@ export function ForensicsShell({ children, title }: ForensicsShellProps) {
 
   return (
     <div>
-      {/* Sub-tab navigation */}
-      <div className="flex items-center gap-0 mb-5 border-b border-gray-200 overflow-x-auto scrollbar-hide -mt-1">
+      {/* Sub-tab navigation: full-width 3-column grid, centered labels, active
+          tab carries a 3px brand underline overlapping the container hairline. */}
+      <div className="grid grid-cols-3 mb-5 border-b border-[#e5e7eb]">
         {FORENSICS_TABS.map((tab) => {
-          const Icon = tab.icon
           const active = isTabActive(tab)
           return (
             <Link
               key={tab.key}
               href={tab.href}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap no-underline border-b-2 transition-colors",
+                "flex items-center justify-center py-3 text-sm text-center whitespace-nowrap no-underline border-b-[3px] -mb-px transition-colors",
                 active
-                  ? "text-purple-700 border-purple-600"
-                  : "text-gray-500 border-transparent hover:text-gray-900 hover:border-gray-300"
+                  ? "text-[#111827] font-semibold border-[#ad35fa]"
+                  : "text-[#6b7280] font-medium border-transparent hover:text-gray-900"
               )}
             >
-              <Icon className="w-3.5 h-3.5" />
               {tab.name}
             </Link>
           )
@@ -63,7 +60,16 @@ export function ForensicsShell({ children, title }: ForensicsShellProps) {
       </div>
 
       {title && (
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">{title}</h2>
+        <h2
+          className="text-lg text-gray-900 mb-4"
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {title}
+        </h2>
       )}
 
       {children}

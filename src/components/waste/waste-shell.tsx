@@ -5,7 +5,8 @@ import Link from "next/link"
 import { useAuth0 } from "@auth0/auth0-react"
 import {
   ShieldAlert,
-  ArrowLeft,
+  ShieldCheck,
+  ChevronDown,
   LogIn,
   MapPin,
   Settings as SettingsIcon,
@@ -27,14 +28,14 @@ import {
 } from "./waste-seymour-context"
 import { WasteSeymourRail } from "./waste-seymour-rail"
 
-type TabItem = {
+type GearLink = {
   key: string
   name: string
   href: string
   icon: React.ComponentType<{ className?: string }>
 }
 
-const GEAR_LINKS: TabItem[] = [
+const GEAR_LINKS: GearLink[] = [
   {
     key: "methodology",
     name: "Methodology",
@@ -85,6 +86,10 @@ function WasteShellInner({
   const { data: latestRun, isLoading: latestRunLoading } =
     useLatestWasteRun(selectedCityId)
   const { open: seymourOpen, toggle: toggleSeymour } = useWasteSeymour()
+
+  const selectedCityEmoji = eligibleCities.find(
+    (c) => Number(c.id) === selectedCityId,
+  )?.emoji
 
   const [gearOpen, setGearOpen] = useState(false)
   const gearRef = useRef<HTMLDivElement | null>(null)
@@ -159,138 +164,71 @@ function WasteShellInner({
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="flex items-center justify-between px-4 lg:px-6 py-2.5">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/home"
-              className="flex items-center gap-2.5 text-inherit no-underline"
-            >
-              <div className="w-5 h-5 shrink-0">
-                <svg
-                  viewBox="0 0 100 100"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="overflow-visible w-full h-full"
-                >
-                  <path
-                    d="M 0 45 Q 0 0, 45 0 L 50 0 L 50 8.333 L 45 8.333 Q 8.333 8.333, 8.333 45 L 8.333 50 L 0 50 Z"
-                    className="fill-gray-900"
-                  />
-                  <path
-                    d="M 100 55 Q 100 100, 55 100 L 50 100 L 50 91.666 L 55 91.666 Q 91.666 91.666, 91.666 55 L 91.666 50 L 100 50 Z"
-                    className="fill-gray-900"
-                  />
-                </svg>
-              </div>
-              <div className="font-bold text-lg whitespace-nowrap">
-                <span className="text-gray-900">Transparent</span>
-                <span className="text-purple-600">.city</span>
-              </div>
-            </Link>
-            <span className="text-gray-300 hidden sm:inline">|</span>
-            <span className="text-sm font-medium text-gray-500 hidden sm:inline">
-              Waste Detection
-            </span>
-            <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200"
-              title="This module is currently admin-only."
-            >
-              Admin
-            </span>
-          </div>
+      {/* ADMIN VIEW banner: centered label flanked by dashed rules, with the
+          admin-tools gear anchored at the right end. */}
+      <div
+        className="relative flex items-center justify-center px-4 lg:px-6 py-2"
+        style={{ backgroundColor: "#f5f0fb" }}
+      >
+        <span
+          className="flex items-center gap-3 text-[12px] font-bold"
+          style={{ color: "#6d28d9", letterSpacing: "0.08em" }}
+        >
+          <span
+            className="hidden sm:block w-16 border-t border-dashed"
+            style={{ borderColor: "#c4b5fd" }}
+            aria-hidden
+          />
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            ADMIN VIEW
+          </span>
+          <span
+            className="hidden sm:block w-16 border-t border-dashed"
+            style={{ borderColor: "#c4b5fd" }}
+            aria-hidden
+          />
+        </span>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-              <WasteCityPicker
-                selectedCityId={selectedCityId}
-                cities={eligibleCities}
-                isLoading={citiesLoading}
-                isFetching={isFetching}
-                onChange={setSelectedCityId}
-              />
-              {lastPullLabel ? (
-                <span
-                  className="text-[11px] text-gray-500 whitespace-nowrap"
-                  title="Most recent data pull"
-                >
-                  Data: {lastPullLabel}
-                </span>
-              ) : latestRun === null && !latestRunLoading ? (
-                <span className="text-[11px] text-amber-500 whitespace-nowrap">
-                  No data yet
-                </span>
-              ) : null}
+        <div
+          className="absolute right-3 lg:right-6 top-1/2 -translate-y-1/2"
+          ref={gearRef}
+        >
+          <button
+            onClick={() => setGearOpen((v) => !v)}
+            className="inline-flex items-center gap-1 h-[26px] px-1.5 rounded-lg bg-white transition-colors"
+            style={{ border: "1px solid rgba(173,53,250,0.35)" }}
+            title="Admin tools"
+            aria-label="Admin tools"
+          >
+            <SettingsIcon className="w-3.5 h-3.5" style={{ color: "#6d28d9" }} />
+            <ChevronDown className="w-3 h-3" style={{ color: "#6d28d9" }} />
+          </button>
+          {gearOpen && (
+            <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+              <WasteRefreshPanel />
+              <div className="my-1 border-t border-gray-100" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Admin tools
+              </p>
+              {GEAR_LINKS.map((g) => {
+                const Icon = g.icon
+                return (
+                  <Link
+                    key={g.key}
+                    href={g.href}
+                    onClick={() => setGearOpen(false)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 no-underline"
+                  >
+                    <Icon className="w-3.5 h-3.5 text-gray-400" />
+                    {g.name}
+                  </Link>
+                )
+              })}
             </div>
-
-            <Link
-              href="/home"
-              className="flex items-center gap-1.5 text-xs text-gray-500 no-underline hover:text-purple-600 transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Main App</span>
-            </Link>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={toggleSeymour}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors",
-                  seymourOpen
-                    ? "bg-purple-50 text-purple-700 border-purple-200"
-                    : "bg-white text-gray-500 border-gray-200 hover:text-purple-700 hover:border-purple-200",
-                )}
-                title={seymourOpen ? "Hide Seymour" : "Ask Seymour"}
-              >
-                {seymourOpen ? (
-                  <Sparkles className="w-3.5 h-3.5" />
-                ) : (
-                  <PanelRightOpen className="w-3.5 h-3.5" />
-                )}
-                Seymour
-              </button>
-
-              <div className="relative" ref={gearRef}>
-                <button
-                  onClick={() => setGearOpen((v) => !v)}
-                  className={cn(
-                    "p-1.5 rounded text-gray-500 hover:text-gray-900 border border-transparent",
-                    gearOpen && "bg-gray-100 border-gray-200",
-                  )}
-                  title="Admin tools"
-                  aria-label="Admin tools"
-                >
-                  <SettingsIcon className="w-4 h-4" />
-                </button>
-                {gearOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
-                    <WasteRefreshPanel />
-                    <div className="my-1 border-t border-gray-100" />
-                    <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                      Admin tools
-                    </p>
-                    {GEAR_LINKS.map((g) => {
-                      const Icon = g.icon
-                      return (
-                        <Link
-                          key={g.key}
-                          href={g.href}
-                          onClick={() => setGearOpen(false)}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 no-underline"
-                        >
-                          <Icon className="w-3.5 h-3.5 text-gray-400" />
-                          {g.name}
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
-      </header>
+      </div>
 
       {/* City list failure: without this banner a 403 (non-admin) or outage
           leaves an empty picker and silently falls back to the default city. */}
@@ -304,20 +242,87 @@ function WasteShellInner({
         </div>
       )}
 
-      {/* Page header */}
+      {/* City header row: emoji tile + city picker (the city heading) on the
+          left; last-pull label + Seymour toggle on the right. */}
       <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">
-              {title}
-            </h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200 px-2.5 py-0.5 text-xs font-medium text-purple-700">
-              <MapPin className="w-3 h-3" />
-              {selectedCityName}
-            </span>
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-xl shrink-0"
+            style={{ backgroundColor: "#f3f4f6" }}
+          >
+            {selectedCityEmoji ? (
+              <span aria-hidden>{selectedCityEmoji}</span>
+            ) : (
+              <MapPin className="w-4 h-4 text-gray-400" />
+            )}
           </div>
+          <WasteCityPicker
+            selectedCityId={selectedCityId}
+            cities={eligibleCities}
+            isLoading={citiesLoading}
+            isFetching={isFetching}
+            onChange={setSelectedCityId}
+          />
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          {lastPullLabel ? (
+            <span
+              className="text-[11px] text-gray-500 whitespace-nowrap"
+              style={{ fontFamily: "var(--font-data)" }}
+              title="Most recent data pull"
+            >
+              Data: {lastPullLabel}
+            </span>
+          ) : latestRun === null && !latestRunLoading ? (
+            <span className="text-[11px] text-amber-500 whitespace-nowrap">
+              No data yet
+            </span>
+          ) : null}
+
+          <button
+            onClick={toggleSeymour}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors",
+              seymourOpen
+                ? "bg-purple-50 text-purple-700 border-purple-200"
+                : "bg-white text-gray-500 border-gray-200 hover:text-purple-700 hover:border-purple-200",
+            )}
+            title={seymourOpen ? "Hide Seymour" : "Ask Seymour"}
+          >
+            {seymourOpen ? (
+              <Sparkles className="w-3.5 h-3.5" />
+            ) : (
+              <PanelRightOpen className="w-3.5 h-3.5" />
+            )}
+            Seymour
+          </button>
+        </div>
+      </div>
+
+      {/* Module head: purple eyebrow, page title, description. */}
+      <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <p
+            className="text-[11.5px] font-bold uppercase"
+            style={{ color: "#ad35fa", letterSpacing: "0.06em" }}
+          >
+            WASTE DETECTION
+          </p>
+          <h1
+            className="text-xl text-gray-900"
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {title}
+          </h1>
           {description && (
-            <p className="mt-0.5 text-sm text-gray-500">{description}</p>
+            <p className="text-[13.5px]" style={{ color: "#6b7280" }}>
+              {description}
+            </p>
           )}
         </div>
         {actions && <div className="flex items-center gap-3">{actions}</div>}

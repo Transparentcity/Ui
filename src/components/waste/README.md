@@ -4,6 +4,21 @@ Admin-only surface for browsing waste/fraud/abuse findings produced by the
 backend detector pipeline. Simplified in July 2026 to three tabs over one
 landing page.
 
+## Shell
+
+The module renders inside the standard app shell. `src/app/waste/layout.tsx`
+wraps every route in `WasteAppShell` (`waste-app-shell.tsx`), which renders the
+shared `/home` `Sidebar` on the left and offsets the content beside it. The rail
+is navigation-only here: its actions route to the `/home` SPA via the deep-link
+query params `/home` consumes on mount (`?city_id=` / `?district=` / `?place_id=`
+for places, `?view=feed|inbox` for the two rail nav items). `WasteShell`
+(`waste-shell.tsx`) is the per-page right column: the ADMIN VIEW banner (which
+carries the admin-tools gear), the city header row (city picker + last-pull
+label + Seymour toggle), and the purple-eyebrow module head, above the tabbed
+content and the persistent Seymour rail. The visual language is a grayscale
+"ledger" (aligned tabular numbers in `--font-data`, headings in `--font-heading`,
+purple reserved for links/actions and the eyebrow).
+
 ## Routes
 
 | Route | Renders |
@@ -29,6 +44,24 @@ Two backend surfaces feed the module:
    result of recent completed runs via `useLatestPersistedWasteResult`.
 2. **Admin read endpoints** (`/api/admin/waste/*`): the city picker
    (`/cities`), and the Reports workpapers (`/reports`, `/reports/{slug}`).
+
+### Load-time performance
+
+Two mechanisms keep `/waste` fast; both live outside this directory:
+
+- **Optimistic city resolution** (`useWasteSelectedCity`): while the city
+  list loads, the stored `waste:selectedCityId` is trusted so the runs /
+  result / key-metric queries start in parallel with the `/cities` fetch.
+- **Cross-visit cache** (`src/lib/wasteQueryPersister.ts`, wired into
+  `src/app/providers.tsx`): an exact allowlist of weekly artifacts — the
+  merged persisted result and the city list — persists to IndexedDB for
+  7 days, so return visits paint from last week's data and revalidate in
+  the background. Mutable state (queue, accuracy, thresholds) is
+  deliberately not persisted. Invariants: bump `WASTE_CACHE_BUSTER` on
+  breaking payload-shape changes; persisted queries keep
+  `gcTime: WASTE_CACHE_MAX_AGE` (an in-memory GC would drop them from disk
+  on the next write); logout calls `clearPersistedWasteCache()` because
+  IndexedDB outlives the localStorage clears.
 
 ### The never-blank merge (`mergePersistedRuns` in `waste-utils.ts`)
 

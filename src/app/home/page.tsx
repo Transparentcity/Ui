@@ -264,6 +264,10 @@ export default function DashboardPage() {
   const autoSelectedCityRef = useRef<{ id: number; name: string; slug: string } | null>(null);
   const hasCheckedOnboarding = useRef(false);
   const hasAutoLandedOnHomePlace = useRef(false);
+  // Set when a `?view=` deep link (e.g. from the waste rail's Inbox nav) has
+  // already pinned the initial view, so the signup/login effect below doesn't
+  // clobber it back to feed.
+  const deepLinkViewApplied = useRef(false);
   const [allUserPlacesLoaded, setAllUserPlacesLoaded] = useState(false);
   const activeCityIdRef = useRef<number | null>(null);
   activeCityIdRef.current = activeCityId;
@@ -508,13 +512,24 @@ export default function DashboardPage() {
     const placeId = placeIdRaw ? parseInt(placeIdRaw, 10) : NaN;
     const wantsNav = Number.isFinite(cityId);
 
-    if (!wantsEmailPrefs && !wantsAddPlace && !wantsNav) return;
+    // `?view=feed|inbox` lets the shared rail (rendered on /waste) land the
+    // user on a specific SPA view. Only the two rail destinations are honored.
+    const viewParam = params.get("view");
+    const wantsView = viewParam === "feed" || viewParam === "inbox";
+
+    if (!wantsEmailPrefs && !wantsAddPlace && !wantsNav && !wantsView) return;
 
     if (wantsEmailPrefs || wantsAddPlace) {
       setPendingNewsletterIntent({
         openSettings: wantsEmailPrefs,
         openAddPlace: wantsAddPlace,
       });
+    }
+
+    if (wantsView) {
+      // Pin the view now and flag it so the signup/login effect leaves it be.
+      deepLinkViewApplied.current = true;
+      setCurrentView(viewParam as ViewType);
     }
 
     if (wantsNav) {
@@ -530,6 +545,7 @@ export default function DashboardPage() {
     params.delete("city_id");
     params.delete("district");
     params.delete("place_id");
+    params.delete("view");
     const nextQuery = params.toString();
     const nextUrl = nextQuery
       ? `${window.location.pathname}?${nextQuery}`
@@ -687,7 +703,11 @@ export default function DashboardPage() {
           trackLogin(user.sub);
         }
         if (cancelled) return;
-        setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
+        setCurrentView((prev) => {
+          // A `?view=` deep link already pinned the initial view — leave it.
+          if (deepLinkViewApplied.current) return prev;
+          return currentActiveCityId != null && prev === "city" ? "city" : "feed";
+        });
         stripSignupQueryFromUrl();
         hasCheckedOnboarding.current = true;
         if (needsWelcome) {
@@ -696,7 +716,11 @@ export default function DashboardPage() {
       } else {
         trackLogin(user.sub);
         if (cancelled) return;
-        setCurrentView((prev) => (currentActiveCityId != null && prev === "city" ? "city" : "feed"));
+        setCurrentView((prev) => {
+          // A `?view=` deep link already pinned the initial view — leave it.
+          if (deepLinkViewApplied.current) return prev;
+          return currentActiveCityId != null && prev === "city" ? "city" : "feed";
+        });
       }
     };
 

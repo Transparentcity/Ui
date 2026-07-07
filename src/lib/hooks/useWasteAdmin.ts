@@ -21,6 +21,7 @@ import {
   type WasteAdminSeverityFilter,
   type WasteAdminSeymourFeed,
 } from "@/lib/api/wasteAdmin";
+import { WASTE_CACHE_MAX_AGE } from "@/lib/wasteQueryPersister";
 
 const STALE_MED = 30_000;
 const STALE_LONG = 5 * 60_000;
@@ -35,6 +36,10 @@ export function useWasteAdminCities() {
     },
     enabled: isAuthenticated,
     staleTime: STALE_LONG,
+    // Persisted to IndexedDB (see wasteQueryPersister.ts); in-memory
+    // lifetime must be >= the persisted maxAge or an in-memory GC would
+    // drop it from disk on the next persist write.
+    gcTime: WASTE_CACHE_MAX_AGE,
     refetchOnWindowFocus: false,
   });
 }

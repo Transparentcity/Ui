@@ -49,11 +49,24 @@ export function useWasteSelectedCity() {
     if (userChoice && eligibleCities.some((c) => c.id === userChoice)) {
       return userChoice
     }
+    // Until the city list has resolved, trust the stored choice
+    // optimistically so the expensive waste queries (runs, result payloads,
+    // key metrics) start in parallel with the city-list fetch instead of
+    // first fetching the default city and then refetching. isPending (no
+    // data and no error yet) rather than isLoading: isLoading is false
+    // while the query is disabled during Auth0 init, which would briefly
+    // resolve to the default city and kick off a wasted wrong-city fetch
+    // on the render where auth completes. If the list later says the
+    // stored id is no longer eligible, the branches below take over and
+    // the queries re-key to an eligible city.
+    if (userChoice && citiesQuery.isPending) {
+      return userChoice
+    }
     if (eligibleCities.length > 0) {
       return eligibleCities[0].id
     }
     return CRM_DEFAULT_CITY_ID
-  }, [userChoice, eligibleCities])
+  }, [userChoice, eligibleCities, citiesQuery.isPending])
 
   const isCityFallback = useMemo(
     () => !eligibleCities.some((c) => c.id === resolvedCityId),

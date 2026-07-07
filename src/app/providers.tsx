@@ -1,7 +1,7 @@
 "use client";
 
 import { Auth0Provider, type AppState } from "@auth0/auth0-react";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -10,6 +10,12 @@ import { Auth0RecoveryProvider } from "@/components/Auth0RecoveryProvider";
 import ProductAnalyticsTracker from "@/components/ProductAnalyticsTracker";
 import { getAuth0ApiAudience } from "@/lib/auth0ApiAudience";
 import { queryClient } from "@/lib/queryClient";
+import {
+  wastePersister,
+  shouldPersistQuery,
+  WASTE_CACHE_BUSTER,
+  WASTE_CACHE_MAX_AGE,
+} from "@/lib/wasteQueryPersister";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -179,13 +185,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
       skipRedirectCallback={skipRedirect}
     >
       <Auth0RecoveryProvider>
-        <QueryClientProvider client={queryClient}>
+        {/* PersistQueryClientProvider = QueryClientProvider + cross-visit
+            persistence. Only waste-module queries are persisted (see
+            shouldPersistQuery); everything else behaves exactly as before. */}
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: wastePersister,
+            buster: WASTE_CACHE_BUSTER,
+            maxAge: WASTE_CACHE_MAX_AGE,
+            dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
+            // Restored queries must outlive the client's default 10-min
+            // gcTime: the persister rewrites the whole entry on every cache
+            // change, so a query GC'd from memory before its hook mounts
+            // would be dropped from disk on the next write.
+            hydrateOptions: {
+              defaultOptions: { queries: { gcTime: WASTE_CACHE_MAX_AGE } },
+            },
+          }}
+        >
           <ProductAnalyticsTracker />
           {children}
           {process.env.NODE_ENV === "development" && (
             <ReactQueryDevtools initialIsOpen={false} />
           )}
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </Auth0RecoveryProvider>
     </Auth0Provider>
   );
