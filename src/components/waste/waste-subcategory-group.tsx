@@ -15,6 +15,11 @@ const ROADMAP_DETECTOR_NAMES = [
   "Entity Validation",
 ]
 
+// Flat, neutral chip for status labels (New / Roadmap) so they don't read as
+// filled color badges competing with the severity text.
+const NEUTRAL_CHIP =
+  "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border border-gray-200 bg-white text-gray-500"
+
 function hasRoadmapLabel(text: string): boolean {
   if (/\(On Roadmap\)/i.test(text)) return true
   const detectorPart = text.split(" - ").pop() ?? ""
@@ -42,23 +47,32 @@ function severityCounts(items: WasteFinding[]) {
 
 function SeverityBadges({ critCount, highCount, totalAmount, hasCapped }: { critCount: number; highCount: number; totalAmount: number; hasCapped?: boolean }) {
   return (
-    <div className="flex items-center gap-1.5 ml-auto">
+    <div className="flex items-center gap-3 ml-auto shrink-0">
       {critCount > 0 && (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700">
+        <span
+          className="text-[12.5px] font-bold tabular-nums"
+          style={{ fontFamily: "var(--font-data)", color: "#dc2626" }}
+        >
           {critCount} crit
         </span>
       )}
       {highCount > 0 && (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">
+        <span
+          className="text-[12.5px] font-bold tabular-nums"
+          style={{ fontFamily: "var(--font-data)", color: "#b45309" }}
+        >
           {highCount} high
         </span>
       )}
       {totalAmount > 0 && (
-        <span className="text-sm font-medium text-gray-600 inline-flex items-center gap-1">
+        <span
+          className="w-[150px] text-right text-[15px] font-bold tabular-nums inline-flex items-center justify-end gap-1"
+          style={{ fontFamily: "var(--font-data)", color: "#111827" }}
+        >
           {formatDollar(totalAmount)}
           {hasCapped && (
             <span
-              className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded"
+              className="text-[10px] font-medium text-gray-500 bg-white border border-gray-200 px-1 rounded"
               title="One or more findings exceed the per-finding cap; section total reflects the capped values."
             >
               capped
@@ -109,11 +123,11 @@ export function WasteSubcategoryGroup({
   const { critCount, highCount, totalAmount, hasCapped } = severityCounts(findings)
 
   return (
-    <div className="mb-4">
-      {/* Subcategory header */}
+    <div>
+      {/* Subcategory header: full-bleed band row */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="flex items-center gap-3 w-full px-4 py-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        className="flex items-center gap-3 w-full px-3 py-2.5 border-t border-[#e5e7eb] bg-[#f8f9fa] hover:bg-gray-100 transition-colors text-left"
       >
         <ChevronRight
           className={cn(
@@ -121,22 +135,29 @@ export function WasteSubcategoryGroup({
             !isCollapsed && "rotate-90"
           )}
         />
-        <span className="font-semibold text-sm text-gray-900">{stripRoadmapLabel(subcategory)}</span>
+        <span
+          className="text-[15px] text-gray-900"
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {stripRoadmapLabel(subcategory)}
+        </span>
         {(isConfirmedFraudEntity(subcategory) || findings.some(isConfirmedFinding)) && (
           <ConfirmedBadge variant="stamp" />
         )}
         {findings.some((f) => f.is_new) && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide">
-            New
-          </span>
+          <span className={NEUTRAL_CHIP}>New</span>
         )}
         {hasRoadmapLabel(subcategory) && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+          <span className={cn(NEUTRAL_CHIP, "gap-0.5")}>
             <MapIcon className="w-2.5 h-2.5" />
             Roadmap
           </span>
         )}
-        <span className="text-xs text-gray-500">
+        <span className="text-[13px]" style={{ color: "#9ca3af" }}>
           {findings.length} finding{findings.length !== 1 ? "s" : ""}
         </span>
         <SeverityBadges critCount={critCount} highCount={highCount} totalAmount={totalAmount} hasCapped={hasCapped} />
@@ -144,7 +165,7 @@ export function WasteSubcategoryGroup({
 
       {/* Content when expanded */}
       {!isCollapsed && (
-        <div className="mt-2 space-y-2 pl-2">
+        <div className="pl-2">
           {subGroups && subGroups.length > 0 ? (
             /* Nested sub-groups (e.g. districts under Permit Fast Tracking) */
             subGroups.map((sg) => {
@@ -174,7 +195,7 @@ export function WasteSubcategoryGroup({
                     />
                   </button>
                   {isSubOpen && (
-                    <div className="mt-1.5 space-y-2 pl-3">
+                    <div className="mt-1.5 pl-3">
                       {sg.findings.map((finding) => (
                         <WasteFindingCard
                           key={finding.id}

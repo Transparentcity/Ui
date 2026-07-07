@@ -23,11 +23,11 @@ export function WasteSeverityFilter({
     medium: findings.filter((f) => f.severity?.toLowerCase() === "medium").length,
   }
 
-  const pills: { key: SeverityFilter; label: string; color: string }[] = [
-    { key: "all", label: "All", color: "gray" },
-    { key: "critical", label: "Critical", color: "red" },
-    { key: "high", label: "High", color: "amber" },
-    { key: "medium", label: "Medium", color: "indigo" },
+  const pills: { key: SeverityFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "critical", label: "Critical" },
+    { key: "high", label: "High" },
+    { key: "medium", label: "Medium" },
   ]
 
   return (
@@ -42,23 +42,20 @@ export function WasteSeverityFilter({
             onClick={() => onFilterChange(isActive && pill.key !== "all" ? "all" : pill.key)}
             className={cn(
               "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
+              // One pill system: active is always neutral-900, regardless of
+              // severity; counts are plain text, not bubble chips.
               isActive
-                ? pill.key === "critical"
-                  ? "bg-red-600 text-white border-red-600"
-                  : pill.key === "high"
-                  ? "bg-amber-500 text-white border-amber-500"
-                  : pill.key === "medium"
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-gray-900 text-white border-gray-900"
-                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                ? "bg-[#111827] text-white border-[#111827]"
+                : "bg-white text-[#374151] border-[#e5e7eb] hover:bg-gray-50"
             )}
           >
             {pill.label}
             <span
               className={cn(
-                "inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold",
-                isActive ? "bg-white/25 text-inherit" : "bg-gray-100 text-gray-600"
+                "text-[11px] tabular-nums",
+                isActive ? "text-white/[0.65]" : "text-[#9ca3af]"
               )}
+              style={{ fontFamily: "var(--font-data)" }}
             >
               {count}
             </span>

@@ -19,7 +19,7 @@ vi.mock("next/link", () => ({
 function activeTabNames() {
   return screen
     .getAllByRole("link")
-    .filter((a) => a.className.includes("border-purple-600"))
+    .filter((a) => a.className.includes("border-[#ad35fa]"))
     .map((a) => a.textContent?.trim())
 }
 

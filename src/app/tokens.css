@@ -82,6 +82,16 @@
   --sidebar-width: 280px;
   --header-height: 64px;
   --bottom-nav-height: 56px;
+
+  /* Typography families.
+   * --font-heading (Archivo) and --font-data (IBM Plex Sans) are loaded via
+   * next/font in src/app/layout.tsx, which sets --font-archivo / --font-ibm-plex
+   * on <html>. These semantic tokens reference those self-hosted families with
+   * graceful fallbacks so components consume the intent, not the raw family. */
+  --font-heading: var(--font-archivo), "Archivo", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-data: var(--font-ibm-plex), "IBM Plex Sans", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 /* Dark Mode Variables */

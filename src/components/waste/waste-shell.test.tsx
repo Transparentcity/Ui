@@ -62,12 +62,11 @@ describe("WasteShell", () => {
     expect(screen.getByText("My description")).toBeInTheDocument()
   })
 
-  it("shows the selected city name as a badge next to the title", () => {
+  it("shows the selected city name as the city header", () => {
     render(<WasteShell title="Workspace">Content</WasteShell>)
-    const badges = screen.getAllByText("San Francisco")
-    expect(badges.length).toBeGreaterThanOrEqual(1)
-    const badge = badges.find((el) => el.className.includes("purple"))
-    expect(badge).toBeInTheDocument()
+    // The city name is carried by the city header row (the picker heading),
+    // not a purple pill beside the title.
+    expect(screen.getAllByText("San Francisco").length).toBeGreaterThanOrEqual(1)
   })
 
   it("shows the city name in the footer", () => {

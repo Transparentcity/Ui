@@ -180,9 +180,11 @@ describe("WasteFindingCard", () => {
   it("renders entity tag visibly (not hidden) on all screen sizes", () => {
     const finding = makeFinding({ entity: "Fire Department" })
     render(<WasteFindingCard finding={finding} isExpanded={false} onToggle={onToggle} />)
-    const entityEl = screen.getByText("Fire Department")
-    expect(entityEl).toBeInTheDocument()
-    expect(entityEl).toBeVisible()
+    // "Fire Department" now appears both as the title's entity segment and the
+    // department chip; both are visible on all screen sizes.
+    const entityEls = screen.getAllByText("Fire Department")
+    expect(entityEls.length).toBeGreaterThan(0)
+    entityEls.forEach((el) => expect(el).toBeVisible())
   })
 })
 

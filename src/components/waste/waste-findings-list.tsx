@@ -187,7 +187,7 @@ export function WasteFindingsList({
   // Flat list for amount sort mode
   if (amountSorted) {
     return (
-      <div className="space-y-2">
+      <div className="border-b border-[#e5e7eb]">
         {amountSorted.map((finding) => (
           <div key={finding.id} className="relative">
             <WasteFindingCard
@@ -210,7 +210,7 @@ export function WasteFindingsList({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="border-b border-[#e5e7eb]">
       {grouped.map((group) => (
         <WasteSubcategoryGroup
           key={group.label}

@@ -64,6 +64,18 @@ const severityConfig = {
   },
 }
 
+// Plain severity text colors for the flattened table row (no filled pills).
+const severityTextColor: Record<string, string> = {
+  critical: "#dc2626",
+  high: "#b45309",
+  medium: "#6b7280",
+}
+
+// Flat, neutral status chip (New / Roadmap / Primary / Earlier run / triangle /
+// consolidated) so informational flags don't read as filled color badges.
+const FLAT_CHIP =
+  "inline-flex items-center shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border border-gray-200 bg-white text-gray-500"
+
 const confidenceConfig = {
   high: {
     icon: ShieldCheck,
@@ -999,6 +1011,7 @@ export function WasteFindingCard({
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
+  const sevColor = severityTextColor[sevKey] ?? severityTextColor.medium
   const confKey = ((finding.confidence ?? "medium").toLowerCase()) as keyof typeof confidenceConfig
   const conf = confidenceConfig[confKey] ?? confidenceConfig.medium
   const ConfIcon = conf.icon
@@ -1295,13 +1308,16 @@ export function WasteFindingCard({
     )
   }
 
+  const displayTitle = stripDetectorCodes(headline)
+  const titleDashIdx = displayTitle.indexOf(" — ")
+
   return (
     <div
       className={cn(
-        "border rounded-lg transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 outline-none",
-        isExpanded ? "shadow-sm border-gray-300" : "border-gray-200 hover:border-gray-300",
-        finding.is_partial_data && "border-l-2 border-l-amber-400"
+        "group bg-white border-t transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-inset outline-none",
+        isExpanded ? "bg-gray-50/40" : "hover:bg-gray-50/60"
       )}
+      style={{ borderColor: "#f3f4f6" }}
       role="button"
       tabIndex={0}
       aria-expanded={isExpanded}
@@ -1313,90 +1329,75 @@ export function WasteFindingCard({
         }
       }}
     >
-      {/* Collapsed row */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        {/* Severity badge */}
+      {/* Collapsed row: severity | title | dept · FY · amount · chevron */}
+      <div className="flex items-center gap-2.5 px-3 py-[11px]">
+        {/* Severity: fixed 40px plain-text column */}
         <span
-          className={cn(
-            "inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0",
-            sev.bg,
-            sev.text
-          )}
+          className="w-10 shrink-0 text-[10.5px] font-extrabold"
+          style={{ letterSpacing: "0.05em", color: sevColor }}
         >
           {sev.label}
         </span>
 
-        {/* Confirmed badge — previously verified case, not a newly surfaced finding */}
+        {/* Status flags (usually none) */}
         {isConfirmedFinding(finding) && <ConfirmedBadge variant="stamp" />}
-
-        {/* NEW badge for Phase 6 detectors */}
         {finding.is_new && !isConfirmedFinding(finding) && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wide shrink-0">
-            New
-          </span>
+          <span className={FLAT_CHIP}>New</span>
         )}
-
-        {/* On Roadmap badge for detectors not yet live */}
         {isOnRoadmap(finding) && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide shrink-0">
+          <span className={cn(FLAT_CHIP, "gap-0.5")}>
             <MapIcon className="w-2.5 h-2.5" />
             Roadmap
           </span>
         )}
-
-        {/* Signal tier badge */}
         {finding.signal_tier === "primary" && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 uppercase tracking-wide shrink-0">
-            Primary
-          </span>
+          <span className={FLAT_CHIP}>Primary</span>
         )}
-
-        {/* Earlier-run fallback badge: surfaced when detectors timed out and merged data came from a prior run */}
         {isCarriedOver && (
-          <span
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 uppercase tracking-wide shrink-0"
-            title={carriedOverTitle}
-          >
+          <span className={cn(FLAT_CHIP, "gap-0.5")} title={carriedOverTitle}>
             <History className="w-2.5 h-2.5" />
             Earlier run
           </span>
         )}
 
-        {/* Fraud triangle coverage — visible on collapsed row so reviewers see convergence at a glance */}
+        {/* Plain-English headline (waste-finding-narrator), split at the first
+            em-dash so the entity reads darker than the qualifying clause. */}
+        <span className="flex-1 min-w-0 truncate text-sm">
+          {titleDashIdx > 0 ? (
+            <>
+              <span style={{ color: "#111827", fontWeight: 650 }}>
+                {displayTitle.slice(0, titleDashIdx)}
+              </span>
+              <span style={{ color: "#6b7280", fontWeight: 400 }}>
+                {displayTitle.slice(titleDashIdx)}
+              </span>
+            </>
+          ) : (
+            <span style={{ color: "#111827", fontWeight: 650 }}>
+              {displayTitle}
+            </span>
+          )}
+        </span>
+
+        {/* Fraud triangle / consolidated flags (large screens) */}
         {triangleLegsPresent > 0 && (
           <span
-            className={cn(
-              "hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide shrink-0 border",
-              triangleLegsPresent >= 3
-                ? "bg-red-50 text-red-700 border-red-200"
-                : "bg-slate-50 text-slate-700 border-slate-200"
-            )}
+            className={cn(FLAT_CHIP, "gap-0.5 hidden md:inline-flex")}
             title={`Fraud triangle: ${triangleLegsPresent} of 3 legs present`}
           >
             <Triangle className="w-2.5 h-2.5" />
             {triangleLegsPresent}/3
           </span>
         )}
-
-        {/* Supporting findings count — signals this is a consolidated/multi-signal finding */}
         {supportingCount > 0 && (
           <span
-            className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wide shrink-0"
+            className={cn(FLAT_CHIP, "gap-0.5 hidden md:inline-flex")}
             title={`Consolidated from ${supportingCount} related finding${supportingCount !== 1 ? "s" : ""}`}
           >
             <Layers className="w-2.5 h-2.5" />
             +{supportingCount}
           </span>
         )}
-
-        {/* Plain-English headline, generated client-side (waste-finding-narrator)
-            so the at-a-glance hook reads clearly for a non-expert. */}
-        <span className="text-sm text-gray-800 font-medium truncate">
-          {stripDetectorCodes(headline)}
-        </span>
-
-        {/* Spacer */}
-        <div className="flex-1" />
 
         {/* Confidence indicator (compact) — hidden for convergence */}
         {isConvergence ? null : (
@@ -1405,25 +1406,31 @@ export function WasteFindingCard({
           </span>
         )}
 
-        {/* Entity tag */}
+        {/* Department chip */}
         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none sm:whitespace-nowrap inline-flex">
           {finding.entity}
         </span>
 
         {/* Fiscal year */}
         {finding.fiscal_year && (
-          <span className="text-[10px] text-gray-500 whitespace-nowrap hidden sm:inline">
+          <span
+            className="text-[11px] font-semibold whitespace-nowrap hidden sm:inline tabular-nums"
+            style={{ fontFamily: "var(--font-data)", color: "#9ca3af" }}
+          >
             FY{finding.fiscal_year}
           </span>
         )}
 
-        {/* Amount */}
+        {/* Amount: fixed 130px right-aligned column */}
         {finding.amount != null && finding.amount > 0 && (
-          <span className="text-sm font-medium text-gray-700 whitespace-nowrap hidden md:inline-flex items-center gap-1">
+          <span
+            className="w-[130px] text-right text-[14px] font-semibold whitespace-nowrap hidden md:inline-flex items-center justify-end gap-1 tabular-nums"
+            style={{ fontFamily: "var(--font-data)", color: "#111827" }}
+          >
             {formatDollar(finding.amount)}
             {finding.capApplied != null && finding.capApplied > 0 && (
               <span
-                className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded"
+                className="text-[10px] font-medium text-gray-500 bg-white border border-gray-200 px-1 rounded"
                 title={`Section totals use a $${(finding.capApplied / 1e6).toFixed(0)}M cap; this finding's real exposure is ${formatDollar(finding.amount)}.`}
               >
                 capped
@@ -1435,15 +1442,15 @@ export function WasteFindingCard({
         {/* Chevron */}
         <ChevronDown
           className={cn(
-            "w-4 h-4 text-gray-500 shrink-0 transition-transform",
+            "w-4 h-4 shrink-0 transition-transform text-[#d1d5db] group-hover:text-gray-500",
             isExpanded && "rotate-180"
           )}
         />
       </div>
 
-      {/* Expanded detail */}
+      {/* Expanded detail: content indented to align with the title column. */}
       {isExpanded && (
-        <div className="px-4 pb-4 pt-1 border-t border-gray-100">
+        <div className="pb-4 pt-2 pr-3 pl-3 md:pl-[62px] border-t border-gray-100">
           {/* Mobile entity + amount */}
           <div className="flex items-center gap-2 mb-2 sm:hidden">
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
@@ -1480,7 +1487,10 @@ export function WasteFindingCard({
                   {whySuspicious(finding) || finding.confidence_reason || ""}
                 </p>
               </div>
-              <p className="text-sm text-gray-700 leading-relaxed">
+              <p
+                className="text-[14px] max-w-[920px]"
+                style={{ lineHeight: 1.55, color: "#374151" }}
+              >
                 {stripDetectorCodes(finding.description)}
               </p>
             </div>
@@ -1546,9 +1556,15 @@ export function WasteFindingCard({
           {/* Data-quality notes — one compact block instead of a stack of
               separate banners (caveat, partial year, cap, carried-over). */}
           {dataNotes.length > 0 && (
-            <div className="flex items-start gap-2 mb-3 p-2 bg-amber-50 border border-amber-100 rounded-md">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <div className="text-xs text-amber-700 space-y-0.5">
+            <div
+              className="flex items-start gap-2 mb-3 p-2.5 rounded-lg"
+              style={{ backgroundColor: "rgba(245,158,11,0.08)" }}
+            >
+              <AlertCircle
+                className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                style={{ color: "#f59e0b" }}
+              />
+              <div className="text-[13px] space-y-0.5" style={{ color: "#92400e" }}>
                 {dataNotes.map((note, i) => (
                   <p key={i}>{note}</p>
                 ))}
@@ -1594,7 +1610,10 @@ export function WasteFindingCard({
 
           {/* Footer: one muted metadata line + actions */}
           <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-gray-50">
-            <p className="text-[11px] text-gray-400 truncate">
+            <p
+              className="text-[12px] truncate tabular-nums"
+              style={{ fontFamily: "var(--font-data)", color: "#9ca3af" }}
+            >
               {[
                 stripRoadmapLabel(finding.tool),
                 finding.id,
@@ -1616,7 +1635,7 @@ export function WasteFindingCard({
                 </span>
               )}
               {isOnRoadmap(finding) && (
-                <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide align-middle">
+                <span className={cn(FLAT_CHIP, "gap-0.5 ml-2 align-middle")}>
                   <MapIcon className="w-2.5 h-2.5" />
                   On Roadmap
                 </span>
@@ -1630,11 +1649,8 @@ export function WasteFindingCard({
               {/* Ask Seymour button */}
               <button
                 onClick={handleAskSeymour}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium",
-                  "bg-violet-50 text-violet-700 border border-violet-200",
-                  "hover:bg-violet-100 hover:border-violet-300 transition-colors"
-                )}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-[filter] hover:brightness-95"
+                style={{ backgroundColor: "rgba(173,53,250,0.1)", color: "#7c3aed" }}
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Ask Seymour
