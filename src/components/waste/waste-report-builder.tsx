@@ -10,6 +10,7 @@ import {
 } from "@/lib/apiClient"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
+import { normalizeWasteCategory } from "./waste-utils"
 import { toast } from "sonner"
 
 type Severity = "critical" | "high" | "medium" | "low"
@@ -131,7 +132,12 @@ export function WasteReportBuilder() {
   const filtered = useMemo(() => {
     const minDollarsNum = minDollars ? Number(minDollars) : null
     return allFindings.filter((f) => {
-      if (!categories.has(f.category as Category)) return false
+      // Findings carry a display-form category ("Payroll & Personnel"); the
+      // filter set holds normalized keys ("payroll"). Normalize before the
+      // membership check or every finding is (wrongly) excluded → 0 selected.
+      if (!categories.has(normalizeWasteCategory(f.category) as Category)) {
+        return false
+      }
       if (severities.size > 0 && !severities.has(f.severity as Severity)) {
         return false
       }
@@ -286,7 +292,7 @@ export function WasteReportBuilder() {
           <select
             value={departmentFilter}
             onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white"
+            className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-900 [color-scheme:light]"
           >
             <option value="">All departments</option>
             {departments.map((d) => (
@@ -307,7 +313,7 @@ export function WasteReportBuilder() {
             value={minDollars}
             onChange={(e) => setMinDollars(e.target.value)}
             placeholder="e.g. 25000"
-            className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white"
+            className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-900 placeholder:text-gray-400 [color-scheme:light]"
           />
         </div>
       </div>
@@ -339,6 +345,11 @@ export function WasteReportBuilder() {
             <span className="text-[11px] text-gray-500">
               Excel uses the auditor template; severity/$ filters are
               CSV/JSON-only for now.
+            </span>
+          )}
+          {filtered.length === 0 && !busy && (
+            <span className="text-[11px] text-amber-600">
+              No findings match these filters — adjust to enable.
             </span>
           )}
           <button
