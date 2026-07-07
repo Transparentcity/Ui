@@ -139,6 +139,12 @@ interface CitySocrataConfig {
   // cities like Chicago whose public payroll dataset is a name-only snapshot;
   // there the drill-through query would 400 (no such column), so it's suppressed.
   payrollHasDetailColumns: boolean
+  // Extra WHERE predicate for payroll/integrity drill-throughs, or "" for none.
+  // SF's compensation dataset (88g8-5mnd) stores two rows per employee per year
+  // (year_type 'Fiscal' and 'Calendar'); without pinning one, the details table
+  // shows every employee twice with slightly different numbers. Findings are
+  // labeled in fiscal-year terms ("FY 2025"), so SF pins year_type = 'Fiscal'.
+  payrollYearTypeFilter: string
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -162,6 +168,7 @@ const SF_SOCRATA: CitySocrataConfig = {
   campaignRecordTypeFilter: "record_type = 'RCPT'",
   compEmployeeCol: "employee_identifier",
   payrollHasDetailColumns: true,
+  payrollYearTypeFilter: "year_type = 'Fiscal'",
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -185,6 +192,7 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   campaignRecordTypeFilter: "",
   compEmployeeCol: "",
   payrollHasDetailColumns: false,
+  payrollYearTypeFilter: "",
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -395,7 +403,12 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
 
     const select =
       "year,employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
-    const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
+    const baseWhere = [
+      `upper(department) like upper('%${dept}%') and hours > 0`,
+      cfg.payrollYearTypeFilter,
+    ]
+      .filter(Boolean)
+      .join(" and ")
 
     if (sub === "Comp Time Manipulation") {
       const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
@@ -591,7 +604,12 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
     )
     if (!employee) return null
     const select = `year,department,${cfg.compEmployeeCol},job,salaries,overtime,total_salary`
-    const where = `upper(${cfg.compEmployeeCol}) like upper('%${employee}%')`
+    const where = [
+      `upper(${cfg.compEmployeeCol}) like upper('%${employee}%')`,
+      cfg.payrollYearTypeFilter,
+    ]
+      .filter(Boolean)
+      .join(" and ")
     return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
   }
 
