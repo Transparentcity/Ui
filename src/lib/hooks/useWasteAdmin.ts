@@ -26,13 +26,19 @@ import { WASTE_CACHE_MAX_AGE } from "@/lib/wasteQueryPersister";
 const STALE_MED = 30_000;
 const STALE_LONG = 5 * 60_000;
 
+// The admin cities endpoint has been intermittently exceeding the gateway's
+// ~60s proxy timeout (504). Cap it client-side so the picker fails fast with a
+// retryable error instead of a minute-long spinner, and keep retries low so a
+// slow endpoint can't stack multiple full-length waits.
+const CITIES_TIMEOUT_MS = 20_000;
+
 export function useWasteAdminCities() {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   return useQuery<WasteAdminCityRow[]>({
     queryKey: ["waste-admin", "cities"],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
-      return listWasteAdminCities(token);
+      return listWasteAdminCities(token, CITIES_TIMEOUT_MS);
     },
     enabled: isAuthenticated,
     staleTime: STALE_LONG,
@@ -41,6 +47,7 @@ export function useWasteAdminCities() {
     // drop it from disk on the next persist write.
     gcTime: WASTE_CACHE_MAX_AGE,
     refetchOnWindowFocus: false,
+    retry: 1,
   });
 }
 

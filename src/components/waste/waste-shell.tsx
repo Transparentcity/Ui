@@ -83,6 +83,7 @@ function WasteShellInner({
     cityLoadError,
     setSelectedCityId,
     selectedCityName,
+    refetchCities,
   } = useWasteCity()
   const { data: latestRun, isLoading: latestRunLoading } =
     useLatestWasteRun(selectedCityId)
@@ -235,12 +236,23 @@ function WasteShellInner({
       {/* City list failure: without this banner a 403 (non-admin) or outage
           leaves an empty picker and silently falls back to the default city. */}
       {cityLoadError && !citiesLoading && (
-        <div className="bg-red-50 border-b border-red-200 px-4 lg:px-6 py-2">
+        <div className="bg-red-50 border-b border-red-200 px-4 lg:px-6 py-2 flex items-center justify-between gap-3">
           <p className="text-xs text-red-700">
             {(cityLoadError as { status?: number }).status === 403
               ? "Your account doesn't have admin access to the waste module, so the city list can't be loaded."
               : `Couldn't load the waste city list: ${cityLoadError.message}. Data shown below may be for the wrong city.`}
           </p>
+          {(cityLoadError as { status?: number }).status !== 403 && (
+            <button
+              type="button"
+              onClick={() => {
+                void refetchCities()
+              }}
+              className="shrink-0 text-xs font-semibold text-red-700 underline hover:text-red-800"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 

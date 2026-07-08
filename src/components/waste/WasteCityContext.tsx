@@ -18,6 +18,8 @@ interface WasteCityContextValue {
   /** Slug of the selected city, or null while the city list is loading or
    *  when the selected id isn't in the eligible list. */
   selectedCitySlug: string | null
+  /** Re-run the city-list query (used by the error banner's Retry). */
+  refetchCities: () => Promise<unknown>
 }
 
 const WasteCityCtx = createContext<WasteCityContextValue | null>(null)
