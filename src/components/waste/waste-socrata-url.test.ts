@@ -164,6 +164,27 @@ describe("buildSocrataDetailsUrl", () => {
     expect(url).toContain(encodeURIComponent("other_salaries / salaries"))
   })
 
+  it("pins year_type = 'Fiscal' on every SF payroll drill-through (dataset has Fiscal+Calendar rows per employee)", () => {
+    const subcategories = [
+      "Comp Time Manipulation",
+      "Hours Feasibility",
+      "Impossibility Check",
+      "Overtime Abuse",
+      "Pension Spiking Alert",
+    ]
+    for (const subcategory of subcategories) {
+      const url = buildSocrataDetailsUrl(
+        makeFinding({
+          category: "Payroll",
+          subcategory,
+          entity: "Fire Department",
+        }),
+        1
+      )!
+      expect(decodeURIComponent(url), subcategory).toContain("year_type = 'Fiscal'")
+    }
+  })
+
   it("strips parenthetical from entity for payroll department filter", () => {
     const url = buildSocrataDetailsUrl(makeFinding({
       category: "Payroll",
@@ -598,6 +619,9 @@ describe("buildSocrataDetailsUrl — integrity", () => {
     expect(url).toContain("88g8-5mnd") // SF compensation dataset
     expect(dec).toContain("upper(employee_identifier) like upper('%Mary Tse%')")
     expect(dec).toContain("department") // cross-dept visibility
+    // SF's compensation dataset carries Fiscal + Calendar rows per employee per
+    // year; pin one so the table doesn't show every employee twice.
+    expect(dec).toContain("year_type = 'Fiscal'")
   })
 
   it("returns null for Chicago integrity (snapshot dataset is a poor source)", () => {

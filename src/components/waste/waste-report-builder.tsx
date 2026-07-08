@@ -11,6 +11,7 @@ import {
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
 import { normalizeWasteCategory } from "./waste-utils"
+import { csvCell } from "@/lib/waste/report-csv"
 import { toast } from "sonner"
 
 type Severity = "critical" | "high" | "medium" | "low"
@@ -63,15 +64,6 @@ const FINDING_FIELDS: Array<keyof WasteFinding> = [
   "is_partial_data",
   "is_new",
 ]
-
-function csvCell(v: unknown): string {
-  if (v == null) return ""
-  const s = typeof v === "string" ? v : JSON.stringify(v)
-  if (/[",\n]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
 
 function buildCsv(rows: WasteFinding[]): string {
   const header = FINDING_FIELDS.join(",")

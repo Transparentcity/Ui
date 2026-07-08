@@ -26,6 +26,7 @@ import {
   WasteSeymourProvider,
   useWasteSeymour,
 } from "./waste-seymour-context"
+import { parseWasteTimestamp } from "./waste-utils"
 import { WasteSeymourRail } from "./waste-seymour-rail"
 
 type GearLink = {
@@ -82,6 +83,7 @@ function WasteShellInner({
     cityLoadError,
     setSelectedCityId,
     selectedCityName,
+    refetchCities,
   } = useWasteCity()
   const { data: latestRun, isLoading: latestRunLoading } =
     useLatestWasteRun(selectedCityId)
@@ -112,10 +114,11 @@ function WasteShellInner({
       if (latestRun.status === "running") return "Running…"
       return null
     }
-    const d = new Date(ts)
+    const d = parseWasteTimestamp(ts)
+    if (!d) return null
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
-    const diffDays = Math.floor(diffMs / 86_400_000)
+    const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000))
     const dateStr = d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -233,12 +236,23 @@ function WasteShellInner({
       {/* City list failure: without this banner a 403 (non-admin) or outage
           leaves an empty picker and silently falls back to the default city. */}
       {cityLoadError && !citiesLoading && (
-        <div className="bg-red-50 border-b border-red-200 px-4 lg:px-6 py-2">
+        <div className="bg-red-50 border-b border-red-200 px-4 lg:px-6 py-2 flex items-center justify-between gap-3">
           <p className="text-xs text-red-700">
             {(cityLoadError as { status?: number }).status === 403
               ? "Your account doesn't have admin access to the waste module, so the city list can't be loaded."
               : `Couldn't load the waste city list: ${cityLoadError.message}. Data shown below may be for the wrong city.`}
           </p>
+          {(cityLoadError as { status?: number }).status !== 403 && (
+            <button
+              type="button"
+              onClick={() => {
+                void refetchCities()
+              }}
+              className="shrink-0 text-xs font-semibold text-red-700 underline hover:text-red-800"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 

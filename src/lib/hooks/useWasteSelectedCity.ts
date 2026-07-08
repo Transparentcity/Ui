@@ -104,5 +104,7 @@ export function useWasteSelectedCity() {
     cityLoadError: citiesQuery.error as Error | null,
     isCityFallback,
     setSelectedCityId,
+    /** Re-run the city-list query (e.g. from the error banner's Retry). */
+    refetchCities: citiesQuery.refetch,
   }
 }

@@ -139,6 +139,12 @@ interface CitySocrataConfig {
   // cities like Chicago whose public payroll dataset is a name-only snapshot;
   // there the drill-through query would 400 (no such column), so it's suppressed.
   payrollHasDetailColumns: boolean
+  // Extra WHERE predicate for payroll/integrity drill-throughs, or "" for none.
+  // SF's compensation dataset (88g8-5mnd) stores two rows per employee per year
+  // (year_type 'Fiscal' and 'Calendar'); without pinning one, the details table
+  // shows every employee twice with slightly different numbers. Findings are
+  // labeled in fiscal-year terms ("FY 2025"), so SF pins year_type = 'Fiscal'.
+  payrollYearTypeFilter: string
 }
 
 const SF_SOCRATA: CitySocrataConfig = {
@@ -162,6 +168,7 @@ const SF_SOCRATA: CitySocrataConfig = {
   campaignRecordTypeFilter: "record_type = 'RCPT'",
   compEmployeeCol: "employee_identifier",
   payrollHasDetailColumns: true,
+  payrollYearTypeFilter: "year_type = 'Fiscal'",
 }
 
 const CHICAGO_SOCRATA: CitySocrataConfig = {
@@ -185,6 +192,7 @@ const CHICAGO_SOCRATA: CitySocrataConfig = {
   campaignRecordTypeFilter: "",
   compEmployeeCol: "",
   payrollHasDetailColumns: false,
+  payrollYearTypeFilter: "",
 }
 
 const SF_CITY_IDS = new Set([1, 2, 56837])
@@ -200,7 +208,10 @@ interface WasteFindingCardProps {
   isExpanded: boolean
   onToggle: () => void
   onAskSeymour?: (finding: WasteFinding) => void
-  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onDispose?: (
+    finding: WasteFinding,
+    disposition: WasteDispositionType,
+  ) => void | Promise<void>
   onSkip?: (finding: WasteFinding) => void
   cityId?: number
   isCarriedOver?: boolean
@@ -395,7 +406,12 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
 
     const select =
       "year,employee_identifier,job,hours,salaries,overtime,other_salaries,total_salary"
-    const baseWhere = `upper(department) like upper('%${dept}%') and hours > 0`
+    const baseWhere = [
+      `upper(department) like upper('%${dept}%') and hours > 0`,
+      cfg.payrollYearTypeFilter,
+    ]
+      .filter(Boolean)
+      .join(" and ")
 
     if (sub === "Comp Time Manipulation") {
       const where = `${baseWhere} and salaries > 10000 and other_salaries > 0 and (other_salaries / salaries) > 0.30`
@@ -591,7 +607,12 @@ export function buildSocrataDetailsUrl(finding: WasteFinding, cityId?: number): 
     )
     if (!employee) return null
     const select = `year,department,${cfg.compEmployeeCol},job,salaries,overtime,total_salary`
-    const where = `upper(${cfg.compEmployeeCol}) like upper('%${employee}%')`
+    const where = [
+      `upper(${cfg.compEmployeeCol}) like upper('%${employee}%')`,
+      cfg.payrollYearTypeFilter,
+    ]
+      .filter(Boolean)
+      .join(" and ")
     return `${PAYROLL}?$select=${encodeURIComponent(select)}&$where=${encodeURIComponent(where)}&$order=${encodeURIComponent("year desc, total_salary desc")}&$limit=${PAYROLL_FETCH_LIMIT}`
   }
 
@@ -1059,8 +1080,18 @@ export function WasteFindingCard({
     )
   }
   if (isCarriedOver) dataNotes.push(carriedOverTitle)
+  // Rehydrate triage state from the backend's latest_disposition
+  // ({ disposition, created_at }) so a finding already triaged in a prior
+  // session doesn't render Flag/Dismiss again (re-dismissing the same finding
+  // week after week corrupts the detector's precision counters).
+  const priorDisposition = (
+    (finding as unknown as Record<string, unknown>)["latest_disposition"] as
+      | { disposition?: string }
+      | null
+      | undefined
+  )?.disposition
   const [triaged, setTriaged] = useState<WasteDispositionType | "skipped" | null>(
-    null,
+    (priorDisposition as WasteDispositionType | undefined) ?? null,
   )
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
@@ -1590,8 +1621,13 @@ export function WasteFindingCard({
           {onDispose && finding.db_id != null && triaged == null && (
             <QuickDisposition
               onDispose={(disposition) => {
+                // Optimistically show the confirmation, but roll back to the
+                // buttons if the write fails (e.g. a stale db_id from cache or
+                // a 403) so the verdict isn't silently lost.
                 setTriaged(disposition)
-                onDispose(finding, disposition)
+                Promise.resolve(onDispose(finding, disposition)).catch(() => {
+                  setTriaged(null)
+                })
               }}
               onSkip={
                 onSkip

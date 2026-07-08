@@ -28,7 +28,10 @@ export type FindingSortMode = "severity" | "amount"
 interface WasteFindingsListProps {
   findings: WasteFinding[]
   onAskSeymour?: (finding: WasteFinding) => void
-  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onDispose?: (
+    finding: WasteFinding,
+    disposition: WasteDispositionType,
+  ) => void | Promise<void>
   onSkip?: (finding: WasteFinding) => void
   sortMode?: FindingSortMode
   cityId?: number

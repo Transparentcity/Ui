@@ -131,8 +131,17 @@ export interface WasteAdminSeymourFeed {
   suggested_investigations: WasteAdminSeymourSuggestion[];
 }
 
-export function listWasteAdminCities(token: string): Promise<WasteAdminCityRow[]> {
-  return request<WasteAdminCityRow[]>("/api/admin/waste/cities", "GET", undefined, token);
+export function listWasteAdminCities(
+  token: string,
+  timeoutMs?: number,
+): Promise<WasteAdminCityRow[]> {
+  return request<WasteAdminCityRow[]>(
+    "/api/admin/waste/cities",
+    "GET",
+    undefined,
+    token,
+    timeoutMs ? { timeoutMs } : undefined,
+  );
 }
 
 export function listWasteAdminDetectors(
