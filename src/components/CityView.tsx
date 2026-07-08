@@ -7,7 +7,7 @@ import CityHeader from "@/components/CityHeader";
 import MetricDateRangeSelector from "@/components/MetricDateRangeSelector";
 import DistrictNavigation from "@/components/DistrictNavigation";
 import AnomaliesTabPanel from "@/components/AnomaliesTabPanel";
-import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative } from "@/lib/hooks/useCities";
+import { useCity, useSavedCities, useSaveCity, useUnsaveCity, useCityLeaders, useRepresentativeFollowerCounts, usePublicCityDistricts, useRepresentativeFollows, useFollowRepresentative, useUnfollowRepresentative, useLeanLeaders, useBoundarySketch } from "@/lib/hooks/useCities";
 import type { CityLeader } from "@/lib/apiClient";
 import {
   listMyPlaces,
@@ -2134,7 +2134,7 @@ export default function CityView({
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | null>(initialPlaceId ?? null);
   // Pre-seed with the label passed from the parent so the name renders immediately
   // before listMyPlaces resolves. The real API response replaces this on load.
-  const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number }[]>(() => {
+  const [userPlaces, setUserPlaces] = useState<{ id: number; label: string; city_id: number; lat?: number; lng?: number; radius_m?: number; district?: number | null }[]>(() => {
     if (initialPlaceId && initialPlaceLabel) {
       return [{ id: initialPlaceId, label: initialPlaceLabel, city_id: cityId }];
     }
@@ -2211,6 +2211,12 @@ export default function CityView({
   const unfollowMutation = useUnfollowRepresentative(cityId ?? null);
   const { data: publicCityDistricts = [] } = usePublicCityDistricts(cityId, { enabled: !!cityId && cityLoaded });
 
+  // Fast lean leaders (public, no auth) — available before the heavy structure/shapefile load.
+  const { data: leanLeaders = [] } = useLeanLeaders(cityId, { enabled: !!cityId });
+
+  // Simplified boundary sketch for the hero mini-map (public, 24h cache).
+  const { data: boundarySketch = null } = useBoundarySketch(cityId, { enabled: !!cityId });
+
   const geographicUnitLabel = useMemo(
     () => resolveGeographicUnitLabel(mapLeaders, cityData?.geographic_structures),
     [mapLeaders, cityData?.geographic_structures],
@@ -2253,11 +2259,13 @@ export default function CityView({
   const briefingComparisonsLoading =
     selectedPlaceId != null ? briefingPlaceLoading : briefingBatchLoading;
 
-  // District containing the selected place (point-in-polygon over loaded
-  // shapefiles) so the briefing can show the place's district rep.
+  // District containing the selected place.
+  // Fast path: use the district persisted server-side on the place row.
+  // Fallback: client-side point-in-polygon (for places saved before migration).
   const briefingPlaceDistrict = useMemo(() => {
     if (selectedPlaceId == null) return null;
     const place = userPlaces.find((p) => p.id === selectedPlaceId);
+    if (place?.district != null) return place.district;
     const lat = place?.lat ?? initialPlaceGps?.lat;
     const lng = place?.lng ?? initialPlaceGps?.lng;
     if (lat == null || lng == null || mapShapefiles.length === 0) return null;
@@ -2313,6 +2321,30 @@ export default function CityView({
     });
   }, [mapLeaders, syntheticLeadersFromDistricts]);
 
+  /**
+   * Leaders for the briefing header: uses lean public leaders (fast, no auth)
+   * until the full city structure loads, then switches to mapLeaders.
+   * `effectiveLeaders` (which may lag) continues to be used for the scope
+   * selector and map tab which need the full data.
+   */
+  const briefingEffectiveLeaders = useMemo(() => {
+    const base = mapLeaders.length > 0 ? mapLeaders : (leanLeaders as CityLeader[]);
+    if (syntheticLeadersFromDistricts.length === 0) return base;
+    if (base.length === 0) return syntheticLeadersFromDistricts;
+    const baseDistricts = new Set(
+      base.map((l) => (l.district === null || l.district === undefined ? 0 : l.district)),
+    );
+    const extras = syntheticLeadersFromDistricts.filter(
+      (s) => s.district != null && !baseDistricts.has(s.district),
+    );
+    if (extras.length === 0) return base;
+    return [...base, ...extras].sort((a, b) => {
+      const da = a.district === null || a.district === undefined ? 0 : a.district;
+      const db = b.district === null || b.district === undefined ? 0 : b.district;
+      return da - db;
+    });
+  }, [mapLeaders, leanLeaders, syntheticLeadersFromDistricts]);
+
   // Compute mayor subtitle for the hero header (e.g. "Mayor: Daniel Lurie")
   const heroSubtitle = useMemo(() => {
     const mayor = effectiveLeaders.find((l) => {
@@ -2350,6 +2382,7 @@ export default function CityView({
               lat: p.lat,
               lng: p.lng,
               radius_m: p.radius_m,
+              district: p.district ?? null,
             }))
           );
           setLastPlaceRefreshAt(res.place_refresh_last_run_at ?? null);
@@ -2931,12 +2964,16 @@ export default function CityView({
             selectedDistrict={selectedDistrict}
             selectedPlaceId={selectedPlaceId}
             placeDistrict={briefingPlaceDistrict}
+            sketch={boundarySketch}
+            placeLat={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.lat ?? null) : null}
+            placeLng={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.lng ?? null) : null}
+            placeRadiusM={selectedPlaceId != null ? (userPlaces.find((p) => p.id === selectedPlaceId)?.radius_m ?? null) : null}
             metrics={briefingMetrics}
             comparisonsMap={briefingComparisonsMap ?? {}}
             comparisonsLoading={briefingComparisonsLoading}
             comparisonType={briefingComparisonType}
             onComparisonTypeChange={setBriefingComparisonType}
-            leaders={effectiveLeaders}
+            leaders={briefingEffectiveLeaders}
             isFollowing={isFollowed}
             followPending={followPending}
             onFollowToggle={handleHeaderFollowToggle}

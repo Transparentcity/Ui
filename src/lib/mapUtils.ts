@@ -396,3 +396,113 @@ export function buildStaticMapUrl(
   const style = theme === "dark" ? "mapbox/dark-v11" : "mapbox/light-v11";
   return `https://api.mapbox.com/styles/v1/${style}/static/geojson(${encoded})/${lng},${lat},${effectiveZoom}/${width}x${height}@2x?access_token=${token}`;
 }
+
+/** WGS84 bounding box for static Mapbox images. */
+export interface MapBbox {
+  min_lng: number;
+  min_lat: number;
+  max_lng: number;
+  max_lat: number;
+}
+
+/** Pad a bbox by a fraction of its span on each side. */
+export function padMapBbox(bbox: MapBbox, fraction = 0.08): MapBbox {
+  const lngSpan = bbox.max_lng - bbox.min_lng || 0.01;
+  const latSpan = bbox.max_lat - bbox.min_lat || 0.01;
+  const lngPad = lngSpan * fraction;
+  const latPad = latSpan * fraction;
+  return {
+    min_lng: bbox.min_lng - lngPad,
+    min_lat: bbox.min_lat - latPad,
+    max_lng: bbox.max_lng + lngPad,
+    max_lat: bbox.max_lat + latPad,
+  };
+}
+
+// ── Web Mercator helpers (normalized 0..1 world coordinates) ──────────────
+// Mapbox renders in Web Mercator; overlays must project in the same space
+// or shapes appear stretched vertically/horizontally.
+
+export function lngToMercX(lng: number): number {
+  return (lng + 180) / 360;
+}
+
+export function latToMercY(lat: number): number {
+  const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const rad = (clamped * Math.PI) / 180;
+  return (1 - Math.log(Math.tan(Math.PI / 4 + rad / 2)) / Math.PI) / 2;
+}
+
+export function mercXToLng(x: number): number {
+  return x * 360 - 180;
+}
+
+export function mercYToLat(y: number): number {
+  return (180 / Math.PI) * (2 * Math.atan(Math.exp(Math.PI * (1 - 2 * y))) - Math.PI / 2);
+}
+
+/**
+ * Expand a bbox (in Mercator space, centered) so its aspect ratio matches
+ * `aspect` (width / height). This mirrors what the Mapbox Static Images API
+ * does when fitting a bounding box into an image, so an SVG overlay projected
+ * with the returned bbox aligns pixel-perfect with the basemap.
+ */
+export function fitBboxToAspect(bbox: MapBbox, aspect: number): MapBbox {
+  const x0 = lngToMercX(bbox.min_lng);
+  const x1 = lngToMercX(bbox.max_lng);
+  const yTop = latToMercY(bbox.max_lat);
+  const yBottom = latToMercY(bbox.min_lat);
+  let xSpan = x1 - x0 || 1e-9;
+  let ySpan = yBottom - yTop || 1e-9;
+  const cx = (x0 + x1) / 2;
+  const cy = (yTop + yBottom) / 2;
+  if (xSpan / ySpan > aspect) {
+    ySpan = xSpan / aspect;
+  } else {
+    xSpan = ySpan * aspect;
+  }
+  return {
+    min_lng: mercXToLng(cx - xSpan / 2),
+    max_lng: mercXToLng(cx + xSpan / 2),
+    max_lat: mercYToLat(cy - ySpan / 2),
+    min_lat: mercYToLat(cy + ySpan / 2),
+  };
+}
+
+/** Compute bbox from an array of GeoJSON outer rings [[lng, lat], …]. */
+export function bboxFromRings(rings: [number, number][][]): MapBbox {
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const ring of rings) {
+    for (const [lng, lat] of ring) {
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    }
+  }
+  return { min_lng: minLng, min_lat: minLat, max_lng: maxLng, max_lat: maxLat };
+}
+
+/**
+ * Mapbox Static Images URL for a basemap cropped to a bounding box (no overlay).
+ * Used as the street layer beneath SVG district overlays in the overview hero.
+ */
+export function buildBasemapStaticUrl(
+  bbox: MapBbox,
+  width = 800,
+  height = 320,
+  theme: "light" | "dark" = "light",
+  paddingFraction = 0.06
+): string | null {
+  const token =
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : undefined;
+  if (!token) return null;
+
+  const padded = padMapBbox(bbox, paddingFraction);
+  const style = theme === "dark" ? "mapbox/dark-v11" : "mapbox/light-v11";
+  const bboxParam = `[${padded.min_lng},${padded.min_lat},${padded.max_lng},${padded.max_lat}]`;
+  return `https://api.mapbox.com/styles/v1/${style}/static/${bboxParam}/${width}x${height}@2x?access_token=${token}`;
+}

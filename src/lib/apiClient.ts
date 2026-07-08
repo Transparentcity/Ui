@@ -449,6 +449,31 @@ export function getPopulationMetricId(cityId: number, token: string): Promise<Po
   return request<PopulationMetricIdResult>(`/api/admin/population/sources/${cityId}/metric-id`, "GET", undefined, token);
 }
 
+// ---------------------------------------------------------------------------
+// Boundary sketch — simplified district rings for the overview mini-map
+// ---------------------------------------------------------------------------
+
+/** One district's simplified rings from the boundary-sketch endpoint. */
+export interface BoundarySketchDistrict {
+  district_id: number;
+  /** Outer coordinate rings [[lng, lat], …]. One per polygon part. */
+  rings: [number, number][][];
+}
+
+export interface BoundarySketchBbox {
+  min_lng: number;
+  min_lat: number;
+  max_lng: number;
+  max_lat: number;
+}
+
+export interface BoundarySketch {
+  districts: BoundarySketchDistrict[];
+  /** Whole-city boundary (union of districts) — outer rings [[lng, lat], …]. */
+  outline?: [number, number][][] | null;
+  bbox: BoundarySketchBbox | null;
+}
+
 export function getCityStructure(cityId: number, token: string): Promise<CityStructureData> {
   const now = Date.now();
   const cacheKey = cityId;
@@ -3210,6 +3235,8 @@ export interface UserPlace {
   lat: number;
   lng: number;
   radius_m: number;
+  /** District number resolved server-side at place save time (null for places saved before migration). */
+  district?: number | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -3511,6 +3538,7 @@ export interface LeaderForClaim {
   name: string;
   title: string;
   district: number | null;
+  geographic_structure_id?: number | null;
 }
 
 export interface ClaimResponse {

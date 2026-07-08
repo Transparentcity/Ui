@@ -12,11 +12,12 @@ import {
   type InboxItem,
 } from "@/lib/apiClient";
 import type { CityLeader } from "@/lib/apiClient";
+import type { BoundarySketch } from "@/lib/publicApiClient";
+import MiniScopeMap from "@/components/MiniScopeMap";
 import { useFeedStories } from "@/lib/hooks/useFeed";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
 import type { MoverMetricInput } from "@/lib/metrics/rankMetricMovers";
-import { rankMetricMovers } from "@/lib/metrics/rankMetricMovers";
 import MoversList from "@/components/MoversList";
 import InboxCard from "@/components/InboxCard";
 import InboxItemView from "@/components/InboxItemView";
@@ -37,6 +38,14 @@ interface BriefingHomeProps {
   /** District containing the selected place (resolved from shapefiles), so
    *  place-scope briefings can show the district rep in Accountable here. */
   placeDistrict?: number | null;
+  /** Simplified district boundary rings for the mini-map. */
+  sketch?: BoundarySketch | null;
+  /** Saved place lat for the mini-map circle. */
+  placeLat?: number | null;
+  /** Saved place lng for the mini-map circle. */
+  placeLng?: number | null;
+  /** Saved place radius in metres for the mini-map circle. */
+  placeRadiusM?: number | null;
   metrics: MoverMetricInput[];
   /** Comparisons for the current scope keyed by metric id (batch response shape). */
   comparisonsMap: Record<number, Partial<Record<ComparisonType, import("@/lib/apiClient").ComparisonResponse>> | undefined>;
@@ -253,6 +262,10 @@ export default function BriefingHome({
   selectedDistrict,
   selectedPlaceId,
   placeDistrict = null,
+  sketch = null,
+  placeLat = null,
+  placeLng = null,
+  placeRadiusM = null,
   metrics,
   comparisonsMap,
   comparisonsLoading,
@@ -330,18 +343,6 @@ export default function BriefingHome({
     ? stories.slice(0, 15)
     : stories.slice(0, STORIES_INITIAL_LIMIT);
 
-  // ── Movers summary for hero chip ──────────────────────────────────────
-  const moversCount = useMemo(() => {
-    const { summary } = rankMetricMovers({
-      metrics,
-      comparisonsMap,
-      comparisonType,
-      recencyAnchor,
-      limit: 0,
-    });
-    return summary.worsening + summary.improving;
-  }, [metrics, comparisonsMap, comparisonType, recencyAnchor]);
-
   // ── Prior editions (inline inbox) ─────────────────────────────────────
   const {
     data: inboxData,
@@ -391,18 +392,14 @@ export default function BriefingHome({
     return rows;
   }, [leaders, district, isPlaceScope, placeDistrict]);
 
-  // ── Recency line ──────────────────────────────────────────────────────
-  const recencyLine = useMemo(() => {
+  // ── Recency date (only shown inside the "N new" chip) ────────────────
+  const recencyDateLabel = useMemo(() => {
     if (!recencyAnchor) return null;
-    const dateLabel = new Date(recencyAnchor).toLocaleDateString("en-US", {
+    return new Date(recencyAnchor).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
     });
-    if (profile?.recency_anchor_source === "newsletter") {
-      return `since your last briefing · ${dateLabel}`;
-    }
-    return `since ${dateLabel}`;
-  }, [recencyAnchor, profile?.recency_anchor_source]);
+  }, [recencyAnchor]);
 
   // Edition detail replaces the briefing content (with a back button).
   if (selectedEdition) {
@@ -462,15 +459,28 @@ export default function BriefingHome({
             ) : null}
           </span>
         </button>
+
+        {/* Full-width scope map — streets basemap + district/place overlay */}
+        {(isPlaceScope
+          ? placeLat != null && placeLng != null
+          : sketch && sketch.districts.length > 0) && (
+          <MiniScopeMap
+            sketch={sketch}
+            selectedDistrict={district}
+            isPlaceScope={isPlaceScope}
+            placeDistrict={placeDistrict}
+            placeLat={placeLat}
+            placeLng={placeLng}
+            placeRadiusM={placeRadiusM}
+            onClick={onOpenScopeSelector}
+            className={styles.heroMapBanner}
+          />
+        )}
+
         <div className={styles.heroChips}>
           {newStoriesCount > 0 && (
             <span className={`${styles.heroChip} ${styles.heroChipNew}`}>
-              {newStoriesCount} new {newStoriesCount === 1 ? "story" : "stories"}
-            </span>
-          )}
-          {moversCount > 0 && (
-            <span className={`${styles.heroChip} ${styles.heroChipMoved}`}>
-              {moversCount} moved
+              {newStoriesCount} new{recencyDateLabel ? ` since ${recencyDateLabel}` : ""}
             </span>
           )}
           {onFollowToggle ? (
@@ -486,9 +496,50 @@ export default function BriefingHome({
             isFollowing && <span className={styles.heroChip}>Following</span>
           )}
         </div>
-        {recencyLine ? (
-          <p className={styles.recencyLine}>{recencyLine}</p>
-        ) : null}
+
+        {/* ── Accountable here — integrated into hero ──────────────── */}
+        {/* Show section for district or place scope; skeleton while leaders load */}
+        {(accountableLeaders.length > 0 || ((isPlaceScope || district > 0) && leaders.length === 0)) && (
+          <div className={styles.heroAccountable} aria-label="Accountable here">
+            <span className={styles.heroAccountableLabel}>Accountable here</span>
+            {accountableLeaders.length > 0 ? (
+              <ul className={styles.heroAccountableList}>
+                {accountableLeaders.map((leader) => {
+                  const d = leader.district ?? 0;
+                  const subtitle =
+                    d > 0
+                      ? `${leader.title || "Representative"} · ${geographicUnitLabel} ${d}`
+                      : leader.title || "Mayor";
+                  const targetScope = d > 0 ? d : 0;
+                  const alreadyThere =
+                    !isPlaceScope && (selectedDistrict ?? 0) === targetScope;
+                  const clickable = !!onDistrictSelect && !alreadyThere;
+                  return (
+                    <li key={`${leader.name}-${d}`}>
+                      <button
+                        type="button"
+                        className={`${styles.heroAccountableRow}${clickable ? "" : ` ${styles.heroAccountableRowStatic}`}`}
+                        onClick={clickable ? () => onDistrictSelect?.(targetScope) : undefined}
+                        disabled={!clickable}
+                      >
+                        <span className={styles.heroAccountableAvatar} aria-hidden="true">
+                          {leaderInitials(leader.name)}
+                        </span>
+                        <span className={styles.heroAccountableName}>{leader.name}</span>
+                        <span className={styles.heroAccountableTitle}>{subtitle}</span>
+                        {clickable && (
+                          <span className={styles.heroAccountableChevron} aria-hidden="true">›</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className={styles.heroAccountableSkeleton} aria-hidden="true" />
+            )}
+          </div>
+        )}
       </section>
 
       {/* ── Place-loading banner (onboarding) ───────────────────────── */}
@@ -501,50 +552,6 @@ export default function BriefingHome({
           </p>
         </div>
       ) : null}
-
-      {/* ── Accountable here (compact) ──────────────────────────────── */}
-      {accountableLeaders.length > 0 && (
-        <section className={styles.leadersSection} aria-label="Accountable here">
-          <h3 className={styles.sectionLabelCaps}>Accountable here</h3>
-          <ul className={styles.leaderList}>
-            {accountableLeaders.map((leader) => {
-              const d = leader.district ?? 0;
-              const subtitle =
-                d > 0
-                  ? `${leader.title || "Representative"} · ${geographicUnitLabel} ${d}`
-                  : leader.title || "Mayor";
-              // Each official links to their dashboard scope: rep → district, mayor → citywide.
-              const targetScope = d > 0 ? d : 0;
-              const alreadyThere =
-                !isPlaceScope && (selectedDistrict ?? 0) === targetScope;
-              const clickable = !!onDistrictSelect && !alreadyThere;
-              return (
-                <li key={`${leader.name}-${d}`}>
-                  <button
-                    type="button"
-                    className={styles.leaderRow}
-                    onClick={
-                      clickable ? () => onDistrictSelect?.(targetScope) : undefined
-                    }
-                    disabled={!clickable}
-                  >
-                    <span className={styles.leaderAvatar} aria-hidden="true">
-                      {leaderInitials(leader.name)}
-                    </span>
-                    <span className={styles.leaderName}>{leader.name}</span>
-                    <span className={styles.leaderTitle}>{subtitle}</span>
-                    {clickable && (
-                      <span className={styles.leaderChevron} aria-hidden="true">
-                        ›
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
 
       {/* ── New stories ─────────────────────────────────────────────── */}
       <section className={styles.section} aria-label="New stories">

@@ -32,7 +32,12 @@ import {
   type CityShapeLayerListItem,
   type UpdateShapeLayerInstanceRequest,
 } from "@/lib/apiClient";
-import { getPublicCityDistricts } from "@/lib/publicApiClient";
+import {
+  getPublicCityDistricts,
+  getCityBoundarySketch,
+  type BoundarySketch,
+} from "@/lib/publicApiClient";
+import { listLeadersForClaim, type LeaderForClaim } from "@/lib/apiClient";
 
 // Query keys factory for cities
 export const cityKeys = {
@@ -55,6 +60,8 @@ export const cityKeys = {
     [...cityKeys.all, "shapeLayers", id, includeGeometry] as const,
   publicDistricts: (id: number) =>
     [...cityKeys.all, "publicDistricts", id] as const,
+  leanLeaders: (id: number) => [...cityKeys.all, "leanLeaders", id] as const,
+  boundarySketch: (id: number) => [...cityKeys.all, "boundarySketch", id] as const,
 };
 
 /**
@@ -547,6 +554,41 @@ export function useUnsaveCity() {
       queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
       emitSavedCitiesChanged();
     },
+  });
+}
+
+/**
+ * Lean leaders for the briefing header (public, no auth, fast).
+ * Provides district rep + mayor immediately without waiting for the full city
+ * structure. Data is long-cached since leaders rarely change.
+ */
+export function useLeanLeaders(
+  cityId: number | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery<LeaderForClaim[]>({
+    queryKey: cityKeys.leanLeaders(cityId!),
+    queryFn: () => listLeadersForClaim(cityId!),
+    enabled: (options?.enabled ?? true) && !!cityId,
+    staleTime: 1000 * 60 * 60,      // 1 hour
+    gcTime: 1000 * 60 * 60 * 24,    // 24 hours
+  });
+}
+
+/**
+ * Simplified district boundary rings for the overview mini-map.
+ * Public endpoint, heavily cached — district boundaries change very rarely.
+ */
+export function useBoundarySketch(
+  cityId: number | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery<BoundarySketch>({
+    queryKey: cityKeys.boundarySketch(cityId!),
+    queryFn: () => getCityBoundarySketch(cityId!),
+    enabled: (options?.enabled ?? true) && !!cityId,
+    staleTime: 1000 * 60 * 60 * 24,     // 24 hours
+    gcTime: 1000 * 60 * 60 * 24 * 7,    // 7 days
   });
 }
 

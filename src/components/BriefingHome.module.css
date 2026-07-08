@@ -32,6 +32,14 @@
   width: 100%;
 }
 
+.heroMapBanner {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  overflow: hidden;
+  margin-top: var(--space-xs);
+}
+
 /* Corner-brace frame (brand logomark) around the scope icon — no filled background */
 .heroBraces {
   position: relative;
@@ -135,11 +143,6 @@
   color: var(--brand-primary);
 }
 
-.heroChipMoved {
-  background: var(--success-muted);
-  color: var(--success);
-}
-
 .heroChipFollow {
   cursor: pointer;
   border: 1px solid var(--brand-primary);
@@ -162,6 +165,102 @@
   border-color: transparent;
 }
 
+/* ── Accountable here — integrated inside hero ───────────────────────── */
+
+.heroAccountable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-primary);
+}
+
+.heroAccountableLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.heroAccountableList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroAccountableRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 5px var(--space-sm);
+  margin: 0 calc(-1 * var(--space-sm));
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.heroAccountableRow:not(:disabled):hover {
+  background: var(--bg-secondary);
+}
+
+.heroAccountableRowStatic {
+  cursor: default;
+}
+
+.heroAccountableAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.heroAccountableName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heroAccountableTitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heroAccountableChevron {
+  font-size: 15px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.heroAccountableSkeleton {
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  animation: briefingShimmer 1.4s infinite;
+}
+
+/* Preserve old .recencyLine for backwards compat (used nowhere now, kept to avoid breakage) */
 .recencyLine {
   margin: 0;
   font-size: 12px;

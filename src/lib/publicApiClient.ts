@@ -288,6 +288,34 @@ export function getPublicCityDistricts(cityId: number): Promise<number[]> {
   return requestPublic<number[]>(`/api/public/cities/${cityId}/districts`);
 }
 
+// ---------------------------------------------------------------------------
+// Boundary sketch — simplified district rings for the overview mini-map
+// ---------------------------------------------------------------------------
+
+export interface BoundarySketchDistrict {
+  district_id: number;
+  /** Outer coordinate rings [[lng, lat], …]. One per polygon part. */
+  rings: [number, number][][];
+}
+
+export interface BoundarySketchBbox {
+  min_lng: number;
+  min_lat: number;
+  max_lng: number;
+  max_lat: number;
+}
+
+export interface BoundarySketch {
+  districts: BoundarySketchDistrict[];
+  /** Whole-city boundary (union of districts) — outer rings [[lng, lat], …]. */
+  outline?: [number, number][][] | null;
+  bbox: BoundarySketchBbox | null;
+}
+
+export function getCityBoundarySketch(cityId: number): Promise<BoundarySketch> {
+  return requestPublic<BoundarySketch>(`/api/public/cities/${cityId}/boundary-sketch`);
+}
+
 // Public feed stories (e.g. for district elected-official pages)
 export type PublicFeedStory = {
   id: number;
