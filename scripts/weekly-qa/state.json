@@ -72,16 +72,6 @@
     },
     {
       "city": "NYC",
-      "metricName": "💊 Drug Crime Incidents",
-      "metricKey": "nyc_drug_crime_arrests",
-      "metricId": 290,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "NYC",
       "metricName": "👮 NYPD Arrests (YTD)",
       "metricKey": "nyc_nypd_arrests_ytd",
       "metricId": 558,
@@ -1242,7 +1232,46 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-07-02"
+    },
+    {
+      "city": "Detroit",
+      "metricName": "🏠🔨 Residential Units Demolished",
+      "metricKey": "detroit_residential_units_demolished",
+      "metricId": 578,
+      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_residential_units_demolished",
+      "normalLagRange": [
+        5,
+        13
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-09"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "cincinnati_property_crime_incidents",
+      "metricId": 283,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_property_crime_incidents",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-09"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "🚨 Violent Crime Incidents",
+      "metricKey": "cincinnati_violent_crime_fbi_type1",
+      "metricId": 288,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_violent_crime_fbi_type1",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-09"
     }
   ],
-  "lastRunDate": "2026-07-02"
+  "lastRunDate": "2026-07-09"
 }
