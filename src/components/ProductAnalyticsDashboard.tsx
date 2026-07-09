@@ -84,7 +84,7 @@ const GROWTH_LEGEND = [
   { label: "Dormant", color: "#9ca3af", kind: "line" as const },
 ];
 
-const DEFAULT_RANGE_DAYS = 84;
+const DEFAULT_RANGE_DAYS = 7;
 
 function ChartLegend({
   items,
@@ -644,7 +644,7 @@ export default function ProductAnalyticsDashboard() {
           {overview.landing_matrix && overview.landing_matrix.rows.length > 0 && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Landing sources</div>
-              <div className={styles.cardPadded}>
+              <div className={styles.card}>
                 <LandingSourcesMatrix matrix={overview.landing_matrix} />
               </div>
             </div>

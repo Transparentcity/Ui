@@ -68,6 +68,8 @@ interface SidebarProps {
   onQuestionClick?: (question: string) => void;
   /** Unread count for the Inbox nav item. Shows a purple dot when > 0. */
   inboxUnreadCount?: number;
+  /** Saved place id for the user's home location (shown in My Places). */
+  homePlaceId?: number | null;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -121,6 +123,7 @@ export default function Sidebar({
   activeCityName,
   onQuestionClick,
   inboxUnreadCount = 0,
+  homePlaceId = null,
 }: SidebarProps) {
   const governmentApproved =
     governmentVerified &&
@@ -383,44 +386,6 @@ export default function Sidebar({
         </div>
         
         <div className={styles.navItems} id="nav-items">
-          {/* Home — briefing at the user's default scope. Unread editions dot
-              lives here (prior editions render inline on the briefing). */}
-          <button
-            className={`${styles.navItem} ${styles.newChatBtn} ${currentView === "city" ? styles.navItemActive : ""}`}
-            id="home-btn"
-            aria-label={inboxUnreadCount > 0 ? `Home, ${inboxUnreadCount} unread` : "Home"}
-            aria-current={currentView === "city" ? "page" : undefined}
-            onClick={() =>
-              handleActionWithClose(() => {
-                if (onViewChange) {
-                  onViewChange("home");
-                }
-              })
-            }
-          >
-            <span className={styles.navInboxIconWrapper}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 9.5 12 3l9 6.5" />
-                <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10" />
-                <path d="M10 21v-6h4v6" />
-              </svg>
-              {inboxUnreadCount > 0 && (
-                <span className={styles.navInboxUnreadDot} aria-hidden="true" />
-              )}
-            </span>
-            <span>Home</span>
-          </button>
-
           {/* Feed — admin-only content review surface */}
           {isAdmin && (
             <button
@@ -495,9 +460,11 @@ export default function Sidebar({
             />
           )}
 
-          {/* My Places Section - collapsed by default for normal users */}
+          {/* My Places — saved cities, districts, and pins (home is one of them) */}
           <MyCities
             defaultExpanded
+            homePlaceId={homePlaceId}
+            inboxUnreadCount={inboxUnreadCount}
             onCityClick={(cityId) => {
               if (onCityClick) {
                 onCityClick(cityId);
@@ -677,18 +644,21 @@ export default function Sidebar({
         {/* Sidebar Footer */}
         <div className={styles.sidebarFooter}>
           <div className={styles.sidebarFooterContent}>
-            <UserProfile 
+            <UserProfile
               isAdmin={isAdmin}
-              cityLeadCityIds={cityLeadCityIds}
               onViewChange={(view) => {
                 if (onViewChange) {
                   onViewChange(view);
                 }
-                // Auto-close sidebar in narrow mode after view change
                 if (isNarrowScreen() && onClose) {
                   onClose();
                 }
-              }} 
+              }}
+              onOpenSettings={
+                onOpenSettings
+                  ? () => handleActionWithClose(onOpenSettings)
+                  : undefined
+              }
             />
             <button
               className={styles.settingsIconBtn}

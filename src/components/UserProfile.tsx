@@ -8,11 +8,11 @@ import styles from "./UserProfile.module.css";
 
 interface UserProfileProps {
   isAdmin?: boolean;
-  cityLeadCityIds?: number[];
   onViewChange?: (view: string) => void;
+  onOpenSettings?: () => void;
 }
 
-export default function UserProfile({ isAdmin = false, cityLeadCityIds = [], onViewChange }: UserProfileProps) {
+export default function UserProfile({ isAdmin = false, onViewChange, onOpenSettings }: UserProfileProps) {
   const { user, getAccessTokenSilently } = useAuth0();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dbPicture, setDbPicture] = useState<string | null>(null);
@@ -105,9 +105,9 @@ export default function UserProfile({ isAdmin = false, cityLeadCityIds = [], onV
         ref={menuRef}
         isOpen={isMenuOpen}
         isAdmin={isAdmin}
-        cityLeadCityIds={cityLeadCityIds}
         onClose={() => setIsMenuOpen(false)}
         onViewChange={onViewChange}
+        onOpenSettings={onOpenSettings}
       />
     </div>
   );

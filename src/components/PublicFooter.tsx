@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PageFeedback from "@/components/PageFeedback";
+import AdminSiteMapLink from "@/components/AdminSiteMapLink";
 
 interface PublicFooterProps {
   citySlug?: string;
@@ -38,9 +39,9 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
                 Methodology
               </Link>
             )}
-            <Link href="/sitemap" className="footer-link">
+            <AdminSiteMapLink className="footer-link">
               Site map
-            </Link>
+            </AdminSiteMapLink>
           </div>
           <div className="footer-column">
             <h3 className="footer-title">Get involved</h3>

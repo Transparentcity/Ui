@@ -1,8 +1,8 @@
 /* Product analytics admin — tokens from BRAND_KIT / tokens.css */
 
 .root {
-  padding: var(--space-xl, 24px) var(--space-2xl, 32px) var(--space-2xl, 32px);
-  max-width: 1200px;
+  padding: var(--space-xl, 24px) var(--space-lg, 16px) var(--space-2xl, 32px);
+  max-width: 1280px;
   margin: 0 auto;
   background: var(--bg-secondary, #f8f9fa);
   min-height: 100%;

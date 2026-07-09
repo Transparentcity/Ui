@@ -113,6 +113,59 @@
   border: 1.5px solid var(--bg-primary, #ffffff);
 }
 
+.profileTabWrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.profileMenu {
+  position: fixed;
+  left: var(--space-md, 12px);
+  right: var(--space-md, 12px);
+  bottom: calc(var(--bottom-nav-height, 48px) + env(safe-area-inset-bottom, 0px) + 8px);
+  top: auto;
+  max-width: 320px;
+  margin: 0 auto;
+  z-index: 10001;
+}
+
+.menuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  border: none;
+  background: transparent;
+  cursor: default;
+  padding: 0;
+}
+
+.profileAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 11px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.profileAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profileAvatarAdmin {
+  box-shadow: 0 0 0 2px var(--brand-primary, #ad35fa);
+}
+
 /* Dark mode */
 [data-theme="dark"] .bottomNav,
 .dark .bottomNav {

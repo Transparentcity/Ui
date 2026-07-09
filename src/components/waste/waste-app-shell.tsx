@@ -100,6 +100,10 @@ export function WasteAppShell({ children }: { children: ReactNode }) {
 
   const handleViewChange = useCallback(
     (view: string) => {
+      if (view === "home") {
+        goHome()
+        return
+      }
       // My Places click handlers in Sidebar fire onCityClick/onDistrictClick/
       // onPlaceClick AND onViewChange("city") in the same click; the dedicated
       // handler already pushes /home?city_id=…, so ignore "city" here to avoid

@@ -37,9 +37,13 @@ interface MyCitiesProps {
   activeDistrict?: string | null;
   /** Whether the section starts expanded (default true). */
   defaultExpanded?: boolean;
+  /** Saved place id for the user's home location. */
+  homePlaceId?: number | null;
+  /** Unread briefing editions — dot shown on the home place row. */
+  inboxUnreadCount?: number;
 }
 
-export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true, homePlaceId = null, inboxUnreadCount = 0 }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
   const [cities, setCities] = useState<SavedCity[]>([]);
@@ -408,6 +412,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                     <div className={styles.placeSubList}>
                       {placesByCityId[city.id].map((place) => {
                         const isPlaceActive = activeCityId === city.id && activePlaceId === place.id;
+                        const isHomePlace = homePlaceId != null && place.id === homePlaceId;
                         return (
                           <div
                             key={`place-${place.id}`}
@@ -418,13 +423,29 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                               type="button"
                               className={`${styles.placeSubItem} ${isPlaceActive ? styles.placeSubItemActive : ""}`}
                               onClick={() => onPlaceClick?.(city.id, place.id)}
-                              aria-label={`Select place ${place.label}`}
+                              aria-label={
+                                isHomePlace && inboxUnreadCount > 0
+                                  ? `${place.label}, home, ${inboxUnreadCount} unread`
+                                  : isHomePlace
+                                    ? `${place.label}, home`
+                                    : `Select place ${place.label}`
+                              }
                               aria-current={isPlaceActive ? "true" : undefined}
                             >
-                              <span className={styles.placeSubItemIcon} aria-hidden title="Saved place">
-                                <svg width="12" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Place">
-                                  <path d="M6 0C2.686 0 0 2.686 0 6c0 4.5 6 8 6 8s6-3.5 6-8c0-3.314-2.686-6-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" fill="currentColor" />
-                                </svg>
+                              <span className={styles.placeSubItemIcon} aria-hidden title={isHomePlace ? "Home" : "Saved place"}>
+                                {isHomePlace ? (
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Home">
+                                    <path d="M3 9.5 12 3l9 6.5" />
+                                    <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10" />
+                                  </svg>
+                                ) : (
+                                  <svg width="12" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Place">
+                                    <path d="M6 0C2.686 0 0 2.686 0 6c0 4.5 6 8 6 8s6-3.5 6-8c0-3.314-2.686-6-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" fill="currentColor" />
+                                  </svg>
+                                )}
+                                {isHomePlace && inboxUnreadCount > 0 && (
+                                  <span className={styles.homePlaceUnreadDot} aria-hidden="true" />
+                                )}
                               </span>
                               <span className={styles.placeSubItemLabel}>{place.label}</span>
                             </button>

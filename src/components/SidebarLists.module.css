@@ -347,6 +347,18 @@
   justify-content: center;
   color: var(--text-tertiary, #999);
   opacity: 0.7;
+  position: relative;
+}
+
+.homePlaceUnreadDot {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary, #ad35fa);
+  border: 1px solid var(--bg-primary, #ffffff);
 }
 
 .placeSubItemIcon svg {

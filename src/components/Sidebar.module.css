@@ -342,6 +342,13 @@
   gap: var(--space-sm);
 }
 
+@media (max-width: 768px) {
+  /* Profile lives in the mobile bottom nav; keep settings in the sidebar footer. */
+  .sidebarFooterContent :global(#user-profile) {
+    display: none;
+  }
+}
+
 .settingsIconBtn {
   display: flex;
   align-items: center;

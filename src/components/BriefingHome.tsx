@@ -253,7 +253,7 @@ function HeroBraces({ children }: { children: React.ReactNode }) {
  * district, saved place). The hero card is the page header: it names the
  * scope and opens the official/place selector. Organized around the weekly
  * email: accountable officials, what changed since your last briefing
- * (stories + movers), then the archive of prior editions.
+ * (movers, then stories), then the archive of prior editions.
  */
 export default function BriefingHome({
   cityId,
@@ -553,7 +553,32 @@ export default function BriefingHome({
         </div>
       ) : null}
 
-      {/* ── New stories ─────────────────────────────────────────────── */}
+      {/* ── What moved (scorecard — sits just above Block Brief / stories) ─ */}
+      <section className={styles.section} aria-label="What moved">
+        <h3 className={styles.sectionTitle}>What moved</h3>
+        <MoversList
+          metrics={metrics}
+          comparisonsMap={comparisonsMap}
+          comparisonType={comparisonType}
+          onComparisonTypeChange={onComparisonTypeChange}
+          recencyAnchor={recencyAnchor}
+          loading={comparisonsLoading}
+          scopeLabel={scopeLabel}
+          onMetricClick={onMetricClick}
+        />
+        <button
+          type="button"
+          className={styles.browseAllBtn}
+          onClick={onToggleBrowseAll}
+          aria-expanded={browseAllExpanded}
+        >
+          {browseAllExpanded ? "Hide full dashboard" : "Browse all metrics"}
+        </button>
+        {/* Full dashboard appears inline right under the button when expanded */}
+        {fullDashboardSlot}
+      </section>
+
+      {/* ── New stories (Block Brief) ───────────────────────────────── */}
       <section className={styles.section} aria-label="New stories">
         <h3 className={styles.sectionTitle}>
           New stories
@@ -590,31 +615,6 @@ export default function BriefingHome({
             More stories
           </button>
         )}
-      </section>
-
-      {/* ── What moved ──────────────────────────────────────────────── */}
-      <section className={styles.section} aria-label="What moved">
-        <h3 className={styles.sectionTitle}>What moved</h3>
-        <MoversList
-          metrics={metrics}
-          comparisonsMap={comparisonsMap}
-          comparisonType={comparisonType}
-          onComparisonTypeChange={onComparisonTypeChange}
-          recencyAnchor={recencyAnchor}
-          loading={comparisonsLoading}
-          scopeLabel={scopeLabel}
-          onMetricClick={onMetricClick}
-        />
-        <button
-          type="button"
-          className={styles.browseAllBtn}
-          onClick={onToggleBrowseAll}
-          aria-expanded={browseAllExpanded}
-        >
-          {browseAllExpanded ? "Hide full dashboard" : "Browse all metrics"}
-        </button>
-        {/* Full dashboard appears inline right under the button when expanded */}
-        {fullDashboardSlot}
       </section>
 
       {/* ── Prior newsletters ───────────────────────────────────────── */}

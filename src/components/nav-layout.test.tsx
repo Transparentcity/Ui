@@ -11,6 +11,8 @@ vi.mock("@auth0/auth0-react", () => ({
   useAuth0: () => ({
     isAuthenticated: false,
     isLoading: false,
+    logout: vi.fn(),
+    getAccessTokenSilently: vi.fn().mockResolvedValue("token"),
     loginWithRedirect: vi.fn(),
   }),
 }));
@@ -36,6 +38,10 @@ vi.mock("@/lib/analytics", () => ({
 
 vi.mock("@/app/c/[slug]/SignupEmailContext", () => ({
   useSignupEmail: () => ({ email: "", setEmail: vi.fn() }),
+}));
+
+vi.mock("@/lib/wasteQueryPersister", () => ({
+  clearPersistedWasteCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ── Imports (after mocks) ────────────────────────────────────────────────────
@@ -165,54 +171,71 @@ describe("Top nav (PublicNavBar + CitySignupButton)", () => {
 // ── Bottom nav (MobileBottomNav) ─────────────────────────────────────────────
 
 describe("MobileBottomNav", () => {
-  it("renders all three tab buttons", () => {
-    render(<MobileBottomNav activeTab="home" onTabChange={vi.fn()} />);
+  it("renders My Places and Account tabs", () => {
+    render(
+      <MobileBottomNav sidebarOpen={false} onToggleSidebar={vi.fn()} />,
+    );
 
-    expect(screen.getByRole("button", { name: /home/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /my places/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /more/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /account/i })).toBeInTheDocument();
   });
 
   it("each tab has a visible text label", () => {
-    render(<MobileBottomNav activeTab="home" onTabChange={vi.fn()} />);
+    render(
+      <MobileBottomNav sidebarOpen={false} onToggleSidebar={vi.fn()} />,
+    );
 
-    expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("My Places")).toBeInTheDocument();
-    expect(screen.getByText("More")).toBeInTheDocument();
+    expect(screen.getByText("Account")).toBeInTheDocument();
   });
 
   it("tab labels are not empty strings", () => {
     const { container } = render(
-      <MobileBottomNav activeTab="home" onTabChange={vi.fn()} />,
+      <MobileBottomNav sidebarOpen={false} onToggleSidebar={vi.fn()} />,
     );
 
     const labels = container.querySelectorAll(`.${"tabLabel"}, span`);
     labels.forEach((label) => {
-      // Icon wrapper spans contain only SVG; skip those, check text labels.
-      if (label.querySelector("svg")) return;
+      if (label.querySelector("svg") || label.querySelector("img")) return;
       expect(label.textContent?.trim().length).toBeGreaterThan(0);
     });
   });
 
-  it("active tab gets aria-current=page", () => {
-    render(<MobileBottomNav activeTab="my-places" onTabChange={vi.fn()} />);
+  it("My Places tab reflects sidebar open state", () => {
+    render(
+      <MobileBottomNav sidebarOpen={true} onToggleSidebar={vi.fn()} />,
+    );
 
     const myPlaces = screen.getByRole("button", { name: /my places/i });
     expect(myPlaces).toHaveAttribute("aria-current", "page");
   });
 
-  it("shows unread dot on Home when there are unread editions", () => {
+  it("toggles sidebar when My Places is tapped", () => {
+    const onToggleSidebar = vi.fn();
     render(
-      <MobileBottomNav activeTab="home" onTabChange={vi.fn()} inboxUnreadCount={3} />,
+      <MobileBottomNav sidebarOpen={false} onToggleSidebar={onToggleSidebar} />,
     );
 
-    expect(
-      screen.getByRole("button", { name: /home, 3 unread/i }),
-    ).toBeInTheDocument();
+    screen.getByRole("button", { name: /my places/i }).click();
+    expect(onToggleSidebar).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows profile initial when no picture is set", () => {
+    render(
+      <MobileBottomNav
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
+        profileInitial="S"
+      />,
+    );
+
+    expect(screen.getByText("S")).toBeInTheDocument();
   });
 
   it("nav has aria-label for accessibility", () => {
-    render(<MobileBottomNav activeTab="home" onTabChange={vi.fn()} />);
+    render(
+      <MobileBottomNav sidebarOpen={false} onToggleSidebar={vi.fn()} />,
+    );
 
     expect(
       screen.getByRole("navigation", { name: /main navigation/i }),
@@ -231,18 +254,15 @@ describe("MobileCitySignupBar", () => {
       />,
     );
 
-    // Dismiss button
     expect(
       screen.getByRole("button", { name: /dismiss/i }),
     ).toBeInTheDocument();
 
-    // Title and subtitle text
     expect(screen.getByText("Get the Free Weekly")).toBeInTheDocument();
     expect(
       screen.getByText(/weekly data stories for los angeles/i),
     ).toBeInTheDocument();
 
-    // CTA button
     expect(
       screen.getByRole("button", { name: /sign up/i }),
     ).toBeInTheDocument();

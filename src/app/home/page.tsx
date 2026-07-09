@@ -131,8 +131,7 @@ const ProductAnalyticsDashboard = dynamic(() => import("@/components/ProductAnal
 // Dynamically import NewResearchPage to avoid SSR issues
 const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
 
-import MobileBottomNav, { type MobileTab } from "@/components/MobileBottomNav";
-import MobileMoreMenu from "@/components/MobileMoreMenu";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { listInbox, getPlaceMetrics } from "@/lib/apiClient";
 import { recordProductEvent } from "@/lib/productAnalytics";
 
@@ -230,9 +229,8 @@ export default function DashboardPage() {
   /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
   const [placeIdPendingPlaceMetricsBootstrap, setPlaceIdPendingPlaceMetricsBootstrap] = useState<number | null>(null);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
-  /** Unread newsletter editions — shown as a dot on the Home nav entry. */
+  /** Unread newsletter editions — shown as a dot on Home (bottom nav + home place in sidebar). */
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
   /** Place created during onboarding whose metrics job is still running.
    *  While set, the citywide briefing shows a "your place is loading" banner;
@@ -1078,6 +1076,11 @@ export default function DashboardPage() {
     }
   };
 
+  const homePlaceId = useMemo(() => {
+    const extra = userPreferences?.extra as Record<string, unknown> | undefined;
+    return resolveHomePlaceLandingTarget(extra, allUserPlaces)?.placeId ?? null;
+  }, [userPreferences, allUserPlaces]);
+
   const handleSearchCities = () => {
     // City search is now handled by the CityTypeahead component in the Sidebar
   };
@@ -1169,14 +1172,21 @@ export default function DashboardPage() {
       | undefined;
     const homeCityId = Number(home?.city_id) || null;
     if (homeCityId) {
-      const d = Number(home?.district) || null;
+      const rawDistrict = home?.district;
+      const d =
+        rawDistrict != null && rawDistrict !== ""
+          ? Number(rawDistrict)
+          : null;
       setActiveCityId(homeCityId);
-      setInitialDistrict(d);
+      setInitialDistrict(Number.isFinite(d as number) ? d : null);
       setInitialPlaceId(null);
       setInitialPlaceLabel(null);
       setInitialPlaceGps(null);
       setInitialSection(null);
-      setCitySelection({ district: d, placeId: null });
+      setCitySelection({
+        district: Number.isFinite(d as number) ? d : null,
+        placeId: null,
+      });
       setCurrentView("city");
       setCurrentSessionId(null);
       setIsCurrentSessionJobSession(false);
@@ -1215,11 +1225,12 @@ export default function DashboardPage() {
 
     const extra = userPreferences.extra as Record<string, unknown> | undefined;
     const home = extra?.home_location;
-    const needsPlacesForResolve =
+    const hasHomeLocation =
       home != null &&
       typeof home === "object" &&
-      (home as { place_id?: unknown }).place_id == null;
-    if (needsPlacesForResolve && !allUserPlacesLoaded) {
+      (home as { city_id?: unknown }).city_id != null &&
+      (home as { city_id?: unknown }).city_id !== "";
+    if (hasHomeLocation && !allUserPlacesLoaded) {
       return;
     }
 
@@ -1233,16 +1244,19 @@ export default function DashboardPage() {
       return;
     }
 
-    // No saved place: land regular users on their home city briefing.
-    if (isAdmin) return;
+    // No saved place: land on home city briefing (including admins with a home city).
     const homeCityId =
       home != null && typeof home === "object"
         ? Number((home as { city_id?: unknown }).city_id) || null
         : null;
     if (!homeCityId) return;
-    const homeDistrict =
+    const rawDistrict =
       home != null && typeof home === "object"
-        ? Number((home as { district?: unknown }).district) || null
+        ? (home as { district?: unknown }).district
+        : null;
+    const homeDistrict =
+      rawDistrict != null && rawDistrict !== ""
+        ? Number(rawDistrict)
         : null;
     hasAutoLandedOnHomePlace.current = true;
     hasAutoSelectedCity.current = true;
@@ -1252,8 +1266,15 @@ export default function DashboardPage() {
     setInitialPlaceLabel(null);
     setInitialPlaceGps(null);
     setInitialSection(null);
-    setCitySelection({ district: homeDistrict, placeId: null });
+    setCitySelection({
+      district: Number.isFinite(homeDistrict as number) ? homeDistrict : null,
+      placeId: null,
+    });
     setCurrentView("city");
+    setCurrentSessionId(null);
+    setIsCurrentSessionJobSession(false);
+    setCurrentResearchId(null);
+    setGpsLocation(null);
   }, [
     isAuthenticated,
     isLoading,
@@ -2016,6 +2037,7 @@ export default function DashboardPage() {
         chatEnabled={isAdmin}
         activeCityName={activeCityName}
         inboxUnreadCount={inboxUnreadCount}
+        homePlaceId={homePlaceId}
         onQuestionClick={() => {
           // Toast: chat coming soon
           const toast = document.createElement("div");
@@ -2870,41 +2892,22 @@ export default function DashboardPage() {
 
       {/* Mobile bottom navigation (hidden on desktop via CSS) */}
       <MobileBottomNav
-        activeTab={
-          moreMenuOpen ? "more"
-            : currentView === "city" || currentView === "feed" ? "home"
-            : "more"
-        }
-        inboxUnreadCount={inboxUnreadCount}
-        onTabChange={(tab: MobileTab) => {
-          setMoreMenuOpen(false);
-          if (tab === "home") {
-            recordProductEvent("home_nav_clicked", { surface: "mobile_bottom_nav", unread_count: inboxUnreadCount });
-            navigateHome();
-          } else if (tab === "my-places") {
-            setInitialSection(null);
-            if (activeCityId) {
-              setCurrentView("city");
-            } else {
-              // No city selected: open the sidebar so user can pick a city
-              setSidebarOpen(true);
-            }
-          } else if (tab === "more") {
-            setMoreMenuOpen(true);
-          }
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => {
+          setInitialSection(null);
+          setSidebarOpen((open) => !open);
         }}
-      />
-      <MobileMoreMenu
-        isOpen={moreMenuOpen}
-        onClose={() => setMoreMenuOpen(false)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        profilePictureUrl={user?.picture ?? null}
+        profileInitial={
+          user?.name?.[0]?.toUpperCase() ??
+          user?.email?.[0]?.toUpperCase() ??
+          "U"
+        }
         isAdmin={isAdmin}
-        onAdminViewChange={(view) => {
-          const validAdminViews: ViewType[] = ["feed-admin", "newsletter-admin", "metrics-admin", "city-data", "system-stats", "user-management", "claims-admin", "datasets-admin", "feed-stories-admin", "job-logs"];
-          if (validAdminViews.includes(view as ViewType)) {
-            setCurrentView(view as ViewType);
-          }
-          setMoreMenuOpen(false);
+        onViewChange={handleViewChange}
+        onOpenSettings={handleOpenSettings}
+        onProfileMenuToggle={(open) => {
+          if (open) setSidebarOpen(false);
         }}
       />
     </div>

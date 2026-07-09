@@ -1,26 +1,30 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import UserMenuPanel from "./UserMenuPanel";
 import styles from "./MobileBottomNav.module.css";
+import menuStyles from "./ContextMenu.module.css";
 
-export type MobileTab = "home" | "my-places" | "more";
+export type MobileTab = "my-places" | "profile";
 
 interface MobileBottomNavProps {
-  activeTab: MobileTab;
-  onTabChange: (tab: MobileTab) => void;
-  inboxUnreadCount?: number;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  profilePictureUrl?: string | null;
+  profileInitial?: string;
+  isAdmin?: boolean;
+  onViewChange?: (view: string) => void;
+  onOpenSettings?: () => void;
+  /** Called when the profile menu opens or closes (e.g. close sidebar on open). */
+  onProfileMenuToggle?: (open: boolean) => void;
 }
 
-/**
- * Whether an element is a text-entry field that would summon the virtual keyboard.
- */
 function isTextInput(el: Element | null): boolean {
   if (!el) return false;
   if (el instanceof HTMLTextAreaElement) return true;
-  if (el instanceof HTMLSelectElement) return true; // native picker on iOS, soft input on Android
+  if (el instanceof HTMLSelectElement) return true;
   if (el instanceof HTMLInputElement) {
     const type = el.type.toLowerCase();
-    // These input types open the keyboard
     return ["text", "search", "url", "tel", "email", "password", "number"].includes(type);
   }
   if (el.getAttribute("contenteditable") === "true") return true;
@@ -29,31 +33,31 @@ function isTextInput(el: Element | null): boolean {
 }
 
 /**
- * Persistent bottom navigation bar for mobile (<=768px).
- * Three tabs: Home | My Places | More.
- *
- * Hides when the virtual keyboard is open using three combined signals:
- * 1. visualViewport resize (primary, most reliable)
- * 2. focusin/focusout on text inputs (fast response)
- * 3. CSS fallback via pointer-events when hidden
- *
- * The nav reappears immediately when the keyboard closes.
+ * Mobile bottom nav: Profile (left) | My Places (right).
+ * Profile opens account menu; My Places toggles the left sidebar.
  */
-export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCount = 0 }: MobileBottomNavProps) {
+export default function MobileBottomNav({
+  sidebarOpen,
+  onToggleSidebar,
+  profilePictureUrl = null,
+  profileInitial = "U",
+  isAdmin = false,
+  onViewChange,
+  onOpenSettings,
+  onProfileMenuToggle,
+}: MobileBottomNavProps) {
   const [hidden, setHidden] = useState(false);
-  // Track whether a text input is focused (keyboard likely open)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const inputFocusedRef = useRef(false);
-  // Debounce timer for focusout to avoid flash between input transitions
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileWrapRef = useRef<HTMLDivElement>(null);
 
   const updateVisibility = useCallback(() => {
     const vv = window.visualViewport;
     if (vv) {
-      // Primary signal: viewport shrank significantly while a text input has focus
       const viewportShrank = vv.height < window.innerHeight * 0.7;
       setHidden(viewportShrank && inputFocusedRef.current);
     } else {
-      // Fallback for browsers without visualViewport: rely on focus state alone
       setHidden(inputFocusedRef.current);
     }
   }, []);
@@ -61,34 +65,23 @@ export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCou
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // --- Signal 1: visualViewport resize ---
     const vv = window.visualViewport;
     const handleVVResize = () => updateVisibility();
+    if (vv) vv.addEventListener("resize", handleVVResize);
 
-    if (vv) {
-      vv.addEventListener("resize", handleVVResize);
-    }
-
-    // --- Signal 2: focusin/focusout on text inputs ---
     const handleFocusIn = (e: FocusEvent) => {
-      // Clear any pending blur timer so we don't flash the nav between inputs
       if (blurTimerRef.current) {
         clearTimeout(blurTimerRef.current);
         blurTimerRef.current = null;
       }
       if (isTextInput(e.target as Element)) {
         inputFocusedRef.current = true;
-        // Small delay to let visualViewport resize fire first on iOS
         requestAnimationFrame(() => updateVisibility());
       }
     };
 
     const handleFocusOut = (e: FocusEvent) => {
       if (isTextInput(e.target as Element)) {
-        // Delay the "keyboard closed" signal: when the user taps from one input
-        // to another, focusout fires before focusin on the new input. Without
-        // this delay the nav would flash visible between inputs. 150ms covers
-        // slow Android devices where focusin can be delayed.
         blurTimerRef.current = setTimeout(() => {
           inputFocusedRef.current = false;
           updateVisibility();
@@ -107,73 +100,104 @@ export default function MobileBottomNav({ activeTab, onTabChange, inboxUnreadCou
     };
   }, [updateVisibility]);
 
-  const tabs: { id: MobileTab; label: string; icon: React.ReactNode }[] = [
-    {
-      id: "home",
-      label: "Home",
-      icon: (
-        <span className={styles.tabIconWrapper}>
-          <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9.5 12 3l9 6.5" />
-            <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10" />
-            <path d="M10 21v-6h4v6" />
-          </svg>
-          {inboxUnreadCount > 0 && (
-            <span
-              className={styles.tabUnreadDot}
-              aria-label={`${inboxUnreadCount} unread`}
-            />
-          )}
-        </span>
-      ),
-    },
-    {
-      id: "my-places",
-      label: "My Places",
-      icon: (
-        <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-          <circle cx="12" cy="10" r="3" />
-        </svg>
-      ),
-    },
-    {
-      id: "more",
-      label: "More",
-      icon: (
-        <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="1" />
-          <circle cx="12" cy="5" r="1" />
-          <circle cx="12" cy="19" r="1" />
-        </svg>
-      ),
-    },
-  ];
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileWrapRef.current && !profileWrapRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profileMenuOpen]);
+
+  const closeProfileMenu = () => {
+    setProfileMenuOpen(false);
+    onProfileMenuToggle?.(false);
+  };
+
+  const handleProfileClick = () => {
+    setProfileMenuOpen((open) => {
+      const next = !open;
+      onProfileMenuToggle?.(next);
+      return next;
+    });
+  };
+
+  const handleMyPlacesClick = () => {
+    closeProfileMenu();
+    onToggleSidebar();
+  };
 
   return (
-    <nav
-      className={`${styles.bottomNav}${hidden ? ` ${styles.bottomNavKeyboardHidden}` : ""}`}
-      aria-label="Main navigation"
-      aria-hidden={hidden}
-    >
-      {tabs.map((tab) => (
+    <>
+      {profileMenuOpen && (
         <button
-          key={tab.id}
           type="button"
-          className={`${styles.tab}${activeTab === tab.id ? ` ${styles.tabActive}` : ""}`}
-          onClick={() => onTabChange(tab.id)}
-          aria-label={
-            tab.id === "home" && inboxUnreadCount > 0
-              ? `Home, ${inboxUnreadCount} unread`
-              : tab.label
-          }
-          aria-current={activeTab === tab.id ? "page" : undefined}
+          className={styles.menuBackdrop}
+          aria-label="Close menu"
+          onClick={closeProfileMenu}
+        />
+      )}
+      <nav
+        className={`${styles.bottomNav}${hidden ? ` ${styles.bottomNavKeyboardHidden}` : ""}`}
+        aria-label="Main navigation"
+        aria-hidden={hidden}
+      >
+        <div ref={profileWrapRef} className={styles.profileTabWrap}>
+          {profileMenuOpen && (
+            <div
+              className={`${menuStyles.menu} ${menuStyles.open} ${styles.profileMenu}`}
+              id="mobile-profile-menu"
+              role="menu"
+              aria-label="User menu"
+            >
+              <UserMenuPanel
+                isAdmin={isAdmin}
+                onClose={closeProfileMenu}
+                onViewChange={onViewChange}
+                onOpenSettings={onOpenSettings}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            className={`${styles.tab}${profileMenuOpen ? ` ${styles.tabActive}` : ""}`}
+            onClick={handleProfileClick}
+            aria-label="Account"
+            aria-expanded={profileMenuOpen}
+            aria-haspopup="menu"
+            tabIndex={hidden ? -1 : 0}
+          >
+            <span
+              className={`${styles.profileAvatar}${isAdmin ? ` ${styles.profileAvatarAdmin}` : ""}`}
+            >
+              {profilePictureUrl ? (
+                <img src={profilePictureUrl} alt="" />
+              ) : (
+                profileInitial
+              )}
+            </span>
+            <span className={styles.tabLabel}>Account</span>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className={`${styles.tab}${sidebarOpen && !profileMenuOpen ? ` ${styles.tabActive}` : ""}`}
+          onClick={handleMyPlacesClick}
+          aria-label="My Places"
+          aria-expanded={sidebarOpen}
+          aria-current={sidebarOpen && !profileMenuOpen ? "page" : undefined}
           tabIndex={hidden ? -1 : 0}
         >
-          {tab.icon}
-          <span className={styles.tabLabel}>{tab.label}</span>
+          <svg className={styles.tabIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          <span className={styles.tabLabel}>My Places</span>
         </button>
-      ))}
-    </nav>
+      </nav>
+    </>
   );
 }

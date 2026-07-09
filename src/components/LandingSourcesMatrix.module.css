@@ -19,8 +19,6 @@
 
 .scroll {
   overflow-x: auto;
-  border: 1px solid var(--border-primary, #e5e7eb);
-  border-radius: var(--radius-md, 8px);
   background: var(--bg-primary, #fff);
 }
 
@@ -38,24 +36,29 @@
   z-index: 1;
   background: var(--bg-primary, #fff);
   text-align: left;
-  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
-  max-width: 200px;
-  word-break: break-word;
+  min-width: 15ch;
+  max-width: 22ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.06);
 }
 
 .thTotal,
 .tdTotal {
   text-align: right;
-  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  padding: 6px 6px;
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .thPeriod {
   text-align: right;
-  padding: var(--space-sm, 8px) 10px;
+  padding: 6px 6px;
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
   font-weight: 600;
   color: var(--text-tertiary, #6b7280);
@@ -72,8 +75,9 @@
 
 .tdCount {
   text-align: right;
-  padding: var(--space-sm, 8px) 10px;
+  padding: 6px 6px;
   border-bottom: 1px solid var(--border-primary, #e5e7eb);
   font-variant-numeric: tabular-nums;
   color: var(--text-primary, #111827);
+  white-space: nowrap;
 }

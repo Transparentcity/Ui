@@ -276,6 +276,7 @@ function MoverRowItem({
     comparisonType === "mtd" ? "last month" : "last year";
   const newNoun = metricItemNoun(metric, row.newValue);
   const priorNoun = metricItemNoun(metric, row.priorValue);
+  const diffNoun = metricItemNoun(metric, row.diff);
 
   return (
     <li className={styles.row}>
@@ -307,6 +308,7 @@ function MoverRowItem({
           </span>
           <span className={styles.rowChangeDiff}>
             {formatDiff(row.diff, metric.display_unit)}
+            {diffNoun ? ` ${diffNoun}` : ""}
           </span>
         </span>
       </button>
