@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# weekly QA generated reports (uploaded as CI artifacts, not version controlled)
+scripts/weekly-qa/report-latest.html
+scripts/weekly-qa/reports/*.html
