@@ -21,7 +21,9 @@ import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
+import { resolveMetricDatasetAttribution } from "@/lib/metricDatasetAttribution";
 import CompletenessSparkline from "./CompletenessSparkline";
+import MetricSourceAttribution from "./MetricSourceAttribution";
 
 interface MetricDetailContentProps {
   metric: PublicMetricDetail;
@@ -75,6 +77,21 @@ export default function MetricDetailContent({
   const [completenessLoading, setCompletenessLoading] = useState(false);
   const [completenessStats, setCompletenessStats] = useState<CompletenessStatisticsResponse | null>(null);
   const [cityDetail, setCityDetail] = useState<PublicCityDetail | null>(null);
+
+  const datasetAttribution = useMemo(() => {
+    const resolved = resolveMetricDatasetAttribution(metric, {
+      portalUrl: cityDetail?.main_portal_url,
+      portalDomain: cityDetail?.main_domain,
+    });
+    if (!resolved.datasetName) return null;
+    return {
+      dataset_name: resolved.datasetName,
+      dataset_id: resolved.datasetId,
+      dataset_url: resolved.datasetUrl,
+      city_portal_domain: cityDetail?.main_domain || null,
+    };
+  }, [metric, cityDetail?.main_portal_url, cityDetail?.main_domain]);
+
   useEffect(() => {
     setCompletenessDaily(null);
     setCompletenessStats(null);
@@ -433,6 +450,7 @@ export default function MetricDetailContent({
               staleness_days={staleness_days}
               reportingCompletenessHref={reportingCompletenessHref}
             />
+            <MetricSourceAttribution sourceInfo={datasetAttribution} />
           </div>
         </section>
       )}
@@ -469,6 +487,7 @@ export default function MetricDetailContent({
             }}
             onMapUnavailable={() => setMapSectionVisible(false)}
           />
+          <MetricSourceAttribution sourceInfo={datasetAttribution} />
         </section>
       )}
 
@@ -484,6 +503,7 @@ export default function MetricDetailContent({
           isStale={isStale}
           comparison={comparison}
           deltaMapHeight={isMobile ? 260 : 350}
+          sourceInfo={datasetAttribution}
         />
       )}
 
@@ -510,9 +530,10 @@ export default function MetricDetailContent({
           {(() => {
             const portalUrl = cityDetail?.main_portal_url || null;
             const portalDomain = cityDetail?.main_domain || null;
-            const datasetName = metric.dataset_name || metric.dataset_title || metric.metric_name;
-            const datasetUrl = metric.source_url || metric.data_sf_url;
-            const endpointUrl = datasetUrl || (portalUrl && metric.endpoint ? `${portalUrl.replace(/\/$/, "")}/resource/${metric.endpoint}` : null);
+            const { datasetName, datasetUrl } = resolveMetricDatasetAttribution(
+              metric,
+              { portalUrl, portalDomain }
+            );
             const portalName = (() => {
               if (portalDomain) return portalDomain;
               if (portalUrl) {
@@ -534,33 +555,59 @@ export default function MetricDetailContent({
                   </p>
                 )}
                 <p className="provenance-value">
-                  This data comes from{" "}
-                  {endpointUrl ? (
-                    <a
-                      href={endpointUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="provenance-link-inline"
-                    >
-                      {datasetName}
-                    </a>
+                  {datasetName ? (
+                    <>
+                      This data comes from{" "}
+                      {datasetUrl ? (
+                        <a
+                          href={datasetUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="provenance-link-inline"
+                        >
+                          {datasetName}
+                        </a>
+                      ) : (
+                        <strong>{datasetName}</strong>
+                      )}
+                      , a public dataset maintained by {resolvedCityName} on{" "}
+                      {portalUrl ? (
+                        <a
+                          href={portalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="provenance-link-inline"
+                        >
+                          {portalName || "the city's open data portal"}
+                        </a>
+                      ) : (
+                        "the city's open data portal"
+                      )}
+                      .
+                    </>
                   ) : (
-                    <strong>{datasetName}</strong>
+                    <>
+                      This data comes from a public dataset maintained by{" "}
+                      {resolvedCityName}
+                      {portalUrl ? (
+                        <>
+                          {" "}
+                          on{" "}
+                          <a
+                            href={portalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="provenance-link-inline"
+                          >
+                            {portalName || "the city's open data portal"}
+                          </a>
+                        </>
+                      ) : (
+                        " on the city's open data portal"
+                      )}
+                      .
+                    </>
                   )}
-                  , a public dataset maintained by {resolvedCityName} on{" "}
-                  {portalUrl ? (
-                    <a
-                      href={portalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="provenance-link-inline"
-                    >
-                      {portalName || "the city's open data portal"}
-                    </a>
-                  ) : (
-                    "the city's open data portal"
-                  )}
-                  .
                 </p>
               </div>
             );

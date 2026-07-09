@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { getPublicMetric, getPublicCityDetail, type PublicMetricDetail, type PublicCityDetail } from "@/lib/publicApiClient";
+import { resolveMetricDatasetAttribution } from "@/lib/metricDatasetAttribution";
 import { slugify } from "@/lib/utils";
 import { parseLocalDate } from "@/lib/dateRange";
 import Loader from "@/components/Loader";
@@ -1334,9 +1335,6 @@ export default function AnomalyChartPage() {
                 This data comes from{" "}
                 {(() => {
                   const portalUrl = cityDetail?.main_portal_url || null;
-                  const datasetName = metricDetail.dataset_name || metricDetail.dataset_title || metricDetail.metric_name;
-                  const datasetUrl = metricDetail.source_url || metricDetail.data_sf_url;
-                  const endpointUrl = datasetUrl || (portalUrl && metricDetail.endpoint ? `${portalUrl.replace(/\/$/, "")}/resource/${metricDetail.endpoint}` : null);
                   const portalDomain = cityDetail?.main_domain || (portalUrl ? (() => {
                     try {
                       return new URL(portalUrl).hostname.replace(/^www\./, "");
@@ -1344,12 +1342,35 @@ export default function AnomalyChartPage() {
                       return portalUrl;
                     }
                   })() : null);
+                  const { datasetName, datasetUrl } = resolveMetricDatasetAttribution(
+                    metricDetail,
+                    { portalUrl, portalDomain }
+                  );
                   const resolvedCityName = cityDetail?.name || metricDetail.city_name || cityName;
+
+                  if (!datasetName) {
+                    return (
+                      <>
+                        a public dataset maintained by {resolvedCityName || "the city"}
+                        {portalUrl ? (
+                          <>
+                            {" on "}
+                            <a href={portalUrl} target="_blank" rel="noopener noreferrer" className="data-link">
+                              {portalDomain || "the city's open data portal"}
+                            </a>
+                          </>
+                        ) : (
+                          " on the city's open data portal"
+                        )}
+                        .
+                      </>
+                    );
+                  }
 
                   return (
                     <>
-                      {endpointUrl ? (
-                        <a href={endpointUrl} target="_blank" rel="noopener noreferrer" className="data-link">
+                      {datasetUrl ? (
+                        <a href={datasetUrl} target="_blank" rel="noopener noreferrer" className="data-link">
                           {datasetName}
                         </a>
                       ) : (

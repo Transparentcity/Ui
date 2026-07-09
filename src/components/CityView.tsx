@@ -157,7 +157,11 @@ interface DashboardMetricsSectionProps {
   shapefiles?: any[]; // Shapefiles for GPS location detection
   onDistrictChange?: (district: number | null) => void; // Callback when district is changed
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void; // Callback when GPS location is set
-  onMetricClick?: (metricId: number, district?: number | null) => void; // Callback when metric is clicked (for modal)
+  onMetricClick?: (
+    metricId: number,
+    district?: number | null,
+    placeId?: number | null
+  ) => void; // Callback when metric is clicked (for modal)
   leaderFollowerCounts?: Record<string, number>; // Follower counts per district ("0"=mayor) for Official Selector
   newsletterQueriesEnabled?: boolean; // When false, defers newsletter/follow API calls (slow-connection UX)
   /** User's saved places for "My places" in the official selector */
@@ -1986,7 +1990,8 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                           role="row"
                           prefetch={false}
                           mode="modal"
-                          district={district}
+                          district={selectedPlaceId ? null : district}
+                          placeId={selectedPlaceId}
                           onModalOpen={onMetricClick}
                           {...{ "data-metric-id": metric.id.toString() }}
                         >
@@ -2155,6 +2160,7 @@ export default function CityView({
   // selectedAnomaly removed – anomalies section hidden
   const [selectedMetricId, setSelectedMetricId] = useState<number | null>(null);
   const [selectedMetricDistrict, setSelectedMetricDistrict] = useState<number | null>(null);
+  const [selectedMetricPlaceId, setSelectedMetricPlaceId] = useState<number | null>(null);
   const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
   const [lastPlaceRefreshAt, setLastPlaceRefreshAt] = useState<string | null>(null);
   const [isPlaceJobRunning, setIsPlaceJobRunning] = useState(false);
@@ -2764,9 +2770,13 @@ export default function CityView({
                 setSelectedPlaceId(null);
               }}
               onGPSLocation={setDistrictGPSLocation}
-              onMetricClick={(metricId: number, district?: number | null) => {
+              onMetricClick={(metricId: number, district?: number | null, placeId?: number | null) => {
+                const resolvedPlaceId = placeId ?? selectedPlaceId;
                 setSelectedMetricId(metricId);
-                setSelectedMetricDistrict(district ?? selectedDistrict);
+                setSelectedMetricPlaceId(resolvedPlaceId);
+                setSelectedMetricDistrict(
+                  resolvedPlaceId != null ? null : (district ?? selectedDistrict)
+                );
               }}
               leaderFollowerCounts={leaderFollowerCounts}
               newsletterQueriesEnabled={cityLoaded}
@@ -2983,7 +2993,8 @@ export default function CityView({
             placeLoadingLabel={selectedPlaceId == null ? pendingPlaceLabel : null}
             onMetricClick={(metricId: number) => {
               setSelectedMetricId(metricId);
-              setSelectedMetricDistrict(selectedDistrict);
+              setSelectedMetricPlaceId(selectedPlaceId);
+              setSelectedMetricDistrict(selectedPlaceId != null ? null : selectedDistrict);
             }}
             browseAllExpanded={browseAllExpanded}
             onToggleBrowseAll={() => setBrowseAllExpanded((v) => !v)}
@@ -3021,7 +3032,10 @@ export default function CityView({
                 hideSectionTitle
                 onMetricClick={(metricId, district) => {
                   setSelectedMetricId(metricId);
-                  setSelectedMetricDistrict(district ?? selectedDistrict);
+                  setSelectedMetricPlaceId(selectedPlaceId);
+                  setSelectedMetricDistrict(
+                    selectedPlaceId != null ? null : (district ?? selectedDistrict)
+                  );
                 }}
               />
             ) : (
@@ -3088,19 +3102,31 @@ export default function CityView({
       )}
 
       {/* Metric Detail Modal */}
-      {cityData && (
-        <MetricDetailModal
-          metricId={selectedMetricId}
-          cityName={cityData.name}
-          citySlug={slugify(cityData.name)}
-          isOpen={selectedMetricId !== null}
-          onClose={() => {
-            setSelectedMetricId(null);
-            setSelectedMetricDistrict(null);
-          }}
-          district={selectedMetricDistrict}
-        />
-      )}
+      {cityData && (() => {
+        const metricPlace =
+          selectedMetricPlaceId != null
+            ? userPlaces.find((p) => p.id === selectedMetricPlaceId) ?? null
+            : null;
+        return (
+          <MetricDetailModal
+            metricId={selectedMetricId}
+            cityName={cityData.name}
+            citySlug={slugify(cityData.name)}
+            isOpen={selectedMetricId !== null}
+            onClose={() => {
+              setSelectedMetricId(null);
+              setSelectedMetricDistrict(null);
+              setSelectedMetricPlaceId(null);
+            }}
+            district={selectedMetricDistrict}
+            placeId={selectedMetricPlaceId}
+            placeLabel={metricPlace?.label ?? null}
+            placeLat={metricPlace?.lat ?? null}
+            placeLng={metricPlace?.lng ?? null}
+            placeRadiusM={metricPlace?.radius_m ?? null}
+          />
+        );
+      })()}
     </div>
   );
 }

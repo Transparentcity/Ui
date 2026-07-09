@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { usePublicMetric, usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
+import { usePlaceMetricComparisons } from "@/lib/hooks/useMetrics";
 import {
   getPublicCityDetail,
   getPublicMetricCompletenessDaily,
@@ -11,6 +12,7 @@ import {
   type CompletenessStatisticsResponse,
   type DailyCompletenessResponse,
   type PublicCityDetail,
+  type PublicMetricComparisons,
 } from "@/lib/publicApiClient";
 import MetricMapEmbed from "./MetricMapEmbed";
 import MetricDistrictChangeSection from "./MetricDistrictChangeSection";
@@ -21,7 +23,9 @@ import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
+import { resolveMetricDatasetAttribution } from "@/lib/metricDatasetAttribution";
 import CompletenessSparkline from "./CompletenessSparkline";
+import MetricSourceAttribution from "./MetricSourceAttribution";
 import styles from "./MetricsAdmin.module.css";
 import "./MetricDetailModal.css";
 
@@ -33,6 +37,12 @@ interface MetricDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   district?: number | null;
+  /** When set, comparisons/maps are scoped to this saved place instead of city/district. */
+  placeId?: number | null;
+  placeLabel?: string | null;
+  placeLat?: number | null;
+  placeLng?: number | null;
+  placeRadiusM?: number | null;
 }
 
 export default function MetricDetailModal({
@@ -42,17 +52,28 @@ export default function MetricDetailModal({
   isOpen,
   onClose,
   district,
+  placeId = null,
+  placeLabel = null,
+  placeLat = null,
+  placeLng = null,
+  placeRadiusM = null,
 }: MetricDetailModalProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
-  const selectedDistrict = district ?? null; // null = citywide, number = specific district
+  const isPlaceScope = placeId != null;
+  const selectedDistrict = isPlaceScope ? null : (district ?? null); // null = citywide, number = specific district
 
   const metricQuery = usePublicMetric(metricId);
-  const comparisonsQuery = usePublicMetricComparisons(
-    metricId,
+  const publicComparisonsQuery = usePublicMetricComparisons(
+    isPlaceScope ? null : metricId,
     selectedDistrict,
     selectedPeriod
   );
-  const timeSeriesQuery = usePublicMetricTimeSeriesSummary(metricId);
+  const placeComparisonsQuery = usePlaceMetricComparisons(
+    isPlaceScope ? placeId : null,
+    isPlaceScope ? metricId : null
+  );
+  const comparisonsQuery = isPlaceScope ? placeComparisonsQuery : publicComparisonsQuery;
+  const timeSeriesQuery = usePublicMetricTimeSeriesSummary(isPlaceScope ? null : metricId);
   const metric = metricQuery.data;
   const mapValueField = useMemo(
     () => (metric ? getMetricAggregationValueField(metric) : null),
@@ -64,6 +85,22 @@ export default function MetricDetailModal({
   const [completenessLoading, setCompletenessLoading] = useState(false);
   const [completenessStats, setCompletenessStats] = useState<CompletenessStatisticsResponse | null>(null);
   const [cityDetail, setCityDetail] = useState<PublicCityDetail | null>(null);
+
+  const datasetAttribution = useMemo(() => {
+    if (!metric) return null;
+    const resolved = resolveMetricDatasetAttribution(metric, {
+      portalUrl: cityDetail?.main_portal_url,
+      portalDomain: cityDetail?.main_domain,
+    });
+    if (!resolved.datasetName) return null;
+    return {
+      dataset_name: resolved.datasetName,
+      dataset_id: resolved.datasetId,
+      dataset_url: resolved.datasetUrl,
+      city_portal_domain: cityDetail?.main_domain || null,
+    };
+  }, [metric, cityDetail?.main_portal_url, cityDetail?.main_domain]);
+
   useEffect(() => {
     setCompletenessDaily(null);
     setCompletenessStats(null);
@@ -105,7 +142,8 @@ export default function MetricDetailModal({
     };
   }, [metric?.city_id]);
 
-  const comparison = comparisonsQuery.data?.comparisons[selectedPeriod];
+  const comparisonsData = comparisonsQuery.data as PublicMetricComparisons | undefined;
+  const comparison = comparisonsData?.comparisons?.[selectedPeriod];
   // Consider "loading" if actively fetching OR if we don't have comparison data yet for the selected period
   const isComparisonsLoading = comparisonsQuery.isLoading || comparisonsQuery.isFetching || (!comparisonsQuery.isError && !comparison);
   const isLoading = metricQuery.isLoading;
@@ -216,17 +254,21 @@ export default function MetricDetailModal({
     return "bad";
   }, [trend, metric?.greendirection]);
 
-  const locationLabel = selectedDistrict !== null && selectedDistrict > 0
-    ? `District ${selectedDistrict}`
-    : resolvedCityName;
+  const locationLabel = isPlaceScope
+    ? (placeLabel?.trim() || "Your place")
+    : selectedDistrict !== null && selectedDistrict > 0
+      ? `District ${selectedDistrict}`
+      : resolvedCityName;
 
   const { primaryChartId, yearChartId } = useMemo(
     () =>
-      selectPublicMetricCharts(
-        timeSeriesQuery.data?.time_series || [],
-        selectedDistrict
-      ),
-    [timeSeriesQuery.data, selectedDistrict]
+      isPlaceScope
+        ? { primaryChartId: null as number | null, yearChartId: null as number | null }
+        : selectPublicMetricCharts(
+            timeSeriesQuery.data?.time_series || [],
+            selectedDistrict
+          ),
+    [isPlaceScope, timeSeriesQuery.data, selectedDistrict]
   );
 
   const preferredChartId = primaryChartId;
@@ -309,10 +351,12 @@ export default function MetricDetailModal({
                 </div>
               )}
 
-              {/* Share row */}
+              {/* Share row — place-scoped views are personal; link to citywide public page */}
               <div className="metric-share-row">
                 <div className="metric-share-url">
-                  <label className="metric-share-label">Share this page</label>
+                  <label className="metric-share-label">
+                    {isPlaceScope ? "Citywide public page" : "Share this page"}
+                  </label>
                   <input
                     className="metric-share-input"
                     value={publicUrl}
@@ -321,17 +365,19 @@ export default function MetricDetailModal({
                   />
                 </div>
                 <div className="metric-share-actions">
-                  <button
-                    className={styles.secondaryBtn}
-                    onClick={handleShare}
-                    title="Share this metric"
-                  >
-                    <i className="fas fa-share-alt" /> Share
-                  </button>
+                  {!isPlaceScope && (
+                    <button
+                      className={styles.secondaryBtn}
+                      onClick={handleShare}
+                      title="Share this metric"
+                    >
+                      <i className="fas fa-share-alt" /> Share
+                    </button>
+                  )}
                   <button
                     className={styles.secondaryBtn}
                     onClick={() => window.open(`/c/${resolvedCitySlug}/metrics/${metricPath}`, "_blank")}
-                    title="Open public page"
+                    title={isPlaceScope ? "Open citywide public page" : "Open public page"}
                   >
                     <i className="fas fa-external-link-alt" /> Open Page
                   </button>
@@ -457,8 +503,8 @@ export default function MetricDetailModal({
                 )}
               </section>
 
-              {/* YTD Comparison Chart */}
-              {preferredChartId && metric && (
+              {/* YTD Comparison Chart — city/district public charts only */}
+              {!isPlaceScope && preferredChartId && metric && (
                 <section className="metric-section metric-chart-section">
                   <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                     <h2 className="metric-section-title" style={{ marginBottom: 0 }}>What are the trends over time?</h2>
@@ -501,76 +547,72 @@ export default function MetricDetailModal({
                       staleness_days={staleness_days}
                       reportingCompletenessHref={reportingCompletenessHref}
                     />
+                    <MetricSourceAttribution sourceInfo={datasetAttribution} />
                   </div>
                 </section>
               )}
 
-              {/* District Comparison - only show if metric has map_query configured */}
-              {metric.map_query && (
-                (selectedDistrict === null || selectedDistrict === 0) ? (
-                  <section className="metric-section">
-                    <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
-                    {isStale ? (
-                      <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
-                    ) : comparison?.current_period_start && comparison?.current_period_end ? (
-                      <p className="metric-section-subtitle">
-                        {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
-                      </p>
-                    ) : null}
-                    <MetricMapEmbed
-                      metricId={metric.id}
-                      selectedPeriod={selectedPeriod}
-                      height={400}
-                      showLink={true}
-                      showPeriodSelector={false}
-                      district={null}
-                      metricName={metric.metric_name}
-                      itemNoun={metric.item_noun}
-                      valueField={mapValueField}
-                      dateRange={{
-                        start: comparison?.current_period_start || null,
-                        end: comparison?.current_period_end || null,
-                      }}
-                      comparisonDateRange={{
-                        start: comparison?.comparison_period_start || null,
-                        end: comparison?.comparison_period_end || null,
-                      }}
-                    />
-                  </section>
-                ) : (
-                  <section className="metric-section">
-                    <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} happening in District {selectedDistrict}?</h2>
-                    {isStale ? (
-                      <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
-                    ) : comparison?.current_period_start && comparison?.current_period_end ? (
-                      <p className="metric-section-subtitle">
-                        {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
-                      </p>
-                    ) : null}
-                    <MetricMapEmbed
-                      metricId={metric.id}
-                      selectedPeriod={selectedPeriod}
-                      height={400}
-                      showLink={true}
-                      showPeriodSelector={false}
-                      district={selectedDistrict}
-                      metricName={metric.metric_name}
-                      itemNoun={metric.item_noun}
-                      valueField={mapValueField}
-                      dateRange={{
-                        start: comparison?.current_period_start || null,
-                        end: comparison?.current_period_end || null,
-                      }}
-                      comparisonDateRange={{
-                        start: comparison?.comparison_period_start || null,
-                        end: comparison?.comparison_period_end || null,
-                      }}
-                    />
-                  </section>
-                )
+              {/* Map — place-scoped uses lat/lng/radius; city/district uses public preview */}
+              {metric.map_query &&
+                (!isPlaceScope ||
+                  (placeLat != null &&
+                    placeLng != null &&
+                    placeRadiusM != null &&
+                    placeRadiusM > 0)) && (
+                <section className="metric-section">
+                  <h2 className="metric-section-title">
+                    {isPlaceScope
+                      ? `Where are ${metric.metric_name.toLowerCase()} happening near ${locationLabel}?`
+                      : selectedDistrict !== null && selectedDistrict > 0
+                        ? `Where are ${metric.metric_name.toLowerCase()} happening in District ${selectedDistrict}?`
+                        : `Where are ${metric.metric_name.toLowerCase()} highest in ${resolvedCityName}?`}
+                  </h2>
+                  {isStale ? (
+                    <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
+                  ) : comparison?.current_period_start && comparison?.current_period_end ? (
+                    <p className="metric-section-subtitle">
+                      {formatDateRange(comparison.current_period_start, comparison.current_period_end)}
+                    </p>
+                  ) : null}
+                  <MetricMapEmbed
+                    metricId={metric.id}
+                    selectedPeriod={selectedPeriod}
+                    height={400}
+                    showLink={!isPlaceScope}
+                    showPeriodSelector={false}
+                    district={isPlaceScope ? null : selectedDistrict}
+                    placeCircle={
+                      isPlaceScope
+                        ? { lat: placeLat!, lng: placeLng!, radius_m: placeRadiusM! }
+                        : null
+                    }
+                    placeLabel={isPlaceScope ? placeLabel : null}
+                    metricName={metric.metric_name}
+                    itemNoun={metric.item_noun}
+                    valueField={mapValueField}
+                    knownTotal={
+                      isPlaceScope && comparison?.current_period_value != null
+                        ? comparison.current_period_value
+                        : undefined
+                    }
+                    dateRange={{
+                      start: comparison?.current_period_start || null,
+                      end: comparison?.current_period_end || null,
+                    }}
+                    comparisonDateRange={
+                      isPlaceScope
+                        ? undefined
+                        : {
+                            start: comparison?.comparison_period_start || null,
+                            end: comparison?.comparison_period_end || null,
+                          }
+                    }
+                  />
+                  <MetricSourceAttribution sourceInfo={datasetAttribution} />
+                </section>
               )}
 
-              {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+              {!isPlaceScope && metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
                 <MetricDistrictChangeSection
                   metricId={metric.id}
                   metricName={metric.metric_name}
@@ -581,11 +623,12 @@ export default function MetricDetailModal({
                   isStale={isStale}
                   comparison={comparison}
                   deltaMapHeight={350}
+                  sourceInfo={datasetAttribution}
                 />
               )}
 
-              {/* Category Breakdown */}
-              {metric.category_fields && metric.category_fields.length > 0 && (
+              {/* Category Breakdown — city/district only (not place-scoped) */}
+              {!isPlaceScope && metric.category_fields && metric.category_fields.length > 0 && (
                 <section className="metric-section">
                   <h2 className="metric-section-title">What types of {metric.metric_name.toLowerCase()} are there?</h2>
                   <CategoryBreakdown
@@ -607,9 +650,10 @@ export default function MetricDetailModal({
                   {(() => {
                     const portalUrl = cityDetail?.main_portal_url || null;
                     const portalDomain = cityDetail?.main_domain || null;
-                    const datasetName = metric.dataset_name || metric.dataset_title || metric.metric_name;
-                    const datasetUrl = metric.source_url || metric.data_sf_url;
-                    const endpointUrl = datasetUrl || (portalUrl && metric.endpoint ? `${portalUrl.replace(/\/$/, "")}/resource/${metric.endpoint}` : null);
+                    const { datasetName, datasetUrl } = resolveMetricDatasetAttribution(
+                      metric,
+                      { portalUrl, portalDomain }
+                    );
                     const portalName = (() => {
                       if (portalDomain) return portalDomain;
                       if (portalUrl) {
@@ -631,33 +675,59 @@ export default function MetricDetailModal({
                           </p>
                         )}
                         <p className="provenance-value">
-                          This data comes from{" "}
-                          {endpointUrl ? (
-                            <a
-                              href={endpointUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="provenance-link-inline"
-                            >
-                              {datasetName}
-                            </a>
+                          {datasetName ? (
+                            <>
+                              This data comes from{" "}
+                              {datasetUrl ? (
+                                <a
+                                  href={datasetUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="provenance-link-inline"
+                                >
+                                  {datasetName}
+                                </a>
+                              ) : (
+                                <strong>{datasetName}</strong>
+                              )}
+                              , a public dataset maintained by {resolvedCityName} on{" "}
+                              {portalUrl ? (
+                                <a
+                                  href={portalUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="provenance-link-inline"
+                                >
+                                  {portalName || "the city's open data portal"}
+                                </a>
+                              ) : (
+                                "the city's open data portal"
+                              )}
+                              .
+                            </>
                           ) : (
-                            <strong>{datasetName}</strong>
+                            <>
+                              This data comes from a public dataset maintained by{" "}
+                              {resolvedCityName}
+                              {portalUrl ? (
+                                <>
+                                  {" "}
+                                  on{" "}
+                                  <a
+                                    href={portalUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="provenance-link-inline"
+                                  >
+                                    {portalName || "the city's open data portal"}
+                                  </a>
+                                </>
+                              ) : (
+                                " on the city's open data portal"
+                              )}
+                              .
+                            </>
                           )}
-                          , a public dataset maintained by {resolvedCityName} on{" "}
-                          {portalUrl ? (
-                            <a
-                              href={portalUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="provenance-link-inline"
-                            >
-                              {portalName || "the city's open data portal"}
-                            </a>
-                          ) : (
-                            "the city's open data portal"
-                          )}
-                          .
                         </p>
                       </div>
                     );

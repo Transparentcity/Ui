@@ -146,6 +146,33 @@
   z-index: 1;
 }
 
+.metric-source-attribution {
+  margin: 0.5rem 0 0;
+  padding: 0 16px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-secondary, #6b7280);
+}
+
+.metric-source-attribution-label {
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+
+.metric-source-attribution-link {
+  color: var(--text-primary, #111827);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.metric-source-attribution-link:hover {
+  color: var(--brand-primary, #ad35fa);
+}
+
+.metric-source-attribution-portal {
+  color: var(--text-tertiary, #9ca3af);
+}
+
 .metric-chart-container > div {
   width: 100%;
 }

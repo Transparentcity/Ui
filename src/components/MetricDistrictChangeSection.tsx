@@ -11,6 +11,9 @@ import {
 } from "@/lib/publicApiClient";
 import DeltaMapView from "./DeltaMapView";
 import DistrictComparisonTable from "./DistrictComparisonTable";
+import MetricSourceAttribution, {
+  type CompactSourceInfo,
+} from "./MetricSourceAttribution";
 
 type ComparisonSlice = Pick<
   PublicMetricComparison,
@@ -33,6 +36,7 @@ interface MetricDistrictChangeSectionProps {
   comparison: ComparisonSlice | null | undefined;
   /** Smaller map height on narrow layouts */
   deltaMapHeight: number;
+  sourceInfo?: CompactSourceInfo | null;
 }
 
 function hasUsableShapefile(shape: PublicShapefileResponse | null): boolean {
@@ -55,6 +59,7 @@ export default function MetricDistrictChangeSection({
   isStale,
   comparison,
   deltaMapHeight,
+  sourceInfo = null,
 }: MetricDistrictChangeSectionProps) {
   const [bundle, setBundle] = useState<{
     districts: PublicDistrictComparisonsResponse;
@@ -160,6 +165,7 @@ export default function MetricDistrictChangeSection({
         }}
         prefetched={prefetched}
       />
+      <MetricSourceAttribution sourceInfo={sourceInfo} />
       <DistrictComparisonTable
         metricId={metricId}
         comparisonType={selectedPeriod}

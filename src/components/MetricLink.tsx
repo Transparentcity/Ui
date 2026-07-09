@@ -12,8 +12,14 @@ interface MetricLinkProps extends Omit<React.HTMLAttributes<HTMLElement>, "onCli
   prefetch?: boolean;
   onClick?: (e?: React.MouseEvent) => void;
   mode?: "modal" | "page"; // "modal" opens in-app modal, "page" navigates to page
-  onModalOpen?: (metricId: number, district?: number | null) => void; // Callback when mode="modal"
+  onModalOpen?: (
+    metricId: number,
+    district?: number | null,
+    placeId?: number | null
+  ) => void; // Callback when mode="modal"
   district?: number | null; // District to filter by (null/0 = citywide)
+  /** When set, opens the metric detail modal scoped to this saved place. */
+  placeId?: number | null;
   style?: React.CSSProperties;
 }
 
@@ -32,6 +38,7 @@ export function MetricLink({
   mode = "modal", // Default to modal for in-app links
   onModalOpen,
   district,
+  placeId,
   style,
   ...props
 }: MetricLinkProps) {
@@ -48,7 +55,7 @@ export function MetricLink({
     if (mode === "modal" && onModalOpen) {
       e.preventDefault();
       e.stopPropagation();
-      onModalOpen(metricId, district);
+      onModalOpen(metricId, district, placeId);
     }
     // If mode is "page" or no onModalOpen, let Link handle navigation
   };

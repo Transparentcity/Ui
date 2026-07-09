@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
-import type { SavedMap } from "@/lib/apiClient";
+import { getMetricMapData, type MapData, type SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
 import Loader from "./Loader";
 import {
@@ -13,6 +14,10 @@ import {
   type MetricMapViewSpec,
 } from "@/lib/metricMapEmbedViews";
 import { getMapCaptionTotalCount } from "@/lib/metricMapCaptionTotal";
+import {
+  getPlaceRadiusBoundingBox,
+  getPlaceRadiusBoundingBoxPolygon,
+} from "@/lib/placeBounds";
 import "./MetricMapEmbed.css";
 
 interface MetricMapEmbedProps {
@@ -23,6 +28,10 @@ interface MetricMapEmbedProps {
   showPeriodSelector?: boolean;
   onPeriodChange?: (period: string) => void;
   district?: number | null;
+  /** When set, fetch authenticated map-data filtered to this place circle. */
+  placeCircle?: { lat: number; lng: number; radius_m: number } | null;
+  /** Label for the place pin overlay (matches CityMapView). */
+  placeLabel?: string | null;
   metricName?: string;
   itemNoun?: string;
   dateRange?: { start: string | null; end: string | null };
@@ -107,6 +116,101 @@ function previewToSavedMap(preview: MapPreviewResponse): SavedMap {
   };
 }
 
+/**
+ * Convert authenticated map-data into SavedMap for ProgressiveMapView.
+ * For place scope: force a points map centered on the place bbox (same as CityMapView),
+ * strip choropleth aggregations that would hide dots, and attach saved_place_overlay.
+ */
+function mapDataToSavedMap(
+  mapData: MapData,
+  metricId: number,
+  placeCircle?: { lat: number; lng: number; radius_m: number } | null,
+  placeLabel?: string | null
+): SavedMap {
+  const locationData = Array.isArray(mapData.location_data)
+    ? (mapData.location_data as Array<{ lat: number; lon: number; [key: string]: any }>)
+    : [];
+  const rawConfig =
+    typeof mapData.map_config === "object" && mapData.map_config
+      ? mapData.map_config
+      : typeof mapData.metadata === "object" && mapData.metadata
+        ? (mapData.metadata as Record<string, any>)
+        : {};
+
+  const isPlace =
+    placeCircle != null &&
+    Number.isFinite(placeCircle.lat) &&
+    Number.isFinite(placeCircle.lng) &&
+    placeCircle.radius_m > 0;
+
+  let bounds: [[number, number], [number, number]] | null = null;
+  let center: { lat: number; lng: number; zoom: number } | null = null;
+  let mapConfig: Record<string, any> = { ...rawConfig };
+
+  if (isPlace && placeCircle) {
+    const b = getPlaceRadiusBoundingBox(
+      placeCircle.lat,
+      placeCircle.lng,
+      placeCircle.radius_m
+    );
+    bounds = [
+      [b.lonLo, b.latLo],
+      [b.lonHi, b.latHi],
+    ];
+    center = { lat: placeCircle.lat, lng: placeCircle.lng, zoom: 15 };
+    const label = placeLabel?.trim() || "My place";
+    // Place dashboard always shows pins in the place bbox — drop choropleth
+    // config so ProgressiveMapView treats this as a point map (isPointMap).
+    mapConfig = {
+      item_noun: rawConfig.item_noun,
+      start_date: rawConfig.start_date,
+      end_date: rawConfig.end_date,
+      default_view: { type: "points" },
+      saved_place_overlay: {
+        kind: "saved_place_circle",
+        label,
+        center_lat: placeCircle.lat,
+        center_lon: placeCircle.lng,
+        radius_m: placeCircle.radius_m,
+        circles_geojson: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: { name: label },
+              geometry: getPlaceRadiusBoundingBoxPolygon(
+                placeCircle.lat,
+                placeCircle.lng,
+                placeCircle.radius_m
+              ),
+            },
+          ],
+        },
+      },
+    };
+  }
+
+  return {
+    id: typeof mapData.id === "number" ? mapData.id : 0,
+    short_hash: "",
+    title: mapData.title || "Map",
+    description: null,
+    map_type: isPlace ? "point" : ((mapData.type as SavedMap["map_type"]) || "point"),
+    location_data: locationData,
+    map_config: mapConfig,
+    bounds,
+    center,
+    city_id: null,
+    metric_id: metricId,
+    query_source: null,
+    is_public: false,
+    view_count: 0,
+    user_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 // ─── Secondary map: lazy-rendered once it enters the viewport ───────────────
 
 interface SecondaryMapProps {
@@ -179,6 +283,8 @@ export default function MetricMapEmbed({
   showPeriodSelector = false,
   onPeriodChange,
   district,
+  placeCircle = null,
+  placeLabel = null,
   metricName,
   itemNoun = "items",
   dateRange,
@@ -188,7 +294,14 @@ export default function MetricMapEmbed({
   onMapUnavailable,
 }: MetricMapEmbedProps) {
   const { theme } = useTheme();
+  const { getAccessTokenSilently } = useAuth0();
   const mapBasemapTheme = theme === "dark" ? "dark" : "light";
+  const isPlaceScope = !!(
+    placeCircle &&
+    placeCircle.lat != null &&
+    placeCircle.lng != null &&
+    placeCircle.radius_m > 0
+  );
 
   const [mapData, setMapData] = useState<SavedMap | null>(null);
   const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, any>> | null>(null);
@@ -239,6 +352,37 @@ export default function MetricMapEmbed({
       try {
         setLoading(true);
 
+        if (isPlaceScope && placeCircle) {
+          const token = await getAccessTokenSilently();
+          const response = await getMetricMapData(
+            {
+              metric_id: metricId,
+              start_date: dateRange!.start!,
+              end_date: dateRange!.end!,
+              center_lat: placeCircle.lat,
+              center_lon: placeCircle.lng,
+              radius_m: placeCircle.radius_m,
+            },
+            token
+          );
+          if (!mounted) return;
+          if (response.status === "success" && response.map_data) {
+            setMapData(
+              mapDataToSavedMap(response.map_data, metricId, placeCircle, placeLabel)
+            );
+            setLimitHit(false);
+          } else {
+            const errMsg = response.error || "Failed to load place map";
+            if (errMsg.includes("map_query")) {
+              setMapNotAvailable(true);
+              setError(null);
+            } else {
+              setError(errMsg);
+            }
+          }
+          return;
+        }
+
         const response = await getMetricMapPreview(metricId, {
           start_date: dateRange!.start!,
           end_date: dateRange!.end!,
@@ -283,11 +427,26 @@ export default function MetricMapEmbed({
     return () => {
       mounted = false;
     };
-  }, [hasEnteredViewport, metricId, selectedPeriod, district, dateRange?.start, dateRange?.end, comparisonDateRange?.start, comparisonDateRange?.end]);
+  }, [
+    hasEnteredViewport,
+    metricId,
+    selectedPeriod,
+    district,
+    isPlaceScope,
+    placeCircle?.lat,
+    placeCircle?.lng,
+    placeCircle?.radius_m,
+    placeLabel,
+    dateRange?.start,
+    dateRange?.end,
+    comparisonDateRange?.start,
+    comparisonDateRange?.end,
+    getAccessTokenSilently,
+  ]);
 
   // ── Handle "View full map" ────────────────────────────────────────────────────
   const handleViewFullMap = useCallback(async () => {
-    if (!dateRange?.start || !dateRange?.end) return;
+    if (!dateRange?.start || !dateRange?.end || isPlaceScope) return;
 
     try {
       setSavingMap(true);
@@ -306,7 +465,7 @@ export default function MetricMapEmbed({
     } finally {
       setSavingMap(false);
     }
-  }, [metricId, selectedPeriod, district, dateRange]);
+  }, [metricId, selectedPeriod, district, dateRange, isPlaceScope]);
 
   // ── Caption builder ───────────────────────────────────────────────────────────
   const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string =>
@@ -340,13 +499,18 @@ export default function MetricMapEmbed({
 
     if (totalCount === null) return "";
 
-    const locationLabel = district && district > 0 ? `District ${district}` : "citywide";
+    const locationLabel =
+      isPlaceScope
+        ? "near this place"
+        : district && district > 0
+          ? `in District ${district}`
+          : "citywide";
     const displayItemNoun = (mapData?.map_config?.item_noun as string | undefined) || itemNoun;
 
     // Don't produce a caption when the map itself is being suppressed.
     if (limitHit && effectiveSpecs === null) return "";
 
-    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${district && district > 0 ? `in ${locationLabel}` : "citywide"} from ${dateRangeStr}.`;
+    return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${locationLabel} from ${dateRangeStr}.`;
   };
 
   const caption = buildCaption();
@@ -380,7 +544,14 @@ export default function MetricMapEmbed({
   // When the backend hit the 5k row limit and the only renderable view is a raw
   // point sample, suppress point maps entirely. If a choropleth exists, promote
   // it to primary; otherwise the section produces nothing useful.
+  // Place scope always uses pins (same as CityMapView / CityMetricsMap).
   const effectiveSpecs = useMemo(() => {
+    if (isPlaceScope && mapData) {
+      return {
+        primary: { kind: "points" as const, label: "Location pins" },
+        secondary: [] as MetricMapViewSpec[],
+      };
+    }
     if (!embedViewSpecs) return null;
     if (!limitHit) return embedViewSpecs;
 
@@ -409,7 +580,7 @@ export default function MetricMapEmbed({
 
     // Nothing useful to render.
     return null;
-  }, [embedViewSpecs, limitHit]);
+  }, [isPlaceScope, mapData, embedViewSpecs, limitHit]);
 
   // Notify parent once we know the map section has nothing to show.
   const onMapUnavailableFired = useRef(false);

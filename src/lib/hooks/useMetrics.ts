@@ -702,3 +702,48 @@ export function usePlaceBatchComparisons(
   });
 }
 
+/**
+ * Hook to get place-scoped comparisons for a single metric (metric detail modal).
+ * Returns the same shape as public metric comparisons so the modal can share render paths.
+ */
+export function usePlaceMetricComparisons(
+  placeId: number | null,
+  metricId: number | null
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: [
+      ...metricKeys.placeBatchComparisons(placeId ?? 0, {
+        metric_ids: metricId != null ? [metricId] : [],
+      }),
+      "single",
+    ],
+    queryFn: async () => {
+      if (!placeId || metricId == null) {
+        return { metric_id: metricId ?? 0, district: null, comparisons: {} };
+      }
+      const token = await getAccessTokenSilently();
+      const batch = await getPlaceComparisonsBatch(
+        placeId,
+        {
+          metric_ids: [metricId],
+          comparison_types: ["ytd", "mtd", "mtd_prior_year"],
+        },
+        token
+      );
+      const comparisons = batch[metricId] ?? {};
+      return {
+        metric_id: metricId,
+        district: null as number | null,
+        comparisons,
+      };
+    },
+    enabled: !!placeId && metricId != null,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
+    retryDelay: 1000,
+  });
+}
+
