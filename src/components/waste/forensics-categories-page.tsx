@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import {
   useWasteKeyMetrics,
-  formatMetricValue,
+  formatWasteMetricValue,
 } from "@/lib/hooks/useWasteKeyMetrics"
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react"
 import { WasteShell } from "./waste-shell"
@@ -181,9 +181,11 @@ export function ForensicsCategoriesPage() {
                 critical: 0,
                 amount: 0,
               }
-              const headline = (keyMetricsByCategory[key] ?? []).find(
-                (m) => m.value != null,
-              )
+              const categoryMetrics = keyMetricsByCategory[key] ?? []
+              const headline = categoryMetrics.find((m) => m.value != null)
+              // Metrics exist but none has a value yet: say so instead of
+              // going silently blank (reads as "no signal" otherwise).
+              const metricsPending = !headline && categoryMetrics.length > 0
               return (
                 <Link
                   key={key}
@@ -211,7 +213,7 @@ export function ForensicsCategoriesPage() {
                           {headline.name}
                         </span>
                         <span className="font-semibold text-gray-700 tabular-nums">
-                          {formatMetricValue(headline.value)}
+                          {formatWasteMetricValue(headline.value, headline.name)}
                         </span>
                         {headline.trend?.dir === "up" && (
                           <TrendingUp className="w-3 h-3 text-gray-400" />
@@ -219,6 +221,16 @@ export function ForensicsCategoriesPage() {
                         {headline.trend?.dir === "down" && (
                           <TrendingDown className="w-3 h-3 text-gray-400" />
                         )}
+                      </p>
+                    )}
+                    {metricsPending && (
+                      <p
+                        className="mt-2 text-xs italic text-gray-400"
+                        data-testid={`headline-pending-${key}`}
+                      >
+                        {categoryMetrics.some((m) => m.status === "failed")
+                          ? "Key metrics unavailable (calculation failed)"
+                          : "Key metrics awaiting first run"}
                       </p>
                     )}
                   </div>

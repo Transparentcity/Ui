@@ -14,10 +14,18 @@ import type { AdminMetricListItem } from "@/lib/apiClient"
 const SUBCATEGORY_TO_MODULE_CATEGORY: Record<string, string> = {
   procurement: "contracts",
   payroll: "payroll",
+  payroll_integrity: "payroll",
   capital: "infrastructure",
   service_delivery: "infrastructure",
   fraud_risk: "convergence",
 }
+
+/**
+ * Numerator/denominator plumbing metrics exist only to feed derived shares;
+ * a bare "Total Contract Dollars (Denominator)" chip tells a reader nothing,
+ * so they never surface in the module.
+ */
+const HELPER_METRIC_RE = /\((numerator|denominator)\)/i
 
 export interface WasteKeyMetric {
   id: number
@@ -28,6 +36,8 @@ export interface WasteKeyMetric {
   value: number | null
   trend: { pct: number; dir: "up" | "down" | "flat" } | null
   status: "completed" | "failed" | "running" | "never"
+  /** Most recent data date on the stored series ("data through"), if known. */
+  asOf: string | null
 }
 
 function statusKind(status?: string | null): WasteKeyMetric["status"] {
@@ -74,6 +84,35 @@ export function formatMetricValue(v: number | null | undefined): string {
 }
 
 /**
+ * Share/percentage metrics, until the backend carries a display unit, are
+ * recognizable only by name. Ratios stored as fractions (0.15) display as
+ * "15%"; values already on a 0–100 scale keep their magnitude.
+ */
+const SHARE_NAME_RE = /\bshare\b|% of|percent|\(%/i
+
+export function isShareMetric(name: string): boolean {
+  return SHARE_NAME_RE.test(name)
+}
+
+/**
+ * Name-aware display: share metrics get an explicit % (so "Sole-Source
+ * Contract Share" reads "15%" instead of a bare "0.15"); everything else
+ * falls through to the compact number.
+ */
+export function formatWasteMetricValue(
+  v: number | null | undefined,
+  name: string,
+): string {
+  if (v == null || !Number.isFinite(v)) return "—"
+  if (isShareMetric(name)) {
+    const pct = Math.abs(v) <= 1.5 ? v * 100 : v
+    const digits = Math.abs(pct) >= 10 ? 0 : 1
+    return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(pct)}%`
+  }
+  return formatMetricValue(v)
+}
+
+/**
  * All waste metrics for a city, grouped by module category, with YTD values
  * and trends. One shared query pair: the categories grid and every category
  * detail strip read the same cache entries.
@@ -112,6 +151,7 @@ export function useWasteKeyMetrics(cityId: number | null) {
       const sub = (m.subcategory ?? "").trim().toLowerCase()
       const moduleCategory = SUBCATEGORY_TO_MODULE_CATEGORY[sub]
       if (!moduleCategory) continue
+      if (HELPER_METRIC_RE.test(m.metric_name)) continue
       const comp = comparisons?.[m.id]?.ytd
       const entry: WasteKeyMetric = {
         id: m.id,
@@ -124,6 +164,7 @@ export function useWasteKeyMetrics(cityId: number | null) {
           comp?.comparison_period_value,
         ),
         status: statusKind(m.last_execution_status),
+        asOf: m.most_recent_data_date ?? null,
       }
       if (!grouped[moduleCategory]) grouped[moduleCategory] = []
       grouped[moduleCategory].push(entry)

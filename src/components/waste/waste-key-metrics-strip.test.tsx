@@ -52,7 +52,7 @@ describe("WasteKeyMetricsStrip", () => {
     render(<WasteKeyMetricsStrip category="payroll" />)
     const strip = screen.getByTestId("waste-key-metrics")
     expect(strip.textContent).toContain("Overtime Share of Regular Pay")
-    expect(strip.textContent).toContain("11.8")
+    expect(strip.textContent).toContain("12%")
     expect(strip.textContent).toContain("+1.2%")
   })
 
