@@ -42,7 +42,7 @@ vi.mock("@/lib/hooks/useWaste", () => ({
 const useWasteKeyMetrics = vi.fn()
 vi.mock("@/lib/hooks/useWasteKeyMetrics", () => ({
   useWasteKeyMetrics: (cityId: number | null) => useWasteKeyMetrics(cityId),
-  formatMetricValue: (v: number | null) => (v == null ? "—" : `${v}%`),
+  formatWasteMetricValue: (v: number | null) => (v == null ? "—" : `${v}%`),
 }))
 
 describe("ForensicsCategoriesPage", () => {

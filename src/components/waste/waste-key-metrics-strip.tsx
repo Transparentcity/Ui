@@ -5,7 +5,7 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import MetricChartsModal from "@/components/MetricChartsModal"
 import {
   useWasteKeyMetrics,
-  formatMetricValue,
+  formatWasteMetricValue,
   type WasteKeyMetric,
 } from "@/lib/hooks/useWasteKeyMetrics"
 import { useWasteCity } from "./WasteCityContext"
@@ -59,7 +59,7 @@ export function WasteKeyMetricsStrip({ category }: { category: string }) {
             <button
               key={m.id}
               onClick={() => setOpenMetric(m)}
-              title={`${m.name} — click for the full chart`}
+              title={`${m.name}${m.asOf ? ` — data through ${m.asOf}` : ""} — click for the full chart`}
               className={cn(
                 "flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white text-left",
                 "border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all",
@@ -73,12 +73,14 @@ export function WasteKeyMetricsStrip({ category }: { category: string }) {
                 style={{ fontFamily: "var(--font-data)" }}
               >
                 {m.value != null
-                  ? formatMetricValue(m.value)
+                  ? formatWasteMetricValue(m.value, m.name)
                   : valuesLoading
                     ? "…"
                     : m.status === "failed"
                       ? "run failed"
-                      : "not run yet"}
+                      : m.status === "completed"
+                        ? "no data yet"
+                        : "not run yet"}
               </span>
               <TrendIcon trend={m.trend} />
               {m.trend && m.trend.dir !== "flat" && (
