@@ -45,6 +45,20 @@ describe("WasteReportBuilder", () => {
     ).not.toBeDisabled()
   })
 
+  it("offers a PDF export format alongside CSV/JSON/Excel", () => {
+    useLatestPersistedWasteResult.mockReturnValue({
+      data: {
+        findings: [
+          makeFinding({ id: "1", category: "Payroll & Personnel", severity: "critical" }),
+        ],
+      },
+    })
+    render(<WasteReportBuilder />)
+
+    expect(screen.getByRole("button", { name: /^pdf$/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^csv$/i })).toBeInTheDocument()
+  })
+
   it("disables Generate and explains why when no findings match the filters", () => {
     // All findings are below the default severity floor (critical/high).
     useLatestPersistedWasteResult.mockReturnValue({

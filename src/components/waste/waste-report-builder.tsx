@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useAuth0 } from "@auth0/auth0-react"
-import { Download, FileSpreadsheet, Loader2, Settings2 } from "lucide-react"
+import { Download, FileSpreadsheet, FileText, Loader2, Settings2 } from "lucide-react"
 import {
   exportWasteFindings,
   exportAuditorReport,
@@ -10,12 +10,12 @@ import {
 } from "@/lib/apiClient"
 import { useLatestPersistedWasteResult } from "@/lib/hooks/useWaste"
 import { useWasteCity } from "./WasteCityContext"
-import { normalizeWasteCategory } from "./waste-utils"
+import { normalizeWasteCategory, getWasteCategoryLabel } from "./waste-utils"
 import { csvCell } from "@/lib/waste/report-csv"
 import { toast } from "sonner"
 
 type Severity = "critical" | "high" | "medium" | "low"
-type Format = "csv" | "json" | "xlsx"
+type Format = "csv" | "json" | "xlsx" | "pdf"
 
 const ALL_CATEGORIES = [
   "payroll",
@@ -182,6 +182,27 @@ export function WasteReportBuilder() {
           `waste-report_${slugCity}_${stamp}.json`,
         )
         toast.success(`Downloaded ${filtered.length} findings as JSON`)
+      } else if (format === "pdf") {
+        // Formatted, confidential/unaudited audit summary. Lazy-load the
+        // generator so jsPDF stays out of the main bundle.
+        const { generateWasteAuditPdf } = await import("@/lib/waste/wasteAuditPdf")
+        const blob = generateWasteAuditPdf({
+          cityName: selectedCityName ?? "City",
+          findings: filtered,
+          analysisRunAt: analysis?.analysis_timestamp ?? null,
+          generatedAt: new Date(),
+          totalFindingsAvailable: allFindings.length,
+          scope: {
+            categories: Array.from(categories).map((c) => CATEGORY_LABELS[c]),
+            severities: Array.from(severities),
+            department: departmentFilter || null,
+            minDollars: minDollars ? Number(minDollars) : null,
+          },
+          categoryLabel: getWasteCategoryLabel,
+          normalizeCategory: normalizeWasteCategory,
+        })
+        downloadBlob(blob, `waste-audit-summary_${slugCity}_${stamp}.pdf`)
+        toast.success(`Generated audit PDF for ${filtered.length} findings`)
       } else {
         const token = await getAccessTokenSilently()
         const onlyOneCategory =
@@ -315,7 +336,7 @@ export function WasteReportBuilder() {
           Format
         </span>
         <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-md p-0.5">
-          {(["csv", "json", "xlsx"] as Format[]).map((f) => (
+          {(["csv", "json", "xlsx", "pdf"] as Format[]).map((f) => (
             <button
               key={f}
               type="button"
@@ -339,6 +360,13 @@ export function WasteReportBuilder() {
               CSV/JSON-only for now.
             </span>
           )}
+          {format === "pdf" && (
+            <span className="text-[11px] text-gray-500">
+              Confidential · unaudited audit summary covering all{" "}
+              {filtered.length.toLocaleString()} selected findings. (For a
+              single finding, use “Export PDF brief” in the Seymour panel.)
+            </span>
+          )}
           {filtered.length === 0 && !busy && (
             <span className="text-[11px] text-amber-600">
               No findings match these filters — adjust to enable.
@@ -353,6 +381,8 @@ export function WasteReportBuilder() {
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : format === "xlsx" ? (
               <FileSpreadsheet className="w-3.5 h-3.5" />
+            ) : format === "pdf" ? (
+              <FileText className="w-3.5 h-3.5" />
             ) : (
               <Download className="w-3.5 h-3.5" />
             )}

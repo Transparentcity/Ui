@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Check,
   Copy,
+  FileText,
   Loader2,
   PanelRightClose,
   PanelRightOpen,
@@ -28,6 +29,8 @@ import {
   PREFERRED_DEFAULT_MODEL_KEY,
   pickDefaultModelKey,
 } from "@/lib/modelDefaults"
+import { useWasteCity } from "./WasteCityContext"
+import { getWasteCategoryLabel } from "./waste-utils"
 
 const SEYMOUR_ANALYSIS_TIMEOUT_MS = 300_000
 
@@ -193,7 +196,9 @@ export function WasteSeymourPanel({
   const DEFAULT_PANEL_WIDTH = 440
   const router = useRouter()
   const { getAccessTokenSilently } = useAuth0()
+  const { selectedCityName } = useWasteCity()
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [promptDraft, setPromptDraft] = useState("")
   const [analysisResult, setAnalysisResult] = useState("")
@@ -396,6 +401,45 @@ export function WasteSeymourPanel({
     }
   }
 
+  // Download a confidential, single-finding audit brief (finding detail +
+  // Seymour's analysis) as a formatted PDF. Distinct from the Reports tab's
+  // multi-finding audit summary. Lazy-loads jsPDF so it stays out of the bundle.
+  const handleExportPdf = async () => {
+    if (!finding || exportingPdf) return
+    setExportingPdf(true)
+    try {
+      const { generateWasteFindingBriefPdf } = await import(
+        "@/lib/waste/wasteAuditPdf"
+      )
+      const blob = generateWasteFindingBriefPdf({
+        cityName: selectedCityName ?? "City",
+        finding,
+        analysisText: analysisResult || null,
+        generatedAt: new Date(),
+        categoryLabel: getWasteCategoryLabel,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const slug = (finding.entity || "finding")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+      const stamp = new Date().toISOString().slice(0, 10)
+      a.download = `waste-finding-brief_${slug}_${stamp}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setAnalysisError(
+        error instanceof Error ? error.message : "Failed to export PDF brief.",
+      )
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   const handleOpenFullChat = () => {
     const prompt = encodeURIComponent(promptDraft || (finding ? buildAnalysisPrompt(finding) : ""))
     router.push(`/home?prefill=${prompt}`)
@@ -559,6 +603,21 @@ export function WasteSeymourPanel({
                   {copiedShare ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
                 </button>
               ) : null}
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={exportingPdf}
+                aria-label="Export confidential PDF brief for this finding"
+                title="Download a confidential · unaudited PDF brief of THIS finding, including Seymour's analysis"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-purple-700 disabled:opacity-50"
+              >
+                {exportingPdf ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5" />
+                )}
+                Export PDF brief
+              </button>
             </div>
           ) : null}
         </div>
