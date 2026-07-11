@@ -8,9 +8,11 @@ import {
 
 const useMetrics = vi.fn()
 const useBatchComparisons = vi.fn()
+const useWasteLatestValues = vi.fn()
 vi.mock("@/lib/hooks/useMetrics", () => ({
   useMetrics: (opts: unknown, q: unknown) => useMetrics(opts, q),
   useBatchComparisons: (req: unknown) => useBatchComparisons(req),
+  useWasteLatestValues: (ids: number[]) => useWasteLatestValues(ids),
 }))
 
 const METRICS = [
@@ -35,6 +37,7 @@ describe("useWasteKeyMetrics", () => {
       },
       isLoading: false,
     })
+    useWasteLatestValues.mockReturnValue({ latestById: {}, isLoading: false })
   })
 
   it("groups metrics onto module categories and excludes readout", () => {
@@ -85,6 +88,69 @@ describe("useWasteKeyMetrics", () => {
     useMetrics.mockReturnValue({ data: undefined, isLoading: false })
     const { result } = renderHook(() => useWasteKeyMetrics(null))
     expect(result.current.byCategory).toEqual({})
+  })
+})
+
+describe("useWasteKeyMetrics latest-value fallback", () => {
+  const METRICS_WITH_DATA = [
+    { id: 692, metric_name: "SF Total Overtime Pay (Annual)", metric_key: "ot-pay", category: "waste", subcategory: "payroll", is_active: true, last_execution_status: "completed", most_recent_data_date: "2025" },
+    { id: 634, metric_name: "Overtime Share", metric_key: "ot-share", category: "waste", subcategory: "payroll", is_active: true, last_execution_status: "completed", most_recent_data_date: "2025" },
+  ]
+
+  it("uses the latest stored value when the comparison is missing", () => {
+    useMetrics.mockReturnValue({ data: METRICS_WITH_DATA, isLoading: false })
+    useBatchComparisons.mockReturnValue({ data: {}, isLoading: false })
+    useWasteLatestValues.mockReturnValue({
+      latestById: {
+        692: { value: 5_000_000, prior: 4_800_000, asOf: "2025", period: "year" },
+        634: { value: 0.14, prior: 0.12, asOf: "2025", period: "year" },
+      },
+      isLoading: false,
+    })
+    const { result } = renderHook(() => useWasteKeyMetrics(57260))
+    const payroll = result.current.byCategory.payroll
+    const share = payroll.find((m) => m.id === 634)!
+    expect(share.value).toBe(0.14)
+    expect(share.basis).toBe("latest")
+    expect(share.trend?.dir).toBe("up") // 0.14 vs 0.12
+    expect(share.asOf).toBe("2025")
+    const pay = payroll.find((m) => m.id === 692)!
+    expect(pay.value).toBe(5_000_000)
+    expect(pay.basis).toBe("latest")
+  })
+
+  it("prefers the precomputed comparison over the fallback", () => {
+    useMetrics.mockReturnValue({ data: METRICS_WITH_DATA, isLoading: false })
+    useBatchComparisons.mockReturnValue({
+      data: { 634: { ytd: { current_period_value: 0.2, comparison_period_value: 0.18 } } },
+      isLoading: false,
+    })
+    useWasteLatestValues.mockReturnValue({
+      latestById: { 634: { value: 0.14, prior: 0.12, asOf: "2025", period: "year" } },
+      isLoading: false,
+    })
+    const { result } = renderHook(() => useWasteKeyMetrics(57260))
+    const share = result.current.byCategory.payroll.find((m) => m.id === 634)!
+    expect(share.value).toBe(0.2)
+    expect(share.basis).toBe("comparison")
+  })
+
+  it("requests fallbacks only for completed, data-bearing metrics without a comparison", () => {
+    const metrics = [
+      { id: 692, metric_name: "SF Total Overtime Pay (Annual)", category: "waste", subcategory: "payroll", is_active: true, last_execution_status: "completed", most_recent_data_date: "2025" },
+      { id: 634, metric_name: "Overtime Share", category: "waste", subcategory: "payroll", is_active: true, last_execution_status: "completed", most_recent_data_date: "2025" },
+      { id: 777, metric_name: "Never Run", category: "waste", subcategory: "payroll", is_active: true, last_execution_status: "never", most_recent_data_date: null },
+      { id: 623, metric_name: "Total Contract Dollars (Denominator)", category: "waste", subcategory: "procurement", is_active: true, last_execution_status: "completed", most_recent_data_date: "2025" },
+    ]
+    useMetrics.mockReturnValue({ data: metrics, isLoading: false })
+    useBatchComparisons.mockReturnValue({
+      data: { 634: { ytd: { current_period_value: 0.2, comparison_period_value: 0.18 } } },
+      isLoading: false,
+    })
+    useWasteLatestValues.mockReturnValue({ latestById: {}, isLoading: false })
+    renderHook(() => useWasteKeyMetrics(57260))
+    // 634 has a comparison, 777 never ran, 623 is a helper -> only 692 qualifies.
+    expect(useWasteLatestValues).toHaveBeenCalledWith([692])
   })
 })
 
