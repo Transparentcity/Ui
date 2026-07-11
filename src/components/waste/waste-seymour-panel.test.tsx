@@ -33,6 +33,10 @@ vi.mock("@/lib/modelDefaults", () => ({
   pickDefaultModelKey: () => "test-model",
 }))
 
+vi.mock("./WasteCityContext", () => ({
+  useWasteCity: () => ({ selectedCityName: "San Francisco", selectedCityId: 1 }),
+}))
+
 import { getAvailableModels, createChatJob, getJob, getSessionStats } from "@/lib/apiClient"
 
 const mockGetModels = vi.mocked(getAvailableModels)
@@ -171,6 +175,20 @@ describe("WasteSeymourPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Analysis result text")).toBeInTheDocument()
+    })
+  })
+
+  it("offers a single-finding PDF brief export once analysis completes", async () => {
+    render(
+      <WasteSeymourPanel request={makeRequest()} onClose={onClose} />
+    )
+
+    await vi.advanceTimersByTimeAsync(5000)
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /export confidential pdf brief/i }),
+      ).toBeInTheDocument()
     })
   })
 
