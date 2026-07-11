@@ -340,6 +340,10 @@ export default function AnomalyChart({
         color: textColor,
       },
       tickmode: "auto" as const,
+      // Cap the number of ticks and rotate at a consistent angle so the long
+      // date labels ("Apr 20, 2026") don't crowd and overlap each other.
+      nticks: 6,
+      tickangle: -45,
       ticklen: 3,
       tickcolor: textColor,
       showline: true,
@@ -369,7 +373,8 @@ export default function AnomalyChart({
     legend: {
       orientation: "h" as const,
       x: 0.5,
-      y: -0.05,
+      // Sit below the rotated date labels so the legend never overlaps them.
+      y: -0.32,
       xanchor: "center" as const,
       yanchor: "top" as const,
       font: {
@@ -379,7 +384,8 @@ export default function AnomalyChart({
       },
       bgcolor: legendBgColor,
     },
-    margin: { t: 50, b: 50, l: 60, r: 30 },
+    // Extra bottom room for the rotated date labels + the legend beneath them.
+    margin: { t: 50, b: 95, l: 60, r: 30 },
     height,
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
