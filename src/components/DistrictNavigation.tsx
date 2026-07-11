@@ -9,6 +9,7 @@ import {
   resolveGeographicUnitLabel,
 } from "@/lib/geographicUnitLabel";
 import { createPlace, type UserPlace } from "@/lib/apiClient";
+import { emitOpenEditPlace } from "@/lib/uiEvents";
 import {
   isLikelyZipcode,
   isLikelyAddress,
@@ -42,6 +43,26 @@ function isLikelyDistrictNumber(q: string): boolean {
 
 function formatFollowerLabel(n: number): string {
   return `${n} ${n === 1 ? "follower" : "followers"}`;
+}
+
+/** Small pencil glyph for inline "edit place" gestures. */
+function PencilIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
 }
 
 const GEO_UNIT_PREFIX = "district|ward|precinct|beat|division";
@@ -812,7 +833,23 @@ export default function DistrictNavigation({
               </div>
             )}
           </div>
-          {!isPlaceScope && (
+          {isPlaceScope && selectedPlaceId != null ? (
+            <div className="district-navigation-actions">
+              <button
+                type="button"
+                className="district-navigation-edit-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  emitOpenEditPlace(selectedPlaceId);
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                aria-label="Edit place"
+                title="Edit place"
+              >
+                <PencilIcon />
+              </button>
+            </div>
+          ) : !isPlaceScope ? (
             <div className="district-navigation-actions">
               <svg
                 className="district-navigation-chevron"
@@ -829,7 +866,7 @@ export default function DistrictNavigation({
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
-          )}
+          ) : null}
         </div>
         {showDistrictFollow && (
           <div className="district-navigation-follow-aside">
@@ -1006,18 +1043,35 @@ export default function DistrictNavigation({
                     {userPlaces.map((place) => {
                       const isSelected = selectedPlaceId === place.id;
                       return (
-                        <button
+                        <div
                           key={place.id}
-                          className={`district-navigation-result-item ${isSelected ? "selected" : ""}`}
-                          onClick={() => handlePlaceSelect(place.id)}
+                          className="district-navigation-result-row"
                         >
-                          <div className="district-navigation-result-name">
-                            {place.label}
-                          </div>
-                          <div className="district-navigation-result-district">
-                            Place
-                          </div>
-                        </button>
+                          <button
+                            className={`district-navigation-result-item ${isSelected ? "selected" : ""}`}
+                            onClick={() => handlePlaceSelect(place.id)}
+                          >
+                            <div className="district-navigation-result-name">
+                              {place.label}
+                            </div>
+                            <div className="district-navigation-result-district">
+                              Place
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            className="district-navigation-result-edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              closeModal();
+                              emitOpenEditPlace(place.id);
+                            }}
+                            aria-label={`Edit ${place.label}`}
+                            title="Edit place"
+                          >
+                            <PencilIcon />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

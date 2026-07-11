@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
+import { getImpersonationCacheKey } from "@/lib/impersonation";
 import {
   listFeedStories,
   getFeedStory,
@@ -25,12 +26,15 @@ export type { FeedStory, FeedPlace };
 export const feedKeys = {
   all: ["feed"] as const,
   lists: () => [...feedKeys.all, "list"] as const,
-  list: (filters?: Record<string, any>) => [...feedKeys.lists(), filters] as const,
+  // Scope list/city/places caches by identity so an admin proxying as another
+  // user never reuses their own cached feed for the proxied user's places.
+  list: (filters?: Record<string, any>) =>
+    [...feedKeys.lists(), getImpersonationCacheKey(), filters] as const,
   city: (cityId: number | null, filters?: Record<string, any>) =>
-    [...feedKeys.all, "city", cityId, filters] as const,
+    [...feedKeys.all, "city", getImpersonationCacheKey(), cityId, filters] as const,
   details: () => [...feedKeys.all, "detail"] as const,
   detail: (storyId: number | null) => [...feedKeys.details(), storyId] as const,
-  places: () => [...feedKeys.all, "places"] as const,
+  places: () => [...feedKeys.all, "places", getImpersonationCacheKey()] as const,
 };
 
 /**

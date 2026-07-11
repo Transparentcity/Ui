@@ -10,6 +10,7 @@
 /* ── Hero: page header + scope selector trigger ─────────────────────── */
 
 .hero {
+  position: relative;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
@@ -18,6 +19,30 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+}
+
+.heroEditButton {
+  position: absolute;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  z-index: 1;
+}
+
+.heroEditButton:hover {
+  background: var(--bg-tertiary);
+  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary, #ad35fa);
 }
 
 .heroScopeButton {

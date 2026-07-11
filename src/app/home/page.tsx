@@ -26,6 +26,7 @@ import {
   getGovernmentVerificationStatus,
   updateGovernmentVerification,
   listMyPlaces,
+  getPlace,
   runPlaceMetricsAndAnomaliesAsJob,
   getCityLeaders,
   followRepresentative,
@@ -52,6 +53,8 @@ import {
   type GiftOnboardingContext,
 } from "@/lib/giftOnboarding";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
+import EditPlaceModal from "@/components/EditPlaceModal";
+import { OPEN_EDIT_PLACE_EVENT } from "@/lib/uiEvents";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
   trackSignupComplete,
@@ -267,6 +270,10 @@ export default function DashboardPage() {
   // clobber it back to feed.
   const deepLinkViewApplied = useRef(false);
   const [allUserPlacesLoaded, setAllUserPlacesLoaded] = useState(false);
+
+  // Shared "edit place" modal — opened from anywhere via emitOpenEditPlace(id).
+  const [editPlace, setEditPlace] = useState<UserPlace | null>(null);
+  const [editPlaceOpen, setEditPlaceOpen] = useState(false);
   const activeCityIdRef = useRef<number | null>(null);
   activeCityIdRef.current = activeCityId;
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
@@ -367,7 +374,13 @@ export default function DashboardPage() {
     setGovVerificationStatus(null);
     setUserEmail(null);
     setHomeCity(null);
-  }, [identityScopeKey, isImpersonating]);
+    // Remove (not just invalidate) identity-scoped React Query caches so a proxy
+    // switch never reuses the previous identity's newsletters, stories, or
+    // profile data — and never flashes it via keepPreviousData.
+    queryClient.removeQueries({ queryKey: ["inbox-list"] });
+    queryClient.removeQueries({ queryKey: ["user-profile-recency"] });
+    queryClient.removeQueries({ queryKey: ["feed"] });
+  }, [identityScopeKey, isImpersonating, queryClient]);
 
   // Resolve a display name for the active (or best-available) city.
   // Priority: active city > home city > first saved city > null.
@@ -1436,6 +1449,45 @@ export default function DashboardPage() {
     refreshAllUserPlaces();
   };
 
+  // Open the shared edit-place modal in response to edit gestures anywhere the
+  // place name appears (sidebar, official selector, overview hero).
+  const allUserPlacesRef = useRef(allUserPlaces);
+  allUserPlacesRef.current = allUserPlaces;
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const placeId = (event as CustomEvent<number>).detail;
+      if (typeof placeId !== "number") return;
+      const found = allUserPlacesRef.current.find((p) => p.id === placeId);
+      if (found) {
+        setEditPlace(found);
+        setEditPlaceOpen(true);
+        return;
+      }
+      // Fallback: fetch the full record if it isn't in the loaded list yet.
+      void getAccessTokenSilently()
+        .then((token) => getPlace(placeId, token))
+        .then((place) => {
+          setEditPlace(place);
+          setEditPlaceOpen(true);
+        })
+        .catch(() => {});
+    };
+    window.addEventListener(OPEN_EDIT_PLACE_EVENT, handler);
+    return () => window.removeEventListener(OPEN_EDIT_PLACE_EVENT, handler);
+  }, [getAccessTokenSilently]);
+
+  const handlePlaceEdited = useCallback(
+    (updated: UserPlace) => {
+      refreshAllUserPlaces();
+      setEditPlace(updated);
+      // Reflect a rename immediately in the hero for the active place.
+      if (citySelection.placeId === updated.id) {
+        setInitialPlaceLabel(updated.label);
+      }
+    },
+    [refreshAllUserPlaces, citySelection.placeId]
+  );
+
   const handlePlaceDeleted = (placeId: number) => {
     refreshAllUserPlaces();
     setPlaceIdPendingPlaceMetricsBootstrap((p) => (p === placeId ? null : p));
@@ -2442,6 +2494,13 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      {/* Inside the provider so a move/radius change can show the refresh banner. */}
+      <EditPlaceModal
+        open={editPlaceOpen}
+        place={editPlace}
+        onClose={() => setEditPlaceOpen(false)}
+        onSaved={handlePlaceEdited}
+      />
       </main>
       </PlaceOnboardingProvider>
 

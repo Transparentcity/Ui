@@ -46,19 +46,84 @@ export function getProductSessionId(): string {
 // UTM persistence — capture on first landing, reuse throughout the session
 // ---------------------------------------------------------------------------
 
-function captureUtm(): Record<string, string | null> {
-  if (typeof window === "undefined") return {};
+/** Explicit UTM params we persist for the whole session. */
+const UTM_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+] as const;
+
+/** Ad-platform click IDs. These arrive instead of UTMs on most paid clicks. */
+const CLICK_ID_KEYS = ["fbclid", "gclid"] as const;
+
+export interface CapturedUtm {
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+}
+
+/**
+ * Capture attribution params on the current URL and persist them for the
+ * session. Returns the effective UTM set for the session.
+ *
+ * Why this matters: Meta/Facebook & Instagram ads append `?fbclid=...` (and
+ * Google Ads `?gclid=...`) rather than UTMs, and their in-app browsers usually
+ * strip `document.referrer`. Without synthesizing a source from the click ID,
+ * paid traffic lands in "(direct / unknown)" on the dashboard. Tagging ad URLs
+ * with real UTMs still takes precedence when present.
+ */
+function captureUtm(): CapturedUtm {
+  if (typeof window === "undefined") {
+    return {
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+    };
+  }
   const params = new URLSearchParams(window.location.search);
   const store = (key: string) => {
     const val = params.get(key);
     if (val) sessionStorage.setItem(`tc_utm_${key}`, val);
   };
-  ["utm_source", "utm_medium", "utm_campaign"].forEach(store);
+  UTM_KEYS.forEach(store);
+  CLICK_ID_KEYS.forEach(store);
+
+  const read = (key: string) => sessionStorage.getItem(`tc_utm_${key}`);
+
+  let utmSource = read("utm_source");
+  let utmMedium = read("utm_medium");
+  if (!utmSource) {
+    if (read("fbclid")) {
+      utmSource = "facebook";
+      utmMedium = utmMedium || "paid_social";
+    } else if (read("gclid")) {
+      utmSource = "google";
+      utmMedium = utmMedium || "cpc";
+    }
+  }
+
   return {
-    utm_source: sessionStorage.getItem("tc_utm_utm_source"),
-    utm_medium: sessionStorage.getItem("tc_utm_utm_medium"),
-    utm_campaign: sessionStorage.getItem("tc_utm_utm_campaign"),
+    utm_source: utmSource,
+    utm_medium: utmMedium,
+    utm_campaign: read("utm_campaign"),
+    utm_content: read("utm_content"),
+    utm_term: read("utm_term"),
   };
+}
+
+/**
+ * Public accessor for the session's captured UTM set (incl. fbclid/gclid
+ * synthesis). Use this to attach attribution to events sent from other modules
+ * (e.g. the signup funnel) so they don't lose their source.
+ */
+export function getCapturedUtm(): CapturedUtm {
+  return captureUtm();
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +192,12 @@ async function _send(
   const { city_id, city_slug, ...rest } = ctx;
   const utm = captureUtm();
 
+  // utm_content/utm_term ride along in properties (the backend event columns
+  // only model source/medium/campaign) so ad-level attribution is preserved.
+  const extraProps: Record<string, unknown> = { ...rest };
+  if (utm.utm_content) extraProps.utm_content = utm.utm_content;
+  if (utm.utm_term) extraProps.utm_term = utm.utm_term;
+
   const payload = {
     event_name: eventName,
     session_id: getProductSessionId(),
@@ -138,7 +209,7 @@ async function _send(
     city_id: city_id ?? null,
     city_slug: city_slug ?? null,
     // Everything else goes into properties
-    properties: Object.keys(rest).length > 0 ? rest : undefined,
+    properties: Object.keys(extraProps).length > 0 ? extraProps : undefined,
   };
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };

@@ -6,7 +6,6 @@ import { useAuth0 } from "@auth0/auth0-react";
 import {
   getSavedCities,
   unsaveCity,
-  updatePlace,
   deletePlace,
   unfollowRepresentative,
   SavedCity,
@@ -14,7 +13,11 @@ import {
   prefetchCity,
 } from "@/lib/apiClient";
 import { useSavedDistricts, cityKeys } from "@/lib/hooks/useCities";
-import { SAVED_CITIES_CHANGED_EVENT, emitSavedCitiesChanged } from "@/lib/uiEvents";
+import {
+  SAVED_CITIES_CHANGED_EVENT,
+  emitSavedCitiesChanged,
+  emitOpenEditPlace,
+} from "@/lib/uiEvents";
 import Loader from "./Loader";
 import styles from "./SidebarLists.module.css";
 
@@ -43,7 +46,7 @@ interface MyCitiesProps {
   inboxUnreadCount?: number;
 }
 
-export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceRenamed, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true, homePlaceId = null, inboxUnreadCount = 0 }: MyCitiesProps) {
+export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true, homePlaceId = null, inboxUnreadCount = 0 }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
   const [cities, setCities] = useState<SavedCity[]>([]);
@@ -242,24 +245,13 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     }
   };
 
-  const handleRenamePlace = async (
+  const handleEditPlace = (
     event: React.MouseEvent,
     place: { id: number; city_id: number; label: string }
   ) => {
     event.stopPropagation();
     setOpenPlaceMenuId(null);
-    const newLabel = prompt("Rename place", place.label);
-    if (newLabel == null || newLabel.trim() === "" || newLabel.trim() === place.label) {
-      return;
-    }
-    try {
-      const token = await getAccessTokenSilently();
-      await updatePlace(place.id, token, { label: newLabel.trim() });
-      onPlaceRenamed?.(place.id, newLabel.trim());
-    } catch (error) {
-      console.error("Error renaming place:", error);
-      alert("Failed to rename place. Please try again.");
-    }
+    emitOpenEditPlace(place.id);
   };
 
   const handleDeletePlace = async (
@@ -464,9 +456,9 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                             >
                               <div
                                 className={styles.menuItem}
-                                onClick={(e) => handleRenamePlace(e, place)}
+                                onClick={(e) => handleEditPlace(e, place)}
                               >
-                                Rename
+                                Edit place
                               </div>
                               <div
                                 className={`${styles.menuItem} ${styles.menuItemDelete}`}

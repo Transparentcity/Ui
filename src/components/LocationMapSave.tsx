@@ -143,7 +143,15 @@ function CenterPinnedPanMap({
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
+    // Mapbox fires `move` during the initial camera setup, before the style
+    // finishes loading. Adding sources/layers then throws "Style is not done
+    // loading", so skip until the style is ready; `load` does the first draw.
+    const isStyleReady = () =>
+      (map as unknown as { isStyleLoaded?: () => boolean }).isStyleLoaded?.() ===
+      true;
+
     const updateRadiusFromCenter = () => {
+      if (!isStyleReady()) return;
       const c = map.getCenter();
       syncRadiusCircle(map, c.lat, c.lng, radiusRef.current);
     };

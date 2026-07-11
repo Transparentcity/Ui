@@ -465,8 +465,11 @@ export function recordFunnelEventBackend(
 
   // Import lazily to avoid circular dependency issues; this module must remain
   // side-effect-free at import time.
-  import("@/lib/apiClient")
-    .then(({ recordSignupFunnelEvent }) => {
+  Promise.all([import("@/lib/apiClient"), import("@/lib/productAnalytics")])
+    .then(([{ recordSignupFunnelEvent }, { getCapturedUtm }]) => {
+      // Reuse the session's captured attribution (incl. fbclid/gclid synthesis)
+      // so funnel events don't lose their source and drift into "Direct".
+      const utm = getCapturedUtm();
       void recordSignupFunnelEvent(
         {
           event_name: eventName,
@@ -480,6 +483,9 @@ export function recordFunnelEventBackend(
           landing_path: ctx?.landing_path ?? null,
           referrer:
             typeof document !== "undefined" ? document.referrer || null : null,
+          utm_source: utm.utm_source,
+          utm_medium: utm.utm_medium,
+          utm_campaign: utm.utm_campaign,
         },
         token
       ).catch(() => {

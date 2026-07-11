@@ -14,6 +14,8 @@ import {
 import type { CityLeader } from "@/lib/apiClient";
 import type { BoundarySketch } from "@/lib/publicApiClient";
 import MiniScopeMap from "@/components/MiniScopeMap";
+import { emitOpenEditPlace } from "@/lib/uiEvents";
+import { getImpersonationCacheKey } from "@/lib/impersonation";
 import { useFeedStories } from "@/lib/hooks/useFeed";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
@@ -292,7 +294,7 @@ export default function BriefingHome({
 
   // ── Recency anchor ────────────────────────────────────────────────────
   const { data: profile } = useQuery({
-    queryKey: ["user-profile-recency"],
+    queryKey: ["user-profile-recency", getImpersonationCacheKey()],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
       return getDbUserProfile(token);
@@ -348,7 +350,7 @@ export default function BriefingHome({
     data: inboxData,
     refetch: refetchInbox,
   } = useQuery({
-    queryKey: ["inbox-list"],
+    queryKey: ["inbox-list", getImpersonationCacheKey()],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
       return listInbox(token, { limit: 50 });
@@ -359,17 +361,21 @@ export default function BriefingHome({
 
   const scopedEditions = useMemo(() => {
     const all = (inboxData?.items ?? []).filter((i) => i.city_id === cityId);
-    let scoped: InboxItem[];
     if (isPlaceScope) {
-      scoped = all.filter((i) => i.place_id === selectedPlaceId);
-    } else if (district > 0) {
+      // Place editions are user-specific; never fall back to the city's editions,
+      // otherwise an empty place scope would surface unrelated (e.g. other users')
+      // newsletters. Show only editions actually tied to this place.
+      return all.filter((i) => i.place_id === selectedPlaceId);
+    }
+    let scoped: InboxItem[];
+    if (district > 0) {
       scoped = all.filter(
         (i) => i.district != null && Number(i.district) === district,
       );
     } else {
       scoped = all;
     }
-    // Fallback: an empty narrow scope still shows the city's editions.
+    // Fallback: an empty narrow (district) scope still shows the city's editions.
     return scoped.length > 0 ? scoped : all;
   }, [inboxData?.items, cityId, isPlaceScope, selectedPlaceId, district]);
 
@@ -459,6 +465,31 @@ export default function BriefingHome({
             ) : null}
           </span>
         </button>
+
+        {isPlaceScope && selectedPlaceId != null && (
+          <button
+            type="button"
+            className={styles.heroEditButton}
+            onClick={() => emitOpenEditPlace(selectedPlaceId)}
+            aria-label="Edit this place"
+            title="Edit place"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )}
 
         {/* Full-width scope map — streets basemap + district/place overlay */}
         {(isPlaceScope

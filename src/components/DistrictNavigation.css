@@ -534,6 +534,61 @@
   letter-spacing: 0.5px;
 }
 
+/* Row wrapper so we can overlay a small edit gesture on saved places. */
+.district-navigation-result-row {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.district-navigation-result-row .district-navigation-result-item {
+  margin-bottom: 0;
+  padding-right: 48px;
+}
+
+.district-navigation-result-edit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.district-navigation-result-edit:hover {
+  background: var(--bg-primary, #ffffff);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+/* Edit gesture on the place trigger bar (place scope). */
+.district-navigation-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.district-navigation-edit-btn:hover {
+  background: var(--bg-secondary, #f5f5f5);
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
 .district-navigation-result-item {
   width: 100%;
   padding: 16px;
