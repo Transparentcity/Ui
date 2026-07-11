@@ -42,6 +42,29 @@ export function WasteReportsPage() {
           <WasteReportBuilder />
         </div>
 
+        {/* Memorized reports: parameterized, re-runnable analyses (last run kept) */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="w-4 h-4 text-gray-500" />
+            <h2 className="text-sm font-semibold text-gray-700">Memorized reports</h2>
+          </div>
+          <Link
+            href="/waste/reports/pension-departures"
+            className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-purple-300 hover:bg-purple-50/40 transition-colors no-underline"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium text-gray-900">Pension-spiking departures</div>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Named employees who spiked pay and then left payroll, with projected future
+                  pension cost. Pick a spike year or a cumulative range; the last run is kept per city.
+                </p>
+              </div>
+              <span className="text-purple-600 text-sm font-medium shrink-0">Open →</span>
+            </div>
+          </Link>
+        </div>
+
         {/* Workpapers */}
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
