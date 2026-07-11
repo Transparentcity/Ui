@@ -1,7 +1,11 @@
 "use client"
 
 import { useMemo } from "react"
-import { useMetrics, useBatchComparisons } from "@/lib/hooks/useMetrics"
+import {
+  useMetrics,
+  useBatchComparisons,
+  useWasteLatestValues,
+} from "@/lib/hooks/useMetrics"
 import type { AdminMetricListItem } from "@/lib/apiClient"
 
 /**
@@ -38,6 +42,12 @@ export interface WasteKeyMetric {
   status: "completed" | "failed" | "running" | "never"
   /** Most recent data date on the stored series ("data through"), if known. */
   asOf: string | null
+  /**
+   * Where `value`/`trend` came from: the precomputed comparison ("comparison")
+   * or the latest stored series point ("latest", a display fallback when the
+   * comparison is missing). Null when there is no value.
+   */
+  basis: "comparison" | "latest" | null
 }
 
 function statusKind(status?: string | null): WasteKeyMetric["status"] {
@@ -145,6 +155,28 @@ export function useWasteKeyMetrics(cityId: number | null) {
   const comparisonsQuery = useBatchComparisons(batchRequest)
   const comparisons = comparisonsQuery.data
 
+  // Metrics that have run and hold data but whose precomputed comparison is
+  // missing (the known year-grain comparison gap): read their latest stored
+  // value straight from the series so the chip shows a real number instead of
+  // "no data yet". Only these ids are fetched, so the extra calls are bounded.
+  const fallbackIds = useMemo(
+    () =>
+      metrics
+        .filter((m) => {
+          const sub = (m.subcategory ?? "").trim().toLowerCase()
+          if (!SUBCATEGORY_TO_MODULE_CATEGORY[sub]) return false
+          if (HELPER_METRIC_RE.test(m.metric_name)) return false
+          if (statusKind(m.last_execution_status) !== "completed") return false
+          if (!m.most_recent_data_date) return false
+          const cv = comparisons?.[m.id]?.ytd?.current_period_value
+          return cv == null || !Number.isFinite(cv)
+        })
+        .map((m) => m.id),
+    [metrics, comparisons],
+  )
+  const { latestById, isLoading: latestLoading } =
+    useWasteLatestValues(fallbackIds)
+
   const byCategory = useMemo(() => {
     const grouped: Record<string, WasteKeyMetric[]> = {}
     for (const m of metrics) {
@@ -153,18 +185,37 @@ export function useWasteKeyMetrics(cityId: number | null) {
       if (!moduleCategory) continue
       if (HELPER_METRIC_RE.test(m.metric_name)) continue
       const comp = comparisons?.[m.id]?.ytd
+      const compValue = comp?.current_period_value
+      const hasComp = compValue != null && Number.isFinite(compValue)
+
+      let value = hasComp ? compValue! : null
+      let trend = hasComp
+        ? computeTrend(compValue, comp?.comparison_period_value)
+        : null
+      let asOf = m.most_recent_data_date ?? null
+      let basis: WasteKeyMetric["basis"] = hasComp ? "comparison" : null
+
+      // Fallback: no comparison but the series has data — show its latest point.
+      if (!hasComp) {
+        const latest = latestById[m.id]
+        if (latest && latest.value != null && Number.isFinite(latest.value)) {
+          value = latest.value
+          trend = computeTrend(latest.value, latest.prior)
+          asOf = latest.asOf ?? asOf
+          basis = "latest"
+        }
+      }
+
       const entry: WasteKeyMetric = {
         id: m.id,
         metricKey: m.metric_key ?? null,
         name: m.metric_name,
         subcategory: sub,
-        value: comp?.current_period_value ?? null,
-        trend: computeTrend(
-          comp?.current_period_value,
-          comp?.comparison_period_value,
-        ),
+        value,
+        trend,
         status: statusKind(m.last_execution_status),
-        asOf: m.most_recent_data_date ?? null,
+        asOf,
+        basis,
       }
       if (!grouped[moduleCategory]) grouped[moduleCategory] = []
       grouped[moduleCategory].push(entry)
@@ -178,11 +229,11 @@ export function useWasteKeyMetrics(cityId: number | null) {
       )
     }
     return grouped
-  }, [metrics, comparisons])
+  }, [metrics, comparisons, latestById])
 
   return {
     byCategory,
     isLoading: metricsQuery.isLoading,
-    valuesLoading: comparisonsQuery.isLoading,
+    valuesLoading: comparisonsQuery.isLoading || latestLoading,
   }
 }

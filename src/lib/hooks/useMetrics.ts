@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import type { GetTokenSilentlyOptions } from "@auth0/auth0-react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   type QueryClient,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -43,6 +45,7 @@ import {
   type AdminMetricCity,
   type AdminMetricTimeSeries,
   type AdminMetricTimeSeriesDetail,
+  type AdminTimeSeriesSummary,
   type CreateAdminMetricRequest,
   type UpdateAdminMetricRequest,
   type ExecuteAdminMetricRequest,
@@ -347,6 +350,124 @@ export function useMetricTimeSeriesDetail(metricId: number | null, chartId: numb
     enabled: !!metricId && !!chartId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+}
+
+/** Latest stored point (and the one before it) of a metric's base series. */
+export interface WasteLatestValue {
+  value: number | null;
+  /** The point immediately before `value`, for a same-grain delta. */
+  prior: number | null;
+  /** Label of the latest point (year for annual series, else the raw period). */
+  asOf: string | null;
+  /** Grain of the series the value came from ("year" | "month" | ...). */
+  period: string | null;
+}
+
+/**
+ * Choose the base series to read a "latest value" from: an active chart with
+ * no group field and at least one point. Prefer the coarsest populated grain
+ * (waste metrics are annual) and, critically, ignore empty charts — this is
+ * how the UI sidesteps the backend comparison bug where an empty finer-grained
+ * chart nulls out the annual comparison.
+ */
+function pickPopulatedBaseChart(
+  charts: AdminTimeSeriesSummary[] | undefined,
+): AdminTimeSeriesSummary | null {
+  const base = (charts ?? []).filter(
+    (c) =>
+      c.is_active &&
+      (c.group_field == null || c.group_field === "") &&
+      (c.data_point_count ?? 0) > 0,
+  );
+  if (base.length === 0) return null;
+  const grainRank = (p: string): number =>
+    ({ year: 0, month: 1, week: 2, day: 3 })[p] ?? 4;
+  return [...base].sort(
+    (a, b) =>
+      grainRank(a.period_type) - grainRank(b.period_type) ||
+      (b.data_point_count ?? 0) - (a.data_point_count ?? 0) ||
+      (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+  )[0];
+}
+
+/**
+ * Latest stored value (and the prior point) for each metric, read straight
+ * from the time series rather than the precomputed-comparison table. Used as a
+ * display fallback for the waste module when a metric has data but no computed
+ * comparison. One two-step fetch per id (chart list -> base chart points),
+ * cached; pass only the ids that actually need a fallback to keep it cheap.
+ */
+export function useWasteLatestValues(metricIds: number[]): {
+  latestById: Record<number, WasteLatestValue>;
+  isLoading: boolean;
+} {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  const results = useQueries({
+    queries: metricIds.map((id) => ({
+      queryKey: [...metricKeys.all, "waste-latest-value", id] as const,
+      queryFn: async (): Promise<WasteLatestValue | null> => {
+        const token = await fetchCoalescedAdminApiAccessToken(
+          queryClient,
+          getAccessTokenSilently,
+        );
+        const series = await getAdminMetricTimeSeries(id, token);
+        const base = pickPopulatedBaseChart(series.time_series);
+        if (!base) return null;
+        const detail = await getAdminMetricTimeSeriesDetail(
+          id,
+          base.chart_id,
+          token,
+        );
+        const points = (detail.data ?? [])
+          .filter((p) => p.group_value == null || p.group_value === "")
+          .filter(
+            (p) =>
+              typeof p.numeric_value === "number" &&
+              Number.isFinite(p.numeric_value),
+          )
+          .sort((a, b) => a.time_period.localeCompare(b.time_period));
+        if (points.length === 0) return null;
+        const latest = points[points.length - 1];
+        const prior = points.length >= 2 ? points[points.length - 2] : null;
+        const asOf =
+          base.period_type === "year"
+            ? latest.time_period.slice(0, 4)
+            : latest.time_period;
+        return {
+          value: latest.numeric_value,
+          prior: prior ? prior.numeric_value : null,
+          asOf,
+          period: base.period_type ?? null,
+        };
+      },
+      enabled: !!id,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+      retry: 1,
+    })),
+  });
+
+  // Stable identity while the underlying data is unchanged (useQueries returns
+  // a fresh array each render), so downstream memos don't churn.
+  const signature = metricIds
+    .map((id, i) => {
+      const d = results[i]?.data;
+      return d ? `${id}:${d.value}:${d.prior}:${d.asOf}` : `${id}:∅`;
+    })
+    .join("|");
+
+  return useMemo(() => {
+    const latestById: Record<number, WasteLatestValue> = {};
+    metricIds.forEach((id, i) => {
+      const data = results[i]?.data;
+      if (data) latestById[id] = data;
+    });
+    const isLoading = results.some((r) => r.isLoading);
+    return { latestById, isLoading };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
 }
 
 /**
