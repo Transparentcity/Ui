@@ -1,53 +1,38 @@
 "use client";
 
 import type { ReactNode } from "react";
+import SourceInformationPanel, {
+  hasSourceInformation,
+  type SourceInformationFields,
+} from "./SourceInformationPanel";
 
-export type CompactSourceInfo = {
-  dataset_name?: string | null;
-  dataset_id?: string | null;
-  dataset_url?: string | null;
-  city_portal_domain?: string | null;
-};
+export type CompactSourceInfo = SourceInformationFields;
 
 /**
- * Compact "Source: Dataset Name" line used under charts/maps on metric pages,
- * mirroring the embedded landing-page attribution pattern.
+ * Compact "Source" control under charts/maps on metric pages.
+ * Expands to the same provenance panel used on full public maps.
  */
 export default function MetricSourceAttribution({
   sourceInfo,
+  startDate,
+  endDate,
   className,
 }: {
   sourceInfo: CompactSourceInfo | null | undefined;
+  startDate?: string | null;
+  endDate?: string | null;
   className?: string;
 }): ReactNode {
-  if (!sourceInfo) return null;
-  const label =
-    sourceInfo.dataset_name?.trim() ||
-    sourceInfo.dataset_id?.trim() ||
-    null;
-  if (!label) return null;
-
-  const url = sourceInfo.dataset_url?.trim() || null;
-  const portalHint = sourceInfo.city_portal_domain?.trim() || null;
+  if (!hasSourceInformation(sourceInfo)) return null;
 
   return (
-    <p className={className ?? "metric-source-attribution"} aria-label="Data source">
-      <span className="metric-source-attribution-label">Source:</span>{" "}
-      {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="metric-source-attribution-link"
-        >
-          {label}
-        </a>
-      ) : (
-        <strong>{label}</strong>
-      )}
-      {portalHint ? (
-        <span className="metric-source-attribution-portal"> ({portalHint})</span>
-      ) : null}
-    </p>
+    <SourceInformationPanel
+      sourceInfo={sourceInfo!}
+      startDate={startDate}
+      endDate={endDate}
+      toggleLabel="Source"
+      variant="inline"
+      className={className}
+    />
   );
 }

@@ -881,6 +881,8 @@ export function followRepresentative(
   district: string,
   token: string
 ): Promise<{ followed: boolean; city_id: number; district: string }> {
+  // Follow also adds the city to My Places; clear so the left nav refetches.
+  clearSavedCitiesCache();
   return request(`/api/newsletter/follow`, "POST", { city_id: cityId, district }, token);
 }
 
@@ -889,6 +891,7 @@ export function unfollowRepresentative(
   district: string,
   token: string
 ): Promise<{ followed: boolean; city_id: number; district: string }> {
+  clearSavedCitiesCache();
   return request(
     `/api/newsletter/follow?city_id=${cityId}&district=${encodeURIComponent(district)}`,
     "DELETE",
@@ -1139,7 +1142,8 @@ export interface SavedDistrict {
   city_id: number;
   district: string;
   display_name: string;
-  city_name: string;
+  city_name?: string;
+  slug?: string;
 }
 
 export function getSavedDistricts(token: string): Promise<SavedDistrict[]> {

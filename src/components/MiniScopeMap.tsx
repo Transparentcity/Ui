@@ -74,7 +74,7 @@ function ringToPath(
   const parts: string[] = [];
   ring.forEach(([lng, lat], i) => {
     const [x, y] = project(lng, lat, bbox, viewW, viewH);
-    parts.push(`${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`);
+    parts.push(`${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`);
   });
   parts.push("Z");
   return parts.join(" ");

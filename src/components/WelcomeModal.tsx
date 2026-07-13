@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { emitSavedCitiesChanged } from "@/lib/uiEvents";
@@ -52,10 +53,15 @@ import {
   persistGiftOnboardingContext,
   splitGiftRecipientName,
 } from "@/lib/giftOnboarding";
-import LocationMapSave from "@/components/LocationMapSave";
 import locationMapStyles from "@/components/LocationMapSave.module.css";
 import styles from "./WelcomeModal.module.css";
 import Loader from "./Loader";
+
+// Lazy-load mapbox map so onboarding tests / early steps don't pull the bundle.
+const LocationMapSave = dynamic(
+  () => import("@/components/LocationMapSave"),
+  { ssr: false }
+);
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -364,6 +370,35 @@ export default function WelcomeModal({
             if (meta.lat != null && meta.lng != null) {
               setHomeCoordinates({ lat: meta.lat, lng: meta.lng });
               setHasPreciseLocation(true);
+              // Meta may arrive with coords after bootstrap ran without them —
+              // resolve district so gift claimers follow the right scope.
+              const cityIdForDistrict =
+                meta.city_id ?? giftContext?.cityId ?? null;
+              if (cityIdForDistrict) {
+                const districtFromMeta =
+                  meta.district && meta.district !== "0"
+                    ? Number(meta.district)
+                    : null;
+                const district =
+                  districtFromMeta && Number.isFinite(districtFromMeta)
+                    ? districtFromMeta
+                    : await findDistrictFromCoordinates(
+                        meta.lat,
+                        meta.lng,
+                        cityIdForDistrict,
+                        await getAccessTokenSilently()
+                      ).catch(() => null);
+                if (cancelled) return;
+                setLocationResult((prev) => {
+                  if (!prev) return prev;
+                  const leaders = prev.leaders || [];
+                  return {
+                    ...prev,
+                    district,
+                    councilMember: pickRepFromLeaders(leaders, district),
+                  };
+                });
+              }
             }
           } catch (err) {
             console.error("Failed to refresh gift meta for onboarding:", err);
@@ -1782,7 +1817,22 @@ export default function WelcomeModal({
 
       const cityId = locationResult.matchedCity.id;
       const homeLocationLabelSnapshot = locationInput.trim();
-      const homeDistrictSnapshot = locationResult.district ?? null;
+      let homeDistrictSnapshot = locationResult.district ?? null;
+
+      // Gift claimers (and anyone with a pin) must resolve district before follows/place
+      // so a bootstrap race can't leave them citywide-only.
+      if (
+        (homeDistrictSnapshot == null || homeDistrictSnapshot <= 0) &&
+        hasPreciseLocation &&
+        homeCoordinates
+      ) {
+        homeDistrictSnapshot = await findDistrictFromCoordinates(
+          homeCoordinates.lat,
+          homeCoordinates.lng,
+          cityId,
+          token
+        ).catch(() => null);
+      }
 
       // Create the user's saved place before navigation so My Places can list city → district → place
       // while the feed is selected (place id is passed to the dashboard shell).
@@ -1822,19 +1872,36 @@ export default function WelcomeModal({
       await saveCity(cityId, token);
       emitSavedCitiesChanged();
 
-      // Fire leader follows/unfollows in the background based on onboarding toggle state.
+      // Follow citywide + district from the confirmed location — do not gate on
+      // whether leaders were loaded (gift claimers must end onboarding following
+      // the city/district/place that was set up for them).
       void (async () => {
-        const mayor = locationResult?.mayor ?? null;
-        const rep = locationResult?.councilMember ?? null;
+        const districtToFollow =
+          homeDistrictSnapshot != null && homeDistrictSnapshot > 0
+            ? homeDistrictSnapshot
+            : null;
         try {
-          if (mayor) {
-            if (mayorFollowed) await followRepresentative(cityId, "0", token);
-            else await unfollowRepresentative(cityId, "0", token);
-          }
-          if (rep && rep.district != null && rep.district > 0) {
-            const districtKey = String(rep.district);
+          if (mayorFollowed) await followRepresentative(cityId, "0", token);
+          else await unfollowRepresentative(cityId, "0", token);
+
+          if (districtToFollow != null) {
+            const districtKey = String(districtToFollow);
             if (repFollowed) await followRepresentative(cityId, districtKey, token);
             else await unfollowRepresentative(cityId, districtKey, token);
+          } else if (
+            hasPreciseLocation &&
+            homeCoordinates &&
+            repFollowed
+          ) {
+            const resolved = await findDistrictFromCoordinates(
+              homeCoordinates.lat,
+              homeCoordinates.lng,
+              cityId,
+              token
+            ).catch(() => null);
+            if (resolved != null && resolved > 0) {
+              await followRepresentative(cityId, String(resolved), token);
+            }
           }
         } catch {
           // Non-blocking; user can manage follows in settings
@@ -1913,10 +1980,34 @@ export default function WelcomeModal({
 
           try {
             const newsletterEmail = user?.email || "";
+            const newsletterDistrict =
+              homeDistrictSnapshot != null && homeDistrictSnapshot > 0
+                ? String(homeDistrictSnapshot)
+                : "0";
             if (weeklyNewsletterOptIn) {
+              // Citywide briefing
               await subscribeNewsletter(cityId, "0", newsletterFrequency, newsletterEmail, token);
+              // District briefing when the gifted/confirmed location has one
+              if (newsletterDistrict !== "0") {
+                await subscribeNewsletter(
+                  cityId,
+                  newsletterDistrict,
+                  newsletterFrequency,
+                  newsletterEmail,
+                  token
+                );
+              }
             } else {
               await unsubscribeNewsletter(cityId, "0", newsletterFrequency, newsletterEmail, token);
+              if (newsletterDistrict !== "0") {
+                await unsubscribeNewsletter(
+                  cityId,
+                  newsletterDistrict,
+                  newsletterFrequency,
+                  newsletterEmail,
+                  token
+                );
+              }
             }
           } catch (subscriptionErr) {
             console.error("Newsletter subscription sync failed:", subscriptionErr);

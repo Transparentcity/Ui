@@ -24,6 +24,7 @@ interface OnboardingContext {
   cityName: string;
   homeCoordinates: { lat: number; lng: number } | null;
   hasPreciseLocation: boolean;
+  district?: number | null;
 }
 
 interface CityLeader {
@@ -50,8 +51,13 @@ async function runOnboardingDiscovery(
     startBackgroundWork: () => void;
     completeBackgroundWork: () => void;
   },
-): Promise<{ mayorNotified: boolean; repNotified: boolean; repFollowed: boolean }> {
-  const result = { mayorNotified: false, repNotified: false, repFollowed: false };
+): Promise<{ mayorNotified: boolean; repNotified: boolean; repFollowed: boolean; cityFollowed: boolean }> {
+  const result = {
+    mayorNotified: false,
+    repNotified: false,
+    repFollowed: false,
+    cityFollowed: false,
+  };
 
   deps.startBackgroundWork();
   try {
@@ -65,19 +71,29 @@ async function runOnboardingDiscovery(
       result.mayorNotified = true;
     }
 
-    // If precise location, find district rep
-    if (ctx.hasPreciseLocation && ctx.homeCoordinates) {
-      const district = await deps.findDistrictFromCoordinates(
-        ctx.homeCoordinates.lat, ctx.homeCoordinates.lng, ctx.cityId, token,
+    // Always follow citywide; also follow district when known (gift claimers need both).
+    let district = ctx.district ?? null;
+    if (
+      district == null &&
+      ctx.hasPreciseLocation &&
+      ctx.homeCoordinates
+    ) {
+      district = await deps.findDistrictFromCoordinates(
+        ctx.homeCoordinates.lat,
+        ctx.homeCoordinates.lng,
+        ctx.cityId,
+        token,
       );
-      if (district) {
-        await deps.followRepresentative(ctx.cityId, String(district), token);
-        result.repFollowed = true;
-        const rep = leaders.find((l) => l.district === district);
-        if (rep) {
-          deps.notifyRepFound(rep.name);
-          result.repNotified = true;
-        }
+    }
+    await deps.followRepresentative(ctx.cityId, "0", token);
+    result.cityFollowed = true;
+    if (district != null && district > 0) {
+      await deps.followRepresentative(ctx.cityId, String(district), token);
+      result.repFollowed = true;
+      const rep = leaders.find((l) => l.district === district);
+      if (rep) {
+        deps.notifyRepFound(rep.name);
+        result.repNotified = true;
       }
     }
   } catch {
@@ -167,6 +183,8 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
       // No rep discovery attempted
       expect(deps.findDistrictFromCoordinates).not.toHaveBeenCalled();
       expect(result.repNotified).toBe(false);
+      expect(result.cityFollowed).toBe(true);
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "0", "test-token");
     });
 
     it("shows mayor even when coordinates exist but hasPreciseLocation is false", async () => {
@@ -183,6 +201,7 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
       expect(result.mayorNotified).toBe(true);
       // Coordinates present but hasPreciseLocation is false: no rep discovery
       expect(deps.findDistrictFromCoordinates).not.toHaveBeenCalled();
+      expect(result.cityFollowed).toBe(true);
     });
 
     it("handles city with no mayor gracefully", async () => {
@@ -203,6 +222,9 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
 
       expect(result.mayorNotified).toBe(false);
       expect(deps.notifyRepFound).not.toHaveBeenCalled();
+      // Citywide follow still happens even without a mayor leader row
+      expect(result.cityFollowed).toBe(true);
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "0", "test-token");
     });
 
     it("handles empty leaders array gracefully", async () => {
@@ -222,6 +244,8 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
       expect(result.repNotified).toBe(false);
       // findDistrictFromCoordinates still called (independent of leaders result)
       expect(deps.findDistrictFromCoordinates).toHaveBeenCalled();
+      expect(result.cityFollowed).toBe(true);
+      expect(result.repFollowed).toBe(true);
     });
 
     it("uses leader.title for mayor notification, falls back to 'Mayor'", async () => {
@@ -268,7 +292,9 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
       expect(deps.notifyRepFound).toHaveBeenNthCalledWith(1, "Darrell Steinberg", "Mayor");
       // Rep notified second (district 4 -> Katie Valenzuela)
       expect(deps.notifyRepFound).toHaveBeenNthCalledWith(2, "Katie Valenzuela");
+      expect(result.cityFollowed).toBe(true);
       expect(result.repFollowed).toBe(true);
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "0", "test-token");
       expect(deps.followRepresentative).toHaveBeenCalledWith(100, "4", "test-token");
     });
 
@@ -285,11 +311,14 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
 
       const result = await runOnboardingDiscovery(ctx, deps);
 
-      // Mayor still shown
+      // Mayor still shown; citywide follow still happens
       expect(result.mayorNotified).toBe(true);
-      // No rep discovery
-      expect(deps.followRepresentative).not.toHaveBeenCalled();
+      expect(result.cityFollowed).toBe(true);
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "0", "test-token");
+      // No district follow
+      expect(deps.followRepresentative).toHaveBeenCalledTimes(1);
       expect(result.repNotified).toBe(false);
+      expect(result.repFollowed).toBe(false);
     });
 
     it("handles district found but no matching leader", async () => {
@@ -305,8 +334,30 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
 
       const result = await runOnboardingDiscovery(ctx, deps);
 
+      expect(result.cityFollowed).toBe(true);
       expect(result.repFollowed).toBe(true); // followRepresentative still called
       expect(result.repNotified).toBe(false); // but no notification (no matching leader)
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "0", "test-token");
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "99", "test-token");
+    });
+
+    it("uses ctx.district without re-looking up coordinates", async () => {
+      const ctx: OnboardingContext = {
+        cityId: 100,
+        cityName: "Sacramento",
+        homeCoordinates: { lat: 38.58, lng: -121.49 },
+        hasPreciseLocation: true,
+        district: 4,
+      };
+      const deps = makeDeps();
+
+      const result = await runOnboardingDiscovery(ctx, deps);
+
+      expect(deps.findDistrictFromCoordinates).not.toHaveBeenCalled();
+      expect(result.cityFollowed).toBe(true);
+      expect(result.repFollowed).toBe(true);
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "0", "test-token");
+      expect(deps.followRepresentative).toHaveBeenCalledWith(100, "4", "test-token");
     });
   });
 

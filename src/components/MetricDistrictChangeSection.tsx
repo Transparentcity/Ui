@@ -37,6 +37,8 @@ interface MetricDistrictChangeSectionProps {
   /** Smaller map height on narrow layouts */
   deltaMapHeight: number;
   sourceInfo?: CompactSourceInfo | null;
+  sourceStartDate?: string | null;
+  sourceEndDate?: string | null;
 }
 
 function hasUsableShapefile(shape: PublicShapefileResponse | null): boolean {
@@ -60,6 +62,8 @@ export default function MetricDistrictChangeSection({
   comparison,
   deltaMapHeight,
   sourceInfo = null,
+  sourceStartDate = null,
+  sourceEndDate = null,
 }: MetricDistrictChangeSectionProps) {
   const [bundle, setBundle] = useState<{
     districts: PublicDistrictComparisonsResponse;
@@ -165,7 +169,11 @@ export default function MetricDistrictChangeSection({
         }}
         prefetched={prefetched}
       />
-      <MetricSourceAttribution sourceInfo={sourceInfo} />
+      <MetricSourceAttribution
+        sourceInfo={sourceInfo}
+        startDate={sourceStartDate}
+        endDate={sourceEndDate}
+      />
       <DistrictComparisonTable
         metricId={metricId}
         comparisonType={selectedPeriod}

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
-  getSavedCities,
   unsaveCity,
   deletePlace,
   unfollowRepresentative,
@@ -12,7 +11,7 @@ import {
   SavedDistrict,
   prefetchCity,
 } from "@/lib/apiClient";
-import { useSavedDistricts, cityKeys } from "@/lib/hooks/useCities";
+import { useSavedCities, useSavedDistricts, cityKeys } from "@/lib/hooks/useCities";
 import {
   SAVED_CITIES_CHANGED_EVENT,
   emitSavedCitiesChanged,
@@ -49,8 +48,6 @@ interface MyCitiesProps {
 export default function MyCities({ onCityClick, onDistrictClick, userPlaces = [], onPlaceClick, activePlaceId, onPlaceDeleted, onDistrictRemoved, activeCityId, activeDistrict, defaultExpanded = true, homePlaceId = null, inboxUnreadCount = 0 }: MyCitiesProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
-  const [cities, setCities] = useState<SavedCity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [openPlaceMenuId, setOpenPlaceMenuId] = useState<number | null>(null);
@@ -60,7 +57,48 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
   const prefetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastPrefetchedCityId = useRef<number | null>(null);
 
-  const { data: savedDistricts = [] } = useSavedDistricts();
+  const { data: savedCities = [], isLoading: citiesLoading } = useSavedCities();
+  const { data: savedDistricts = [], isLoading: districtsLoading } = useSavedDistricts();
+  const loading = citiesLoading || districtsLoading;
+
+  // Prefer saved cities; also surface any city that only has a district follow
+  // so newly followed districts always have a parent row in the left nav.
+  const cities = useMemo(() => {
+    const byId = new Map<number, SavedCity>();
+    for (const c of savedCities) {
+      byId.set(c.id, c);
+    }
+    for (const d of savedDistricts) {
+      if (byId.has(d.city_id)) continue;
+      const name = (d.city_name || "").trim() || `City ${d.city_id}`;
+      byId.set(d.city_id, {
+        id: d.city_id,
+        display_name: name,
+        city_name: name,
+      });
+    }
+    for (const p of userPlaces) {
+      if (byId.has(p.city_id)) continue;
+      byId.set(p.city_id, {
+        id: p.city_id,
+        display_name: `City ${p.city_id}`,
+      });
+    }
+    // Preserve saved-cities order, then append any follow/place-only cities
+    const ordered: SavedCity[] = [];
+    const seen = new Set<number>();
+    for (const c of savedCities) {
+      const entry = byId.get(c.id);
+      if (entry) {
+        ordered.push(entry);
+        seen.add(c.id);
+      }
+    }
+    for (const [id, entry] of byId) {
+      if (!seen.has(id)) ordered.push(entry);
+    }
+    return ordered;
+  }, [savedCities, savedDistricts, userPlaces]);
 
   const districtsByCityId = savedDistricts
     .filter((d) => d.district !== "0")
@@ -76,26 +114,18 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     return acc;
   }, {});
 
-  const hasLoadedRef = useRef(false);
-
   useEffect(() => {
-    // Always load cities on mount so the section renders even when collapsed
-    if (!hasLoadedRef.current || expanded) {
-      loadCities();
-      hasLoadedRef.current = true;
-    }
-
-    // Cleanup prefetch timeout on unmount
     return () => {
       if (prefetchTimeoutRef.current) {
         clearTimeout(prefetchTimeoutRef.current);
       }
     };
-  }, [expanded]);
+  }, []);
 
   useEffect(() => {
     const handleSavedCitiesChanged = () => {
-      loadCities();
+      void queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      void queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
     };
 
     window.addEventListener(
@@ -108,7 +138,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
         handleSavedCitiesChanged
       );
     };
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -128,19 +158,6 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
       };
     }
   }, [openMenuId, openPlaceMenuId, openDistrictMenuKey]);
-
-  const loadCities = async () => {
-    try {
-      setLoading(true);
-      const token = await getAccessTokenSilently();
-      const savedCities = await getSavedCities(token);
-      setCities(savedCities);
-    } catch (error) {
-      console.error("Error loading saved cities:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCityClick = (cityId: number) => {
     if (onCityClick) {
@@ -193,8 +210,8 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     try {
       const token = await getAccessTokenSilently();
       await unsaveCity(cityId, token);
-      // Remove city from local state
-      setCities((prev) => prev.filter((city) => city.id !== cityId));
+      await queryClient.invalidateQueries({ queryKey: cityKeys.saved() });
+      emitSavedCitiesChanged();
     } catch (error) {
       console.error("Error removing saved city:", error);
       alert("Failed to remove city. Please try again.");
@@ -279,7 +296,7 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     + userPlaces.length;
   const isCompact = totalItems >= 6;
 
-  // Don't render if no cities
+  // Don't render if nothing to show
   if (!loading && cities.length === 0) {
     return null;
   }
@@ -360,6 +377,10 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                         const isDistrictActive =
                           activeCityId === d.city_id && String(activeDistrict) === d.district;
                         const dKey = districtMenuKey(d.city_id, d.district);
+                        const districtLabel =
+                          d.city_name && d.display_name.startsWith(d.city_name)
+                            ? `District ${d.district}`
+                            : (d.display_name?.trim() || `District ${d.district}`);
                         return (
                           <div
                             key={`${d.city_id}-${d.district}`}
@@ -369,18 +390,18 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
                               type="button"
                               className={`${styles.districtSubItem} ${isDistrictActive ? styles.districtSubItemActive : ""}`}
                               onClick={() => onDistrictClick?.(d.city_id, d.district)}
-                              aria-label={`Select District ${d.district}, ${d.display_name}`}
+                              aria-label={`Select District ${d.district}, ${districtLabel}`}
                               aria-current={isDistrictActive ? "true" : undefined}
                             >
                               <span className={styles.districtNumber}>D{d.district}</span>
-                              <span className={styles.districtName}>{d.display_name}</span>
+                              <span className={styles.districtName}>{districtLabel}</span>
                             </button>
                             <button
                               type="button"
                               className={styles.districtMenuBtn}
                               onClick={(e) => handleDistrictMenuToggle(e, d.city_id, d.district)}
                               title="District options"
-                              aria-label={`Options for District ${d.district}, ${d.display_name}`}
+                              aria-label={`Options for District ${d.district}, ${districtLabel}`}
                             >
                               ⋮
                             </button>
@@ -482,5 +503,3 @@ export default function MyCities({ onCityClick, onDistrictClick, userPlaces = []
     </div>
   );
 }
-
-

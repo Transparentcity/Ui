@@ -211,7 +211,7 @@ function mapDataToSavedMap(
   };
 }
 
-// ─── Secondary map: lazy-rendered once it enters the viewport ───────────────
+// ─── Secondary map: click-to-load (avoids competing Mapbox contexts) ─────────
 
 interface SecondaryMapProps {
   mapData: SavedMap;
@@ -219,8 +219,6 @@ interface SecondaryMapProps {
   height: number;
   basemapTheme: "dark" | "light";
   metricId: number;
-  selectedPeriod: string;
-  dateRange?: { start: string | null; end: string | null };
 }
 
 function SecondaryMapSection({
@@ -229,36 +227,19 @@ function SecondaryMapSection({
   height,
   basemapTheme,
   metricId,
-  selectedPeriod,
-  dateRange,
 }: SecondaryMapProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "300px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  // Click-to-load: a second Mapbox GL context + full GeoJSON download contends
+  // with the primary choropleth. Only mount when the user asks for it.
+  const [expanded, setExpanded] = useState(false);
 
   const subtitle = buildLayerSubtitle(spec.label, spec.kind, true);
 
   return (
-    <div className="metric-map-secondary-section" ref={containerRef}>
+    <div className="metric-map-secondary-section">
       {subtitle && <div className="metric-map-secondary-label">{subtitle}</div>}
-      {isVisible ? (
+      {expanded ? (
         <ProgressiveMapView
-          key={`metric-map-secondary-${metricId}-${selectedPeriod}-${dateRange?.start ?? ""}-${dateRange?.end ?? ""}-${formatMetricMapViewSpecKey(spec)}`}
+          key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
           mapData={mapData}
           mapHash=""
           height={height}
@@ -267,7 +248,13 @@ function SecondaryMapSection({
           lockedViewKey={formatMetricMapViewSpecKey(spec)}
         />
       ) : (
-        <div className="map-placeholder" style={{ height }} />
+        <button
+          type="button"
+          className="metric-map-secondary-load"
+          onClick={() => setExpanded(true)}
+        >
+          {subtitle ? `Load map — ${subtitle.toLowerCase()}` : "Load alternate map"}
+        </button>
       )}
     </div>
   );
@@ -331,20 +318,32 @@ export default function MetricMapEmbed({
     return () => observer.disconnect();
   }, []);
 
+  // Reset map state when navigating to a different metric/scope.
+  useEffect(() => {
+    setMapData(null);
+    setComparisonLocationData(null);
+    setLimitHit(false);
+    setMapNotAvailable(false);
+    setError(null);
+    setLoading(true);
+  }, [metricId, district, isPlaceScope, placeCircle?.lat, placeCircle?.lng, placeCircle?.radius_m]);
+
   // ── Fetch map preview (deferred until in viewport) ───────────────────────────
   useEffect(() => {
     if (!hasEnteredViewport) return;
 
     let mounted = true;
 
-    setMapData(null);
-    setComparisonLocationData(null);
+    // Keep the previous map mounted while refetching so Mapbox GL is not torn
+    // down on every period/date change (expensive tiles + geometry reloads).
     setMapNotAvailable(false);
     setError(null);
-    setLimitHit(false);
 
     if (!dateRange?.start || !dateRange?.end) {
       setLoading(false);
+      setMapData(null);
+      setComparisonLocationData(null);
+      setLimitHit(false);
       return;
     }
 
@@ -370,12 +369,14 @@ export default function MetricMapEmbed({
             setMapData(
               mapDataToSavedMap(response.map_data, metricId, placeCircle, placeLabel)
             );
+            setComparisonLocationData(null);
             setLimitHit(false);
           } else {
             const errMsg = response.error || "Failed to load place map";
             if (errMsg.includes("map_query")) {
               setMapNotAvailable(true);
               setError(null);
+              setMapData(null);
             } else {
               setError(errMsg);
             }
@@ -398,6 +399,8 @@ export default function MetricMapEmbed({
 
           if (response.comparison_location_data && response.comparison_location_data.length > 0) {
             setComparisonLocationData(response.comparison_location_data);
+          } else {
+            setComparisonLocationData(null);
           }
         }
       } catch (err) {
@@ -412,6 +415,7 @@ export default function MetricMapEmbed({
           if (is404) {
             setMapNotAvailable(true);
             setError(null);
+            setMapData(null);
           } else {
             setError(err instanceof Error ? err.message : "Failed to load map");
           }
@@ -507,13 +511,8 @@ export default function MetricMapEmbed({
           : "citywide";
     const displayItemNoun = (mapData?.map_config?.item_noun as string | undefined) || itemNoun;
 
-    // Don't produce a caption when the map itself is being suppressed.
-    if (limitHit && effectiveSpecs === null) return "";
-
     return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${locationLabel} from ${dateRangeStr}.`;
   };
-
-  const caption = buildCaption();
 
   const periodButtonLabels = {
     ytd: "Year-to-Date",
@@ -581,6 +580,10 @@ export default function MetricMapEmbed({
     // Nothing useful to render.
     return null;
   }, [isPlaceScope, mapData, embedViewSpecs, limitHit]);
+
+  // Don't produce a caption when the map itself is being suppressed.
+  const caption =
+    limitHit && effectiveSpecs === null ? "" : buildCaption();
 
   // Notify parent once we know the map section has nothing to show.
   const onMapUnavailableFired = useRef(false);
@@ -683,7 +686,10 @@ export default function MetricMapEmbed({
             </div>
           )}
           <ProgressiveMapView
-            key={`metric-map-primary-${metricId}-${selectedPeriod}-${dateRange?.start ?? ""}-${dateRange?.end ?? ""}-${formatMetricMapViewSpecKey(effectiveSpecs.primary)}`}
+            // Stable key: reuse the Mapbox GL instance across period/date
+            // refreshes; ProgressiveMapView already reloads choropleth layers
+            // when mapData / aggregations change.
+            key={`metric-map-primary-${metricId}-${formatMetricMapViewSpecKey(effectiveSpecs.primary)}`}
             mapData={mapData}
             mapHash=""
             height={height}
@@ -798,8 +804,6 @@ export default function MetricMapEmbed({
               height={secondaryHeight}
               basemapTheme={mapBasemapTheme}
               metricId={metricId}
-              selectedPeriod={selectedPeriod}
-              dateRange={dateRange}
             />
           ))}
         </div>

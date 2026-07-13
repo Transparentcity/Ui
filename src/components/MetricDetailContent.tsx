@@ -21,7 +21,10 @@ import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
 import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
-import { resolveMetricDatasetAttribution } from "@/lib/metricDatasetAttribution";
+import {
+  buildMetricSourceInformation,
+  resolveMetricDatasetAttribution,
+} from "@/lib/metricDatasetAttribution";
 import CompletenessSparkline from "./CompletenessSparkline";
 import MetricSourceAttribution from "./MetricSourceAttribution";
 
@@ -78,19 +81,21 @@ export default function MetricDetailContent({
   const [completenessStats, setCompletenessStats] = useState<CompletenessStatisticsResponse | null>(null);
   const [cityDetail, setCityDetail] = useState<PublicCityDetail | null>(null);
 
-  const datasetAttribution = useMemo(() => {
-    const resolved = resolveMetricDatasetAttribution(metric, {
-      portalUrl: cityDetail?.main_portal_url,
-      portalDomain: cityDetail?.main_domain,
-    });
-    if (!resolved.datasetName) return null;
-    return {
-      dataset_name: resolved.datasetName,
-      dataset_id: resolved.datasetId,
-      dataset_url: resolved.datasetUrl,
-      city_portal_domain: cityDetail?.main_domain || null,
-    };
-  }, [metric, cityDetail?.main_portal_url, cityDetail?.main_domain]);
+  const datasetAttribution = useMemo(
+    () =>
+      buildMetricSourceInformation(metric, {
+        portalUrl: cityDetail?.main_portal_url,
+        portalDomain: cityDetail?.main_domain,
+        cityName: cityDetail?.name || cityName,
+      }),
+    [
+      metric,
+      cityDetail?.main_portal_url,
+      cityDetail?.main_domain,
+      cityDetail?.name,
+      cityName,
+    ],
+  );
 
   useEffect(() => {
     setCompletenessDaily(null);
@@ -134,6 +139,8 @@ export default function MetricDetailContent({
   }, [metric.city_id]);
 
   const comparison = comparisonsQuery.data?.comparisons[selectedPeriod];
+  const sourcePeriodStart = comparison?.current_period_start ?? null;
+  const sourcePeriodEnd = comparison?.current_period_end ?? null;
   // Consider "loading" if actively fetching OR if we don't have comparison data yet for the selected period
   const isComparisonsLoading = comparisonsQuery.isLoading || comparisonsQuery.isFetching || (!comparisonsQuery.isError && !comparison);
   const isTimeSeriesLoading = timeSeriesQuery.isLoading || timeSeriesQuery.isFetching;
@@ -450,7 +457,11 @@ export default function MetricDetailContent({
               staleness_days={staleness_days}
               reportingCompletenessHref={reportingCompletenessHref}
             />
-            <MetricSourceAttribution sourceInfo={datasetAttribution} />
+            <MetricSourceAttribution
+              sourceInfo={datasetAttribution}
+              startDate={sourcePeriodStart}
+              endDate={sourcePeriodEnd}
+            />
           </div>
         </section>
       )}
@@ -487,7 +498,11 @@ export default function MetricDetailContent({
             }}
             onMapUnavailable={() => setMapSectionVisible(false)}
           />
-          <MetricSourceAttribution sourceInfo={datasetAttribution} />
+          <MetricSourceAttribution
+            sourceInfo={datasetAttribution}
+            startDate={sourcePeriodStart}
+            endDate={sourcePeriodEnd}
+          />
         </section>
       )}
 
@@ -504,6 +519,8 @@ export default function MetricDetailContent({
           comparison={comparison}
           deltaMapHeight={isMobile ? 260 : 350}
           sourceInfo={datasetAttribution}
+          sourceStartDate={sourcePeriodStart}
+          sourceEndDate={sourcePeriodEnd}
         />
       )}
 

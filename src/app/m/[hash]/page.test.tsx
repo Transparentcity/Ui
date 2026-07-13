@@ -133,7 +133,7 @@ describe("PublicMapPage signup CTA", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "Source information" })
+        screen.getByRole("button", { name: "Source" })
       ).toBeInTheDocument();
     });
 
@@ -144,7 +144,7 @@ describe("PublicMapPage signup CTA", () => {
     ).not.toBeInTheDocument();
 
     const sourceToggle = screen.getByRole("button", {
-      name: "Source information",
+      name: "Source",
     });
     expect(sourceToggle).toHaveAttribute("aria-expanded", "false");
 

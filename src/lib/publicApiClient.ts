@@ -971,6 +971,31 @@ export type MapPreviewResponse = {
   comparison_location_data_count?: number | null;
 };
 
+const MAP_PREVIEW_CLIENT_TTL_MS = 15 * 60 * 1000;
+
+type MapPreviewCacheEntry = {
+  data: MapPreviewResponse | null;
+  promise: Promise<MapPreviewResponse> | null;
+  timestamp: number;
+};
+
+/** Session-scoped map-preview cache (metric detail reopen / period toggles). */
+const mapPreviewClientCache = new Map<string, MapPreviewCacheEntry>();
+
+function mapPreviewCacheKey(metricId: number, request: MapPreviewRequest): string {
+  return [
+    metricId,
+    request.start_date,
+    request.end_date,
+    request.district ?? 0,
+    request.period_type ?? "ytd",
+    request.comparison_start_date ?? "",
+    request.comparison_end_date ?? "",
+    request.group_field ?? "",
+    request.group_value ?? "",
+  ].join("|");
+}
+
 /**
  * Generate map data dynamically for embedding (no database save).
  * This is the preferred method for embedded maps in metric detail pages.
@@ -979,35 +1004,58 @@ export async function getMetricMapPreview(
   metricId: number,
   request: MapPreviewRequest
 ): Promise<MapPreviewResponse> {
+  const key = mapPreviewCacheKey(metricId, request);
+  const now = Date.now();
+  const cached = mapPreviewClientCache.get(key);
+  if (cached?.data && now - cached.timestamp < MAP_PREVIEW_CLIENT_TTL_MS) {
+    return cached.data;
+  }
+  if (cached?.promise && now - cached.timestamp < MAP_PREVIEW_CLIENT_TTL_MS) {
+    return cached.promise;
+  }
+
   const url = `${resolvePublicApiBaseUrl()}/api/public/metrics/${metricId}/map-preview`;
-  
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(request),
-  });
-  
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    let errorMessage = `Map preview failed: ${res.status}`;
-    if (text) {
-      try {
-        const errorJson = JSON.parse(text);
-        errorMessage = errorJson.detail || errorJson.message || errorMessage;
-      } catch {
-        errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+
+  const promise = (async (): Promise<MapPreviewResponse> => {
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let errorMessage = `Map preview failed: ${res.status}`;
+      if (text) {
+        try {
+          const errorJson = JSON.parse(text);
+          errorMessage = errorJson.detail || errorJson.message || errorMessage;
+        } catch {
+          errorMessage = `${errorMessage} - ${text.substring(0, 200)}`;
+        }
       }
+      const err = new Error(errorMessage) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
     }
-    const err = new Error(errorMessage) as Error & { status?: number };
-    err.status = res.status;
+
+    return res.json();
+  })();
+
+  mapPreviewClientCache.set(key, { data: null, promise, timestamp: now });
+
+  try {
+    const data = await promise;
+    mapPreviewClientCache.set(key, { data, promise: null, timestamp: Date.now() });
+    return data;
+  } catch (err) {
+    mapPreviewClientCache.delete(key);
     throw err;
   }
-  
-  return res.json();
 }
 
 export type MapSaveResponse = {

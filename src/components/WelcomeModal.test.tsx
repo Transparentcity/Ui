@@ -25,6 +25,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock("next/dynamic", () => ({
+  default: () => () => null,
+}));
+
+// Prevent vite from transforming LocationMapSave → mapbox-gl (worker OOM).
+vi.mock("@/components/LocationMapSave", () => ({
+  default: () => null,
+}));
+
 const mockStartJob = vi.fn();
 const mockStartCityLoading = vi.fn();
 const mockCompleteCityLoading = vi.fn();

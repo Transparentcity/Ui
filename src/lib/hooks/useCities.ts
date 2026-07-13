@@ -255,6 +255,8 @@ export function useRepresentativeFollows(
 type RepresentativeFollowMutationCtx = {
   prevCounts?: Record<string, number>;
   prevFollows?: Record<string, boolean>;
+  prevSavedDistricts?: SavedDistrict[];
+  prevSavedCities?: SavedCity[];
 };
 
 /**
@@ -278,12 +280,18 @@ export function useFollowRepresentative(cityId: number | null) {
       if (!cityId) return {};
       await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollowerCounts(cityId) });
       await queryClient.cancelQueries({ queryKey: cityKeys.representativeFollows(cityId) });
+      await queryClient.cancelQueries({ queryKey: cityKeys.savedDistricts() });
+      await queryClient.cancelQueries({ queryKey: cityKeys.saved() });
       const prevCounts = queryClient.getQueryData<Record<string, number>>(
         cityKeys.representativeFollowerCounts(cityId)
       );
       const prevFollows = queryClient.getQueryData<Record<string, boolean>>(
         cityKeys.representativeFollows(cityId)
       );
+      const prevSavedDistricts = queryClient.getQueryData<SavedDistrict[]>(
+        cityKeys.savedDistricts()
+      );
+      const prevSavedCities = queryClient.getQueryData<SavedCity[]>(cityKeys.saved());
       const d = String(district || "0");
       queryClient.setQueryData<Record<string, number>>(
         cityKeys.representativeFollowerCounts(cityId),
@@ -293,7 +301,43 @@ export function useFollowRepresentative(cityId: number | null) {
         cityKeys.representativeFollows(cityId),
         (old) => ({ ...(old ?? {}), [d]: true })
       );
-      return { prevCounts, prevFollows };
+
+      // Optimistically add to left-nav sources (saved cities + followed districts)
+      const cityDetail = queryClient.getQueryData<CityDetail>(cityKeys.detail(cityId));
+      const cityName =
+        cityDetail?.name ||
+        prevSavedCities?.find((c) => c.id === cityId)?.display_name ||
+        `City ${cityId}`;
+      if (!prevSavedCities?.some((c) => c.id === cityId)) {
+        const displayName = cityDetail?.state
+          ? `${cityName}, ${cityDetail.state}`
+          : cityName;
+        const optimisticCity: SavedCity = {
+          id: cityId,
+          display_name: displayName,
+          city_name: cityName,
+          state: cityDetail?.state ?? undefined,
+          country: cityDetail?.country ?? undefined,
+          emoji: cityDetail?.emoji ?? undefined,
+        };
+        queryClient.setQueryData<SavedCity[]>(cityKeys.saved(), (old = []) => [
+          ...old,
+          optimisticCity,
+        ]);
+      }
+      if (d !== "0" && !prevSavedDistricts?.some((x) => x.city_id === cityId && x.district === d)) {
+        queryClient.setQueryData<SavedDistrict[]>(cityKeys.savedDistricts(), (old = []) => [
+          ...old,
+          {
+            city_id: cityId,
+            district: d,
+            display_name: `${cityName} District ${d}`,
+            city_name: cityName,
+          },
+        ]);
+      }
+
+      return { prevCounts, prevFollows, prevSavedDistricts, prevSavedCities };
     },
     onSuccess: (_data, _district) => {
       if (!cityId) return;
@@ -325,6 +369,12 @@ export function useFollowRepresentative(cityId: number | null) {
             return next;
           }
         );
+      }
+      if (ctx.prevSavedDistricts !== undefined) {
+        queryClient.setQueryData(cityKeys.savedDistricts(), ctx.prevSavedDistricts);
+      }
+      if (ctx.prevSavedCities !== undefined) {
+        queryClient.setQueryData(cityKeys.saved(), ctx.prevSavedCities);
       }
     },
   });
@@ -411,7 +461,7 @@ export function useUnfollowRepresentative(cityId: number | null) {
  * Returns list of followed city+district with display name and slug.
  */
 export function useSavedDistricts() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
   return useQuery({
     queryKey: cityKeys.savedDistricts(),
@@ -419,6 +469,7 @@ export function useSavedDistricts() {
       const token = await getAccessTokenSilently();
       return getSavedDistricts(token);
     },
+    enabled: isAuthenticated,
     staleTime: 2 * 60 * 1000,
   });
 }
@@ -577,6 +628,7 @@ export function useLeanLeaders(
 
 /**
  * Simplified district boundary rings for the overview mini-map.
+ * Geometry is simplified server-side (~22 m) for a small cached payload.
  * Public endpoint, heavily cached — district boundaries change very rarely.
  */
 export function useBoundarySketch(

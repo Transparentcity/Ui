@@ -152,7 +152,8 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const CACHE_TTL_MS = 60000; // 1 minute cache
+// Shape layers / city structure change rarely — keep them warm across embeds.
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Cache for city structure data
 const cityStructureCache: Record<number, CacheEntry<any>> = {};
@@ -342,6 +343,8 @@ export default function ProgressiveMapView({
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [showPoints, setShowPoints] = useState(false); // Default to false for embedded maps - choropleth is the primary view
   const [mapboxLoaded, setMapboxLoaded] = useState(false);
+  /** True after Mapbox `load` — choropleth must wait for this (ref alone does not re-render). */
+  const [mapReady, setMapReady] = useState(false);
   const [availableShapeLayers, setAvailableShapeLayers] = useState<ShapeLayer[]>([]);
   const [lazyLoadedAggregations, setLazyLoadedAggregations] = useState<Record<string, Aggregation>>({});
   const [loadingLazyView, setLoadingLazyView] = useState(false);
@@ -760,6 +763,12 @@ export default function ProgressiveMapView({
       );
 
       map.on("load", async () => {
+        if (cancelled) return;
+        // Signal style/map readiness so the choropleth effect can run. Metric
+        // embeds often select a shape layer before this async init finishes
+        // (especially when city center must be fetched for null bounds/center);
+        // a one-shot 100ms timeout alone races and never retries.
+        setMapReady(true);
         setTimeout(async () => {
           try {
             if (bounds && bounds.length === 2) {
@@ -801,6 +810,7 @@ export default function ProgressiveMapView({
 
     return () => {
       cancelled = true;
+      setMapReady(false);
       if (savedPlaceMarkerRef.current) {
         try { savedPlaceMarkerRef.current.remove(); } catch { /* ignore */ }
         savedPlaceMarkerRef.current = null;
@@ -820,7 +830,7 @@ export default function ProgressiveMapView({
 
   // Load choropleth when shape layer is selected (default_view or user selection)
   useEffect(() => {
-    if (!mapInstanceRef.current || !mapboxLoaded) return;
+    if (!mapInstanceRef.current || !mapboxLoaded || !mapReady) return;
     if (!selectedShapeLayer) return;
     if (showPoints) setShowPoints(false);
     
@@ -849,6 +859,7 @@ export default function ProgressiveMapView({
     if (canLoadChoropleth && effectiveAggregations[selectedShapeLayer]) {
       const timeoutId = setTimeout(() => {
         try {
+          if (!mapInstanceRef.current) return;
           loadChoroplethMap(mapInstanceRef.current, selectedShapeLayer);
         } catch (err) {
           console.error("Error loading choropleth:", err);
@@ -861,6 +872,7 @@ export default function ProgressiveMapView({
     selectedShapeLayer,
     hasAggregations,
     mapboxLoaded,
+    mapReady,
     mapData.location_data,
     points,
     effectiveAggregations,

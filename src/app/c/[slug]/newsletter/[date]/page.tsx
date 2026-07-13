@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import "../../../../landing.css";
+import "@/app/newsletter-inline-theme.css";
 
 import { getNewsletterEdition } from "@/lib/newsletter";
 import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
@@ -180,7 +181,7 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
         {/* Edition body (still leads with the headline + lede, so no separate
             intro_html render — that was the duplicate). */}
         <div
-          className="newsletter-edition-body"
+          className="newsletter-edition-body newsletter-inline-theme"
           style={{ lineHeight: 1.75, fontSize: "1rem" }}
           dangerouslySetInnerHTML={{ __html: edition.body_html }}
         />
@@ -342,31 +343,7 @@ export default async function NewsletterEditionPage({ params }: PageProps) {
           padding: 4px 16px;
           color: var(--text-muted);
         }
-        /* Override inline-styled highlight blocks from generated HTML */
-        .newsletter-edition-body div[style*="background:#f3f4f6"],
-        .newsletter-edition-body div[style*="background: #f3f4f6"] {
-          background: var(--bg-secondary) !important;
-          color: var(--text-primary) !important;
-        }
-        .newsletter-edition-body div[style*="background:#ffffff"],
-        .newsletter-edition-body div[style*="background: #ffffff"],
-        .newsletter-edition-body div[style*="background: white"] {
-          background: var(--bg-primary) !important;
-        }
-        .newsletter-edition-body [style*="color:#111827"],
-        .newsletter-edition-body [style*="color: #111827"],
-        .newsletter-edition-body [style*="color:#374151"],
-        .newsletter-edition-body [style*="color: #374151"] {
-          color: var(--text-primary) !important;
-        }
-        .newsletter-edition-body [style*="color:#6b7280"],
-        .newsletter-edition-body [style*="color: #6b7280"] {
-          color: var(--text-muted) !important;
-        }
-        .newsletter-edition-body [style*="border-color:#e5e7eb"],
-        .newsletter-edition-body [style*="border: 1px solid #e5e7eb"] {
-          border-color: var(--border-primary) !important;
-        }
+        /* Inline hex remaps live in newsletter-inline-theme.css */
       `}</style>
     </SignupEmailProvider>
   );

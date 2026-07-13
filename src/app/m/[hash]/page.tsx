@@ -8,6 +8,10 @@ import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
 import { getMyPermissions, patchMapSeoPreviewImage } from "@/lib/apiClient";
 import { getPublicCityDetail } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
+import SourceInformationPanel, {
+  formatSourceDateRange,
+  type SourceInformationFields,
+} from "@/components/SourceInformationPanel";
 // Icon mapping for different shape layer types
 const getLayerIcon = (layerKey?: string, category?: string, displayName?: string): string => {
   const key = (layerKey || "").toLowerCase();
@@ -70,13 +74,7 @@ interface MapDataPoint {
   [key: string]: any;
 }
 
-interface SavedMapSourceInfo {
-  dataset_id?: string | null;
-  dataset_name?: string | null;
-  dataset_url?: string | null;
-  query_url?: string | null;
-  query_text?: string | null;
-}
+type SavedMapSourceInfo = SourceInformationFields;
 
 interface SavedMap {
   id: number;
@@ -96,166 +94,6 @@ interface SavedMap {
   is_public: boolean;
   view_count: number;
   created_at: string;
-}
-
-/**
- * Format a saved map's start_date / end_date (either may be null) into a
- * human-readable, locale-aware label such as "Apr 1 – Apr 30, 2026".
- *
- * Returns `null` when neither bound is present, so callers can simply skip
- * rendering. Falls back to the raw YYYY-MM-DD string if parsing fails so we
- * never silently lose information.
- */
-function formatMapDateRange(
-  startDate?: string | null,
-  endDate?: string | null,
-): string | null {
-  const hasStart = typeof startDate === "string" && startDate.trim().length > 0;
-  const hasEnd = typeof endDate === "string" && endDate.trim().length > 0;
-  if (!hasStart && !hasEnd) return null;
-
-  const parse = (value: string): Date | null => {
-    // Treat as a calendar date in UTC to avoid local-timezone shifts that would
-    // bump "2026-04-01" back to March 31 in the western hemisphere.
-    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return null;
-    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    return Number.isNaN(d.getTime()) ? null : d;
-  };
-
-  const start = hasStart ? parse(startDate as string) : null;
-  const end = hasEnd ? parse(endDate as string) : null;
-
-  const fmt = (d: Date, withYear: boolean): string =>
-    d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      ...(withYear ? { year: "numeric" } : {}),
-      timeZone: "UTC",
-    });
-
-  if (start && end) {
-    const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
-    return sameYear
-      ? `${fmt(start, false)} – ${fmt(end, true)}`
-      : `${fmt(start, true)} – ${fmt(end, true)}`;
-  }
-  if (start) return `From ${fmt(start, true)}`;
-  if (end) return `Through ${fmt(end as Date, true)}`;
-  // Fallback to raw values if parsing failed
-  if (hasStart && hasEnd) return `${startDate} – ${endDate}`;
-  return (startDate as string) || (endDate as string) || null;
-}
-
-function MapSourceInformation({
-  sourceInfo,
-  startDate,
-  endDate,
-  expanded,
-  onToggle,
-}: {
-  sourceInfo: SavedMapSourceInfo;
-  startDate?: string | null;
-  endDate?: string | null;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const dateRangeLabel = formatMapDateRange(startDate, endDate);
-  return (
-    <section className="map-source-section" aria-label="Source information">
-      <button
-        type="button"
-        className="map-source-toggle"
-        aria-expanded={expanded}
-        aria-controls="map-source-details"
-        onClick={onToggle}
-      >
-        <span>Source information</span>
-        <span className="map-source-toggle-icon" aria-hidden="true">
-          {expanded ? "−" : "+"}
-        </span>
-      </button>
-
-      {expanded && (
-        <div id="map-source-details" className="map-source-details">
-          <div className="map-source-intro">
-            <p>
-              Transparent.city turns official public records into clear,
-              source-linked maps so residents, advocates, and local leaders can
-              work from the same facts.
-            </p>
-            <p>
-              This map is built from the government dataset linked below. We
-              keep the underlying source visible, document the fetch URL and
-              query when available, and link back to the original record so you
-              can verify everything yourself.
-            </p>
-          </div>
-
-          <div className="map-source-grid">
-            {(sourceInfo.dataset_name || sourceInfo.dataset_id) && (
-              <div className="map-source-row">
-                <span className="map-source-label">Dataset</span>
-                <span className="map-source-value">
-                  {sourceInfo.dataset_url ? (
-                    <a
-                      href={sourceInfo.dataset_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="map-source-link"
-                    >
-                      {sourceInfo.dataset_name || sourceInfo.dataset_id}
-                    </a>
-                  ) : (
-                    sourceInfo.dataset_name || sourceInfo.dataset_id
-                  )}
-                </span>
-              </div>
-            )}
-
-            {sourceInfo.dataset_id && sourceInfo.dataset_name && (
-              <div className="map-source-row">
-                <span className="map-source-label">Dataset ID</span>
-                <span className="map-source-value">
-                  <code>{sourceInfo.dataset_id}</code>
-                </span>
-              </div>
-            )}
-
-            {sourceInfo.query_url && (
-              <div className="map-source-row">
-                <span className="map-source-label">Fetch URL</span>
-                <span className="map-source-value">
-                  <a
-                    href={sourceInfo.query_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="map-source-link"
-                  >
-                    {sourceInfo.query_url}
-                  </a>
-                </span>
-              </div>
-            )}
-
-            {dateRangeLabel && (
-              <div className="map-source-row">
-                <span className="map-source-label">Date range</span>
-                <span className="map-source-value">{dateRangeLabel}</span>
-              </div>
-            )}
-          </div>
-
-          {sourceInfo.query_text && (
-            <>
-              <div className="map-source-query-label">Query</div>
-              <pre className="map-source-query">{sourceInfo.query_text}</pre>
-            </>
-          )}
-        </div>
-      )}
-    </section>
-  );
 }
 
 // Fallback palette for multi-layer maps created before explicit layer colors were stored.
@@ -3552,12 +3390,13 @@ export default function PublicMapPage() {
           )}
         </div>
         {sourceInfo && (
-          <MapSourceInformation
+          <SourceInformationPanel
             sourceInfo={sourceInfo}
             startDate={map?.map_config?.start_date as string | null | undefined}
             endDate={map?.map_config?.end_date as string | null | undefined}
             expanded={isSourceInfoExpanded}
             onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
+            toggleLabel="Source"
           />
         )}
       </div>
@@ -4033,7 +3872,7 @@ export default function PublicMapPage() {
               })()}
             </span>
             {(() => {
-              const range = formatMapDateRange(
+              const range = formatSourceDateRange(
                 map.map_config?.start_date as string | null | undefined,
                 map.map_config?.end_date as string | null | undefined,
               );
@@ -4240,13 +4079,14 @@ export default function PublicMapPage() {
             )}
 
           {sourceInfo && (
-            <MapSourceInformation
-              sourceInfo={sourceInfo}
-              startDate={map?.map_config?.start_date as string | null | undefined}
-              endDate={map?.map_config?.end_date as string | null | undefined}
-              expanded={isSourceInfoExpanded}
-              onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
-            />
+          <SourceInformationPanel
+            sourceInfo={sourceInfo}
+            startDate={map?.map_config?.start_date as string | null | undefined}
+            endDate={map?.map_config?.end_date as string | null | undefined}
+            expanded={isSourceInfoExpanded}
+            onToggle={() => setIsSourceInfoExpanded((expanded) => !expanded)}
+            toggleLabel="Source"
+          />
           )}
 
           {!isAuthenticated && (

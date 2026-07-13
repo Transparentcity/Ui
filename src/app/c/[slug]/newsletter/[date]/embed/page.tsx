@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getNewsletterEdition } from "@/lib/newsletter";
+import "@/app/newsletter-inline-theme.css";
 
 // Always render fresh so new editions are immediately embeddable.
 export const dynamic = "force-dynamic";
@@ -105,7 +106,7 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
         {/* Edition body (still leads with the headline + intro, so no need to
             render intro_html separately — that caused the duplicate title). */}
         <div
-          className="embed-body"
+          className="embed-body newsletter-inline-theme"
           dangerouslySetInnerHTML={{ __html: edition.body_html }}
         />
       </article>
@@ -122,6 +123,14 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
           --c-muted:    #6b7280;
           --c-border:   #e5e7eb;
           --c-brand:    #ad35fa;
+          /* Aliases for newsletter-inline-theme.css */
+          --bg-primary: var(--c-bg);
+          --bg-secondary: var(--c-bg2);
+          --text-primary: var(--c-text);
+          --text-secondary: var(--c-text2);
+          --text-muted: var(--c-muted);
+          --border-primary: var(--c-border);
+          --brand-primary: var(--c-brand);
         }
 
         @media (prefers-color-scheme: dark) {
@@ -287,31 +296,7 @@ export default async function NewsletterEmbedPage({ params }: PageProps) {
           color: var(--c-muted);
         }
 
-        /* Override inline-styled blocks from generated HTML */
-        .embed-body [style*="background:#f3f4f6"],
-        .embed-body [style*="background: #f3f4f6"] {
-          background: var(--c-bg2) !important;
-          color: var(--c-text) !important;
-        }
-        .embed-body [style*="background:#ffffff"],
-        .embed-body [style*="background: #ffffff"],
-        .embed-body [style*="background: white"] {
-          background: var(--c-bg) !important;
-        }
-        .embed-body [style*="color:#111827"],
-        .embed-body [style*="color: #111827"],
-        .embed-body [style*="color:#374151"],
-        .embed-body [style*="color: #374151"] {
-          color: var(--c-text) !important;
-        }
-        .embed-body [style*="color:#6b7280"],
-        .embed-body [style*="color: #6b7280"] {
-          color: var(--c-muted) !important;
-        }
-        .embed-body [style*="border-color:#e5e7eb"],
-        .embed-body [style*="border: 1px solid #e5e7eb"] {
-          border-color: var(--c-border) !important;
-        }
+        /* Inline hex remaps live in newsletter-inline-theme.css */
       `}</style>
     </>
   );

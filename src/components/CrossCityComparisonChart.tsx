@@ -2,9 +2,18 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState, type ComponentType, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import type { PlotParams } from "react-plotly.js";
-import type { Config, Data, Layout } from "plotly.js";
+import type { Config, Data, Layout, PlotHoverEvent } from "plotly.js";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   getAdminMetricTimeSeries,
@@ -18,17 +27,74 @@ import {
   type AdminTimeSeriesSummary,
   type CityListItem,
 } from "@/lib/apiClient";
+import { useTheme } from "@/contexts/ThemeContext";
 import Loader from "./Loader";
 import "./CrossCityComparisonChart.css";
+
+const PLOT_AXIS_FONT_FAMILY =
+  "'IBM Plex Sans', Inter, Arial, Helvetica, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
 
 const Plot = dynamic(
   () => import("react-plotly.js"),
   { ssr: false }
 ) as ComponentType<PlotParams>;
 
+/** Keep Plotly out of hover-tip re-renders so onHover state doesn't immediately unhover. */
+const CrossCityPlot = memo(function CrossCityPlot({
+  data,
+  layout,
+  config,
+  height,
+  onHover,
+}: {
+  data: Data[];
+  layout: Partial<Layout>;
+  config: Partial<Config>;
+  height: number;
+  onHover: (event: Readonly<PlotHoverEvent>) => void;
+}) {
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+
+  return (
+    <Plot
+      data={data}
+      layout={layout}
+      config={config}
+      style={{ width: "100%", height }}
+      onHover={(event) => onHoverRef.current(event)}
+      useResizeHandler
+    />
+  );
+});
+
 type ValueMode = "absolute" | "per_1k";
 type RangeMode = "1m" | "3m" | "ytd" | "1y" | "3y";
 
+interface CrossCityHoverRow {
+  metricId: number;
+  label: string;
+  color: string;
+  value: number;
+  formatted: string;
+  smoothingLabel: string | null;
+}
+
+interface CrossCityHoverTip {
+  dateLabel: string;
+  left: number;
+  top: number;
+  rows: CrossCityHoverRow[];
+}
+
+interface ChartSeriesPoint {
+  metricId: number;
+  label: string;
+  color: string;
+  smoothingLabel: string | null;
+  /** day-key → displayed (possibly smoothed) y value */
+  valuesByDay: Map<string, number>;
+}
 interface CrossCityComparisonChartProps {
   templateId: number;
   token: string;
@@ -93,10 +159,24 @@ function parsePopulation(value: CityListItem["population"]): number | null {
   return null;
 }
 
-function formatPopulation(value: number | null): string {
-  if (value == null) return "pop. unknown";
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`;
+function formatPopulation(value: number | null): string | null {
+  if (value == null) return null;
+  if (value >= 1_000_000) {
+    const millions = value / 1_000_000;
+    const label =
+      millions >= 10
+        ? millions.toFixed(0)
+        : millions.toFixed(1).replace(/\.0$/, "");
+    return `${label}M`;
+  }
+  if (value >= 1_000) {
+    const thousands = value / 1_000;
+    const label =
+      thousands >= 100
+        ? thousands.toFixed(0)
+        : thousands.toFixed(thousands >= 10 ? 0 : 1).replace(/\.0$/, "");
+    return `${label}k`;
+  }
   return value.toLocaleString();
 }
 
@@ -214,6 +294,99 @@ function buildPopulationFootnote(series: CitySeries[]): string | null {
   return `Population data: ${Array.from(sources).join("; ")}`;
 }
 
+interface CrossCityTableRow {
+  metricId: number;
+  cityName: string;
+  emoji: string | null;
+  color: string;
+  population: number | null;
+  startValue: number | null;
+  endValue: number | null;
+  average: number | null;
+  change: number | null;
+  changePct: number | null;
+}
+
+function toDisplayValue(
+  absolute: number,
+  population: number | null,
+  valueMode: ValueMode
+): number | null {
+  if (valueMode === "absolute") return absolute;
+  if (!population) return null;
+  return absolute / (population / 1000);
+}
+
+function formatTableValue(value: number | null, valueMode: ValueMode): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  if (valueMode === "per_1k") {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  return Math.round(value).toLocaleString();
+}
+
+function formatTableChange(value: number | null, valueMode: ValueMode): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const sign = value > 0 ? "+" : "";
+  if (valueMode === "per_1k") {
+    return `${sign}${value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  return `${sign}${Math.round(value).toLocaleString()}`;
+}
+
+function formatTablePct(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)}%`;
+}
+
+function formatTableDate(value: string | Date | null): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return typeof value === "string" ? value : "";
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function toDayKey(value: string | Date | number): string | null {
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  // Prefer UTC for ISO timestamps so day keys stay stable across timezones.
+  if (typeof value === "string" && value.includes("T")) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatHoverValue(value: number, valueMode: ValueMode): string {
+  if (valueMode === "per_1k") {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  return Math.round(value).toLocaleString();
+}
+
 export default function CrossCityComparisonChart({
   templateId,
   token,
@@ -221,10 +394,20 @@ export default function CrossCityComparisonChart({
   metricName,
   fullPageHref,
 }: CrossCityComparisonChartProps) {
+  const { theme } = useTheme();
   const [valueMode, setValueMode] = useState<ValueMode>("absolute");
   const [rangeMode, setRangeMode] = useState<RangeMode>("1y");
   /** Admin-only: when true, include cities that are not launched. */
   const [showAllCities, setShowAllCities] = useState(false);
+  const [dataTableExpanded, setDataTableExpanded] = useState(false);
+  const [hoverTip, setHoverTip] = useState<CrossCityHoverTip | null>(null);
+  const plotWrapRef = useRef<HTMLDivElement>(null);
+  const chartSeriesPointsRef = useRef<ChartSeriesPoint[]>([]);
+  const valueModeRef = useRef(valueMode);
+
+  const isDark = theme === "dark";
+  const axisTextColor = isDark ? "#94a3b8" : "#64748b";
+  const gridColor = isDark ? "rgba(148, 163, 184, 0.18)" : "rgba(148, 163, 184, 0.25)";
 
   const permissionsQuery = useQuery({
     queryKey: ["cross-city-comparison", "permissions"],
@@ -327,30 +510,15 @@ export default function CrossCityComparisonChart({
           chart,
           detail,
           city,
+          // Temporary color; reassigned after value-based ordering below.
           color: SERIES_COLORS[index % SERIES_COLORS.length],
         };
       })
       .filter((item): item is CitySeries => item != null);
   }, [cityLookup, detailQueries, selectedCharts]);
 
-  const sortedCitySeries = useMemo(() => {
-    return [...citySeries]
-      .sort((a, b) => {
-        const popA = a.city.population ?? -1;
-        const popB = b.city.population ?? -1;
-        if (popB !== popA) return popB - popA;
-        return a.city.name.localeCompare(b.city.name, undefined, {
-          sensitivity: "base",
-        });
-      })
-      .map((series, index) => ({
-        ...series,
-        color: SERIES_COLORS[index % SERIES_COLORS.length],
-      }));
-  }, [citySeries]);
-
   const commonDateWindow = useMemo(() => {
-    const extents = sortedCitySeries
+    const extents = citySeries
       .map((series) => {
         const points = parsePoints(series.detail);
         if (points.length === 0) return null;
@@ -368,7 +536,7 @@ export default function CrossCityComparisonChart({
     const commonEnd = new Date(Math.min(...extents.map((extent) => extent.end.getTime())));
     if (commonStart > commonEnd) return null;
     return { start: commonStart, end: commonEnd };
-  }, [sortedCitySeries]);
+  }, [citySeries]);
 
   const rangeStart = commonDateWindow
     ? new Date(
@@ -379,6 +547,39 @@ export default function CrossCityComparisonChart({
       )
     : null;
 
+  /** Order by latest value in the active mode so legend/traces/table stay aligned. */
+  const sortedCitySeries = useMemo(() => {
+    const getLatestDisplayValue = (series: CitySeries): number => {
+      if (!rangeStart || !commonDateWindow) return Number.NEGATIVE_INFINITY;
+      const parsed = parsePoints(series.detail).filter(
+        (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
+      );
+      if (parsed.length === 0) return Number.NEGATIVE_INFINITY;
+      const latest = toDisplayValue(
+        parsed[parsed.length - 1].value,
+        series.city.population,
+        valueMode
+      );
+      return latest ?? Number.NEGATIVE_INFINITY;
+    };
+
+    return [...citySeries]
+      .sort((a, b) => {
+        const valueDiff = getLatestDisplayValue(b) - getLatestDisplayValue(a);
+        if (valueDiff !== 0) return valueDiff;
+        const popA = a.city.population ?? -1;
+        const popB = b.city.population ?? -1;
+        if (popB !== popA) return popB - popA;
+        return a.city.name.localeCompare(b.city.name, undefined, {
+          sensitivity: "base",
+        });
+      })
+      .map((series, index) => ({
+        ...series,
+        color: SERIES_COLORS[index % SERIES_COLORS.length],
+      }));
+  }, [citySeries, commonDateWindow, rangeStart, valueMode]);
+
   const smoothingFootnote = useMemo(() => {
     const longRange = rangeMode === "1y" || rangeMode === "3y";
     return longRange
@@ -386,10 +587,58 @@ export default function CrossCityComparisonChart({
       : "Bold lines are 7-day trailing averages; faint lines are raw values.";
   }, [rangeMode]);
 
+  const chartSeriesPoints = useMemo<ChartSeriesPoint[]>(() => {
+    if (!rangeStart || !commonDateWindow) return [];
+    const out: ChartSeriesPoint[] = [];
+
+    for (const series of sortedCitySeries) {
+      const population = series.city.population;
+      const parsed = parsePoints(series.detail).filter(
+        (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
+      );
+      if (parsed.length === 0) continue;
+
+      const y = parsed.map((point) => {
+        if (valueMode === "absolute") return point.value;
+        if (!population) return null;
+        return point.value / (population / 1000);
+      });
+      const popLabel = formatPopulation(population);
+      const label = `${series.city.emoji ? `${series.city.emoji} ` : ""}${series.city.name}${
+        popLabel ? ` (${popLabel})` : ""
+      }`;
+      const smoothing = getSmoothingConfig(series.chart.period_type, rangeMode);
+      const canSmooth =
+        smoothing != null &&
+        smoothing.window > 1 &&
+        parsed.length >= smoothing.window;
+      const displayY = canSmooth
+        ? computeTrailingAverage(y, smoothing.window)
+        : y;
+
+      const valuesByDay = new Map<string, number>();
+      parsed.forEach((point, index) => {
+        const dayKey = toDayKey(point.time) ?? toDayKey(point.date);
+        const value = displayY[index];
+        if (!dayKey || value == null || !Number.isFinite(value)) return;
+        valuesByDay.set(dayKey, value);
+      });
+      if (valuesByDay.size === 0) continue;
+
+      out.push({
+        metricId: series.metric.id,
+        label,
+        color: series.color,
+        smoothingLabel: canSmooth && smoothing ? smoothing.label : null,
+        valuesByDay,
+      });
+    }
+
+    return out;
+  }, [sortedCitySeries, commonDateWindow, rangeStart, valueMode, rangeMode]);
+
   const traces = useMemo<Data[]>(() => {
     if (!rangeStart || !commonDateWindow) return [];
-    const valueLabel =
-      valueMode === "per_1k" ? "%{y:.2f} per 1k people" : "%{y:,.0f}";
     const out: Data[] = [];
 
     for (const series of sortedCitySeries) {
@@ -405,13 +654,17 @@ export default function CrossCityComparisonChart({
         if (!population) return null;
         return point.value / (population / 1000);
       });
-      const cityLabel = `${series.city.emoji ? `${series.city.emoji} ` : ""}${series.city.name}`;
+      const popLabel = formatPopulation(population);
+      const cityLabel = `${series.city.emoji ? `${series.city.emoji} ` : ""}${series.city.name}${
+        popLabel ? ` (${popLabel})` : ""
+      }`;
       const smoothing = getSmoothingConfig(series.chart.period_type, rangeMode);
       const canSmooth =
         smoothing != null &&
         smoothing.window > 1 &&
         parsed.length >= smoothing.window;
 
+      // Keep traces hoverable so Plotly fires onHover; native labels are CSS-hidden.
       if (!canSmooth) {
         out.push({
           type: "scatter",
@@ -420,7 +673,7 @@ export default function CrossCityComparisonChart({
           x,
           y,
           line: { color: series.color, width: 2 },
-          hovertemplate: `<b>${cityLabel}</b><br>%{x}<br>${valueLabel}<extra></extra>`,
+          hovertemplate: "%{x}<extra></extra>",
           showlegend: false,
         });
         continue;
@@ -442,18 +695,118 @@ export default function CrossCityComparisonChart({
       out.push({
         type: "scatter",
         mode: "lines",
-        name: `${cityLabel} (${smoothing.label})`,
+        name: cityLabel,
         x,
         y: yAvg,
         line: { color: series.color, width: 2 },
-        hovertemplate:
-          `<b>${cityLabel}</b> · ${smoothing.label}<br>%{x}<br>${valueLabel}<extra></extra>`,
+        hovertemplate: "%{x}<extra></extra>",
         showlegend: false,
       });
     }
 
     return out;
   }, [sortedCitySeries, commonDateWindow, rangeStart, valueMode, rangeMode]);
+
+  chartSeriesPointsRef.current = chartSeriesPoints;
+  valueModeRef.current = valueMode;
+
+  const handlePlotHover = useCallback((event: Readonly<PlotHoverEvent>) => {
+    const point = event.points?.[0];
+    const mouse = event.event;
+    const wrap = plotWrapRef.current;
+    if (!point || !mouse || !wrap) return;
+
+    const dayKey = toDayKey(point.x as string | Date | number);
+    const mode = valueModeRef.current;
+    const rows: CrossCityHoverRow[] = [];
+
+    const lookupValue = (series: ChartSeriesPoint): number | null => {
+      if (dayKey && series.valuesByDay.has(dayKey)) {
+        return series.valuesByDay.get(dayKey) ?? null;
+      }
+      // Nearest day if Plotly's x formatting doesn't match our keys exactly.
+      if (!dayKey) return null;
+      const target = new Date(`${dayKey}T00:00:00`).getTime();
+      if (Number.isNaN(target)) return null;
+      let best: { value: number; delta: number } | null = null;
+      for (const [key, value] of series.valuesByDay) {
+        const ts = new Date(`${key}T00:00:00`).getTime();
+        if (Number.isNaN(ts)) continue;
+        const delta = Math.abs(ts - target);
+        if (!best || delta < best.delta) best = { value, delta };
+      }
+      // Only accept within ~2 days for daily series drift.
+      if (!best || best.delta > 2 * 24 * 60 * 60 * 1000) return null;
+      return best.value;
+    };
+
+    for (const series of chartSeriesPointsRef.current) {
+      const value = lookupValue(series);
+      if (value == null || !Number.isFinite(value)) continue;
+      rows.push({
+        metricId: series.metricId,
+        label: series.label,
+        color: series.color,
+        value,
+        formatted: formatHoverValue(value, mode),
+        smoothingLabel: series.smoothingLabel,
+      });
+    }
+
+    // Fallback if day-key matching misses (timezone / x format mismatch).
+    if (rows.length === 0) {
+      for (const hoverPoint of event.points ?? []) {
+        const value = Number(hoverPoint.y);
+        if (!Number.isFinite(value)) continue;
+        // Plotly includes fullData at runtime; @types/plotly.js PlotDatum omits it.
+        const fullData = (
+          hoverPoint as typeof hoverPoint & {
+            fullData?: { line?: { color?: string } };
+          }
+        ).fullData;
+        const lineColor = fullData?.line?.color;
+        const color = typeof lineColor === "string" ? lineColor : "#64748b";
+        const label =
+          typeof hoverPoint.data?.name === "string"
+            ? hoverPoint.data.name
+            : "City";
+        rows.push({
+          metricId: hoverPoint.curveNumber ?? rows.length,
+          label,
+          color,
+          value,
+          formatted: formatHoverValue(value, mode),
+          smoothingLabel: null,
+        });
+      }
+    }
+
+    rows.sort((a, b) => b.value - a.value);
+    if (rows.length === 0) return;
+
+    const rect = wrap.getBoundingClientRect();
+    const rawLeft = mouse.clientX - rect.left + 14;
+    const rawTop = mouse.clientY - rect.top + 14;
+    const tipWidth = 260;
+    const tipHeight = Math.min(28 + rows.length * 22, rect.height - 8);
+    const left = Math.max(8, Math.min(rawLeft, rect.width - tipWidth - 8));
+    const top = Math.max(8, Math.min(rawTop, rect.height - tipHeight - 8));
+
+    setHoverTip({
+      dateLabel: formatTableDate(point.x as string | Date),
+      left,
+      top,
+      rows,
+    });
+  }, []);
+
+  const clearHoverTip = useCallback(() => {
+    setHoverTip(null);
+  }, []);
+
+  useEffect(() => {
+    clearHoverTip();
+  }, [valueMode, rangeMode, clearHoverTip]);
 
   const showSmoothingFootnote = useMemo(
     () =>
@@ -468,6 +821,55 @@ export default function CrossCityComparisonChart({
     () => buildPopulationFootnote(sortedCitySeries),
     [sortedCitySeries]
   );
+
+  const tableRows = useMemo<CrossCityTableRow[]>(() => {
+    if (!rangeStart || !commonDateWindow) return [];
+    const rows: CrossCityTableRow[] = [];
+
+    for (const series of sortedCitySeries) {
+      const population = series.city.population;
+      const parsed = parsePoints(series.detail).filter(
+        (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
+      );
+      if (parsed.length === 0) continue;
+
+      const values = parsed
+        .map((point) => toDisplayValue(point.value, population, valueMode))
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      if (values.length === 0) continue;
+
+      const startValue = toDisplayValue(parsed[0].value, population, valueMode);
+      const endValue = toDisplayValue(
+        parsed[parsed.length - 1].value,
+        population,
+        valueMode
+      );
+      const average =
+        values.reduce((sum, value) => sum + value, 0) / values.length;
+      const change =
+        startValue != null && endValue != null ? endValue - startValue : null;
+      const changePct =
+        change != null && startValue != null && startValue !== 0
+          ? (change / startValue) * 100
+          : null;
+
+      rows.push({
+        metricId: series.metric.id,
+        cityName: series.city.name,
+        emoji: series.city.emoji,
+        color: series.color,
+        population,
+        startValue,
+        endValue,
+        average,
+        change,
+        changePct,
+      });
+    }
+
+    // Keep table order identical to chart/legend (already sorted by latest value).
+    return rows;
+  }, [sortedCitySeries, commonDateWindow, rangeStart, valueMode]);
 
   const isBootstrapping = metricsQuery.isLoading || citiesQuery.isLoading;
   const isSeriesLoading =
@@ -493,30 +895,64 @@ export default function CrossCityComparisonChart({
     (series) => series.city.population != null
   );
 
-  const layout: Partial<Layout> = {
-    autosize: true,
-    margin: { l: 56, r: 16, t: 12, b: 42 },
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    hovermode: "x unified",
-    showlegend: false,
-    xaxis: {
-      showgrid: false,
-      zeroline: false,
-      color: "var(--text-secondary)",
-    },
-    yaxis: {
-      title: valueMode === "per_1k" ? { text: "Per 1k people" } : undefined,
-      gridcolor: "rgba(148, 163, 184, 0.18)",
-      zeroline: false,
-      color: "var(--text-secondary)",
-    },
-  };
+  const layout: Partial<Layout> = useMemo(
+    () => ({
+      autosize: true,
+      margin: { l: 56, r: 16, t: 12, b: 42 },
+      paper_bgcolor: "transparent",
+      plot_bgcolor: "transparent",
+      // Collect all series at the hovered x; labels come from our custom tip sorted by value.
+      hovermode: "x",
+      hoverlabel: {
+        bgcolor: "rgba(0,0,0,0)",
+        bordercolor: "rgba(0,0,0,0)",
+        font: {
+          family: PLOT_AXIS_FONT_FAMILY,
+          size: 1,
+          color: "rgba(0,0,0,0)",
+        },
+      },
+      // Keep Plotly from resetting hover while React updates the tip overlay.
+      uirevision: "cross-city-comparison",
+      showlegend: false,
+      xaxis: {
+        showgrid: false,
+        zeroline: false,
+        color: axisTextColor,
+        tickfont: {
+          family: PLOT_AXIS_FONT_FAMILY,
+          size: 10,
+          color: axisTextColor,
+        },
+        spikedash: "dot",
+        spikemode: "across",
+        spikesnap: "cursor",
+        spikethickness: 1,
+        spikecolor: isDark ? "#64748b" : "#94a3b8",
+        showspikes: true,
+      },
+      yaxis: {
+        title: valueMode === "per_1k" ? { text: "Per 1k people" } : undefined,
+        gridcolor: gridColor,
+        zeroline: false,
+        color: axisTextColor,
+        tickfont: {
+          family: PLOT_AXIS_FONT_FAMILY,
+          size: 10,
+          color: axisTextColor,
+        },
+      },
+    }),
+    [axisTextColor, gridColor, isDark, valueMode]
+  );
 
-  const config: Partial<Config> = {
-    displayModeBar: false,
-    responsive: true,
-  };
+  const config: Partial<Config> = useMemo(
+    () => ({
+      displayModeBar: false,
+      responsive: true,
+    }),
+    []
+  );
 
   const title = metricName ?? cityMetrics[0]?.metric_name ?? "Cross-city comparison";
 
@@ -639,18 +1075,56 @@ export default function CrossCityComparisonChart({
       {sortedCitySeries.length > 0 || isSeriesLoading ? (
         <div className="cross-city-chart-body">
           <div
+            ref={plotWrapRef}
             className="cross-city-chart-plot-wrap"
             style={{ minHeight: height }}
             aria-busy={isSeriesLoading}
+            onMouseLeave={clearHoverTip}
           >
             {sortedCitySeries.length > 0 ? (
               <div className="cross-city-chart-plot">
-                <Plot
+                <CrossCityPlot
                   data={traces}
                   layout={layout}
                   config={config}
-                  style={{ width: "100%", height }}
+                  height={height}
+                  onHover={handlePlotHover}
                 />
+                {hoverTip ? (
+                  <div
+                    className="cross-city-chart-hover-tip"
+                    style={{ left: hoverTip.left, top: hoverTip.top }}
+                    role="tooltip"
+                  >
+                    <div className="cross-city-chart-hover-tip-date">
+                      {hoverTip.dateLabel}
+                    </div>
+                    <ul className="cross-city-chart-hover-tip-list">
+                      {hoverTip.rows.map((row) => (
+                        <li key={row.metricId} className="cross-city-chart-hover-tip-row">
+                          <span
+                            className="cross-city-chart-swatch"
+                            style={{ backgroundColor: row.color }}
+                            aria-hidden="true"
+                          />
+                          <span className="cross-city-chart-hover-tip-label">
+                            {row.label}
+                            {row.smoothingLabel ? (
+                              <span className="cross-city-chart-hover-tip-meta">
+                                {" "}
+                                · {row.smoothingLabel}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="cross-city-chart-hover-tip-value">
+                            {row.formatted}
+                            {valueMode === "per_1k" ? " /1k" : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {isSeriesLoading ? (
@@ -666,26 +1140,32 @@ export default function CrossCityComparisonChart({
           </div>
           {sortedCitySeries.length > 0 ? (
             <div className="cross-city-chart-legend" aria-label="Cities in comparison">
-              {sortedCitySeries.map((series) => (
-                <div key={series.metric.id} className="cross-city-chart-legend-item">
-                  <span
-                    className="cross-city-chart-swatch"
-                    style={{ backgroundColor: series.color }}
-                    aria-hidden="true"
-                  />
-                  {series.city.emoji ? (
-                    <span className="cross-city-chart-emoji" aria-hidden="true">
-                      {series.city.emoji}
+              {sortedCitySeries.map((series) => {
+                const popLabel = formatPopulation(series.city.population);
+                return (
+                  <div key={series.metric.id} className="cross-city-chart-legend-item">
+                    <span
+                      className="cross-city-chart-swatch"
+                      style={{ backgroundColor: series.color }}
+                      aria-hidden="true"
+                    />
+                    {series.city.emoji ? (
+                      <span className="cross-city-chart-emoji" aria-hidden="true">
+                        {series.city.emoji}
+                      </span>
+                    ) : null}
+                    <span className="cross-city-chart-legend-text">
+                      <span className="cross-city-chart-city">{series.city.name}</span>
+                      {popLabel ? (
+                        <span className="cross-city-chart-population">
+                          {" "}
+                          ({popLabel})
+                        </span>
+                      ) : null}
                     </span>
-                  ) : null}
-                  <span className="cross-city-chart-legend-text">
-                    <span className="cross-city-chart-city">{series.city.name}</span>
-                    <span className="cross-city-chart-population">
-                      {formatPopulation(series.city.population)}
-                    </span>
-                  </span>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </div>
@@ -703,6 +1183,128 @@ export default function CrossCityComparisonChart({
       ) : null}
       {populationFootnote ? (
         <p className="cross-city-chart-footnote">{populationFootnote}</p>
+      ) : null}
+
+      {tableRows.length > 0 ? (
+        <section
+          className="cross-city-chart-data-section"
+          aria-label="Numeric breakdown by city"
+        >
+          <button
+            type="button"
+            className="cross-city-chart-data-toggle"
+            aria-expanded={dataTableExpanded}
+            aria-controls="cross-city-chart-data-panel"
+            onClick={() => setDataTableExpanded((open) => !open)}
+          >
+            <span>
+              Data table
+              <span className="cross-city-chart-data-toggle-meta">
+                {" "}
+                ({tableRows.length} {tableRows.length === 1 ? "city" : "cities"})
+              </span>
+            </span>
+            <span className="cross-city-chart-data-toggle-icon" aria-hidden="true">
+              {dataTableExpanded ? "−" : "+"}
+            </span>
+          </button>
+          {dataTableExpanded ? (
+            <div id="cross-city-chart-data-panel" className="cross-city-chart-data-panel">
+              <div className="cross-city-chart-data-scroll">
+                <table className="cross-city-chart-data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">City</th>
+                      <th scope="col" className="cross-city-chart-data-num">
+                        Population
+                      </th>
+                      <th scope="col" className="cross-city-chart-data-num">
+                        Start
+                        {rangeStart ? (
+                          <span className="cross-city-chart-data-subhead">
+                            {formatTableDate(rangeStart)}
+                          </span>
+                        ) : null}
+                      </th>
+                      <th scope="col" className="cross-city-chart-data-num">
+                        Latest
+                        {commonDateWindow ? (
+                          <span className="cross-city-chart-data-subhead">
+                            {formatTableDate(commonDateWindow.end)}
+                          </span>
+                        ) : null}
+                      </th>
+                      <th scope="col" className="cross-city-chart-data-num">
+                        Average
+                      </th>
+                      <th scope="col" className="cross-city-chart-data-num">
+                        Δ
+                      </th>
+                      <th scope="col" className="cross-city-chart-data-num">
+                        Δ%
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map((row) => {
+                      const popLabel = formatPopulation(row.population);
+                      return (
+                      <tr key={row.metricId}>
+                        <td>
+                          <span className="cross-city-chart-data-city">
+                            <span
+                              className="cross-city-chart-swatch"
+                              style={{ backgroundColor: row.color }}
+                              aria-hidden="true"
+                            />
+                            {row.emoji ? (
+                              <span aria-hidden="true">{row.emoji}</span>
+                            ) : null}
+                            <span>
+                              {row.cityName}
+                              {popLabel ? (
+                                <span className="cross-city-chart-population">
+                                  {" "}
+                                  ({popLabel})
+                                </span>
+                              ) : null}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="cross-city-chart-data-num">
+                          {row.population != null
+                            ? row.population.toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="cross-city-chart-data-num">
+                          {formatTableValue(row.startValue, valueMode)}
+                        </td>
+                        <td className="cross-city-chart-data-num">
+                          {formatTableValue(row.endValue, valueMode)}
+                        </td>
+                        <td className="cross-city-chart-data-num">
+                          {formatTableValue(row.average, valueMode)}
+                        </td>
+                        <td className="cross-city-chart-data-num">
+                          {formatTableChange(row.change, valueMode)}
+                        </td>
+                        <td className="cross-city-chart-data-num">
+                          {formatTablePct(row.changePct)}
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="cross-city-chart-data-caption">
+                Values match the chart’s selected range
+                {valueMode === "per_1k" ? " (per 1k people)" : ""}
+                . Δ is latest minus start.
+              </p>
+            </div>
+          ) : null}
+        </section>
       ) : null}
     </section>
   );

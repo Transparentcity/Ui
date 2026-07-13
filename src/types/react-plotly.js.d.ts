@@ -1,6 +1,12 @@
 declare module "react-plotly.js" {
   import { Component, CSSProperties } from "react";
-  import { Data, Layout, Config } from "plotly.js";
+  import {
+    Data,
+    Layout,
+    Config,
+    PlotHoverEvent,
+    PlotMouseEvent,
+  } from "plotly.js";
 
   export interface PlotParams {
     data: Data[];
@@ -12,6 +18,10 @@ declare module "react-plotly.js" {
     onUpdate?: (figure: unknown, graphDiv: HTMLElement) => void;
     onPurge?: (figure: unknown, graphDiv: HTMLElement) => void;
     onError?: (err: Error) => void;
+    onHover?: (event: Readonly<PlotHoverEvent>) => void;
+    onUnhover?: (event: Readonly<PlotMouseEvent>) => void;
+    onClick?: (event: Readonly<PlotMouseEvent>) => void;
+    onRelayout?: (event: Readonly<Record<string, unknown>>) => void;
     debug?: boolean;
     useResizeHandler?: boolean;
     style?: CSSProperties;

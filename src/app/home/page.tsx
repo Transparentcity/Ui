@@ -1955,40 +1955,35 @@ export default function DashboardPage() {
           onboardingRepNotifyRef.current?.(mayor.name, mayor.title || "Mayor");
         }
 
-        // Follow representative for the scope we saved: district when known, otherwise city-wide ("0").
-        if (ctx.hasPreciseLocation && ctx.homeCoordinates) {
-          let district = ctx.district ?? null;
-          if (district == null) {
-            district = await findDistrictFromCoordinates(
-              ctx.homeCoordinates.lat,
-              ctx.homeCoordinates.lng,
-              ctx.cityId,
-              token,
-            );
-          }
-          try {
-            if (district) {
-              await followRepresentative(ctx.cityId, String(district), token);
-              const rep = leaders.find((l) => l.district === district);
-              if (rep) {
-                if (mayor) await new Promise((r) => setTimeout(r, 4500));
-                onboardingRepNotifyRef.current?.(rep.name);
-              }
-            } else {
-              await followRepresentative(ctx.cityId, "0", token);
-            }
-          } catch {
-            // Already following or leader missing — still refresh sidebar
-          }
-          queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
-        } else {
-          try {
-            await followRepresentative(ctx.cityId, "0", token);
-          } catch {
-            // ignore
-          }
-          queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
+        // Always follow citywide ("0"). Also follow the district when known so
+        // gift claimers (and regular onboarding) end with city + district follows.
+        let district = ctx.district ?? null;
+        if (
+          district == null &&
+          ctx.hasPreciseLocation &&
+          ctx.homeCoordinates
+        ) {
+          district = await findDistrictFromCoordinates(
+            ctx.homeCoordinates.lat,
+            ctx.homeCoordinates.lng,
+            ctx.cityId,
+            token,
+          );
         }
+        try {
+          await followRepresentative(ctx.cityId, "0", token);
+          if (district != null && district > 0) {
+            await followRepresentative(ctx.cityId, String(district), token);
+            const rep = leaders.find((l) => l.district === district);
+            if (rep) {
+              if (mayor) await new Promise((r) => setTimeout(r, 4500));
+              onboardingRepNotifyRef.current?.(rep.name);
+            }
+          }
+        } catch {
+          // Already following or leader missing — still refresh sidebar
+        }
+        queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
       } catch {
         // Non-blocking
       } finally {

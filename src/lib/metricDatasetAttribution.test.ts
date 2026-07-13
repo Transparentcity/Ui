@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMetricSourceInformation,
   extractSocrataDatasetId,
   resolveMetricDatasetAttribution,
 } from "@/lib/metricDatasetAttribution";
@@ -56,5 +57,31 @@ describe("resolveMetricDatasetAttribution", () => {
     expect(resolved.datasetId).toBe("wnbq-64tb");
     expect(resolved.datasetName).toBe("wnbq-64tb");
     expect(resolved.datasetUrl).toBe("https://data.seattle.gov/d/wnbq-64tb");
+  });
+});
+
+describe("buildMetricSourceInformation", () => {
+  it("includes map_query, fetch URL, and portal fields", () => {
+    const source = buildMetricSourceInformation(
+      {
+        dataset_name: "Building Permits",
+        endpoint: "i98e-djp9",
+        map_query: "SELECT * WHERE date >= '2026-01-01'",
+      },
+      {
+        portalUrl: "https://data.sfgov.org",
+        portalDomain: "data.sfgov.org",
+        cityName: "San Francisco",
+      }
+    );
+    expect(source).toMatchObject({
+      dataset_name: "Building Permits",
+      dataset_id: "i98e-djp9",
+      dataset_url: "https://data.sfgov.org/resource/i98e-djp9",
+      query_url: "https://data.sfgov.org/resource/i98e-djp9.json",
+      query_text: "SELECT * WHERE date >= '2026-01-01'",
+      city_name: "San Francisco",
+      city_portal_domain: "data.sfgov.org",
+    });
   });
 });

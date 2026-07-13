@@ -1,0 +1,126 @@
+/**
+ * Remap hard-coded light-theme hex colors from newsletter email HTML
+ * onto design tokens so the body stays legible in dark mode.
+ *
+ * Apply class `newsletter-inline-theme` on the container that hosts body_html.
+ * Brand purple (#ad35fa) and white button text are left alone.
+ */
+
+.newsletter-inline-theme {
+  color: var(--text-secondary, #374151);
+}
+
+.newsletter-inline-theme h1,
+.newsletter-inline-theme h2,
+.newsletter-inline-theme h3,
+.newsletter-inline-theme h4,
+.newsletter-inline-theme strong {
+  color: var(--text-primary, #111827);
+}
+
+.newsletter-inline-theme a {
+  color: var(--brand-primary, #ad35fa);
+}
+
+/* Dark / near-black text → primary */
+.newsletter-inline-theme [style*="color:#111827"],
+.newsletter-inline-theme [style*="color: #111827"],
+.newsletter-inline-theme [style*="color:#1f2937"],
+.newsletter-inline-theme [style*="color: #1f2937"],
+.newsletter-inline-theme [style*="color:#222222"],
+.newsletter-inline-theme [style*="color: #222222"],
+.newsletter-inline-theme [style*="color:#222"],
+.newsletter-inline-theme [style*="color: #222"] {
+  color: var(--text-primary, #111827) !important;
+}
+
+/* Mid gray body text → secondary */
+.newsletter-inline-theme [style*="color:#374151"],
+.newsletter-inline-theme [style*="color: #374151"],
+.newsletter-inline-theme [style*="color:#4b5563"],
+.newsletter-inline-theme [style*="color: #4b5563"] {
+  color: var(--text-secondary, #374151) !important;
+}
+
+/* Muted labels → muted token */
+.newsletter-inline-theme [style*="color:#6b7280"],
+.newsletter-inline-theme [style*="color: #6b7280"],
+.newsletter-inline-theme [style*="color:#9ca3af"],
+.newsletter-inline-theme [style*="color: #9ca3af"] {
+  color: var(--text-muted, #6b7280) !important;
+}
+
+/* Light surfaces → theme backgrounds */
+.newsletter-inline-theme [style*="background:#ffffff"],
+.newsletter-inline-theme [style*="background: #ffffff"],
+.newsletter-inline-theme [style*="background:#fff"],
+.newsletter-inline-theme [style*="background: #fff"],
+.newsletter-inline-theme [style*="background:white"],
+.newsletter-inline-theme [style*="background: white"],
+.newsletter-inline-theme [style*="background-color:#ffffff"],
+.newsletter-inline-theme [style*="background-color: #ffffff"],
+.newsletter-inline-theme [style*="background-color:#fff"],
+.newsletter-inline-theme [style*="background-color: #fff"],
+.newsletter-inline-theme [style*="background-color:white"],
+.newsletter-inline-theme [style*="background-color: white"] {
+  background-color: var(--bg-primary, #ffffff) !important;
+  background: var(--bg-primary, #ffffff) !important;
+}
+
+.newsletter-inline-theme [style*="background:#f3f4f6"],
+.newsletter-inline-theme [style*="background: #f3f4f6"],
+.newsletter-inline-theme [style*="background:#f9fafb"],
+.newsletter-inline-theme [style*="background: #f9fafb"],
+.newsletter-inline-theme [style*="background-color:#f3f4f6"],
+.newsletter-inline-theme [style*="background-color: #f3f4f6"],
+.newsletter-inline-theme [style*="background-color:#f9fafb"],
+.newsletter-inline-theme [style*="background-color: #f9fafb"] {
+  background-color: var(--bg-secondary, #f8f9fa) !important;
+  background: var(--bg-secondary, #f8f9fa) !important;
+}
+
+/* Soft purple callout panels */
+.newsletter-inline-theme [style*="background:#f5f3ff"],
+.newsletter-inline-theme [style*="background: #f5f3ff"],
+.newsletter-inline-theme [style*="background-color:#f5f3ff"],
+.newsletter-inline-theme [style*="background-color: #f5f3ff"],
+.newsletter-inline-theme [style*="background:#ede9fe"],
+.newsletter-inline-theme [style*="background: #ede9fe"],
+.newsletter-inline-theme [style*="background-color:#ede9fe"],
+.newsletter-inline-theme [style*="background-color: #ede9fe"],
+.newsletter-inline-theme [style*="background:#f5f0ff"],
+.newsletter-inline-theme [style*="background: #f5f0ff"],
+.newsletter-inline-theme [style*="background-color:#f5f0ff"],
+.newsletter-inline-theme [style*="background-color: #f5f0ff"],
+.newsletter-inline-theme [style*="background:#faf5ff"],
+.newsletter-inline-theme [style*="background: #faf5ff"],
+.newsletter-inline-theme [style*="background-color:#faf5ff"],
+.newsletter-inline-theme [style*="background-color: #faf5ff"] {
+  background-color: rgba(173, 53, 250, 0.12) !important;
+  background: rgba(173, 53, 250, 0.12) !important;
+}
+
+/* Light borders */
+.newsletter-inline-theme [style*="border-color:#e5e7eb"],
+.newsletter-inline-theme [style*="border-color: #e5e7eb"],
+.newsletter-inline-theme [style*="border: 1px solid #e5e7eb"],
+.newsletter-inline-theme [style*="border:1px solid #e5e7eb"],
+.newsletter-inline-theme [style*="border: 1px solid #ede9fe"],
+.newsletter-inline-theme [style*="border:1px solid #ede9fe"] {
+  border-color: var(--border-primary, #e5e7eb) !important;
+}
+
+/* Keep brand purple and white CTA text after the generic remaps above */
+.newsletter-inline-theme [style*="color:#ad35fa"],
+.newsletter-inline-theme [style*="color: #ad35fa"] {
+  color: var(--brand-primary, #ad35fa) !important;
+}
+
+.newsletter-inline-theme [style*="color:#ffffff"],
+.newsletter-inline-theme [style*="color: #ffffff"],
+.newsletter-inline-theme [style*="color:#fff"],
+.newsletter-inline-theme [style*="color: #fff"],
+.newsletter-inline-theme [style*="color:white"],
+.newsletter-inline-theme [style*="color: white"] {
+  color: #ffffff !important;
+}
