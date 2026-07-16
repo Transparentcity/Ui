@@ -540,11 +540,20 @@
 }
 
 @media (max-width: 768px) {
+  /* Full-width modal on mobile: drop the overlay gutter (module CSS pads 8px)
+     so the map/chart get the entire viewport width. */
+  .metric-detail-modal-overlay {
+    padding: 0 !important;
+  }
+
   .metric-detail-modal {
     width: 100%;
+    max-width: 100%;
     max-height: 100vh;
     max-height: 100dvh;
     border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 
   .metric-detail-modal-body {

@@ -1028,6 +1028,7 @@ export default function DashboardPage() {
       const customEvent = e as CustomEvent<{ session_id: string }>;
       const sessionId = customEvent.detail?.session_id;
       if (!sessionId) return;
+      e.preventDefault();
       setCurrentSessionId(sessionId);
       setIsCurrentSessionJobSession(true); // Mark as job session
       setCurrentView("chat");
@@ -1037,6 +1038,23 @@ export default function DashboardPage() {
 
     if (typeof window !== "undefined") {
       window.addEventListener("job-session:open", handler);
+
+      const url = new URL(window.location.href);
+      const requestedSessionId = url.searchParams.get("job_session_id")?.trim();
+      if (requestedSessionId) {
+        handler(
+          new CustomEvent("job-session:open", {
+            detail: { session_id: requestedSessionId },
+            cancelable: true,
+          })
+        );
+        url.searchParams.delete("job_session_id");
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${url.pathname}${url.search}${url.hash}`
+        );
+      }
     }
     return () => {
       if (typeof window !== "undefined") {

@@ -5,7 +5,8 @@
  *              (same styling as LocationMapSave / onboarding place maps).
  *  - District: Mapbox basemap cropped to district bbox + SVG district fill.
  *  - City:     Mapbox basemap for full city + district outlines + whole-city
- *              boundary outline.
+ *              boundary outline, with the whole city filled in the same
+ *              transparent brand purple used for place/district highlights.
  *
  * The SVG overlay projects in Web Mercator using the same aspect-fitted bbox
  * that is sent to the Mapbox Static Images API, so shapes align with streets.
@@ -130,6 +131,9 @@ function SketchOverlay({
   }
 
   const outlineRings = sketch.outline ?? [];
+  // Citywide brand-purple fill: prefer the whole-city outline; if the backend
+  // couldn't build one, fall back to filling each district instead.
+  const hasCityFill = showCityOutline && outlineRings.length > 0;
 
   return (
     <svg
@@ -138,6 +142,22 @@ function SketchOverlay({
       preserveAspectRatio="none"
       aria-hidden="true"
     >
+      {/* Citywide view: fill the whole city with the same transparent brand
+          purple used for district/place highlights (drawn beneath outlines). */}
+      {hasCityFill &&
+        outlineRings.map((ring, i) => {
+          const pathD = ringToPath(ring, viewBbox, viewW, viewH);
+          if (!pathD) return null;
+          return (
+            <path
+              key={`city-fill-${i}`}
+              d={pathD}
+              fill="rgba(173, 53, 250, 0.28)"
+              stroke="none"
+            />
+          );
+        })}
+
       {sketch.districts.map((d) => {
         const isHighlighted = d.district_id === highlightDistrict;
         const pathD = d.rings
@@ -153,9 +173,13 @@ function SketchOverlay({
                 ? isPlaceScope
                   ? "rgba(173, 53, 250, 0.12)"
                   : "rgba(173, 53, 250, 0.28)"
-                : fillDistricts
-                  ? "rgba(246, 237, 255, 0.35)"
-                  : "rgba(246, 237, 255, 0.12)"
+                : hasCityFill
+                  ? "none"
+                  : showCityOutline
+                    ? "rgba(173, 53, 250, 0.28)"
+                    : fillDistricts
+                      ? "rgba(246, 237, 255, 0.35)"
+                      : "rgba(246, 237, 255, 0.12)"
             }
             stroke={isHighlighted ? "#ad35fa" : "rgba(148, 163, 184, 0.65)"}
             strokeWidth={isHighlighted ? 2.5 : 1}

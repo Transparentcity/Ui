@@ -132,6 +132,37 @@
   padding: 0.5rem 0;
 }
 
+/* Tap anywhere on the legend to minimize it */
+.map-legend-wrapper-collapsible {
+  cursor: pointer;
+}
+
+.map-legend-chevron {
+  font-size: 0.7rem;
+  color: var(--text-tertiary, #9ca3af);
+  line-height: 1;
+}
+
+.map-legend-collapsed-toggle {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin: 0.5rem 0;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.map-legend-collapsed-toggle:hover {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--text-primary, #111827);
+}
+
 .map-legend {
   display: flex;
   align-items: center;
@@ -222,29 +253,6 @@
   font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
-}
-
-.metric-map-secondary-load {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 3rem;
-  padding: 0.75rem 1rem;
-  border: 1px dashed var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-family: "IBM Plex Sans", sans-serif;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.metric-map-secondary-load:hover {
-  background: var(--bg-primary);
-  border-color: var(--brand-primary-light, var(--brand-primary));
-  color: var(--text-primary);
 }
 
 @media (max-width: 768px) {

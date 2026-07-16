@@ -28,7 +28,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1.75rem",
             fontWeight: 700,
-            color: "#111827",
+            color: "var(--text-primary, #111827)",
             marginBottom: "0.5rem",
           }}
         >
@@ -38,7 +38,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1rem",
             lineHeight: 1.6,
-            color: "#374151",
+            color: "var(--text-secondary, #374151)",
             marginBottom: "1.5rem",
           }}
         >
@@ -51,7 +51,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1.25rem",
             fontWeight: 600,
-            color: "#111827",
+            color: "var(--text-primary, #111827)",
             marginTop: "2rem",
             marginBottom: "0.75rem",
           }}
@@ -62,7 +62,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1rem",
             lineHeight: 1.7,
-            color: "#374151",
+            color: "var(--text-secondary, #374151)",
             paddingLeft: "1.5rem",
             marginBottom: "1.5rem",
           }}
@@ -89,7 +89,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1.25rem",
             fontWeight: 600,
-            color: "#111827",
+            color: "var(--text-primary, #111827)",
             marginTop: "2rem",
             marginBottom: "0.75rem",
           }}
@@ -100,7 +100,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1rem",
             lineHeight: 1.6,
-            color: "#374151",
+            color: "var(--text-secondary, #374151)",
             marginBottom: "1rem",
           }}
         >
@@ -116,7 +116,7 @@ export default function AboutSeymourPage() {
           style={{
             fontSize: "1rem",
             lineHeight: 1.6,
-            color: "#374151",
+            color: "var(--text-secondary, #374151)",
             marginBottom: "2rem",
           }}
         >
@@ -125,7 +125,7 @@ export default function AboutSeymourPage() {
           with the same data they use.
         </p>
 
-        <p style={{ fontSize: "0.9375rem", color: "#6b7280" }}>
+        <p style={{ fontSize: "0.9375rem", color: "var(--text-tertiary, #6b7280)" }}>
           <Link
             href="/"
             style={{ color: "#ad35fa", textDecoration: "none", fontWeight: 500 }}

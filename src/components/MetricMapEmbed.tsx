@@ -7,6 +7,7 @@ import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import { getMetricMapData, type MapData, type SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
+import YearCompareMapPanels from "./YearCompareMapPanels";
 import Loader from "./Loader";
 import {
   computeMetricMapEmbedViewSpecs,
@@ -211,7 +212,7 @@ function mapDataToSavedMap(
   };
 }
 
-// ─── Secondary map: click-to-load (avoids competing Mapbox contexts) ─────────
+// ─── Secondary map (always mounted; same shape layers as primary) ────────────
 
 interface SecondaryMapProps {
   mapData: SavedMap;
@@ -228,34 +229,20 @@ function SecondaryMapSection({
   basemapTheme,
   metricId,
 }: SecondaryMapProps) {
-  // Click-to-load: a second Mapbox GL context + full GeoJSON download contends
-  // with the primary choropleth. Only mount when the user asks for it.
-  const [expanded, setExpanded] = useState(false);
-
   const subtitle = buildLayerSubtitle(spec.label, spec.kind, true);
 
   return (
     <div className="metric-map-secondary-section">
       {subtitle && <div className="metric-map-secondary-label">{subtitle}</div>}
-      {expanded ? (
-        <ProgressiveMapView
-          key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
-          mapData={mapData}
-          mapHash=""
-          height={height}
-          onError={() => {/* silently ignore secondary map errors */}}
-          mapBasemapTheme={basemapTheme}
-          lockedViewKey={formatMetricMapViewSpecKey(spec)}
-        />
-      ) : (
-        <button
-          type="button"
-          className="metric-map-secondary-load"
-          onClick={() => setExpanded(true)}
-        >
-          {subtitle ? `Load map — ${subtitle.toLowerCase()}` : "Load alternate map"}
-        </button>
-      )}
+      <ProgressiveMapView
+        key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
+        mapData={mapData}
+        mapHash=""
+        height={height}
+        onError={() => {/* silently ignore secondary map errors */}}
+        mapBasemapTheme={basemapTheme}
+        lockedViewKey={formatMetricMapViewSpecKey(spec)}
+      />
     </div>
   );
 }
@@ -297,6 +284,8 @@ export default function MetricMapEmbed({
   const [error, setError] = useState<string | null>(null);
   const [mapNotAvailable, setMapNotAvailable] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
+  /** Tap the legend to minimize it to a compact pill (both desktop and mobile). */
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
 
   // ── Lazy loading: only fetch once the container enters the viewport ─────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -535,6 +524,50 @@ export default function MetricMapEmbed({
   const comparisonYear = getYearFromDate(comparisonDateRange?.start);
   const hasComparison = comparisonLocationData && comparisonLocationData.length > 0;
 
+  /** Merge current + prior points into a year_compare map for side-by-side panels. */
+  const yearCompareMap = useMemo((): SavedMap | null => {
+    if (!mapData || !hasComparison || !comparisonLocationData) return null;
+    const cy = currentYear != null ? String(currentYear) : null;
+    const py = comparisonYear != null ? String(comparisonYear) : null;
+    if (!cy || !py || cy === py) return null;
+
+    const annotate = (
+      rows: Array<Record<string, any>>,
+      year: string
+    ): Array<Record<string, any>> =>
+      rows.map((row) => ({ ...row, year }));
+
+    const prior = annotate(comparisonLocationData, py);
+    const current = annotate(
+      (mapData.location_data || []) as Array<Record<string, any>>,
+      cy
+    );
+    const years = [py, cy].sort();
+    return {
+      ...mapData,
+      location_data: [...prior, ...current] as SavedMap["location_data"],
+      map_config: {
+        ...mapData.map_config,
+        year_compare: true,
+        layout: "year_panels",
+        year_field: "year",
+        year_values: years,
+        comparison_start_date: comparisonDateRange?.start,
+        comparison_end_date: comparisonDateRange?.end,
+        default_view: { type: "points" },
+        aggregations: {},
+      },
+    };
+  }, [
+    mapData,
+    hasComparison,
+    comparisonLocationData,
+    currentYear,
+    comparisonYear,
+    comparisonDateRange?.start,
+    comparisonDateRange?.end,
+  ]);
+
   const embedViewSpecs = useMemo(
     () => (mapData ? computeMetricMapEmbedViewSpecs(mapData) : null),
     [mapData]
@@ -679,26 +712,39 @@ export default function MetricMapEmbed({
 
       {/* ── Primary map ── */}
       {mapData && effectiveSpecs ? (
-        <>
-          {effectiveSpecs.primary.kind === "choropleth" && (
-            <div className="metric-map-primary-shape-label">
-              {buildLayerSubtitle(effectiveSpecs.primary.label, effectiveSpecs.primary.kind, false)}
-            </div>
-          )}
-          <ProgressiveMapView
-            // Stable key: reuse the Mapbox GL instance across period/date
-            // refreshes; ProgressiveMapView already reloads choropleth layers
-            // when mapData / aggregations change.
-            key={`metric-map-primary-${metricId}-${formatMetricMapViewSpecKey(effectiveSpecs.primary)}`}
-            mapData={mapData}
-            mapHash=""
+        yearCompareMap && effectiveSpecs.primary.kind === "points" ? (
+          <YearCompareMapPanels
+            key={`metric-map-year-panels-${metricId}`}
+            map={yearCompareMap}
             height={height}
-            onError={setError}
-            comparisonLocationData={comparisonLocationData || undefined}
             mapBasemapTheme={mapBasemapTheme}
-            lockedViewKey={formatMetricMapViewSpecKey(effectiveSpecs.primary)}
+            onError={setError}
+            compact
           />
-        </>
+        ) : (
+          <>
+            {effectiveSpecs.primary.kind === "choropleth" && (
+              <div className="metric-map-primary-shape-label">
+                {buildLayerSubtitle(effectiveSpecs.primary.label, effectiveSpecs.primary.kind, false)}
+              </div>
+            )}
+            <ProgressiveMapView
+              // Stable key: reuse the Mapbox GL instance across period/date
+              // refreshes; ProgressiveMapView already reloads choropleth layers
+              // when mapData / aggregations change.
+              key={`metric-map-primary-${metricId}-${formatMetricMapViewSpecKey(effectiveSpecs.primary)}`}
+              mapData={mapData}
+              mapHash=""
+              height={height}
+              onError={setError}
+              comparisonLocationData={
+                yearCompareMap ? undefined : comparisonLocationData || undefined
+              }
+              mapBasemapTheme={mapBasemapTheme}
+              lockedViewKey={formatMetricMapViewSpecKey(effectiveSpecs.primary)}
+            />
+          </>
+        )
       ) : (
         <div className="map-container-wrapper">
           <div className="map-container" style={{ height }} />
@@ -711,8 +757,8 @@ export default function MetricMapEmbed({
         </div>
       )}
 
-      {/* ── Point map legend ── */}
-      {mapData && (() => {
+      {/* ── Point map legend (single-map / overlay mode only; year panels have their own) ── */}
+      {mapData && !(yearCompareMap && effectiveSpecs?.primary.kind === "points") && (() => {
         const defaultView = mapData.map_config?.default_view;
         const hasAggregations = !!(mapData.map_config?.aggregations && Object.keys(mapData.map_config.aggregations).length > 0);
         const isPointMode =
@@ -731,8 +777,34 @@ export default function MetricMapEmbed({
         const showLegend = isPointMode || (mapData.map_type === "point" && hasSeriesLegend);
         if (!showLegend) return null;
 
+        if (legendCollapsed) {
+          return (
+            <button
+              type="button"
+              className="map-legend-collapsed-toggle"
+              aria-expanded={false}
+              onClick={() => setLegendCollapsed(false)}
+            >
+              Legend <span aria-hidden="true">▸</span>
+            </button>
+          );
+        }
+
         return (
-          <div className="map-legend-wrapper">
+          <div
+            className="map-legend-wrapper map-legend-wrapper-collapsible"
+            role="button"
+            tabIndex={0}
+            aria-expanded={true}
+            title="Tap to minimize legend"
+            onClick={() => setLegendCollapsed(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setLegendCollapsed(true);
+              }
+            }}
+          >
             {(hasComparison || !hasSeriesLegend) && (
               <div className="map-legend">
                 <div className="map-legend-item">
@@ -764,6 +836,9 @@ export default function MetricMapEmbed({
                 ))}
               </div>
             )}
+            <span className="map-legend-chevron" aria-hidden="true">
+              ▾
+            </span>
           </div>
         );
       })()}

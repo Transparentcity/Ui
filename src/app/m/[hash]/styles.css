@@ -417,6 +417,39 @@
   line-height: 1.1;
 }
 
+/* Mobile point-details sheet: slides up from the bottom over ~2/3 of the map */
+.map-point-sheet {
+  top: auto;
+  height: 66%;
+  display: flex;
+  flex-direction: column;
+  /* Above the layer rail (z-index 1000) so the close X stays clickable */
+  z-index: 1500;
+  animation: map-point-sheet-up 0.25s ease-out;
+}
+
+.map-point-sheet .map-bottom-panel-body,
+.map-point-sheet-body {
+  flex: 1;
+  max-height: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.map-point-sheet-body .map-popup {
+  max-height: none !important;
+  overflow-y: visible !important;
+}
+
+@keyframes map-point-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 .map-legend {
   position: absolute;
   left: 16px;
@@ -441,6 +474,46 @@
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 8px;
+}
+
+/* Tap the header row to minimize the legend to its title */
+.map-legend-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-legend-toggle .map-legend-title {
+  margin-bottom: 0;
+}
+
+.map-legend-toggle + .map-legend-items {
+  margin-top: 8px;
+}
+
+.map-legend-chevron {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.map-legend-collapsed {
+  padding: 8px 12px;
+}
+
+/* Compact choropleth strip hides the title text; keep the chevron tappable */
+.map-legend.map-legend-delta-choropleth .map-legend-toggle .map-legend-title {
+  display: none;
 }
 
 .map-legend-items {
@@ -497,11 +570,42 @@
   border-color: var(--border-primary, rgba(255, 255, 255, 0.1));
 }
 
+.multi-layer-panel-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.multi-layer-panel-header[aria-expanded="true"] {
+  margin-bottom: 8px;
+}
+
 .multi-layer-panel-title {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 8px;
+}
+
+.multi-layer-panel-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.15));
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .multi-layer-panel-item {
@@ -534,8 +638,23 @@
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-.multi-layer-panel-item span:last-child {
+.multi-layer-panel-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multi-layer-panel-count {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.14);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .map-overlay-button {
@@ -559,6 +678,12 @@
 }
 
 /* Mapbox popup styling */
+/* Point-data popups must render above the layer rail (MapLayerPanel /
+   .multi-layer-panel, z-index 1000) or their close X is unclickable. */
+.public-map-page .mapboxgl-popup {
+  z-index: 2000 !important;
+}
+
 .mapboxgl-popup-content {
   background: var(--bg-secondary) !important;
   color: var(--text-primary) !important;

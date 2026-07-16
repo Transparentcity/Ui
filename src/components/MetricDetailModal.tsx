@@ -313,7 +313,7 @@ export default function MetricDetailModal({
   if (!isOpen || !metricId) return null;
 
   const content = (
-    <div className={styles.modalOverlay} onMouseDown={onClose}>
+    <div className={`${styles.modalOverlay} metric-detail-modal-overlay`} onMouseDown={onClose}>
       <div className={`${styles.modal} metric-detail-modal`} onMouseDown={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <div className="metric-modal-title-row">

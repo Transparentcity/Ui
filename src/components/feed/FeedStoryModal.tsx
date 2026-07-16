@@ -154,7 +154,7 @@ export default function FeedStoryModal({
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[min(90vh,880px)] w-[calc(100%-1.5rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:rounded-xl"
+        className="flex max-h-[min(90vh,880px)] w-full max-w-3xl flex-col gap-0 overflow-hidden border-x-0 p-0 sm:w-[calc(100%-1.5rem)] sm:border-x sm:rounded-xl"
         aria-describedby={undefined}
       >
         <DialogHeader className="sr-only">

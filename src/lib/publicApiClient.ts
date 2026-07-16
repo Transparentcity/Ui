@@ -324,6 +324,9 @@ export type PublicFeedStory = {
   city_name?: string | null;
   city_emoji?: string | null;
   district: number;
+  /** Seymour job provenance; rendered only after an admin permission check. */
+  job_session_id?: string | null;
+  job_model_key?: string | null;
   headline: string;
   description: string;
   summary?: string | null;
@@ -350,6 +353,8 @@ export type PublicFeedStory = {
   image_caption?: string | null;
   primary_visualization?: Record<string, unknown> | null;
   visualization_type?: string | null;
+  /** Story metadata JSONB (provenance: prompt_source, scheduled_job_name, …). */
+  metadata?: Record<string, unknown> | null;
 };
 
 export type PublicFeedStoriesResponse = {

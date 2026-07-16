@@ -1,0 +1,144 @@
+.year-compare-map-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.year-compare-map-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.year-compare-map-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.year-compare-map-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.15rem;
+}
+
+.year-compare-map-panel-title {
+  margin: 0;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  letter-spacing: 0.01em;
+}
+
+.year-compare-map-panel-count {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.year-compare-map-panel .progressive-map-view,
+.year-compare-map-panel .map-container-wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 200px;
+}
+
+.year-compare-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+  cursor: pointer;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.8125rem;
+  color: var(--text-primary, #111827);
+}
+
+.year-compare-legend-title {
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+
+.year-compare-legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+}
+
+.year-compare-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.year-compare-legend-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.year-compare-legend-chevron,
+.year-compare-legend-collapsed {
+  margin-left: auto;
+  color: var(--text-secondary, #6b7280);
+}
+
+.year-compare-legend-collapsed {
+  align-self: flex-start;
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-primary, #fff);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+}
+
+.year-compare-map-panels--compact .year-compare-map-panel-title {
+  font-size: 0.8125rem;
+}
+
+.year-compare-map-panels--compact .year-compare-map-grid {
+  gap: 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .year-compare-map-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fill the embedded map shell */
+.public-map-page.embedded .year-compare-map-panels {
+  height: 100%;
+}
+
+.public-map-page.embedded .year-compare-map-grid {
+  flex: 1;
+}
+
+.public-map-page.embedded .year-compare-map-panel .progressive-map-view,
+.public-map-page.embedded .year-compare-map-panel .map-container-wrapper,
+.public-map-page.embedded .year-compare-map-panel .map-container {
+  height: 100% !important;
+  min-height: 180px;
+}

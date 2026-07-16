@@ -857,8 +857,8 @@ export default function TimeSeriesChart({
     : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
-  // Default to stacked when chart has multiple categories; one-click toggle to "by series"
-  const [stackedView, setStackedView] = useState(true);
+  // Default to "by series" lines; one-click toggle to stacked areas
+  const [stackedView, setStackedView] = useState(false);
   const [showPriorYear, setShowPriorYear] = useState(true);
 
   const handlePeriodChange = (newPeriod: PeriodType) => {
@@ -1376,7 +1376,29 @@ export default function TimeSeriesChart({
           });
         });
       } else {
-        // Multiple series (grouped lines) or single series
+        // Multiple series (grouped lines) or single series.
+        // The trailing bucket(s) are drawn as a dotted "incomplete" tail when the
+        // bucket has not finished yet (e.g. the current week/month) or falls inside
+        // the reporting lag window (staleness_days) — mirrors the YTD treatment so
+        // an in-progress period doesn't render as a dramatic drop.
+        const staleCutoffMs =
+          Date.now() - (staleness_days ?? 0) * 24 * 60 * 60 * 1000;
+        const periodEndMs = (start: Date): number => {
+          if (periodType === "week") {
+            return start.getTime() + 7 * 24 * 60 * 60 * 1000;
+          }
+          if (periodType === "month") {
+            return new Date(start.getFullYear(), start.getMonth() + 1, 1).getTime();
+          }
+          if (periodType === "year") {
+            return new Date(start.getFullYear() + 1, 0, 1).getTime();
+          }
+          return start.getTime() + 24 * 60 * 60 * 1000; // day
+        };
+
+        let anyIncomplete = false;
+        let incompleteLegendColor: string | null = null;
+
         groupValues.forEach((groupValue, index) => {
           const points = aggregatedByGroup.get(groupValue)!;
           if (points.length === 0) return;
@@ -1410,23 +1432,77 @@ export default function TimeSeriesChart({
             : periodType === "week" ? "Week of %b %d, %Y"
             : "%b %d, %Y";
 
-          traces.push({
-            x,
-            y,
-            type: "scatter",
-            mode: "lines+markers",
-            name: seriesName,
-            line: {
-              color,
-              width: 2,
-            },
-            marker: {
-              color,
-              size: 6,
-            },
-            hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:,.0f}<extra></extra>`,
-          });
+          // First trailing bucket whose end is not yet past the staleness cutoff.
+          // x is sorted ascending, so everything from this index on is incomplete.
+          const foundIdx = x.findIndex((d) => periodEndMs(d) > staleCutoffMs);
+          const firstIncompleteIdx = foundIdx === -1 ? x.length : foundIdx;
+
+          const completeX = x.slice(0, firstIncompleteIdx);
+          const completeY = y.slice(0, firstIncompleteIdx);
+          // Overlap by one point so the dotted tail connects to the solid line.
+          const incompleteX =
+            firstIncompleteIdx < x.length
+              ? x.slice(Math.max(0, firstIncompleteIdx - 1))
+              : [];
+          const incompleteY =
+            firstIncompleteIdx < x.length
+              ? y.slice(Math.max(0, firstIncompleteIdx - 1))
+              : [];
+
+          if (completeX.length > 0) {
+            traces.push({
+              x: completeX,
+              y: completeY,
+              type: "scatter",
+              mode: "lines+markers",
+              name: seriesName,
+              line: {
+                color,
+                width: 2,
+              },
+              marker: {
+                color,
+                size: 6,
+              },
+              hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:,.0f}<extra></extra>`,
+            });
+          }
+
+          if (incompleteX.length > 0) {
+            anyIncomplete = true;
+            if (incompleteLegendColor == null) incompleteLegendColor = color;
+            traces.push({
+              x: incompleteX,
+              y: incompleteY,
+              type: "scatter",
+              mode: "lines+markers",
+              name: `${seriesName} (incomplete)`,
+              line: { color, width: 2, dash: "dot" },
+              marker: { color, size: 6 },
+              // Keep the series in the legend when the entire line is incomplete.
+              showlegend: completeX.length === 0,
+              hovertemplate: `${hoverPrefix}%{x|${dateFormat}} (incomplete)<br>%{y:,.0f}<extra></extra>`,
+            });
+          }
         });
+
+        if (anyIncomplete) {
+          traces.push({
+            x: [null],
+            y: [null],
+            type: "scatter",
+            mode: "lines",
+            name: "Incomplete data",
+            line: {
+              color: incompleteLegendColor ?? "#ad35fa",
+              width: 2,
+              dash: "dot",
+            },
+            showlegend: true,
+            visible: "legendonly",
+            hoverinfo: "skip",
+          });
+        }
       }
     }
 

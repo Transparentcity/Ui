@@ -143,6 +143,19 @@
   margin-bottom: 0.5rem;
 }
 
+.map-source-layer + .map-source-layer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-primary);
+}
+
+.map-source-layer-title {
+  margin-bottom: 0.625rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 .map-source-query {
   margin: 0;
   padding: 0.875rem 1rem;

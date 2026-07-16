@@ -29,6 +29,79 @@
   color: var(--text-secondary, #6b7280);
 }
 
+/* Mobile point-details sheet: slides up from the bottom over ~2/3 of the map */
+.progressive-map-view .map-point-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 66%;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary, #fff);
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  animation: progressive-map-sheet-up 0.25s ease-out;
+}
+
+@keyframes progressive-map-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.progressive-map-view .map-point-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.progressive-map-view .map-point-sheet-title {
+  font-weight: 800;
+  color: var(--text-primary, #111827);
+  font-size: 0.95rem;
+}
+
+.progressive-map-view .map-point-sheet-close {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  color: var(--text-secondary, #6b7280);
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.progressive-map-view .map-point-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 12px 12px;
+}
+
+.progressive-map-view .map-point-sheet-body .map-popup {
+  max-height: none !important;
+  overflow-y: visible !important;
+}
+
+/* Point-data popups must render above the layer rail (MapLayerPanel,
+   z-index 1000) or their close X is unclickable. */
+.progressive-map-view .mapboxgl-popup {
+  z-index: 2000 !important;
+}
+
 .progressive-map-view .points-many-warning {
   position: absolute;
   bottom: 8px;
