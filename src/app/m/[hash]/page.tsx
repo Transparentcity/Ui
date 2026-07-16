@@ -2128,39 +2128,76 @@ export default function PublicMapPage() {
       if (
         !isDeltaMap &&
         identifiableFeatureCount > 0 &&
-        matchedFeatureCount / identifiableFeatureCount < 0.75 &&
-        Array.isArray(mapData.location_data) &&
-        mapData.location_data.length > 0
+        matchedFeatureCount / identifiableFeatureCount < 0.75
       ) {
         const valueField = mapData.map_config.value_field || "count";
         const isCountAgg = valueField === "count";
-        const spatialDataMap = new Map<string, Record<string, any>>();
 
-        for (const item of mapData.location_data) {
-          const n = normalizeLocationRowLatLng(item);
-          if (!n) continue;
-          const point: [number, number] = [n.lng, n.lat];
+        const spatializePoints = (
+          rows: any[]
+        ): Map<string, Record<string, any>> => {
+          const spatialDataMap = new Map<string, Record<string, any>>();
+          for (const item of rows) {
+            const n = normalizeLocationRowLatLng(item);
+            if (!n) continue;
+            const point: [number, number] = [n.lng, n.lat];
 
-          const matchingFeature = preparedFeatures.find(
-            (prepared) =>
-              prepared.districtId &&
-              prepared.polygons.length > 0 &&
-              pointInPreparedFeature(point, prepared)
-          );
-          if (!matchingFeature) continue;
+            const matchingFeature = preparedFeatures.find(
+              (prepared) =>
+                prepared.districtId &&
+                prepared.polygons.length > 0 &&
+                pointInPreparedFeature(point, prepared)
+            );
+            if (!matchingFeature) continue;
 
-          const prev = spatialDataMap.get(matchingFeature.districtId) || {
-            count: 0,
-            value: 0,
-          };
-          if (isCountAgg) {
-            prev.count = (prev.count || 0) + 1;
-            prev.value = prev.count;
-          } else {
-            prev.value = (prev.value || 0) + (Number(item[valueField]) || 0);
-            prev.count = prev.value;
+            const prev = spatialDataMap.get(matchingFeature.districtId) || {
+              count: 0,
+              value: 0,
+            };
+            if (isCountAgg) {
+              prev.count = (prev.count || 0) + 1;
+              prev.value = prev.count;
+            } else {
+              prev.value = (prev.value || 0) + (Number(item[valueField]) || 0);
+              prev.count = prev.value;
+            }
+            spatialDataMap.set(matchingFeature.districtId, prev);
           }
-          spatialDataMap.set(matchingFeature.districtId, prev);
+          return spatialDataMap;
+        };
+
+        let spatialDataMap = spatializePoints(
+          Array.isArray(mapData.location_data) ? mapData.location_data : []
+        );
+
+        // Pre-aggregated choropleths often store only district totals (no lat/lng).
+        // When identifier join fails (e.g. supervisor_district data vs nhood shapes),
+        // fetch point geometry and spatialize into the selected shape layer.
+        if (
+          spatialDataMap.size === 0 &&
+          mapData.metric_id &&
+          (mapData.short_hash || hash)
+        ) {
+          try {
+            const pointsHash = mapData.short_hash || hash;
+            const pointsRes = await fetch(
+              `/api/maps/public/${pointsHash}/points`
+            );
+            if (pointsRes.ok) {
+              const pointsPayload = await pointsRes.json();
+              const fetchedPoints = Array.isArray(pointsPayload?.points)
+                ? pointsPayload.points
+                : [];
+              if (fetchedPoints.length > 0) {
+                spatialDataMap = spatializePoints(fetchedPoints);
+              }
+            }
+          } catch (err) {
+            console.warn(
+              "[PublicMapPage] Failed to fetch points for spatial choropleth fallback:",
+              err
+            );
+          }
         }
 
         if (spatialDataMap.size > 0) {

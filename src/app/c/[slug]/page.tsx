@@ -30,6 +30,7 @@ import CitySignupCTA from "./CitySignupCTA";
 import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
 import { slugify, formatLeaderName } from "@/lib/utils";
+import { pickMayorFromPublicLeaders } from "@/lib/publicLeadersPick";
 
 export const revalidate = 3600;
 
@@ -104,8 +105,8 @@ export async function generateMetadata({
   if (cityId) {
     try {
       const leaders = await getPublicLeadersForCity(cityId);
-      // Mayor / city exec sits at district 0 or null
-      const mayor = leaders.find((l) => l.district === 0 || l.district === null);
+      // Mayor / city exec — prefer title match (at-large council rows also have null district)
+      const mayor = pickMayorFromPublicLeaders(leaders);
       if (mayor) {
         mayorLabel =
           `${mayor.title || ""} ${mayor.name}`.trim() || mayor.name;

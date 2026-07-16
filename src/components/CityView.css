@@ -185,6 +185,13 @@
   border-top: 1px solid var(--border-primary);
 }
 
+/* Nested under the briefing "What moved / All metrics" header toggle */
+.city-view-dashboard-section--inline {
+  padding: 0;
+  border-top: none;
+  background: transparent;
+}
+
 /* Briefing (Overview) section — single-column fast path */
 .city-view-briefing-section {
   flex-shrink: 0;
@@ -1354,6 +1361,37 @@
   flex-shrink: 0;
 }
 
+/* YTD / MTD segmented toggle — mirrors the "What moved" period toggle. */
+.dashboard-period-toggle {
+  display: inline-flex;
+  background: var(--bg-tertiary, #f3f4f6);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.dashboard-period-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary, #6b7280);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dashboard-period-btn-active {
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+/* Category filter sits on the right edge of the header row. */
+.dashboard-category-select {
+  margin-left: auto;
+}
+
 .dashboard-header-customize-btn {
   margin-left: auto;
   padding: 6px 12px;
@@ -1512,10 +1550,21 @@
 
   .dashboard-header-compare {
     order: 3;
-    flex-basis: 100%;
-    width: 100%;
     gap: 4px;
     margin-top: 2px;
+  }
+
+  .dashboard-period-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
+  /* Category filter takes the remaining width on the second row. */
+  .dashboard-category-select {
+    order: 4;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
   }
 
   /* No vertical space between header row and first subcategory header */

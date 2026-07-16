@@ -38,6 +38,7 @@ import {
   DEFAULT_PLACE_RADIUS_M,
   MAX_PLACE_RADIUS_M,
 } from "@/lib/mapUtils";
+import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
@@ -90,10 +91,9 @@ type WelcomeLoadingAction = "search" | "gps" | null;
 /** Default saved place label on onboarding step 2 (createPlace only when location is precise). */
 const ONBOARDING_PLACE_LABEL_DEFAULT = "My place";
 
-/** Mayor from a loaded leaders list — citywide (district null/0), preferring title containing "mayor". */
+/** Mayor from a loaded leaders list. */
 function pickMayorFromLeaders(leaders: CityLeader[]): CityLeader | null {
-  const citywide = leaders.filter((l) => l.district === null || l.district === 0);
-  return citywide.find((l) => l.title.toLowerCase().includes("mayor")) ?? citywide[0] ?? null;
+  return pickCitywideLeader(leaders);
 }
 
 /** District representative from a loaded leaders list for a specific district number. */

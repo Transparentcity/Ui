@@ -14,6 +14,7 @@
  * the full page, using extracted logic from handleWelcomeComplete.
  */
 import { describe, it, expect, vi } from "vitest";
+import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 
 // ---------------------------------------------------------------------------
 // Types matching the real codebase
@@ -65,7 +66,7 @@ async function runOnboardingDiscovery(
 
     // Always fetch leaders and show the mayor (no coordinates needed)
     const leaders = await deps.getCityLeaders(ctx.cityId, token);
-    const mayor = leaders.find((l) => !l.district || l.district === 0);
+    const mayor = pickCitywideLeader(leaders);
     if (mayor) {
       deps.notifyRepFound(mayor.name, mayor.title || "Mayor");
       result.mayorNotified = true;

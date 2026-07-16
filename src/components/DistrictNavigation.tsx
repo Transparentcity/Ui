@@ -21,6 +21,7 @@ import {
 import LocationMapSave from "@/components/LocationMapSave";
 import FollowButton from "@/components/FollowButton";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
+import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import "./DistrictNavigation.css";
 
 function normalizeDistrictValue(value: unknown): number | null {
@@ -312,15 +313,10 @@ export default function DistrictNavigation({
 
   // Get current district representative (or mayor for district 0)
   const currentRepresentative = useMemo(() => {
-    // For district 0, look for mayor (district 0 or title contains "mayor")
     if (district === 0) {
-      return leaders.find((leader) => 
-        ((normalizeDistrictValue(leader.district) ?? 0) === 0) &&
-        (leader.title?.toLowerCase().includes("mayor") || 
-         leader.name?.toLowerCase().includes("mayor"))
-      ) || leaders.find((leader) => (normalizeDistrictValue(leader.district) ?? 0) === 0) || null;
+      return pickCitywideLeader(leaders);
     }
-    
+
     return leaders.find((leader) => normalizeDistrictValue(leader.district) === district) || null;
   }, [district, leaders]);
   
@@ -331,12 +327,7 @@ export default function DistrictNavigation({
 
   // Get all districts with representatives for search (including mayor for district 0)
   const districtOptions = useMemo(() => {
-    // Find the mayor (district 0) from leaders
-    const mayor = leaders.find((leader) => 
-      ((normalizeDistrictValue(leader.district) ?? 0) === 0) &&
-      (leader.title?.toLowerCase().includes("mayor") || 
-       leader.name?.toLowerCase().includes("mayor"))
-    ) || leaders.find((leader) => (normalizeDistrictValue(leader.district) ?? 0) === 0) || null;
+    const mayor = pickCitywideLeader(leaders);
     
     // Build options from all leaders (excluding district 0, we'll add it separately)
     const otherOptions = leaders
@@ -1088,7 +1079,7 @@ export default function DistrictNavigation({
                         !isPlaceScope && normalizedSelectedDistrict === option.district;
                       return (
                         <button
-                          key={option.district}
+                          key={option.leader?.id ?? `${option.district}-${option.name}`}
                           className={`district-navigation-result-item ${
                             isSelected ? "selected" : ""
                           }`}
@@ -1100,7 +1091,9 @@ export default function DistrictNavigation({
                           <div className="district-navigation-result-district">
                             {option.district === 0
                             ? "Mayor (Citywide)"
-                            : `${geographicUnitLabel} ${option.district}`}
+                            : option.district === -1
+                              ? "At-Large Council"
+                              : `${geographicUnitLabel} ${option.district}`}
                           </div>
                           {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                               <div className="district-navigation-result-subscribers">

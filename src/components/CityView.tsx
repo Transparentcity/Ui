@@ -33,6 +33,7 @@ import MetricDetailModal from "@/components/MetricDetailModal";
 import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
 import BriefingHome from "@/components/BriefingHome";
 import { resolveGeographicUnitLabel } from "@/lib/geographicUnitLabel";
+import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import {
   resolveDistrictFromShapefiles,
   primaryStructureIdFromLeaders,
@@ -55,7 +56,7 @@ function getVisibleCityViewSections(
   canAccessMap: boolean,
 ): CityViewSection[] {
   // Regular users only get the briefing overview (no tab bar); the full
-  // metrics table is reachable via its "Browse all metrics" expand.
+  // metrics table is reachable via the "All metrics" header toggle.
   if (!isAdmin) return ["briefing"];
   const sections: CityViewSection[] = ["briefing", "full_dashboard"];
   if (canAccessMap) sections.push("map");
@@ -107,6 +108,10 @@ interface CityViewProps {
   onCityChange?: (cityId: number, section: CityViewSection) => void;
   /** Label of a place whose metrics are still being computed (onboarding); shows the "your place is loading" banner on the citywide briefing. */
   pendingPlaceLabel?: string | null;
+  /** When true (email/external dashboard deep link), land on the briefing with
+   *  the "All metrics" tab selected. Consumed via {@link onConsumeOpenAllMetrics}. */
+  openAllMetrics?: boolean;
+  onConsumeOpenAllMetrics?: () => void;
 }
 
 interface MetricWithYTD {
@@ -183,6 +188,9 @@ interface DashboardMetricsSectionProps {
   onEditMetrics?: () => void;
   /** Called with true when a place metrics job starts, false when it finishes. */
   onJobRunningChange?: (running: boolean) => void;
+  /** Comparison period shared with the briefing "What moved" toggle. */
+  comparisonType: ComparisonType;
+  onComparisonTypeChange: (type: ComparisonType) => void;
 }
 
 // Time series data point for sparkline
@@ -612,7 +620,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
   );
 });
 
-function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District", onEditMetrics, onJobRunningChange }: DashboardMetricsSectionProps) {
+function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict = 0, leaders: propLeaders = [], shapefiles = [], onDistrictChange, onGPSLocation, onMetricClick, leaderFollowerCounts, newsletterQueriesEnabled, userPlaces = [], selectedPlaceId = null, onPlaceSelect, onPlaceSaved, openDistrictTrigger, bootstrapPlaceMetricsForPlaceId = null, onConsumePlaceMetricsBootstrap, lastRefreshAt = null, geographicUnitLabel = "District", onEditMetrics, onJobRunningChange, comparisonType, onComparisonTypeChange }: DashboardMetricsSectionProps) {
   const { getAccessTokenSilently } = useAuth0();
 
   // Block (place) scope: metrics for selected place
@@ -744,28 +752,12 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     onJobRunningChangeRef.current?.(placeRunLoading);
   }, [placeRunLoading]);
 
-  // New state for explicit period selection
-  type CurrentPeriodType = 'this_year' | 'this_month';
-  type ComparisonPeriodType = 'last_year' | 'last_month';
-  
-  const [currentPeriodType, setCurrentPeriodType] = useState<CurrentPeriodType>('this_year');
-  const [comparisonPeriodType, setComparisonPeriodType] = useState<ComparisonPeriodType>('last_year');
-  const hasUserAdjustedComparisonRef = useRef(false);
-  
-  // Derive ComparisonType from the two selections
-  const selectedComparisonType = useMemo<ComparisonType>(() => {
-    if (currentPeriodType === 'this_year' && comparisonPeriodType === 'last_year') {
-      return 'ytd';
-    } else if (currentPeriodType === 'this_month' && comparisonPeriodType === 'last_month') {
-      return 'mtd';
-    } else if (currentPeriodType === 'this_month' && comparisonPeriodType === 'last_year') {
-      return 'mtd_prior_year';
-    } else {
-      // Fallback: this_year + last_month doesn't make sense, default to ytd
-      // This shouldn't happen with proper validation, but handle gracefully
-      return 'ytd';
-    }
-  }, [currentPeriodType, comparisonPeriodType]);
+  // Comparison period is owned by the parent (shared with "What moved").
+  const selectedComparisonType = comparisonType;
+
+  // Category filter for the metrics table. "all" shows every category.
+  const CATEGORY_ALL = "all";
+  const [categoryFilter, setCategoryFilter] = useState<string>(CATEGORY_ALL);
   const [ytdData, setYtdData] = useState<Record<number, { 
     lastYear: number | null; 
     thisYear: number | null; 
@@ -913,6 +905,15 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
 
     return { grouped: result, sortedCategories };
   }, [metricsToShow, ytdData, orderingMap]);
+
+  // Category dropdown options (in table order).
+  const categoryOptions = groupedMetrics.sortedCategories;
+
+  // Active filter; falls back to "all" when the saved selection no longer exists.
+  const activeCategoryFilter = useMemo(() => {
+    if (categoryFilter === CATEGORY_ALL) return null;
+    return categoryOptions.includes(categoryFilter) ? categoryFilter : null;
+  }, [categoryFilter, categoryOptions]);
 
   // Fetch precomputed comparisons for all metrics (city/district vs place)
   const metricIds = useMemo(() => 
@@ -1444,9 +1445,10 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
   const selectedLeader = useMemo(() => {
     if (!leaders || leaders.length === 0) return null;
     
-    // For citywide (district = 0 or null), find leader with no district (Mayor, etc.)
+    // For citywide (district = 0 or null), pick the mayor/executive — not just the
+    // first null-district row (at-large councilmembers also have district=null).
     if (district === 0 || district === null) {
-      return leaders.find(l => l.district === null || l.district === undefined || l.district === 0) || null;
+      return pickCitywideLeader(leaders);
     }
     
     // For specific district, find the matching leader
@@ -1469,20 +1471,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     }
     return `${geographicUnitLabel} ${district} Dashboard`;
   }, [selectedPlaceId, selectedPlace, selectedLeader, district, geographicUnitLabel]);
-
-  // Get label for comparison type
-  const getComparisonTypeLabel = (type: ComparisonType): string => {
-    switch (type) {
-      case 'ytd':
-        return 'YTD';
-      case 'mtd':
-        return 'MTD';
-      case 'mtd_prior_year':
-        return 'MTD vs Prior';
-      default:
-        return type;
-    }
-  };
 
   // Get column headers based on comparison type
   const getColumnHeaders = useMemo(() => {
@@ -1546,29 +1534,6 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     }
   }, [ytdData]);
 
-  // Get labels for dropdown options with dates
-  const currentPeriodOptions = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.toLocaleDateString('en-US', { month: 'short' });
-    return [
-      { value: 'this_year' as CurrentPeriodType, label: `this year (${currentYear})` },
-      { value: 'this_month' as CurrentPeriodType, label: `this month (${currentMonth} ${currentYear})` },
-    ];
-  }, []);
-
-  const comparisonPeriodOptions = useMemo(() => {
-    const now = new Date();
-    const lastYear = now.getFullYear() - 1;
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonth = lastMonthDate.toLocaleDateString('en-US', { month: 'short' });
-    const lastMonthYear = lastMonthDate.getFullYear();
-    return [
-      { value: 'last_year' as ComparisonPeriodType, label: `last year (${lastYear})` },
-      { value: 'last_month' as ComparisonPeriodType, label: `last month (${lastMonth} ${lastMonthYear})` },
-    ];
-  }, []);
-
   if (!metrics || metrics.length === 0) {
     return (
       <div className="dashboard-section">
@@ -1600,120 +1565,68 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                 : `${geographicUnitLabel} ${district}`}
           </span>
         </div>
-        {!selectedPlaceId && (
-          <>
-            <div className="dashboard-header-compare">
-              <span className="comparison-selector-label">Compare</span>
-              <select
-                className="comparison-selector-dropdown"
-                value={currentPeriodType}
-                onChange={(e) => {
-                  hasUserAdjustedComparisonRef.current = true;
-                  const newCurrent = e.target.value as CurrentPeriodType;
-                  setCurrentPeriodType(newCurrent);
-                  if (newCurrent === 'this_year' && comparisonPeriodType === 'last_month') {
-                    setComparisonPeriodType('last_year');
-                  }
-                }}
-                aria-label="Select current period"
+        <div className="dashboard-header-compare">
+          <div
+            className="dashboard-period-toggle"
+            role="radiogroup"
+            aria-label="Comparison period"
+          >
+            {([
+              { value: "ytd" as ComparisonType, label: "YTD" },
+              { value: "mtd" as ComparisonType, label: "MTD" },
+            ]).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={selectedComparisonType === opt.value}
+                className={`dashboard-period-btn${selectedComparisonType === opt.value ? " dashboard-period-btn-active" : ""}`}
+                onClick={() => onComparisonTypeChange(opt.value)}
               >
-                {currentPeriodOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <span className="comparison-selector-label">to</span>
-              <select
-                className="comparison-selector-dropdown"
-                value={comparisonPeriodType}
-                onChange={(e) => {
-                  hasUserAdjustedComparisonRef.current = true;
-                  const newComparison = e.target.value as ComparisonPeriodType;
-                  setComparisonPeriodType(newComparison);
-                  if (currentPeriodType === 'this_year' && newComparison === 'last_month') {
-                    setCurrentPeriodType('this_month');
-                  }
-                }}
-                aria-label="Select comparison period"
-              >
-                {comparisonPeriodOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {categoryOptions.length > 0 && (
+          <select
+            className="comparison-selector-dropdown dashboard-category-select"
+            value={activeCategoryFilter ?? CATEGORY_ALL}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            aria-label="Filter by category"
+          >
+            <option value={CATEGORY_ALL}>All</option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
         )}
         {selectedPlaceId && selectedPlace && (
-          <>
-            <div className="dashboard-header-compare">
-              <span className="comparison-selector-label">Compare</span>
-              <select
-                className="comparison-selector-dropdown"
-                value={currentPeriodType}
-                onChange={(e) => {
-                  hasUserAdjustedComparisonRef.current = true;
-                  const newCurrent = e.target.value as CurrentPeriodType;
-                  setCurrentPeriodType(newCurrent);
-                  if (newCurrent === "this_year" && comparisonPeriodType === "last_month") {
-                    setComparisonPeriodType("last_year");
-                  }
-                }}
-                aria-label="Select current period"
-              >
-                {currentPeriodOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <span className="comparison-selector-label">to</span>
-              <select
-                className="comparison-selector-dropdown"
-                value={comparisonPeriodType}
-                onChange={(e) => {
-                  hasUserAdjustedComparisonRef.current = true;
-                  const newComparison = e.target.value as ComparisonPeriodType;
-                  setComparisonPeriodType(newComparison);
-                  if (currentPeriodType === "this_year" && newComparison === "last_month") {
-                    setCurrentPeriodType("this_month");
-                  }
-                }}
-                aria-label="Select comparison period"
-              >
-                {comparisonPeriodOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="dashboard-header-block-actions">
-              <button
-                type="button"
-                className="dashboard-header-customize-btn dashboard-header-refresh-place-btn"
-                onClick={() => refreshPlaceData(selectedPlaceId!)}
-                disabled={placeRunLoading || placeDataLoading}
-                aria-busy={placeRunLoading}
-                aria-label={
-                  placeRunLoading
-                    ? "Refreshing place metrics, please wait"
-                    : "Refresh metrics for this place"
-                }
-              >
-                {placeRunLoading ? (
-                  <span className="dashboard-header-refresh-place-btn-inner">
-                    <Loader size="sm" color="dark" />
-                    <span>Refreshing…</span>
-                  </span>
-                ) : (
-                  "Refresh metrics for this place"
-                )}
-              </button>
-            </div>
-          </>
+          <div className="dashboard-header-block-actions">
+            <button
+              type="button"
+              className="dashboard-header-customize-btn dashboard-header-refresh-place-btn"
+              onClick={() => refreshPlaceData(selectedPlaceId!)}
+              disabled={placeRunLoading || placeDataLoading}
+              aria-busy={placeRunLoading}
+              aria-label={
+                placeRunLoading
+                  ? "Refreshing place metrics, please wait"
+                  : "Refresh metrics for this place"
+              }
+            >
+              {placeRunLoading ? (
+                <span className="dashboard-header-refresh-place-btn-inner">
+                  <Loader size="sm" color="dark" />
+                  <span>Refreshing…</span>
+                </span>
+              ) : (
+                "Refresh metrics for this place"
+              )}
+            </button>
+          </div>
         )}
       </div>
 
@@ -1864,6 +1777,9 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
           </div>
         )}
         {groupedMetrics.sortedCategories.map((category) => {
+          if (activeCategoryFilter && activeCategoryFilter !== category) {
+            return null;
+          }
           // Filter metrics with valid data
           const metricsWithData = groupedMetrics.grouped[category].filter((metric) => {
             return (metric.ytdThisYear !== null && metric.ytdThisYear !== undefined) ||
@@ -2123,6 +2039,8 @@ export default function CityView({
   initialSection,
   onCityChange,
   pendingPlaceLabel = null,
+  openAllMetrics = false,
+  onConsumeOpenAllMetrics,
 }: CityViewProps) {
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   // alertsSectionVisible removed – anomalies section hidden
@@ -2182,10 +2100,11 @@ export default function CityView({
     initialSection === "alerts" && isAdmin,
   );
   // Legacy full dashboard: lazy-mounted the first time it's needed (admin
-  // "All metrics" tab, briefing "Browse all metrics" expand, or place scope,
+  // "All metrics" tab, briefing "All metrics" header toggle, or place scope,
   // which relies on its place-metrics bootstrap/job wiring).
   const [fullDashboardMounted, setFullDashboardMounted] = useState<boolean>(
     () =>
+      openAllMetrics ||
       initialPlaceId != null ||
       resolveCityViewSection(
         initialSection,
@@ -2193,7 +2112,16 @@ export default function CityView({
         isAdmin && (initialPlaceId == null || isGlobalAdmin),
       ) === "full_dashboard",
   );
-  const [browseAllExpanded, setBrowseAllExpanded] = useState(false);
+  const [browseAllExpanded, setBrowseAllExpanded] = useState(openAllMetrics);
+  // Email/external dashboard deep links land on the overview with the
+  // "All metrics" tab selected. Consume the flag so later manual navigation
+  // (sidebar, city switcher) doesn't re-trigger it.
+  useEffect(() => {
+    if (openAllMetrics) {
+      setBrowseAllExpanded(true);
+      onConsumeOpenAllMetrics?.();
+    }
+  }, [openAllMetrics, onConsumeOpenAllMetrics]);
   // Briefing movers period: YTD by default (toggleable to MTD).
   const [briefingComparisonType, setBriefingComparisonType] =
     useState<ComparisonType>("ytd");
@@ -2285,8 +2213,26 @@ export default function CityView({
 
   // When city has district-level data but no leaders in structure (e.g. Chicago, Oakland), build synthetic leaders so district nav still shows
   const syntheticLeadersFromDistricts = useMemo((): CityLeader[] => {
-    if (!cityId || !Array.isArray(publicCityDistricts) || publicCityDistricts.length === 0) return [];
-    return publicCityDistricts
+    if (!cityId || !Array.isArray(publicCityDistricts) || publicCityDistricts.length === 0) {
+      return [];
+    }
+
+    const hasAtLargeCouncil = mapLeaders.some((l) => l.district === -1);
+    const hasNumberedReps = mapLeaders.some((l) => l.district != null && l.district > 0);
+    // At-large council cities already list each member; metric district ids are unrelated.
+    if (hasAtLargeCouncil && !hasNumberedReps) return [];
+
+    const structures = cityData?.geographic_structures;
+    const ranges =
+      structures
+        ?.filter((s) => s.min_value != null && s.max_value != null)
+        .map((s) => ({ min: s.min_value as number, max: s.max_value as number })) ?? [];
+    const bounded =
+      ranges.length > 0
+        ? publicCityDistricts.filter((d) => ranges.some((r) => d >= r.min && d <= r.max))
+        : publicCityDistricts;
+
+    return bounded
       .slice()
       .sort((a, b) => a - b)
       .map((d) => ({
@@ -2295,7 +2241,7 @@ export default function CityView({
         title: geographicUnitLabel,
         district: d,
       }));
-  }, [cityId, publicCityDistricts, geographicUnitLabel]);
+  }, [cityId, publicCityDistricts, geographicUnitLabel, mapLeaders, cityData?.geographic_structures]);
 
   /**
    * Official selector options: city structure leaders (mayor + named council), plus any
@@ -2353,10 +2299,7 @@ export default function CityView({
 
   // Compute mayor subtitle for the hero header (e.g. "Mayor: Daniel Lurie")
   const heroSubtitle = useMemo(() => {
-    const mayor = effectiveLeaders.find((l) => {
-      const d = l.district === null || l.district === undefined ? 0 : Number(l.district);
-      return d === 0;
-    });
+    const mayor = pickCitywideLeader(effectiveLeaders);
     if (mayor?.name) {
       const title = mayor.title?.toLowerCase().includes("mayor") ? "Mayor" : (mayor.title || "Mayor");
       return `${title}: ${mayor.name}`;
@@ -2610,7 +2553,7 @@ export default function CityView({
   }, [activeSection, alertsTabMounted]);
 
   // Lazy-mount the legacy full dashboard when first needed: the admin
-  // "All metrics" tab, the briefing "Browse all metrics" expand, or place
+  // "All metrics" tab, the briefing "All metrics" header toggle, or place
   // scope (place metrics bootstrap/job polling lives inside it).
   useEffect(() => {
     if (
@@ -2725,17 +2668,18 @@ export default function CityView({
 
   const isBriefingActive = activeSection === "briefing";
 
-  /** Legacy full dashboard ("All metrics"): rendered inline under the
-   *  briefing's "Browse all metrics" button, or as the admin tab panel.
+  /** Legacy full dashboard ("All metrics"): rendered inline when the
+   *  briefing header toggle selects it, or as the admin tab panel.
    *  Single element so the place metrics bootstrap/job wiring inside
    *  DashboardMetricsSection never mounts twice. */
   const fullDashboardVisible =
     activeSection === "full_dashboard" ||
     (activeSection === "briefing" && browseAllExpanded);
+  const fullDashboardInline = activeSection === "briefing";
   const fullDashboardEl = !fullDashboardMounted ? null : (
         <section
           ref={dashboardSectionRef}
-          className={`city-view-dashboard-section city-view-tab-content${!fullDashboardVisible ? " city-view-tab-hidden" : ""}`}
+          className={`city-view-dashboard-section city-view-tab-content${fullDashboardInline ? " city-view-dashboard-section--inline" : ""}${!fullDashboardVisible ? " city-view-tab-hidden" : ""}`}
           id="dashboard-section"
           aria-label="All metrics"
           role="tabpanel"
@@ -2796,6 +2740,8 @@ export default function CityView({
               geographicUnitLabel={geographicUnitLabel}
               onEditMetrics={() => setUserOrderDialogOpen(true)}
               onJobRunningChange={setIsPlaceJobRunning}
+              comparisonType={briefingComparisonType}
+              onComparisonTypeChange={setBriefingComparisonType}
             />
           </div>
         </section>
@@ -2859,8 +2805,8 @@ export default function CityView({
           ) : null}
           {/* Show DistrictNavigation bar only on legacy tabs, when there are districts or a place */}
           {!isBriefingActive && isCityDataReady && effectiveLeaders.length > 0 && (effectiveLeaders.some(l => {
-            const d = l.district === null || l.district === undefined ? 0 : Number(l.district);
-            return d !== 0;
+            const d = l.district;
+            return d != null && d > 0;
           }) || selectedPlaceId != null) ? (
             <div className="city-view-place-selector-row">
               {renderDistrictNavigation(false)}
@@ -2997,7 +2943,7 @@ export default function CityView({
               setSelectedMetricDistrict(selectedPlaceId != null ? null : selectedDistrict);
             }}
             browseAllExpanded={browseAllExpanded}
-            onToggleBrowseAll={() => setBrowseAllExpanded((v) => !v)}
+            onBrowseAllChange={setBrowseAllExpanded}
             onDistrictSelect={(d) => {
               setSelectedDistrict(d);
               setSelectedPlaceId(null);

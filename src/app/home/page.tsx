@@ -41,6 +41,7 @@ import {
   type UserPlace,
 } from "@/lib/apiClient";
 import { findDistrictFromCoordinates } from "@/lib/findDistrictFromCoordinates";
+import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor";
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
@@ -495,6 +496,17 @@ export default function DashboardPage() {
     district: number | null;
     placeId: number | null;
   } | null>(null);
+
+  // Email dashboard deep links land on the overview with the "All metrics"
+  // tab selected. Set when a nav intent resolves; consumed by CityView.
+  // ``emailNavGeneration`` is included in CityView's React key so a deep link
+  // remounts the view even when the user is already on the same city.
+  const [openAllMetricsOnLoad, setOpenAllMetricsOnLoad] = useState(false);
+  const [emailNavGeneration, setEmailNavGeneration] = useState(0);
+  const consumeOpenAllMetrics = useCallback(
+    () => setOpenAllMetricsOnLoad(false),
+    [],
+  );
 
   // Newsletter email deep links: open the Settings panel scrolled to the
   // Newsletter section (?email_prefs=1) or pop the home location modal
@@ -1355,6 +1367,10 @@ export default function DashboardPage() {
     } else {
       handleCityClick(cityId);
     }
+    // Email dashboard links open the overview with "All metrics" selected.
+    // Bump generation first so CityView remounts with the flag already true.
+    setEmailNavGeneration((g) => g + 1);
+    setOpenAllMetricsOnLoad(true);
     setPendingNavIntent(null);
   }, [pendingNavIntent, allUserPlaces, handlePlaceClick]);
 
@@ -1968,7 +1984,7 @@ export default function DashboardPage() {
 
         // Always fetch leaders and show the mayor (no coordinates needed)
         const leaders = await getCityLeaders(ctx.cityId, token);
-        const mayor = leaders.find((l) => !l.district || l.district === 0);
+        const mayor = pickCitywideLeader(leaders);
         if (mayor) {
           onboardingRepNotifyRef.current?.(mayor.name, mayor.title || "Mayor");
         }
@@ -2345,7 +2361,7 @@ export default function DashboardPage() {
             <div id="city-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={`${styles.adminContainer} ${styles.cityViewContainer}`}>
                 <CityView
-                  key={`${activeCityId}-${identityScopeKey}`}
+                  key={`${activeCityId}-${identityScopeKey}-${emailNavGeneration}`}
                   cityId={activeCityId}
                   isAdmin={isAdmin || cityLeadCityIds.includes(activeCityId)}
                   isGlobalAdmin={isAdmin}
@@ -2371,6 +2387,8 @@ export default function DashboardPage() {
                       ? pendingOnboardingPlace.label
                       : null
                   }
+                  openAllMetrics={openAllMetricsOnLoad}
+                  onConsumeOpenAllMetrics={consumeOpenAllMetrics}
                 />
               </div>
             </div>

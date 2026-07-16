@@ -51,6 +51,9 @@ export default function MetricDetailContent({
   // Collapses to false when MetricMapEmbed determines there's nothing renderable
   // (e.g. too many points, no choropleth available).
   const [mapSectionVisible, setMapSectionVisible] = useState(true);
+  useEffect(() => {
+    setMapSectionVisible(true);
+  }, [metric.id, selectedDistrict]);
 
   // Detect narrow screens for compact map/chart layout
   const [isMobile, setIsMobile] = useState(false);
@@ -466,10 +469,14 @@ export default function MetricDetailContent({
         </section>
       )}
 
-      {/* District Comparison - district pages use the comparison cards and charts, not a district-only map. */}
-      {mapSectionVisible && metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+      {/* Map — district pages pass district so preview/choropleth scope to that area */}
+      {mapSectionVisible && metric.map_query && (
         <section className="metric-section">
-          <h2 className="metric-section-title">Where are {metric.metric_name.toLowerCase()} highest in {resolvedCityName}?</h2>
+          <h2 className="metric-section-title">
+            {selectedDistrict !== null && selectedDistrict > 0
+              ? `Where are ${metric.metric_name.toLowerCase()} happening in District ${selectedDistrict}?`
+              : `Where are ${metric.metric_name.toLowerCase()} highest in ${resolvedCityName}?`}
+          </h2>
           {isStale ? (
             <p className="metric-section-subtitle">Prior year to date (no current-year data)</p>
           ) : comparison?.current_period_start && comparison?.current_period_end ? (
@@ -483,7 +490,7 @@ export default function MetricDetailContent({
             height={isMobile ? 280 : 400}
             showLink={true}
             showPeriodSelector={false}
-            district={null}
+            district={selectedDistrict !== null && selectedDistrict > 0 ? selectedDistrict : null}
             metricName={metric.metric_name}
             itemNoun={metric.item_noun}
             valueField={mapValueField}

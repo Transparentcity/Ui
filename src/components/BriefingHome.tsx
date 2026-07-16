@@ -19,6 +19,7 @@ import { getImpersonationCacheKey } from "@/lib/impersonation";
 import { feedKeys, useFeedStories, type FeedStory } from "@/lib/hooks/useFeed";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
+import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import FeedStoryModal from "@/components/feed/FeedStoryModal";
 import type { MoverMetricInput } from "@/lib/metrics/rankMetricMovers";
 import MoversList from "@/components/MoversList";
@@ -69,12 +70,12 @@ interface BriefingHomeProps {
   /** When set, show the onboarding "your place is loading" banner with this label. */
   placeLoadingLabel?: string | null;
   onMetricClick?: (metricId: number) => void;
-  /** "Browse all metrics" expand — the parent mounts the full table below. */
+  /** Whether the section shows the full ordered metrics table vs movers. */
   browseAllExpanded: boolean;
-  onToggleBrowseAll: () => void;
+  onBrowseAllChange: (expanded: boolean) => void;
   /** Open the dashboard for a leader's scope (district N, or 0 for citywide). */
   onDistrictSelect?: (district: number) => void;
-  /** Full metrics table, rendered inline right under the browse-all button.
+  /** Full metrics table, shown when "All metrics" is selected in the header.
    *  Parent owns the element (mount/visibility) so it isn't mounted twice. */
   fullDashboardSlot?: React.ReactNode;
 }
@@ -293,7 +294,7 @@ export default function BriefingHome({
   placeLoadingLabel,
   onMetricClick,
   browseAllExpanded,
-  onToggleBrowseAll,
+  onBrowseAllChange,
   onDistrictSelect,
   fullDashboardSlot,
 }: BriefingHomeProps) {
@@ -412,7 +413,7 @@ export default function BriefingHome({
   const accountableLeaders = useMemo(() => {
     const repDistrict = isPlaceScope ? placeDistrict ?? 0 : district;
     if (!isPlaceScope && repDistrict === 0) return [];
-    const mayor = leaders.find((l) => !l.district || l.district === 0);
+    const mayor = pickCitywideLeader(leaders);
     const rep =
       repDistrict > 0 ? leaders.find((l) => l.district === repDistrict) : null;
     const rows: CityLeader[] = [];
@@ -607,28 +608,47 @@ export default function BriefingHome({
         </div>
       ) : null}
 
-      {/* ── What moved (scorecard — sits just above Block Brief / stories) ─ */}
-      <section className={styles.section} aria-label="What moved">
-        <h3 className={styles.sectionTitle}>What moved</h3>
-        <MoversList
-          metrics={metrics}
-          comparisonsMap={comparisonsMap}
-          comparisonType={comparisonType}
-          onComparisonTypeChange={onComparisonTypeChange}
-          recencyAnchor={recencyAnchor}
-          loading={comparisonsLoading}
-          scopeLabel={scopeLabel}
-          onMetricClick={onMetricClick}
-        />
-        <button
-          type="button"
-          className={styles.browseAllBtn}
-          onClick={onToggleBrowseAll}
-          aria-expanded={browseAllExpanded}
+      {/* ── What moved / All metrics (header toggle switches the view) ─ */}
+      <section
+        className={styles.section}
+        aria-label={browseAllExpanded ? "All metrics" : "What moved"}
+      >
+        <div
+          className={styles.metricsViewToggle}
+          role="radiogroup"
+          aria-label="Metrics view"
         >
-          {browseAllExpanded ? "Hide full dashboard" : "Browse all metrics"}
-        </button>
-        {/* Full dashboard appears inline right under the button when expanded */}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!browseAllExpanded}
+            className={`${styles.metricsViewTab}${!browseAllExpanded ? ` ${styles.metricsViewTabActive}` : ""}`}
+            onClick={() => onBrowseAllChange(false)}
+          >
+            What moved
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={browseAllExpanded}
+            className={`${styles.metricsViewTab}${browseAllExpanded ? ` ${styles.metricsViewTabActive}` : ""}`}
+            onClick={() => onBrowseAllChange(true)}
+          >
+            All metrics
+          </button>
+        </div>
+        {!browseAllExpanded ? (
+          <MoversList
+            metrics={metrics}
+            comparisonsMap={comparisonsMap}
+            comparisonType={comparisonType}
+            onComparisonTypeChange={onComparisonTypeChange}
+            recencyAnchor={recencyAnchor}
+            loading={comparisonsLoading}
+            scopeLabel={scopeLabel}
+            onMetricClick={onMetricClick}
+          />
+        ) : null}
         {fullDashboardSlot}
       </section>
 

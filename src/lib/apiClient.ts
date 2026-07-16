@@ -158,6 +158,8 @@ export interface CityStructureData {
     structure_name?: string;
     structure_type?: string;
     identifier_field?: string;
+    min_value?: number | null;
+    max_value?: number | null;
     shapefile_url?: string | null;
     shapefile_storage_path?: string | null;
   }>;
@@ -2531,7 +2533,7 @@ export interface DistrictFeedStoriesDefaultPrompt {
   variables: { placeholder: string; description: string }[];
 }
 
-/** Built-in per-city prompt template for district_feed_stories jobs. */
+/** Built-in per-district prompt template for district_feed_stories jobs. */
 export function getDistrictFeedStoriesDefaultPrompt(
   token: string
 ): Promise<DistrictFeedStoriesDefaultPrompt> {
@@ -2747,6 +2749,8 @@ export interface CityDetail {
     structure_name?: string;
     structure_type?: string;
     identifier_field?: string;
+    min_value?: number | null;
+    max_value?: number | null;
   }>;
   governance_structures?: Array<{
     body_name?: string;

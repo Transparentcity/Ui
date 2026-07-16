@@ -729,7 +729,9 @@
 }
 
 .vizImageMapFocus {
+  /* Full-bleed map; keep top-left so legends/layer panels aren't cropped. */
   object-fit: cover;
+  object-position: top left;
 }
 
 .mapHotspots {

@@ -20,6 +20,27 @@ describe("processVisualizationShortcodes", () => {
     expect(out).toContain('data-chart-id="7"');
   });
 
+  it("passes group_value through chart shortcodes into the iframe URL", () => {
+    const out = processVisualizationShortcodes(
+      "<p>[chart:93272:month|Tree Emergency]</p>",
+      { showDebug: false },
+    );
+    expect(out).toContain(
+      'src="/t/93272?embedded=true&period=month&group_value=Tree%20Emergency"',
+    );
+    expect(out).toContain('data-group-value="Tree Emergency"');
+    expect(out).toContain('data-shortcode="[chart:93272:month|Tree Emergency]"');
+  });
+
+  it("supports group_value without a period override", () => {
+    const out = processVisualizationShortcodes("[chart:93272|Tree Emergency]", {
+      showDebug: false,
+    });
+    expect(out).toContain(
+      'src="/t/93272?embedded=true&group_value=Tree%20Emergency"',
+    );
+  });
+
   it("replaces chart shortcodes with iframe embeds", () => {
     const out = processVisualizationShortcodes("<p>[chart:42]</p>", {
       showDebug: false,

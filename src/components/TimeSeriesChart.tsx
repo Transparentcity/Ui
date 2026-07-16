@@ -69,8 +69,8 @@ export interface PartialPeriodInfo {
 export interface TimeSeriesChartProps {
   data: TimeSeriesDataPoint[];
   metadata?: {
-    chart_title?: string;
-    caption?: string;
+    chart_title?: string | null;
+    caption?: string | null;
     y_axis_label?: string;
     object_name?: string;
     field_name?: string;
@@ -89,6 +89,8 @@ export interface TimeSeriesChartProps {
   staleness_days?: number;
   /** Iframe / inline embed surfaces (feeds, tool cards) — enables compact multi-group layout. */
   embeddedMode?: boolean;
+  /** Parent chrome (page h1, tool card header) already names the chart — omit caption & plot title. */
+  parentProvidesTitle?: boolean;
   /** Override automatic compact layout for dense multi-group YTD charts. */
   layoutDensity?: "auto" | "default" | "compact";
 }
@@ -835,6 +837,7 @@ export default function TimeSeriesChart({
   forcedTheme,
   staleness_days,
   embeddedMode = false,
+  parentProvidesTitle = false,
   layoutDensity = "auto",
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
@@ -1524,9 +1527,13 @@ export default function TimeSeriesChart({
     metadata?.field_name ||
     "Time Series";
   
-  // Hide internal title when parent chrome or compact layout already labels the chart
+  // Hide internal title when parent or external chrome already labels the chart
   const chartTitle =
-    showExternalTitle || useCompactLayout ? "" : chartTitleText;
+    showExternalTitle || useCompactLayout || parentProvidesTitle ? "" : chartTitleText;
+
+  const showCaption = Boolean(
+    metadata?.caption && !showExternalTitle && !parentProvidesTitle && !chartTitle,
+  );
 
   const cityName = metadata?.city_name;
 
@@ -1992,8 +1999,8 @@ export default function TimeSeriesChart({
           )}
         </div>
       )}
-      {metadata?.caption && (
-        <div className={styles.caption}>{metadata.caption}</div>
+      {showCaption && (
+        <div className={styles.caption}>{metadata!.caption}</div>
       )}
       <div className={fullBleed ? styles.chartWrapperFullBleed : styles.chartWrapper}>
         <Plot

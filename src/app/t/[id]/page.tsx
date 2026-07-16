@@ -19,6 +19,10 @@ import {
   type DailyCompletenessResponse,
 } from "@/lib/publicApiClient";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
+import {
+  enrichChartMetadataForGroupFilter,
+  type ChartMetadataLike,
+} from "@/lib/enrichChartMetadataForGroupFilter";
 import "./styles.css";
 
 interface TimeSeriesDataPoint {
@@ -27,7 +31,7 @@ interface TimeSeriesDataPoint {
   group_value?: string;
 }
 
-interface TimeSeriesMetadata {
+interface TimeSeriesMetadata extends ChartMetadataLike {
   chart_id: number;
   object_id?: string | number;
   object_type?: string;
@@ -121,6 +125,7 @@ function TimeSeriesChartPageContent() {
   const chartId = params.id as string;
   const { isAuthenticated, getAccessTokenSilently } = useAuth0();
   const periodParam = searchParams.get("period");
+  const groupValueParam = searchParams.get("group_value");
   const isEmbedded = searchParams.get("embedded") === "true";
   const isThumbnail = searchParams.get("thumbnail") === "true";
   const forcedTheme =
@@ -398,7 +403,7 @@ function TimeSeriesChartPageContent() {
       return;
     }
 
-    const loadKey = `${chartId}:${periodParam ?? ""}`;
+    const loadKey = `${chartId}:${periodParam ?? ""}:${groupValueParam ?? ""}`;
     if (lastLoadedKeyRef.current === loadKey) {
       return;
     }
@@ -447,7 +452,7 @@ function TimeSeriesChartPageContent() {
     return () => {
       ac.abort();
     };
-  }, [chartId, periodParam, fetchTimeSeries, isThumbnail]);
+  }, [chartId, periodParam, groupValueParam, fetchTimeSeries, isThumbnail]);
 
   /**
    * Fetch first so we never paint the new period with stale series data; then sync the URL.
@@ -512,8 +517,29 @@ function TimeSeriesChartPageContent() {
 
   const aggregated = useMemo(() => {
     if (!timeSeries?.data) return [];
-    return aggregateTimeSeries(timeSeries.data);
-  }, [timeSeries]);
+    const all = aggregateTimeSeries(timeSeries.data);
+    const target = groupValueParam?.trim();
+    if (!target) return all;
+    const exact = all.filter((d) => d.group_value === target);
+    if (exact.length > 0) return exact;
+    const lower = target.toLowerCase();
+    return all.filter(
+      (d) => (d.group_value || "").toLowerCase() === lower
+    );
+  }, [timeSeries, groupValueParam]);
+
+  const resolvedGroupLabel = useMemo(() => {
+    const target = groupValueParam?.trim();
+    if (!target) return null;
+    const fromData = aggregated.find((d) => d.group_value)?.group_value;
+    return fromData || target;
+  }, [aggregated, groupValueParam]);
+
+  const chartMetadata = useMemo(() => {
+    const metadata = timeSeries?.metadata;
+    if (!metadata) return undefined;
+    return enrichChartMetadataForGroupFilter(metadata, resolvedGroupLabel) ?? metadata;
+  }, [timeSeries?.metadata, resolvedGroupLabel]);
 
   const allValues = useMemo(() => {
     return aggregated.map((d) => d.numeric_value);
@@ -573,7 +599,10 @@ function TimeSeriesChartPageContent() {
   }
 
   const metadata = timeSeries.metadata;
-  const metricName = metadata.object_name || metadata.field_name || "Time Series Chart";
+  const baseMetricName = metadata.object_name || metadata.field_name || "Time Series Chart";
+  const metricName = resolvedGroupLabel
+    ? `${baseMetricName} — ${resolvedGroupLabel}`
+    : baseMetricName;
 
   const metaPeriod =
     (metadata.period_type?.toLowerCase() as PeriodType) || "month";
@@ -586,7 +615,7 @@ function TimeSeriesChartPageContent() {
         <TimeSeriesChart
           key={`${metadata.chart_id}-${displayPeriod}`}
           data={aggregated}
-          metadata={metadata}
+          metadata={chartMetadata ?? metadata}
           height={260}
           defaultPeriod={displayPeriod}
           fullBleed={true}
@@ -640,7 +669,7 @@ function TimeSeriesChartPageContent() {
             <TimeSeriesChart
               key={`${metadata.chart_id}-${displayPeriod}`}
               data={aggregated}
-              metadata={metadata}
+              metadata={chartMetadata ?? metadata}
               height={400}
               defaultPeriod={displayPeriod}
               fullBleed={true}
@@ -702,7 +731,8 @@ function TimeSeriesChartPageContent() {
         <div className="time-series-info">
           <div className="time-series-title-section">
             <h1 className="time-series-title">{metricName}</h1>
-            {(displayCityName || (hasMultipleGroups && metadata.group_field)) && (
+            {(displayCityName ||
+              (!resolvedGroupLabel && hasMultipleGroups && metadata.group_field)) && (
               <div className="time-series-subtitle">
                 {displayCityName && (
                   <>
@@ -721,7 +751,7 @@ function TimeSeriesChartPageContent() {
                     )}
                   </>
                 )}
-                {hasMultipleGroups && metadata.group_field && (
+                {!resolvedGroupLabel && hasMultipleGroups && metadata.group_field && (
                   <>
                     {displayCityName && <span className="time-series-separator">&bull;</span>}
                     <span className="time-series-group-field">by {metadata.group_field}</span>
@@ -754,12 +784,13 @@ function TimeSeriesChartPageContent() {
             <TimeSeriesChart
               key={`${metadata.chart_id}-${displayPeriod}`}
               data={aggregated}
-              metadata={metadata}
+              metadata={chartMetadata ?? metadata}
               height={500}
               defaultPeriod={displayPeriod}
               fullBleed={true}
               hidePeriodSelector={false}
-              showExternalTitle={true}
+              showExternalTitle={false}
+              parentProvidesTitle={true}
               forcedTheme={forcedTheme}
               staleness_days={staleness_days}
               onPeriodChange={onPeriodChange}
@@ -767,7 +798,7 @@ function TimeSeriesChartPageContent() {
           </ChartRefreshOverlay>
         </div>
 
-        {metadata.caption && (
+        {metadata.caption && !resolvedGroupLabel && (
           <div className="time-series-caption">
             <p dangerouslySetInnerHTML={{ __html: metadata.caption }} />
           </div>

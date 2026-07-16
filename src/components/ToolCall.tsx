@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import styles from "./ToolCall.module.css";
 import { API_BASE } from "@/lib/apiBase";
+import { enrichChartMetadataForGroupFilter } from "@/lib/enrichChartMetadataForGroupFilter";
 import TimeSeriesChart, { type PeriodType } from "./TimeSeriesChart";
 import Loader from "./Loader";
 
@@ -258,12 +259,18 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
   const timeSeriesData = getTimeSeriesData(data);
   const chartId = timeSeriesData.chart_id;
   const requestedPeriodRaw = timeSeriesData.requested_period as string | undefined;
+  const groupValueFilter =
+    (timeSeriesData.group_value as string | undefined) ||
+    (timeSeriesData.requested_group_value as string | undefined) ||
+    undefined;
   const metricName = timeSeriesData.metric_name || "Time Series";
   const dataPointCount =
     chartData?.data?.length ?? timeSeriesData.data_point_count ?? 0;
   const viewUrl = timeSeriesData.view_url || `/t/${chartId}`;
 
-  const title = `${metricName} (${periodDisplayLabel(displayPeriod)})`;
+  const title = groupValueFilter
+    ? `${metricName} — ${groupValueFilter} (${periodDisplayLabel(displayPeriod)})`
+    : `${metricName} (${periodDisplayLabel(displayPeriod)})`;
 
   useEffect(() => {
     let mounted = true;
@@ -326,11 +333,33 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
       const existing = map.get(key) || { sum: 0, count: 0 };
       map.set(key, { sum: existing.sum + (point.numeric_value || 0), count: existing.count + 1 });
     });
-    return Array.from(map.entries()).map(([key, { sum }]) => {
+    let rows = Array.from(map.entries()).map(([key, { sum }]) => {
       const [time_period, group_value] = key.split("|");
       return { time_period, numeric_value: sum, group_value: group_value || null };
     });
-  }, [chartData]);
+    const target = groupValueFilter?.trim();
+    if (target) {
+      const exact = rows.filter((d) => d.group_value === target);
+      if (exact.length > 0) {
+        rows = exact;
+      } else {
+        const lower = target.toLowerCase();
+        rows = rows.filter(
+          (d) => (d.group_value || "").toLowerCase() === lower
+        );
+      }
+    }
+    return rows;
+  }, [chartData, groupValueFilter]);
+
+  const chartMetadata = useMemo(
+    () =>
+      enrichChartMetadataForGroupFilter(
+        chartData?.metadata,
+        groupValueFilter,
+      ) ?? chartData?.metadata,
+    [chartData?.metadata, groupValueFilter],
+  );
 
   return (
     <div className={styles.mapEmbed}>
@@ -341,7 +370,9 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
         </div>
         <div className={styles.mapEmbedMeta}>
           <span>{periodDisplayLabel(displayPeriod)}</span>
-          {timeSeriesData.group_field && timeSeriesData.group_value && (
+          {timeSeriesData.group_field &&
+            timeSeriesData.group_value &&
+            !groupValueFilter && (
             <>
               <span className={styles.mapPreviewDot}>•</span>
               <span>{timeSeriesData.group_value}</span>
@@ -350,7 +381,7 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
           {dataPointCount > 0 && (
             <>
               <span className={styles.mapPreviewDot}>•</span>
-              <span>{dataPointCount} points</span>
+              <span>{aggregated.length || dataPointCount} points</span>
             </>
           )}
         </div>
@@ -378,12 +409,13 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
           ) : aggregated.length > 0 ? (
             <TimeSeriesChart
               data={aggregated}
-              metadata={chartData?.metadata}
+              metadata={chartMetadata}
               height={360}
               defaultPeriod={displayPeriod}
               fullBleed={true}
               hidePeriodSelector={false}
               showExternalTitle={false}
+              parentProvidesTitle={Boolean(groupValueFilter)}
               embeddedMode={true}
             />
           ) : (

@@ -117,6 +117,19 @@ function getBoundsFromPolygonFeatures(
   ];
 }
 
+/** True when map-preview / generate_map filtered the query to one or more districts. */
+function isMapConfigDistrictScoped(
+  mapConfig: Record<string, unknown> | null | undefined
+): boolean {
+  if (!mapConfig) return false;
+  const districts = mapConfig.districts;
+  if (Array.isArray(districts) && districts.some((d) => d != null && Number(d) > 0)) {
+    return true;
+  }
+  const district = mapConfig.district;
+  return district != null && Number(district) > 0;
+}
+
 interface Aggregation {
   identifier_field: string;
   /** Metric column used to key rows (may differ from identifier_field, e.g. "analysis_neighborhood" vs "nhood"). */
@@ -1219,9 +1232,23 @@ export default function ProgressiveMapView({
             district_id: districtLabel,
             value: value,
             color: color,
+            _hasAggData: Boolean(districtData),
           },
         };
       });
+
+      // District-scoped map-preview still returns the citywide shapefile. Keep only
+      // polygons that joined to filtered aggregation rows so the map frames the
+      // district (or neighborhoods within it) instead of the whole city.
+      const isDistrictScoped = isMapConfigDistrictScoped(mapData.map_config);
+      const displayFeatures = isDistrictScoped
+        ? features.filter(
+            (feature: { properties?: Record<string, unknown> }) =>
+              Boolean(feature.properties?._hasAggData)
+          )
+        : features;
+      const featuresForMap =
+        displayFeatures.length > 0 ? displayFeatures : features;
 
       // Wait for style to load if not already loaded
       if (!mapInstance.isStyleLoaded()) {
@@ -1251,7 +1278,7 @@ export default function ProgressiveMapView({
         type: "geojson",
         data: {
           type: "FeatureCollection",
-          features: features,
+          features: featuresForMap,
         },
       });
 
@@ -1283,12 +1310,13 @@ export default function ProgressiveMapView({
 
       // Frame the choropleth on its polygons so city/district maps are not
       // cropped tight to point-sample bounds (or stuck on the continental-US fallback).
-      const shapeBounds = getBoundsFromPolygonFeatures(features);
+      // District-scoped embeds zoom in further so a single ward fills the viewport.
+      const shapeBounds = getBoundsFromPolygonFeatures(featuresForMap);
       if (shapeBounds) {
         try {
           mapInstance.fitBounds(shapeBounds, {
             padding: EMBED_BOUNDS_PADDING,
-            maxZoom: 11,
+            maxZoom: isDistrictScoped ? 14 : 11,
             duration: 0,
           });
         } catch (e) {
