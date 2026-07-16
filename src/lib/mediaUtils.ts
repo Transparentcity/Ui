@@ -69,7 +69,7 @@ export function extractMediaUrl(value: any): string | null {
 /**
  * Check if a field name indicates it contains media.
  */
-function isMediaField(key: string): boolean {
+export function isMediaField(key: string): boolean {
   const keyLower = key.toLowerCase().replace(/\s+/g, "_");
   return (
     keyLower.includes("media_url") ||

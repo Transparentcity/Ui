@@ -11,6 +11,7 @@ interface ShapeLayer {
   display_name: string;
   layer_key?: string;
   category?: string;
+  icon?: string;
 }
 
 /** Backend-provided view metadata (default_view / available_views from map_config). */
@@ -77,38 +78,53 @@ interface MapLayerPanelProps {
   reverseToggleArrowDirection?: boolean;
 }
 
-// Icon mapping for different shape layer types
-const getLayerIcon = (layerKey?: string, category?: string, displayName?: string): string => {
+// Prefer instance display metadata over template metadata. Some older instances
+// are attached to templates from another city, so their template layer key and
+// category do not reliably describe the instance.
+export const getLayerIcon = (
+  layerKey?: string,
+  category?: string,
+  displayName?: string,
+  configuredIcon?: string
+): string => {
   const key = (layerKey || "").toLowerCase();
   const cat = (category || "").toLowerCase();
   const name = (displayName || "").toLowerCase();
+  const displayIcon = displayName?.trim().match(/^\p{Extended_Pictographic}\uFE0F?/u)?.[0];
 
-  // District/ward icons
-  if (key.includes("district") || key.includes("ward") || name.includes("district") || name.includes("ward")) {
-    return "🗺️";
-  }
-  
-  // Neighborhood icons
-  if (key.includes("neighborhood") || name.includes("neighborhood")) {
+  if (displayIcon) return displayIcon;
+
+  // Use the city-specific display name before potentially stale template fields.
+  if (name.includes("neighborhood")) {
     return "🏘️";
   }
-  
-  // Police district icons
-  if (key.includes("police") || name.includes("police")) {
+  if (name.includes("police")) {
     return "🚔";
   }
-  
-  // Census tract
-  if (key.includes("census") || name.includes("census")) {
+  if (name.includes("census")) {
     return "📊";
   }
-  
-  // Zip code
-  if (key.includes("zip") || name.includes("zip")) {
+  if (name.includes("zip")) {
     return "📮";
   }
-  
-  // Default icon
+  if (name.includes("district") || name.includes("ward")) {
+    return "🗺️";
+  }
+
+  if (configuredIcon?.trim()) return configuredIcon.trim();
+
+  if (key.includes("neighborhood") || cat === "neighborhood") return "🏘️";
+  if (key.includes("police")) return "🚔";
+  if (key.includes("census")) return "📊";
+  if (key.includes("zip")) return "📮";
+  if (
+    key.includes("district") ||
+    key.includes("ward") ||
+    cat === "governance"
+  ) {
+    return "🗺️";
+  }
+
   return "📍";
 };
 
@@ -207,7 +223,12 @@ export default function MapLayerPanel({
           {/* Shape layers */}
           {hasShapeLayers && sortedShapeLayers.map((layer) => {
             const isSelected = String(layer.shape_layer_instance_id) === selectedShapeLayer && !showDots;
-            const icon = getLayerIcon(layer.layer_key, layer.category, layer.display_name);
+            const icon = getLayerIcon(
+              layer.layer_key,
+              layer.category,
+              layer.display_name,
+              layer.icon
+            );
             const layerId = String(layer.shape_layer_instance_id);
             const isLayerLoading = isLoadingView && layerId === selectedShapeLayer;
             return (
@@ -253,7 +274,12 @@ export default function MapLayerPanel({
               <div className="map-layer-section-title">Shape Layers</div>
               {sortedShapeLayers.map((layer) => {
                 const isSelected = String(layer.shape_layer_instance_id) === selectedShapeLayer && !showDots;
-                const icon = getLayerIcon(layer.layer_key, layer.category, layer.display_name);
+                const icon = getLayerIcon(
+                  layer.layer_key,
+                  layer.category,
+                  layer.display_name,
+                  layer.icon
+                );
                 const layerId = String(layer.shape_layer_instance_id);
                 const isLayerLoading = isLoadingView && layerId === selectedShapeLayer;
                 return (

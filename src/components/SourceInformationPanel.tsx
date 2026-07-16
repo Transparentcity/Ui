@@ -63,10 +63,24 @@ export function hasSourceInformation(
   );
 }
 
-type SourceInformationPanelProps = {
+/** One source entry for maps composed of multiple datasets (e.g. multi-layer maps). */
+export type SourceInformationEntry = {
+  /** Layer/section heading, e.g. the layer title. */
+  title?: string | null;
   sourceInfo: SourceInformationFields;
   startDate?: string | null;
   endDate?: string | null;
+};
+
+type SourceInformationPanelProps = {
+  sourceInfo?: SourceInformationFields | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  /**
+   * Per-layer sources for multi-dataset maps. When provided (non-empty),
+   * these are rendered as titled sections instead of the single sourceInfo.
+   */
+  layerSources?: SourceInformationEntry[];
   /** Controlled expanded state; omit for internal state. */
   expanded?: boolean;
   onToggle?: () => void;
@@ -80,6 +94,108 @@ type SourceInformationPanelProps = {
   variant?: "card" | "inline";
 };
 
+/** Dataset/portal/fetch-URL/date-range/query rows for a single source. */
+function SourceDetailsGrid({
+  sourceInfo,
+  startDate,
+  endDate,
+}: {
+  sourceInfo: SourceInformationFields;
+  startDate?: string | null;
+  endDate?: string | null;
+}): ReactNode {
+  const dateRangeLabel = formatSourceDateRange(startDate, endDate);
+  const portalLabel =
+    sourceInfo.city_portal_domain?.trim() ||
+    sourceInfo.city_name?.trim() ||
+    null;
+
+  return (
+    <>
+      <div className="map-source-grid">
+        {(sourceInfo.dataset_name || sourceInfo.dataset_id) && (
+          <div className="map-source-row">
+            <span className="map-source-label">Dataset</span>
+            <span className="map-source-value">
+              {sourceInfo.dataset_url ? (
+                <a
+                  href={sourceInfo.dataset_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="map-source-link"
+                >
+                  {sourceInfo.dataset_name || sourceInfo.dataset_id}
+                </a>
+              ) : (
+                sourceInfo.dataset_name || sourceInfo.dataset_id
+              )}
+            </span>
+          </div>
+        )}
+
+        {sourceInfo.dataset_id && sourceInfo.dataset_name && (
+          <div className="map-source-row">
+            <span className="map-source-label">Dataset ID</span>
+            <span className="map-source-value">
+              <code>{sourceInfo.dataset_id}</code>
+            </span>
+          </div>
+        )}
+
+        {(sourceInfo.city_portal_url || portalLabel) && (
+          <div className="map-source-row">
+            <span className="map-source-label">Portal</span>
+            <span className="map-source-value">
+              {sourceInfo.city_portal_url ? (
+                <a
+                  href={sourceInfo.city_portal_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="map-source-link"
+                >
+                  {portalLabel || sourceInfo.city_portal_url}
+                </a>
+              ) : (
+                portalLabel
+              )}
+            </span>
+          </div>
+        )}
+
+        {sourceInfo.query_url && (
+          <div className="map-source-row">
+            <span className="map-source-label">Fetch URL</span>
+            <span className="map-source-value">
+              <a
+                href={sourceInfo.query_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="map-source-link"
+              >
+                {sourceInfo.query_url}
+              </a>
+            </span>
+          </div>
+        )}
+
+        {dateRangeLabel && (
+          <div className="map-source-row">
+            <span className="map-source-label">Date range</span>
+            <span className="map-source-value">{dateRangeLabel}</span>
+          </div>
+        )}
+      </div>
+
+      {sourceInfo.query_text && (
+        <>
+          <div className="map-source-query-label">Query</div>
+          <pre className="map-source-query">{sourceInfo.query_text}</pre>
+        </>
+      )}
+    </>
+  );
+}
+
 /**
  * Collapsible source provenance panel shared by public maps and metric detail
  * embeds. Matches the full-map fields: dataset, ID, fetch URL, date range, query.
@@ -88,6 +204,7 @@ export default function SourceInformationPanel({
   sourceInfo,
   startDate,
   endDate,
+  layerSources,
   expanded: controlledExpanded,
   onToggle,
   toggleLabel = "Source",
@@ -104,11 +221,8 @@ export default function SourceInformationPanel({
       setUncontrolledExpanded((current) => !current);
     });
 
-  const dateRangeLabel = formatSourceDateRange(startDate, endDate);
-  const portalLabel =
-    sourceInfo.city_portal_domain?.trim() ||
-    sourceInfo.city_name?.trim() ||
-    null;
+  const hasLayerSources = Boolean(layerSources && layerSources.length > 0);
+  if (!hasLayerSources && !sourceInfo) return null;
 
   return (
     <section
@@ -147,92 +261,34 @@ export default function SourceInformationPanel({
               work from the same facts.
             </p>
             <p>
-              This visualization is built from the government dataset linked
-              below. We keep the underlying source visible, document the fetch
-              URL and query when available, and link back to the original record
-              so you can verify everything yourself.
+              {hasLayerSources && (layerSources as SourceInformationEntry[]).length > 1
+                ? "This visualization is built from the government datasets linked below — one per map layer."
+                : "This visualization is built from the government dataset linked below."}{" "}
+              We keep the underlying source visible, document the fetch URL and
+              query when available, and link back to the original record so you
+              can verify everything yourself.
             </p>
           </div>
 
-          <div className="map-source-grid">
-            {(sourceInfo.dataset_name || sourceInfo.dataset_id) && (
-              <div className="map-source-row">
-                <span className="map-source-label">Dataset</span>
-                <span className="map-source-value">
-                  {sourceInfo.dataset_url ? (
-                    <a
-                      href={sourceInfo.dataset_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="map-source-link"
-                    >
-                      {sourceInfo.dataset_name || sourceInfo.dataset_id}
-                    </a>
-                  ) : (
-                    sourceInfo.dataset_name || sourceInfo.dataset_id
-                  )}
-                </span>
+          {hasLayerSources ? (
+            (layerSources as SourceInformationEntry[]).map((entry, index) => (
+              <div key={index} className="map-source-layer">
+                {entry.title ? (
+                  <div className="map-source-layer-title">{entry.title}</div>
+                ) : null}
+                <SourceDetailsGrid
+                  sourceInfo={entry.sourceInfo}
+                  startDate={entry.startDate}
+                  endDate={entry.endDate}
+                />
               </div>
-            )}
-
-            {sourceInfo.dataset_id && sourceInfo.dataset_name && (
-              <div className="map-source-row">
-                <span className="map-source-label">Dataset ID</span>
-                <span className="map-source-value">
-                  <code>{sourceInfo.dataset_id}</code>
-                </span>
-              </div>
-            )}
-
-            {(sourceInfo.city_portal_url || portalLabel) && (
-              <div className="map-source-row">
-                <span className="map-source-label">Portal</span>
-                <span className="map-source-value">
-                  {sourceInfo.city_portal_url ? (
-                    <a
-                      href={sourceInfo.city_portal_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="map-source-link"
-                    >
-                      {portalLabel || sourceInfo.city_portal_url}
-                    </a>
-                  ) : (
-                    portalLabel
-                  )}
-                </span>
-              </div>
-            )}
-
-            {sourceInfo.query_url && (
-              <div className="map-source-row">
-                <span className="map-source-label">Fetch URL</span>
-                <span className="map-source-value">
-                  <a
-                    href={sourceInfo.query_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="map-source-link"
-                  >
-                    {sourceInfo.query_url}
-                  </a>
-                </span>
-              </div>
-            )}
-
-            {dateRangeLabel && (
-              <div className="map-source-row">
-                <span className="map-source-label">Date range</span>
-                <span className="map-source-value">{dateRangeLabel}</span>
-              </div>
-            )}
-          </div>
-
-          {sourceInfo.query_text && (
-            <>
-              <div className="map-source-query-label">Query</div>
-              <pre className="map-source-query">{sourceInfo.query_text}</pre>
-            </>
+            ))
+          ) : (
+            <SourceDetailsGrid
+              sourceInfo={sourceInfo as SourceInformationFields}
+              startDate={startDate}
+              endDate={endDate}
+            />
           )}
         </div>
       ) : null}

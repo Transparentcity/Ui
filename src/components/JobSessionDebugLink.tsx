@@ -28,9 +28,15 @@ export default function JobSessionDebugLink({
         e.preventDefault();
         e.stopPropagation();
         if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("job-session:open", { detail: { session_id: id } })
+          const handled = !window.dispatchEvent(
+            new CustomEvent("job-session:open", {
+              detail: { session_id: id },
+              cancelable: true,
+            })
           );
+          if (!handled) {
+            window.location.assign(`/home?job_session_id=${encodeURIComponent(id)}`);
+          }
         }
       }}
     >

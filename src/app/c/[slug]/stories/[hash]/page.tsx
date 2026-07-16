@@ -21,6 +21,7 @@ import {
   processVisualizationShortcodes,
 } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
+import AdminStoryProvenance from "@/components/feed/AdminStoryProvenance";
 import CitySignupCTA from "../../CitySignupCTA";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
@@ -250,6 +251,11 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             {story.city_emoji} {cityDisplay}
             {story.district && story.district > 0 ? ` · District ${story.district}` : ""}
           </span>
+          <AdminStoryProvenance
+            metadata={story.metadata ?? null}
+            modelKey={story.job_model_key}
+            sessionId={story.job_session_id}
+          />
         </div>
 
         {/* Hero image */}

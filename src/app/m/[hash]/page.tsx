@@ -10,48 +10,21 @@ import { getPublicCityDetail } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import SourceInformationPanel, {
   formatSourceDateRange,
+  type SourceInformationEntry,
   type SourceInformationFields,
 } from "@/components/SourceInformationPanel";
-// Icon mapping for different shape layer types
-const getLayerIcon = (layerKey?: string, category?: string, displayName?: string): string => {
-  const key = (layerKey || "").toLowerCase();
-  const cat = (category || "").toLowerCase();
-  const name = (displayName || "").toLowerCase();
-
-  // District/ward icons
-  if (key.includes("district") || key.includes("ward") || name.includes("district") || name.includes("ward")) {
-    return "🗺️"; // Map icon for districts/wards
-  }
-  
-  // Neighborhood icons
-  if (key.includes("neighborhood") || name.includes("neighborhood")) {
-    return "🏘️"; // Houses icon for neighborhoods
-  }
-  
-  // Police district icons
-  if (key.includes("police") || name.includes("police")) {
-    return "🚔"; // Police car icon
-  }
-  
-  // Census tract
-  if (key.includes("census") || name.includes("census")) {
-    return "📊"; // Chart icon
-  }
-  
-  // Zip code
-  if (key.includes("zip") || name.includes("zip")) {
-    return "📮"; // Mailbox icon
-  }
-  
-  // Default icon
-  return "📍"; // Location pin
-};
 import "./styles.css";
 import MapLayerPanel from "@/components/MapLayerPanel";
 import {
   DELTA_MAP_NEUTRAL_DARK_HEX,
   getDeltaMapFillColor,
 } from "@/lib/deltaMapColors";
+import { buildAggregatedItemsHtml, pickPointMediaUrl } from "@/lib/maps/pointPopup";
+import { extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
+import MediaGallery, { type MediaViewMode } from "@/components/MediaGallery";
+import YearCompareMapPanels, {
+  mapSupportsYearComparePanels,
+} from "@/components/YearCompareMapPanels";
 import {
   getCaseInsensitiveProp,
   getChoroplethBrandRamp,
@@ -99,6 +72,13 @@ interface SavedMap {
 // Fallback palette for multi-layer maps created before explicit layer colors were stored.
 const MULTI_LAYER_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#9333ea", "#0d9488", "#e11d48", "#0891b2"];
 
+/** True when the string is a CSS color Mapbox can accept (not a palette name like "categorical"). */
+function isCssColorString(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const s = value.trim();
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s) || /^(rgb|rgba|hsl|hsla)\(/i.test(s);
+}
+
 function getMultiLayerColor(layer: any, layerIndex: number): string {
   const configuredColor =
     layer?.map_config?.color_palette ??
@@ -106,9 +86,67 @@ function getMultiLayerColor(layer: any, layerIndex: number): string {
     layer?.map_config?.color ??
     layer?.color;
 
-  return typeof configuredColor === "string" && configuredColor.trim()
+  return isCssColorString(configuredColor)
     ? configuredColor.trim()
     : MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+}
+
+/** Collapsible layer-visibility legend for multi-layer maps, with per-layer point counts. */
+function MultiLayerPanel({
+  layers,
+  visibility,
+  onToggleLayer,
+  pointCounts,
+  collapsed,
+  onToggleCollapsed,
+}: {
+  layers: any[];
+  visibility: Record<number, boolean>;
+  onToggleLayer: (index: number) => void;
+  pointCounts: number[];
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}) {
+  return (
+    <div className="multi-layer-panel" role="region" aria-label="Map layers">
+      <button
+        type="button"
+        className="multi-layer-panel-header"
+        aria-expanded={!collapsed}
+        onClick={onToggleCollapsed}
+      >
+        <span className="multi-layer-panel-title">Layers</span>
+        <span className="multi-layer-panel-caret" aria-hidden>
+          {collapsed ? "+" : "−"}
+        </span>
+      </button>
+      {!collapsed &&
+        layers.map((layer: any, i: number) => (
+          <label key={i} className="multi-layer-panel-item">
+            <input
+              type="checkbox"
+              checked={visibility[i] !== false}
+              onChange={() => onToggleLayer(i)}
+              aria-label={`Toggle ${layer.title || `Layer ${i + 1}`}`}
+            />
+            <span
+              className="multi-layer-panel-swatch"
+              style={{ backgroundColor: getMultiLayerColor(layer, i) }}
+              aria-hidden
+            />
+            <span className="multi-layer-panel-label">{layer.title || `Layer ${i + 1}`}</span>
+            {typeof pointCounts[i] === "number" && (
+              <span
+                className="multi-layer-panel-count"
+                aria-label={`${pointCounts[i]} points`}
+              >
+                {pointCounts[i].toLocaleString()}
+              </span>
+            )}
+          </label>
+        ))}
+    </div>
+  );
 }
 
 const CHOROPLETH_FILL_OPACITY = 0.7;
@@ -1002,6 +1040,14 @@ export default function PublicMapPage() {
     title: string;
     items: Array<{ label: string; color: string }>;
   } | null>(null);
+  /** Tap the legend to minimize it to its title row (both desktop and mobile). */
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
+  /** Mobile: point details render in a bottom sheet (~2/3 of the map) instead of a popup. */
+  const [pointSheetHtml, setPointSheetHtml] = useState<string | null>(null);
+  // Media gallery (points carrying photo/media URLs, e.g. SF 311 media_url)
+  const [galleryItems, setGalleryItems] = useState<MediaItem[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [galleryViewMode, setGalleryViewMode] = useState<MediaViewMode>("split");
   const [districtPanel, setDistrictPanel] = useState<{
     districtId: string;
     districtName?: string | null;
@@ -1014,6 +1060,7 @@ export default function PublicMapPage() {
   const [showPoints, setShowPoints] = useState(false);
   /** For multi-layer maps: visibility per layer index (all true by default). */
   const [multiLayerVisibility, setMultiLayerVisibility] = useState<Record<number, boolean>>({});
+  const [multiLayerPanelCollapsed, setMultiLayerPanelCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [mapSeoMessage, setMapSeoMessage] = useState<string | null>(null);
   const [mapSeoSaving, setMapSeoSaving] = useState(false);
@@ -1032,6 +1079,12 @@ export default function PublicMapPage() {
     if (!map) return null;
     return buildChoroplethTableData(map, selectedShapeLayer);
   }, [map, selectedShapeLayer]);
+
+  const useYearPanels = useMemo(
+    () => mapSupportsYearComparePanels(map as any),
+    [map]
+  );
+  const mapBasemapTheme = theme === "dark" ? "dark" : "light";
 
   useEffect(() => {
     dotsDistrictIdRef.current = dotsDistrictId;
@@ -1297,6 +1350,32 @@ export default function PublicMapPage() {
 
   const closeDistrictPanel = () => setDistrictPanel(null);
   const sourceInfo = getSavedMapSourceInfo(map);
+  // Per-layer mappable point counts for the multi-layer legend (matches dots drawn).
+  const multiLayerPointCounts = useMemo(() => {
+    if (map?.map_type !== "multi_layer") return [];
+    return ((map.map_config?.layer_maps as any[]) || []).map(
+      (layer: any) =>
+        ((layer.location_data as any[]) || []).filter(
+          (p: any) => normalizeLocationRowLatLng(p) != null,
+        ).length,
+    );
+  }, [map]);
+  // Multi-layer maps carry one source per child map; surface each in the source panel.
+  const multiLayerSources: SourceInformationEntry[] =
+    map?.map_type === "multi_layer"
+      ? ((map.map_config?.layer_maps as any[]) || [])
+          .map((layer: any, i: number): SourceInformationEntry | null => {
+            const layerInfo = getSavedMapSourceInfo(layer as SavedMap);
+            if (!layerInfo) return null;
+            return {
+              title: layer.title || `Layer ${i + 1}`,
+              sourceInfo: layerInfo,
+              startDate: (layer.map_config?.start_date as string | null | undefined) ?? null,
+              endDate: (layer.map_config?.end_date as string | null | undefined) ?? null,
+            };
+          })
+          .filter((entry): entry is SourceInformationEntry => entry != null)
+      : [];
 
   const addDotsForDistrict = (mapInstance: any, mapData: SavedMap, districtId: string) => {
     const dotPoints = mapData.map_config?.dot_location_data;
@@ -1350,6 +1429,8 @@ export default function PublicMapPage() {
             id: index,
             count,
             ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
+            // Gold-ring indicator + gallery entry point for records carrying photos
+            hasMedia: data.points.some((p: any) => !!pickPointMediaUrl(p)),
           },
         };
       }),
@@ -1395,14 +1476,25 @@ export default function PublicMapPage() {
           20, 20,
         ],
         "circle-color": colorExpr,
-        "circle-stroke-color": "#fff",
+        // Gold ring marks points with photos (opens the media gallery on click)
+        "circle-stroke-color": [
+          "case",
+          ["boolean", ["get", "hasMedia"], false],
+          "#FFD700",
+          "#fff",
+        ],
         "circle-stroke-width": [
-          "interpolate",
-          ["linear"],
-          ["get", "count"],
-          1, 1,
-          5, 1.5,
-          10, 2,
+          "case",
+          ["boolean", ["get", "hasMedia"], false],
+          2.5,
+          [
+            "interpolate",
+            ["linear"],
+            ["get", "count"],
+            1, 1,
+            5, 1.5,
+            10, 2,
+          ],
         ],
         "circle-opacity": 0.85,
       },
@@ -1439,6 +1531,23 @@ export default function PublicMapPage() {
       const feature = e.features[0];
       const props = feature.properties;
       const aggCount = Number(props.count) || 1;
+
+      // Single point with a photo: open the media gallery instead of a popup.
+      if (aggCount <= 1 && pickPointMediaUrl(props)) {
+        const items = extractMediaFromPoints(validFilteredPoints);
+        if (items.length > 0) {
+          const clickedUrl = pickPointMediaUrl(props);
+          const startIndex = Math.max(
+            0,
+            items.findIndex((item) => item.url === clickedUrl)
+          );
+          setGalleryItems(items);
+          setGalleryIndex(startIndex);
+          setGalleryViewMode("split");
+          return;
+        }
+      }
+
       let content = "<div class='map-popup' style='max-height:300px;overflow-y:auto;'>";
       if (aggCount > 1) {
         content += `<p><strong>${aggCount} ${itemNounPluralDots}</strong> at this location</p><hr style="margin:8px 0;border-color:#eee;"/>`;
@@ -1451,13 +1560,11 @@ export default function PublicMapPage() {
           }
         }
         if (Array.isArray(allPoints)) {
-          allPoints.forEach((pt: any, i: number) => {
-            const desc = pt.incident_description || pt.description || `${itemNounLabel || "Item"} ${i + 1}`;
-            const date = pt.incident_date ? new Date(pt.incident_date).toLocaleDateString() : "";
-            content += `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eee;">`;
-            content += `<strong>${desc}</strong>`;
-            if (date) content += `<br/><small style="color:#666;">${date}</small>`;
-            content += `</div>`;
+          content += buildAggregatedItemsHtml(allPoints, {
+            itemNoun: itemNounLabel || "item",
+            seriesField: (seriesField as string | undefined) || null,
+            seriesColors:
+              (seriesColors as Record<string, string> | undefined) || null,
           });
         }
       } else {
@@ -1613,6 +1720,12 @@ export default function PublicMapPage() {
             // Handle API response structure: {template: {...}, instance: {...}} or {template: {...}, instance: null}
             const instance = layer.instance || layer;
             const template = layer.template || {};
+
+            // The city endpoint can include disabled legacy instances. They are
+            // not selectable map layers and often duplicate an active layer.
+            if (instance?.status && instance.status !== "active") {
+              continue;
+            }
             
             // Get instance ID from various possible locations
             const instanceId = instance?.id || 
@@ -1660,12 +1773,17 @@ export default function PublicMapPage() {
               matchingLayers.push({
                 shape_layer_instance_id: instanceId,
                 identifier_field: fieldToUse, // Use the field that exists in location_data
-                display_name: template?.default_display_name || 
+                // Prefer the instance's own (city-specific) name — instances can be
+                // linked to another city's template row, whose default_display_name
+                // would show e.g. "Seattle City Council Districts" on an SF map.
+                display_name: instance?.shapefile_name ||
+                             template?.default_display_name || 
                              instance?.structure_type ||
                              layer.display_name || 
                              'Shape Layer',
                 layer_key: template?.layer_key || layer.layer_key,
                 category: template?.category || layer.category,
+                icon: template?.icon || layer.icon,
               });
             }
           } catch (err) {
@@ -1794,7 +1912,8 @@ export default function PublicMapPage() {
             shapeLayer = {
               shape_layer_instance_id: data.instance.id,
               identifier_field: data.instance.identifier_field || data.template?.default_identifier_field,
-              display_name: data.template?.default_display_name || data.instance.structure_type || 'Shape Layer',
+              // Instance name first — template rows can belong to another city.
+              display_name: data.instance.shapefile_name || data.template?.default_display_name || data.instance.structure_type || 'Shape Layer',
               layer_key: data.template?.layer_key,
               category: data.template?.category,
             };
@@ -2344,7 +2463,7 @@ export default function PublicMapPage() {
   
   // Initialize map when both data and Mapbox are ready
   useEffect(() => {
-    if (!map || !mapboxLoaded || !mapContainerRef.current) return;
+    if (!map || !mapboxLoaded || !mapContainerRef.current || useYearPanels) return;
     if (mapInstanceRef.current) return; // Already initialized
 
     const mapboxgl = (window as any).mapboxgl;
@@ -2759,36 +2878,86 @@ export default function PublicMapPage() {
             return { ...point, lat: n.lat, lon: n.lng };
           })
           .filter((p: any): p is Record<string, unknown> => p != null);
-        const pointLocationMap = new Map<string, { points: any[]; lat: number; lon: number }>();
+
+        const pointSeriesField = map.map_config?.series_field as string | undefined;
+        const pointSeriesColors = map.map_config?.series_colors as
+          | Record<string, string>
+          | undefined;
+        const hasSeriesColor = Boolean(
+          pointSeriesField && pointSeriesColors && Object.keys(pointSeriesColors).length > 0
+        );
+
+        // Bucket co-located records. With series coloring active, the bucket key
+        // includes the series value so records of different categories are NEVER
+        // merged into one dot — each category aggregates into its own colored dot.
+        const pointLocationMap = new Map<
+          string,
+          { points: any[]; lat: number; lon: number; locKey: string }
+        >();
         validPoints.forEach((point: any) => {
           const latN = Number(point.lat);
           const lonN = Number(point.lon);
-          const key = `${latN.toFixed(6)},${lonN.toFixed(6)}`;
+          const locKey = `${latN.toFixed(6)},${lonN.toFixed(6)}`;
+          const key = hasSeriesColor
+            ? `${locKey}|${String(point[pointSeriesField!] ?? "")}`
+            : locKey;
           if (!pointLocationMap.has(key)) {
-            pointLocationMap.set(key, { points: [], lat: latN, lon: lonN });
+            pointLocationMap.set(key, { points: [], lat: latN, lon: lonN, locKey });
           }
           pointLocationMap.get(key)!.points.push(point);
         });
 
-        const geojsonData = {
-          type: "FeatureCollection" as const,
-          features: Array.from(pointLocationMap.values()).map((data, index) => {
+        // Group same-location buckets so multiple categories at one coordinate
+        // can be fanned out radially (all colors visible instead of stacked).
+        const byLoc = new Map<string, Array<{ points: any[]; lat: number; lon: number }>>();
+        for (const data of pointLocationMap.values()) {
+          if (!byLoc.has(data.locKey)) byLoc.set(data.locKey, []);
+          byLoc.get(data.locKey)!.push(data);
+        }
+
+        const features: any[] = [];
+        let featureIndex = 0;
+        for (const group of byLoc.values()) {
+          const n = group.length;
+          const baseLat = group[0]!.lat;
+          const baseLon = group[0]!.lon;
+          for (let i = 0; i < group.length; i += 1) {
+            const data = group[i]!;
             const count = data.points.length;
             const firstPoint = data.points[0];
-            return {
+            let lat = data.lat;
+            let lon = data.lon;
+            if (hasSeriesColor && n > 1) {
+              const theta = (2 * Math.PI * i) / n;
+              const r = 0.0002 * (1 + 0.15 * (n - 1));
+              lat = baseLat + r * Math.sin(theta);
+              lon =
+                baseLon +
+                (r * Math.cos(theta)) /
+                  Math.max(Math.cos((baseLat * Math.PI) / 180), 0.2);
+            }
+            features.push({
               type: "Feature" as const,
               geometry: {
                 type: "Point" as const,
-                coordinates: [data.lon, data.lat],
+                coordinates: [lon, lat],
               },
               properties: {
                 ...firstPoint,
-                id: index,
+                id: featureIndex,
                 count,
                 ...(count > 1 ? { allPoints: JSON.stringify(data.points) } : {}),
+                // Gold-ring indicator + gallery entry point for records carrying photos
+                hasMedia: data.points.some((p: any) => !!pickPointMediaUrl(p)),
               },
-            };
-          }),
+            });
+            featureIndex += 1;
+          }
+        }
+
+        const geojsonData = {
+          type: "FeatureCollection" as const,
+          features,
         };
         
         mapInstance.addSource("map-points", {
@@ -2800,6 +2969,11 @@ export default function PublicMapPage() {
           id: "map-points",
           type: "circle",
           source: "map-points",
+          layout: {
+            // Bigger aggregates render first (below), smaller dots on top —
+            // overlapping points of different sizes all stay clickable.
+            "circle-sort-key": ["*", -1, ["get", "count"]],
+          },
           paint: {
             "circle-radius": [
               "interpolate",
@@ -2828,14 +3002,25 @@ export default function PublicMapPage() {
               clearLegend();
               return "#ad35fa";
             })(),
-            "circle-stroke-color": "#fff",
+            // Gold ring marks points with photos (opens the media gallery on click)
+            "circle-stroke-color": [
+              "case",
+              ["boolean", ["get", "hasMedia"], false],
+              "#FFD700",
+              "#fff",
+            ],
             "circle-stroke-width": [
-              "interpolate",
-              ["linear"],
-              ["get", "count"],
-              1, 1,
-              5, 1.5,
-              10, 2,
+              "case",
+              ["boolean", ["get", "hasMedia"], false],
+              2.5,
+              [
+                "interpolate",
+                ["linear"],
+                ["get", "count"],
+                1, 1,
+                5, 1.5,
+                10, 2,
+              ],
             ],
             "circle-opacity": 0,
           },
@@ -2867,7 +3052,24 @@ export default function PublicMapPage() {
           const feature = e.features[0];
           const props = feature.properties;
           const aggCount = Number(props.count) || 1;
-          
+
+          // Single point with a photo: open the media gallery (with all media on
+          // the map so users can navigate point to point) instead of a popup.
+          if (aggCount <= 1 && pickPointMediaUrl(props)) {
+            const items = extractMediaFromPoints(validPoints);
+            if (items.length > 0) {
+              const clickedUrl = pickPointMediaUrl(props);
+              const startIndex = Math.max(
+                0,
+                items.findIndex((item) => item.url === clickedUrl)
+              );
+              setGalleryItems(items);
+              setGalleryIndex(startIndex);
+              setGalleryViewMode("split");
+              return;
+            }
+          }
+
           let content = "<div class='map-popup' style='max-height:300px;overflow-y:auto;'>";
           if (aggCount > 1) {
             content += `<p><strong>${aggCount} ${itemNounPlural}</strong> at this location</p><hr style="margin:8px 0;border-color:#eee;"/>`;
@@ -2880,13 +3082,12 @@ export default function PublicMapPage() {
               }
             }
             if (Array.isArray(allPoints)) {
-              allPoints.forEach((pt: any, i: number) => {
-                const desc = pt.incident_description || pt.description || `${itemNounLabel || "Item"} ${i + 1}`;
-                const date = pt.incident_date ? new Date(pt.incident_date).toLocaleDateString() : "";
-                content += `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eee;">`;
-                content += `<strong>${desc}</strong>`;
-                if (date) content += `<br/><small style="color:#666;">${date}</small>`;
-                content += `</div>`;
+              content += buildAggregatedItemsHtml(allPoints, {
+                itemNoun: itemNounLabel || "item",
+                seriesField: map.map_config?.series_field as string | undefined,
+                seriesColors: map.map_config?.series_colors as
+                  | Record<string, string>
+                  | undefined,
               });
             }
           } else {
@@ -2906,10 +3107,17 @@ export default function PublicMapPage() {
           }
           content += "</div>";
           
-          new mapboxgl.Popup({ maxWidth: "320px" })
-            .setLngLat(e.lngLat)
-            .setHTML(content)
-            .addTo(mapInstance);
+          // Mobile: bottom sheet sliding up over the map; desktop: anchored popup.
+          const isMobileViewport =
+            typeof window !== "undefined" && window.innerWidth <= 768;
+          if (isMobileViewport) {
+            setPointSheetHtml(content);
+          } else {
+            new mapboxgl.Popup({ maxWidth: "320px" })
+              .setLngLat(e.lngLat)
+              .setHTML(content)
+              .addTo(mapInstance);
+          }
         });
         
         // Change cursor on hover
@@ -3003,7 +3211,7 @@ export default function PublicMapPage() {
         mapInstanceRef.current = null;
       }
     };
-  }, [map, mapboxLoaded, theme, selectedShapeLayer, isEmbedded, showPoints]);
+  }, [map, mapboxLoaded, theme, selectedShapeLayer, isEmbedded, showPoints, useYearPanels]);
   
   // Trigger choropleth rendering when shape layers are discovered
   useEffect(() => {
@@ -3364,6 +3572,20 @@ export default function PublicMapPage() {
 
   // Thumbnail mode — map only, no chrome, for feed card previews
   if (isThumbnail) {
+    if (useYearPanels) {
+      return (
+        <div className="public-map-page embedded thumbnail">
+          <div className="map-container-wrapper embedded-map-wrapper">
+            <YearCompareMapPanels
+              map={map as any}
+              height={280}
+              mapBasemapTheme={mapBasemapTheme}
+              compact
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="public-map-page embedded thumbnail">
         <div className="map-container-wrapper embedded-map-wrapper">
@@ -3389,9 +3611,10 @@ export default function PublicMapPage() {
             </div>
           )}
         </div>
-        {sourceInfo && (
+        {(sourceInfo || multiLayerSources.length > 0) && (
           <SourceInformationPanel
             sourceInfo={sourceInfo}
+            layerSources={multiLayerSources.length > 0 ? multiLayerSources : undefined}
             startDate={map?.map_config?.start_date as string | null | undefined}
             endDate={map?.map_config?.end_date as string | null | undefined}
             expanded={isSourceInfoExpanded}
@@ -3549,26 +3772,22 @@ export default function PublicMapPage() {
           </div>
         </div>
         <div className="map-container-wrapper embedded-map-wrapper">
-          {map.map_type === "multi_layer" && (map.map_config?.layer_maps as any[])?.length > 0 ? (
-            <div className="multi-layer-panel" role="region" aria-label="Map layers">
-              <div className="multi-layer-panel-title">Layers</div>
-              {(map.map_config.layer_maps as any[]).map((layer: any, i: number) => (
-                <label key={i} className="multi-layer-panel-item">
-                  <input
-                    type="checkbox"
-                    checked={multiLayerVisibility[i] !== false}
-                    onChange={() => setMultiLayerVisibility((prev) => ({ ...prev, [i]: !prev[i] }))}
-                    aria-label={`Toggle ${layer.title || `Layer ${i + 1}`}`}
-                  />
-                  <span
-                    className="multi-layer-panel-swatch"
-                    style={{ backgroundColor: getMultiLayerColor(layer, i) }}
-                    aria-hidden
-                  />
-                  <span>{layer.title || `Layer ${i + 1}`}</span>
-                </label>
-              ))}
-            </div>
+          {useYearPanels ? (
+            <YearCompareMapPanels
+              map={map as any}
+              height={420}
+              mapBasemapTheme={mapBasemapTheme}
+              compact
+            />
+          ) : map.map_type === "multi_layer" && (map.map_config?.layer_maps as any[])?.length > 0 ? (
+            <MultiLayerPanel
+              layers={map.map_config.layer_maps as any[]}
+              visibility={multiLayerVisibility}
+              onToggleLayer={(i) => setMultiLayerVisibility((prev) => ({ ...prev, [i]: !prev[i] }))}
+              pointCounts={multiLayerPointCounts}
+              collapsed={multiLayerPanelCollapsed}
+              onToggleCollapsed={() => setMultiLayerPanelCollapsed((c) => !c)}
+            />
           ) : (
             <MapLayerPanel
               availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
@@ -3599,26 +3818,81 @@ export default function PublicMapPage() {
               }
             />
           )}
+          {!useYearPanels && (
           <div className="map-container embedded-map" ref={mapContainerRef} />
-          {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
+          )}
+          {!useYearPanels && legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend${
                 useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
-              }`}
+              }${legendCollapsed ? " map-legend-collapsed" : ""}`}
               aria-label="Map legend"
             >
-              <div className="map-legend-title">{legend.title}</div>
-              <div className="map-legend-items">
-                {legend.items.map((item) => (
-                  <div key={item.label} className="map-legend-item">
-                    <span
-                      className="map-legend-swatch"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="map-legend-label">{item.label}</span>
-                  </div>
-                ))}
+              <button
+                type="button"
+                className="map-legend-toggle"
+                aria-expanded={!legendCollapsed}
+                onClick={() => setLegendCollapsed((v) => !v)}
+              >
+                <span className="map-legend-title">{legend.title || "Legend"}</span>
+                <span className="map-legend-chevron" aria-hidden="true">
+                  {legendCollapsed ? "▸" : "▾"}
+                </span>
+              </button>
+              {!legendCollapsed && (
+                <div className="map-legend-items">
+                  {legend.items.map((item) => (
+                    <div key={item.label} className="map-legend-item">
+                      <span
+                        className="map-legend-swatch"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="map-legend-label">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {galleryItems.length > 0 && (
+            <MediaGallery
+              mediaItems={galleryItems}
+              currentIndex={galleryIndex}
+              onIndexChange={setGalleryIndex}
+              onClose={() => {
+                setGalleryItems([]);
+                setGalleryIndex(0);
+              }}
+              viewMode={galleryViewMode}
+              onViewModeChange={setGalleryViewMode}
+              mapInstanceRef={mapInstanceRef}
+            />
+          )}
+          {pointSheetHtml && (
+            <div className="map-bottom-panel map-point-sheet" role="dialog" aria-label="Point details">
+              <div className="map-bottom-panel-header">
+                <div className="map-bottom-panel-title">
+                  {(() => {
+                    const d = getMapDisplayCount(map);
+                    const noun = d ? d.itemNoun : "item";
+                    return noun.charAt(0).toUpperCase() + noun.slice(1) + " details";
+                  })()}
+                </div>
+                <div className="map-bottom-panel-actions">
+                  <button
+                    type="button"
+                    className="map-bottom-panel-close"
+                    onClick={() => setPointSheetHtml(null)}
+                    aria-label="Close details"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+              <div
+                className="map-bottom-panel-body map-point-sheet-body"
+                dangerouslySetInnerHTML={{ __html: pointSheetHtml }}
+              />
             </div>
           )}
           {districtPanel && (
@@ -3892,26 +4166,21 @@ export default function PublicMapPage() {
         </div>
 
         <div className="map-container-wrapper">
-          {map.map_type === "multi_layer" && (map.map_config?.layer_maps as any[])?.length > 0 ? (
-            <div className="multi-layer-panel" role="region" aria-label="Map layers">
-              <div className="multi-layer-panel-title">Layers</div>
-              {(map.map_config.layer_maps as any[]).map((layer: any, i: number) => (
-                <label key={i} className="multi-layer-panel-item">
-                  <input
-                    type="checkbox"
-                    checked={multiLayerVisibility[i] !== false}
-                    onChange={() => setMultiLayerVisibility((prev) => ({ ...prev, [i]: !prev[i] }))}
-                    aria-label={`Toggle ${layer.title || `Layer ${i + 1}`}`}
-                  />
-                  <span
-                    className="multi-layer-panel-swatch"
-                    style={{ backgroundColor: getMultiLayerColor(layer, i) }}
-                    aria-hidden
-                  />
-                  <span>{layer.title || `Layer ${i + 1}`}</span>
-                </label>
-              ))}
-            </div>
+          {useYearPanels ? (
+            <YearCompareMapPanels
+              map={map as any}
+              height={560}
+              mapBasemapTheme={mapBasemapTheme}
+            />
+          ) : map.map_type === "multi_layer" && (map.map_config?.layer_maps as any[])?.length > 0 ? (
+            <MultiLayerPanel
+              layers={map.map_config.layer_maps as any[]}
+              visibility={multiLayerVisibility}
+              onToggleLayer={(i) => setMultiLayerVisibility((prev) => ({ ...prev, [i]: !prev[i] }))}
+              pointCounts={multiLayerPointCounts}
+              collapsed={multiLayerPanelCollapsed}
+              onToggleCollapsed={() => setMultiLayerPanelCollapsed((c) => !c)}
+            />
           ) : (
             <MapLayerPanel
               availableShapeLayers={availableShapeLayers.length > 0 ? availableShapeLayers : 
@@ -3942,26 +4211,81 @@ export default function PublicMapPage() {
               }
             />
           )}
+          {!useYearPanels && (
           <div className="map-container" ref={mapContainerRef} />
-          {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
+          )}
+          {!useYearPanels && legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend${
                 useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
-              }`}
+              }${legendCollapsed ? " map-legend-collapsed" : ""}`}
               aria-label="Map legend"
             >
-              <div className="map-legend-title">{legend.title}</div>
-              <div className="map-legend-items">
-                {legend.items.map((item) => (
-                  <div key={item.label} className="map-legend-item">
-                    <span
-                      className="map-legend-swatch"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="map-legend-label">{item.label}</span>
-                  </div>
-                ))}
+              <button
+                type="button"
+                className="map-legend-toggle"
+                aria-expanded={!legendCollapsed}
+                onClick={() => setLegendCollapsed((v) => !v)}
+              >
+                <span className="map-legend-title">{legend.title || "Legend"}</span>
+                <span className="map-legend-chevron" aria-hidden="true">
+                  {legendCollapsed ? "▸" : "▾"}
+                </span>
+              </button>
+              {!legendCollapsed && (
+                <div className="map-legend-items">
+                  {legend.items.map((item) => (
+                    <div key={item.label} className="map-legend-item">
+                      <span
+                        className="map-legend-swatch"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="map-legend-label">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {galleryItems.length > 0 && (
+            <MediaGallery
+              mediaItems={galleryItems}
+              currentIndex={galleryIndex}
+              onIndexChange={setGalleryIndex}
+              onClose={() => {
+                setGalleryItems([]);
+                setGalleryIndex(0);
+              }}
+              viewMode={galleryViewMode}
+              onViewModeChange={setGalleryViewMode}
+              mapInstanceRef={mapInstanceRef}
+            />
+          )}
+          {pointSheetHtml && (
+            <div className="map-bottom-panel map-point-sheet" role="dialog" aria-label="Point details">
+              <div className="map-bottom-panel-header">
+                <div className="map-bottom-panel-title">
+                  {(() => {
+                    const d = getMapDisplayCount(map);
+                    const noun = d ? d.itemNoun : "item";
+                    return noun.charAt(0).toUpperCase() + noun.slice(1) + " details";
+                  })()}
+                </div>
+                <div className="map-bottom-panel-actions">
+                  <button
+                    type="button"
+                    className="map-bottom-panel-close"
+                    onClick={() => setPointSheetHtml(null)}
+                    aria-label="Close details"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+              <div
+                className="map-bottom-panel-body map-point-sheet-body"
+                dangerouslySetInnerHTML={{ __html: pointSheetHtml }}
+              />
             </div>
           )}
           {districtPanel && (
@@ -4078,9 +4402,10 @@ export default function PublicMapPage() {
               </div>
             )}
 
-          {sourceInfo && (
+          {(sourceInfo || multiLayerSources.length > 0) && (
           <SourceInformationPanel
             sourceInfo={sourceInfo}
+            layerSources={multiLayerSources.length > 0 ? multiLayerSources : undefined}
             startDate={map?.map_config?.start_date as string | null | undefined}
             endDate={map?.map_config?.end_date as string | null | undefined}
             expanded={isSourceInfoExpanded}

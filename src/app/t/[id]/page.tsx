@@ -293,10 +293,12 @@ function TimeSeriesChartPageContent() {
 
   const displayCityName = timeSeries?.metadata?.city_name || resolvedCityName || null;
 
+  // Applies to every period view: YTD splits the current-year line at the lag
+  // cutoff; day/week/month/year views draw trailing buckets that overlap the
+  // lag window (or are still in progress) as a dotted "incomplete" tail.
   const staleness_days = useMemo(() => {
-    if (effectiveDisplayPeriod !== "ytd") return undefined;
     return computeReportingCompletenessStalenessDays(completenessDaily);
-  }, [effectiveDisplayPeriod, completenessDaily]);
+  }, [completenessDaily]);
 
   const permalinkNumeric = useMemo(() => parseInt(chartId, 10), [chartId]);
 

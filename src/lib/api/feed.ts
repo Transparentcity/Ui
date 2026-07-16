@@ -15,6 +15,8 @@ export interface FeedStory {
   research_report_id: number;
   /** Seymour job chat session id when the story was produced from research (research_reports.session_id). */
   job_session_id?: string | null;
+  /** Model used by the Seymour session that produced the story. */
+  job_model_key?: string | null;
   /** CustomScheduledJob.name when the source report was created by a scheduled research job. */
   scheduled_job_name?: string | null;
   newsletter_frequency?: string | null;

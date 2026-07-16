@@ -12,8 +12,17 @@ import {
   type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
 import { normalizePointData } from "@/lib/mapPointNormalize";
+import {
+  buildAggregatedItemsHtml,
+  escapeHtml,
+  pickPointDate,
+  pickPointLabel,
+  pickPointMediaUrl,
+} from "@/lib/maps/pointPopup";
+import { extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
+import MediaGallery, { type MediaViewMode } from "./MediaGallery";
 import "./ProgressiveMapView.css";
 
 interface ProgressiveMapViewProps {
@@ -66,29 +75,7 @@ interface AvailableView {
 const EMPTY_AVAILABLE_VIEWS: AvailableView[] = [];
 const EMPTY_SHAPE_LAYERS: ShapeLayer[] = [];
 
-/** ProgressiveMapView fallback center when backend sends no bounds (matches map init default). */
-const CONTINENTAL_US_FALLBACK_LNG = -98.5795;
-const CONTINENTAL_US_FALLBACK_LAT = 39.8283;
-
-function isContinentalUsFallbackView(
-  bounds: [[number, number], [number, number]] | null | undefined,
-  center: { lat?: number; lng?: number; zoom?: number } | null | undefined
-): boolean {
-  if (bounds && bounds.length === 2) return false;
-  if (
-    !center ||
-    typeof center.lat !== "number" ||
-    typeof center.lng !== "number" ||
-    !Number.isFinite(center.lat) ||
-    !Number.isFinite(center.lng)
-  ) {
-    return true;
-  }
-  return (
-    Math.abs(center.lng - CONTINENTAL_US_FALLBACK_LNG) < 1.5 &&
-    Math.abs(center.lat - CONTINENTAL_US_FALLBACK_LAT) < 1.5
-  );
-}
+const EMBED_BOUNDS_PADDING = 120;
 
 /** Bounding box [[sw_lng, sw_lat], [ne_lng, ne_lat]] from choropleth polygons. */
 function getBoundsFromPolygonFeatures(
@@ -320,6 +307,8 @@ function buildAggregatedPointFeatures(
           count,
           allPoints: count > 1 ? data.points : undefined,
           ...firstPoint,
+          // Gold-ring indicator + gallery entry point for records carrying photos
+          hasMedia: data.points.some((p) => !!pickPointMediaUrl(p)),
         },
       });
       index += 1;
@@ -348,6 +337,12 @@ export default function ProgressiveMapView({
   const [availableShapeLayers, setAvailableShapeLayers] = useState<ShapeLayer[]>([]);
   const [lazyLoadedAggregations, setLazyLoadedAggregations] = useState<Record<string, Aggregation>>({});
   const [loadingLazyView, setLoadingLazyView] = useState(false);
+  /** Mobile: point details render in a bottom sheet (~2/3 of the map) instead of a popup. */
+  const [pointSheetHtml, setPointSheetHtml] = useState<string | null>(null);
+  // Media gallery (points carrying photo/media URLs, e.g. SF 311 media_url)
+  const [galleryItems, setGalleryItems] = useState<MediaItem[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [galleryViewMode, setGalleryViewMode] = useState<MediaViewMode>("split");
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const savedPlaceMarkerRef = useRef<any>(null);
@@ -774,8 +769,8 @@ export default function ProgressiveMapView({
             if (bounds && bounds.length === 2) {
               try {
                 map.fitBounds(bounds as [[number, number], [number, number]], {
-                  padding: 50,
-                  maxZoom: 14,
+                  padding: EMBED_BOUNDS_PADDING,
+                  maxZoom: 12,
                   duration: 0,
                 });
               } catch (fitErr) {
@@ -1286,16 +1281,18 @@ export default function ProgressiveMapView({
         },
       }, beforeLayerId);
 
-      // When preview/embed has no bounds or still uses the continental-US fallback center,
-      // frame the map on district polygons so Austin (etc.) does not appear as Kansas.
-      if (isContinentalUsFallbackView(mapData.bounds ?? undefined, mapData.center ?? undefined)) {
-        const shapeBounds = getBoundsFromPolygonFeatures(features);
-        if (shapeBounds) {
-          try {
-            mapInstance.fitBounds(shapeBounds, { padding: 50, maxZoom: 12, duration: 0 });
-          } catch (e) {
-            console.warn("[ProgressiveMapView] choropleth fitBounds failed:", e);
-          }
+      // Frame the choropleth on its polygons so city/district maps are not
+      // cropped tight to point-sample bounds (or stuck on the continental-US fallback).
+      const shapeBounds = getBoundsFromPolygonFeatures(features);
+      if (shapeBounds) {
+        try {
+          mapInstance.fitBounds(shapeBounds, {
+            padding: EMBED_BOUNDS_PADDING,
+            maxZoom: 11,
+            duration: 0,
+          });
+        } catch (e) {
+          console.warn("[ProgressiveMapView] choropleth fitBounds failed:", e);
         }
       }
 
@@ -1459,6 +1456,11 @@ export default function ProgressiveMapView({
           id: "points-layer",
           type: "circle",
           source: "points-source",
+          layout: {
+            // Bigger aggregates render first (below), smaller dots on top —
+            // overlapping points of different sizes all stay clickable.
+            "circle-sort-key": ["*", -1, ["get", "count"]],
+          },
           paint: {
             // Scale radius based on point count at location
             // Base radius 6, scales up with sqrt of count for better visual balance
@@ -1474,15 +1476,26 @@ export default function ProgressiveMapView({
               20, 22,    // 20+ points = radius 22
             ],
             "circle-color": circleColor,
-            "circle-stroke-color": "#fff",
-            // Scale stroke width slightly with size
+            // Gold ring marks points with photos (opens the media gallery on click)
+            "circle-stroke-color": [
+              "case",
+              ["boolean", ["get", "hasMedia"], false],
+              "#FFD700",
+              "#fff",
+            ],
+            // Scale stroke width slightly with size; thicker for media points
             "circle-stroke-width": [
-              "interpolate",
-              ["linear"],
-              ["get", "count"],
-              1, 1,
-              5, 1.5,
-              10, 2,
+              "case",
+              ["boolean", ["get", "hasMedia"], false],
+              2.5,
+              [
+                "interpolate",
+                ["linear"],
+                ["get", "count"],
+                1, 1,
+                5, 1.5,
+                10, 2,
+              ],
             ],
             "circle-opacity": 0.85,
           },
@@ -1495,12 +1508,30 @@ export default function ProgressiveMapView({
           const feature = e.features[0];
           const props = feature.properties || {};
           const count = props.count || 1;
-          
+
+          // Single point with a photo: open the media gallery (with all media on
+          // the map so users can navigate point to point) instead of a popup.
+          if (count <= 1 && pickPointMediaUrl(props)) {
+            const items = extractMediaFromPoints(pointData);
+            if (items.length > 0) {
+              const clickedUrl = pickPointMediaUrl(props);
+              const startIndex = Math.max(
+                0,
+                items.findIndex((item) => item.url === clickedUrl)
+              );
+              setGalleryItems(items);
+              setGalleryIndex(startIndex);
+              setGalleryViewMode("split");
+              return;
+            }
+          }
+
           // Build popup content
           let popupContent = `<div class="map-popup" style="max-height:300px;overflow-y:auto;">`;
           
           if (count > 1) {
-            popupContent += `<strong style="color:#ad35fa;">${count} incidents at this location</strong><hr style="margin:8px 0;border-color:#eee;"/>`;
+            const plural = (mapData.map_config?.item_noun as string) || "items";
+            popupContent += `<strong style="color:#ad35fa;">${count} ${plural} at this location</strong><hr style="margin:8px 0;border-color:#eee;"/>`;
             
             // Try to parse allPoints if it was stored as string
             let allPoints = props.allPoints;
@@ -1509,27 +1540,31 @@ export default function ProgressiveMapView({
             }
             
             if (allPoints && Array.isArray(allPoints)) {
-              allPoints.forEach((pt: any, i: number) => {
-                const desc = pt.incident_description || pt.description || `Incident ${i + 1}`;
-                const date = pt.incident_date ? new Date(pt.incident_date).toLocaleDateString() : '';
-                popupContent += `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #eee;">
-                  <strong>${desc}</strong>${date ? `<br/><small style="color:#666;">${date}</small>` : ''}
-                </div>`;
+              popupContent += buildAggregatedItemsHtml(allPoints, {
+                itemNoun: itemNounCap,
+                seriesField,
+                seriesColors,
               });
             }
           } else {
-            const desc = props.incident_description || props.description || itemNounCap;
-            const date = props.incident_date ? new Date(props.incident_date).toLocaleDateString() : '';
-            popupContent += `<strong>${desc}</strong>${date ? `<br/><small style="color:#666;">${date}</small>` : ''}`;
+            const desc = pickPointLabel(props, itemNounCap);
+            const date = pickPointDate(props);
+            popupContent += `<strong>${escapeHtml(desc)}</strong>${date ? `<br/><small style="color:#666;">${escapeHtml(date)}</small>` : ''}`;
           }
           
           popupContent += `</div>`;
           
-          // Show popup with point info
-          const clickPopup = new (window as any).mapboxgl.Popup({ maxWidth: '300px' })
-            .setLngLat(e.lngLat)
-            .setHTML(popupContent)
-            .addTo(mapInstance);
+          // Mobile: bottom sheet sliding up over the map; desktop: anchored popup.
+          const isMobileViewport =
+            typeof window !== "undefined" && window.innerWidth <= 768;
+          if (isMobileViewport) {
+            setPointSheetHtml(popupContent);
+          } else {
+            new (window as any).mapboxgl.Popup({ maxWidth: '300px' })
+              .setLngLat(e.lngLat)
+              .setHTML(popupContent)
+              .addTo(mapInstance);
+          }
         });
         
         // Add hover handler for points
@@ -1547,7 +1582,7 @@ export default function ProgressiveMapView({
           const feature = e.features[0];
           const props = feature.properties || {};
           const count = props.count || 1;
-          const displayText = props.incident_description || props.description || itemNounCap;
+          const displayText = escapeHtml(pickPointLabel(props, itemNounCap));
           
           // Show count badge if multiple points at same location
           const countBadge = count > 1 
@@ -1779,6 +1814,44 @@ export default function ProgressiveMapView({
             <Loader size="md" color="dark" />
             <span>Loading Mapbox...</span>
           </div>
+        )}
+        {pointSheetHtml && (
+          <div className="map-point-sheet" role="dialog" aria-label="Point details">
+            <div className="map-point-sheet-header">
+              <div className="map-point-sheet-title">
+                {(() => {
+                  const noun = (mapData.map_config?.item_noun as string) || "item";
+                  return noun.charAt(0).toUpperCase() + noun.slice(1) + " details";
+                })()}
+              </div>
+              <button
+                type="button"
+                className="map-point-sheet-close"
+                onClick={() => setPointSheetHtml(null)}
+                aria-label="Close details"
+              >
+                ✕
+              </button>
+            </div>
+            <div
+              className="map-point-sheet-body"
+              dangerouslySetInnerHTML={{ __html: pointSheetHtml }}
+            />
+          </div>
+        )}
+        {galleryItems.length > 0 && (
+          <MediaGallery
+            mediaItems={galleryItems}
+            currentIndex={galleryIndex}
+            onIndexChange={setGalleryIndex}
+            onClose={() => {
+              setGalleryItems([]);
+              setGalleryIndex(0);
+            }}
+            viewMode={galleryViewMode}
+            onViewModeChange={setGalleryViewMode}
+            mapInstanceRef={mapInstanceRef}
+          />
         )}
       </div>
     </div>

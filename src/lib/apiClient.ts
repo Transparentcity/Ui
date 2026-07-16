@@ -2524,6 +2524,25 @@ export function runCustomScheduledJob(jobId: number, token: string): Promise<any
   return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", {}, token);
 }
 
+export interface DistrictFeedStoriesDefaultPrompt {
+  status: string;
+  template: string;
+  version: number;
+  variables: { placeholder: string; description: string }[];
+}
+
+/** Built-in per-city prompt template for district_feed_stories jobs. */
+export function getDistrictFeedStoriesDefaultPrompt(
+  token: string
+): Promise<DistrictFeedStoriesDefaultPrompt> {
+  return request<DistrictFeedStoriesDefaultPrompt>(
+    "/api/jobs/schedules/district-feed-stories-default-prompt",
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function runCustomScheduledJobForCurrentUser(jobId: number, token: string): Promise<any> {
   return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", { use_current_user: true }, token);
 }
@@ -4200,6 +4219,12 @@ export interface FeedStory {
   /** When set, this card is tagged for a saved place (user_places.id) for place filters. */
   user_place_id?: number | null;
   research_report_id: number;
+  /** Seymour job chat session id for the run that produced the story. */
+  job_session_id?: string | null;
+  /** Model used by the Seymour session that produced the story. */
+  job_model_key?: string | null;
+  /** Scheduled job that produced the story, when applicable. */
+  scheduled_job_name?: string | null;
   newsletter_frequency?: string | null;
   newsletter_period_start?: string | null;
   headline: string;

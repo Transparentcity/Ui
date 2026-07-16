@@ -1,9 +1,9 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getDbUserProfile,
@@ -16,9 +16,10 @@ import type { BoundarySketch } from "@/lib/publicApiClient";
 import MiniScopeMap from "@/components/MiniScopeMap";
 import { emitOpenEditPlace } from "@/lib/uiEvents";
 import { getImpersonationCacheKey } from "@/lib/impersonation";
-import { useFeedStories } from "@/lib/hooks/useFeed";
+import { feedKeys, useFeedStories, type FeedStory } from "@/lib/hooks/useFeed";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
+import FeedStoryModal from "@/components/feed/FeedStoryModal";
 import type { MoverMetricInput } from "@/lib/metrics/rankMetricMovers";
 import MoversList from "@/components/MoversList";
 import InboxCard from "@/components/InboxCard";
@@ -130,9 +131,11 @@ function PlacePinIcon() {
 function StoryRowItem({
   story,
   isNew,
+  onOpen,
 }: {
   story: EnrichedFeedStory;
   isNew: boolean;
+  onOpen: (story: EnrichedFeedStory) => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const excerpt = storyExcerpt(story);
@@ -144,6 +147,13 @@ function StoryRowItem({
         href={resolveCanonicalUrl(story)}
         className={styles.storyRow}
         prefetch={false}
+        onClick={(e) => {
+          // Plain clicks open the story modal; modified clicks (cmd/ctrl/
+          // middle-click) keep normal link behavior for a new tab.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          onOpen(story);
+        }}
       >
         <span className={styles.storyTitleRow}>
           <span className={styles.storyHeadline}>
@@ -288,9 +298,22 @@ export default function BriefingHome({
   fullDashboardSlot,
 }: BriefingHomeProps) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const queryClient = useQueryClient();
   const [storiesExpanded, setStoriesExpanded] = useState(false);
   const [editionsExpanded, setEditionsExpanded] = useState(false);
   const [selectedEdition, setSelectedEdition] = useState<InboxItem | null>(null);
+  const [detailStoryId, setDetailStoryId] = useState<number | null>(null);
+
+  /** Prime the detail cache from list data so the modal renders immediately. */
+  const openStoryDetail = useCallback(
+    (s: EnrichedFeedStory) => {
+      queryClient.setQueryData(feedKeys.detail(s.id), {
+        story: s as FeedStory,
+      });
+      setDetailStoryId(s.id);
+    },
+    [queryClient],
+  );
 
   // ── Recency anchor ────────────────────────────────────────────────────
   const { data: profile } = useQuery({
@@ -633,6 +656,7 @@ export default function BriefingHome({
                 key={story.id}
                 story={story}
                 isNew={anchorTime != null && storyTimestamp(story) > anchorTime}
+                onOpen={openStoryDetail}
               />
             ))}
           </ul>
@@ -681,6 +705,15 @@ export default function BriefingHome({
           </button>
         )}
       </section>
+
+      <FeedStoryModal
+        storyId={detailStoryId}
+        open={detailStoryId != null}
+        onOpenChange={(next) => {
+          if (!next) setDetailStoryId(null);
+        }}
+        onSelectRelatedStory={(id) => setDetailStoryId(id)}
+      />
     </div>
   );
 }

@@ -10,8 +10,10 @@ import {
   runCustomScheduledJob,
   runCustomScheduledJobForCurrentUser,
   getAvailableModels,
+  getDistrictFeedStoriesDefaultPrompt,
   listCities,
   type CityListItem,
+  type DistrictFeedStoriesDefaultPrompt,
   type ModelGroupInfo,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
@@ -164,9 +166,20 @@ export default function ScheduledJobsPanel({
   const [feedProducerCityHighlight, setFeedProducerCityHighlight] = useState(0);
   const [feedProducerCityFocused, setFeedProducerCityFocused] = useState(false);
 
+  /** Server-side built-in template for district_feed_stories (prefilled in the editor). */
+  const [districtDefaultPrompt, setDistrictDefaultPrompt] =
+    useState<DistrictFeedStoriesDefaultPrompt | null>(null);
+
   useEffect(() => {
     getAvailableModels().then(setAvailableModels).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    getDistrictFeedStoriesDefaultPrompt(token)
+      .then(setDistrictDefaultPrompt)
+      .catch(() => setDistrictDefaultPrompt(null));
+  }, [token]);
 
   useEffect(() => {
     if (!editForm) return;
@@ -242,6 +255,11 @@ export default function ScheduledJobsPanel({
           storyTypesFromJobConfig(cfgRec),
         ) ?? "";
       setFeedProducerUsesLiveTemplate(true);
+    } else if (job.job_type === "district_feed_stories" && !explicitStored) {
+      // Prefill the server's built-in template so admins edit the default
+      // rather than starting from a blank override.
+      initialPromptText = districtDefaultPrompt?.template ?? "";
+      setFeedProducerUsesLiveTemplate(false);
     } else {
       initialPromptText =
         typeof cfg.prompt === "string"
@@ -407,6 +425,18 @@ export default function ScheduledJobsPanel({
           delete newCfg.question;
         } else {
           delete newCfg.prompt;
+          delete newCfg.question;
+        }
+      } else if (editForm.job_type === "district_feed_stories") {
+        // Only persist a custom prompt when it diverges from the built-in
+        // template; matching the default (or clearing the field) drops the
+        // override so the job follows future default-template updates.
+        const defaultTemplate = (districtDefaultPrompt?.template ?? "").trim();
+        if (!trimmedDraft || trimmedDraft === defaultTemplate) {
+          delete newCfg.prompt;
+          delete newCfg.question;
+        } else if (promptFieldChanged) {
+          newCfg.prompt = trimmedDraft;
           delete newCfg.question;
         }
       } else if (editForm.job_type === "personalized_feed_producer") {
@@ -893,6 +923,7 @@ export default function ScheduledJobsPanel({
                   "feed_producer",
                   "personalized_feed_producer",
                   "feed_stories",
+                  "district_feed_stories",
                   "context_stories",
                   "batch_metric_execution",
                   "daily_metrics",
@@ -1135,7 +1166,7 @@ export default function ScheduledJobsPanel({
               </div>
             )}
 
-            {(editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories" || editForm.job_type === "personalized_feed_producer") && (
+            {(editForm.job_type === "feed_producer" || editForm.job_type === "feed_stories" || editForm.job_type === "personalized_feed_producer" || editForm.job_type === "district_feed_stories") && (
               <div className={styles.formRow}>
                 <label className={styles.label}>
                   Model{" "}
@@ -1224,6 +1255,65 @@ export default function ScheduledJobsPanel({
                 >
                   Reset prompt from city IDs &amp; story types
                 </button>
+              </div>
+            )}
+
+            {editForm.job_type === "district_feed_stories" && (
+              <div className={styles.formRow}>
+                <label className={styles.label}>
+                  Per-city prompt template{" "}
+                  <span style={{ fontWeight: 400 }}>
+                    {typeof editJob.job_config?.prompt === "string" &&
+                    editJob.job_config.prompt.trim() !== ""
+                      ? `(custom v${editJob.job_config?.prompt_version ?? "?"})`
+                      : `(built-in default${districtDefaultPrompt ? ` v${districtDefaultPrompt.version}` : ""})`}
+                  </span>
+                </label>
+                <p className={styles.promptVariablesNote}>
+                  Pre-filled with the built-in template — edit it to save a custom
+                  version. Each save that changes the text bumps the prompt version
+                  (kept in <code>prompt_history</code>) and runs record which version
+                  produced them, so versions can be compared. Restoring the text to
+                  match the default (or clearing it) drops the override so the job
+                  follows future built-in template updates.
+                </p>
+                <p className={styles.promptVariablesNote}>
+                  At run time the server finds every district with active weekly
+                  newsletter subscribers and runs the feed producer once per city.
+                  Placeholders:{" "}
+                  <code>{`{city_name}`}</code> / <code>{`{city_id}`}</code> — city being processed;{" "}
+                  <code>{`{districts}`}</code> — district numbers with weekly subscribers;{" "}
+                  <code>{`{last_run}`}</code> / <code>{`{now}`}</code> — run timestamps;{" "}
+                  <code>{`{recent_feed_stories_context}`}</code> — recent weekly stories
+                  scoped to this run&apos;s districts (headline + district) to avoid repeats.
+                </p>
+                <textarea
+                  className={styles.promptInput}
+                  value={editForm.question}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, question: e.target.value })
+                  }
+                  rows={16}
+                  spellCheck={false}
+                  placeholder="Loading built-in template…"
+                  aria-label="District feed stories prompt template"
+                />
+                {districtDefaultPrompt && (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    style={{ marginTop: "0.5rem" }}
+                    onClick={() => {
+                      if (!editForm) return;
+                      setEditForm({
+                        ...editForm,
+                        question: districtDefaultPrompt.template,
+                      });
+                    }}
+                  >
+                    Reset to built-in default
+                  </button>
+                )}
               </div>
             )}
 

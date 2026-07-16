@@ -14,6 +14,7 @@ import {
 import { slugify } from "@/lib/utils";
 import { useMetricKey } from "./MetricKeyContext";
 import MetricLink from "./MetricLink";
+import AdminStoryProvenance from "./AdminStoryProvenance";
 import styles from "./feed.module.css";
 
 /**
@@ -193,6 +194,12 @@ export function FeedStoryDetailView({
           </>
         )}
       </p>
+
+      <AdminStoryProvenance
+        metadata={story.metadata ?? null}
+        modelKey={story.job_model_key}
+        sessionId={story.job_session_id}
+      />
 
       {hasFullArticleHtml ? (
         <>

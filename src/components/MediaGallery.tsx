@@ -215,21 +215,22 @@ export default function MediaGallery({
     handler();
   }, []);
 
-  if (sortedMediaItems.length === 0 || !currentMedia) {
-    return null;
-  }
-
   const isDark = theme === "dark";
   const showSplitView = viewMode === "split";
   const showGalleryView = viewMode === "gallery";
   const showFullscreen = viewMode === "fullscreen";
-  
-  // Reset cameFromGallery when switching away from fullscreen
+
+  // Reset cameFromGallery when switching away from fullscreen.
+  // Must run before any early return so hook order stays stable.
   useEffect(() => {
     if (!showFullscreen) {
       setCameFromGallery(false);
     }
   }, [showFullscreen]);
+
+  if (sortedMediaItems.length === 0 || !currentMedia) {
+    return null;
+  }
 
   return (
     <div
