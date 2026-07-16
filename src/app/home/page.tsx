@@ -350,7 +350,10 @@ export default function DashboardPage() {
     }
 
     previousIdentityScopeKey.current = identityScopeKey;
-    hasCheckedOnboarding.current = isImpersonating;
+    // Re-run the preferences fetch and returning-user auto-landing for the
+    // new identity so a proxy session lands where the user would land.
+    hasCheckedOnboarding.current = false;
+    hasAutoSelectedCity.current = false;
     hasAutoLandedOnHomePlace.current = false;
     setAllUserPlacesLoaded(false);
     setCurrentView("feed");
@@ -937,19 +940,25 @@ export default function DashboardPage() {
         !isAuthenticated ||
         isLoading ||
         isCheckingAdmin ||
-        isImpersonating ||
         hasCheckedOnboarding.current
       ) {
         return;
       }
+
+      // Capture the identity we are fetching for so a proxy start/stop while
+      // the request is in flight can't apply a stale user's preferences.
+      const scopeKeyAtFetch = identityScopeKeyRef.current;
 
       try {
         hasCheckedOnboarding.current = true;
 
         const token = await getAccessTokenSilently();
         const prefs = await getUserPreferences(token);
+        if (identityScopeKeyRef.current !== scopeKeyAtFetch) return;
         setUserPreferences(prefs);
-        if (!prefs.has_completed_onboarding) {
+        // While proxying, only load preferences (so the landing page matches
+        // the user's); never run the onboarding/welcome flow on their behalf.
+        if (!prefs.has_completed_onboarding && !isImpersonating) {
           const giftCtx = readGiftOnboardingContext();
           if (giftCtx?.token) {
             try {
@@ -1248,13 +1257,13 @@ export default function DashboardPage() {
   // One landing rule: returning users land on the briefing home at their
   // default scope — saved home place first, else home city (district when
   // known). Admins without a home place keep the feed default (their
-  // content-review surface).
+  // content-review surface). This also runs while proxying so the admin
+  // lands exactly where the proxied user would.
   useEffect(() => {
     if (
       !isAuthenticated ||
       isLoading ||
       isCheckingAdmin ||
-      isImpersonating ||
       showWelcomeModal ||
       pendingNavIntent ||
       hasAutoSelectedCity.current ||

@@ -724,4 +724,31 @@
   }
 }
 
+.district-navigation-council-info {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(229, 231, 235, 0.9);
+}
+
+.district-navigation-council-note {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #6b7280);
+}
+
+.district-navigation-council-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px 12px;
+  font-size: 0.8125rem;
+  color: var(--text-primary, #111827);
+}
+
+.district-navigation-council-list li {
+  padding: 4px 0;
+}
 

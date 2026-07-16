@@ -21,11 +21,14 @@ import {
 } from "@/lib/deltaMapColors";
 import { buildAggregatedItemsHtml, pickPointMediaUrl } from "@/lib/maps/pointPopup";
 import { extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
+import { prepareGalleryOpen } from "@/lib/mediaPreload";
 import MediaGallery, { type MediaViewMode } from "@/components/MediaGallery";
 import YearCompareMapPanels, {
   mapSupportsYearComparePanels,
 } from "@/components/YearCompareMapPanels";
 import {
+  CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
+  CHOROPLETH_FIT_PADDING,
   getCaseInsensitiveProp,
   getChoroplethBrandRamp,
   getInitialMapView,
@@ -334,8 +337,8 @@ function fitMapToGeoJsonFeatures(
 
     if (!bounds.isEmpty()) {
       mapInstance.fitBounds(bounds, {
-        padding: 50,
-        maxZoom: 12,
+        padding: CHOROPLETH_FIT_PADDING,
+        maxZoom: CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
         duration: 0,
       });
     }
@@ -1534,13 +1537,11 @@ export default function PublicMapPage() {
 
       // Single point with a photo: open the media gallery instead of a popup.
       if (aggCount <= 1 && pickPointMediaUrl(props)) {
-        const items = extractMediaFromPoints(validFilteredPoints);
+        const { items, startIndex } = prepareGalleryOpen(
+          extractMediaFromPoints(validFilteredPoints),
+          pickPointMediaUrl(props)
+        );
         if (items.length > 0) {
-          const clickedUrl = pickPointMediaUrl(props);
-          const startIndex = Math.max(
-            0,
-            items.findIndex((item) => item.url === clickedUrl)
-          );
           setGalleryItems(items);
           setGalleryIndex(startIndex);
           setGalleryViewMode("split");
@@ -3093,13 +3094,11 @@ export default function PublicMapPage() {
           // Single point with a photo: open the media gallery (with all media on
           // the map so users can navigate point to point) instead of a popup.
           if (aggCount <= 1 && pickPointMediaUrl(props)) {
-            const items = extractMediaFromPoints(validPoints);
+            const { items, startIndex } = prepareGalleryOpen(
+              extractMediaFromPoints(validPoints),
+              pickPointMediaUrl(props)
+            );
             if (items.length > 0) {
-              const clickedUrl = pickPointMediaUrl(props);
-              const startIndex = Math.max(
-                0,
-                items.findIndex((item) => item.url === clickedUrl)
-              );
               setGalleryItems(items);
               setGalleryIndex(startIndex);
               setGalleryViewMode("split");

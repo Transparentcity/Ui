@@ -33,6 +33,11 @@ import MetricDetailModal from "@/components/MetricDetailModal";
 import UserMetricOrderDialog from "@/components/UserMetricOrderDialog";
 import BriefingHome from "@/components/BriefingHome";
 import { resolveGeographicUnitLabel } from "@/lib/geographicUnitLabel";
+import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import {
+  isAtLargeCouncilCity,
+  resolveNeighborhoodName,
+} from "@/lib/atLargeCouncilNav";
 import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import {
   resolveDistrictFromShapefiles,
@@ -2151,10 +2156,12 @@ export default function CityView({
   // Simplified boundary sketch for the hero mini-map (public, 24h cache).
   const { data: boundarySketch = null } = useBoundarySketch(cityId, { enabled: !!cityId });
 
-  const geographicUnitLabel = useMemo(
-    () => resolveGeographicUnitLabel(mapLeaders, cityData?.geographic_structures),
-    [mapLeaders, cityData?.geographic_structures],
-  );
+  const geographicUnitLabel = useMemo(() => {
+    const leadersForLabel =
+      mapLeaders.length > 0 ? mapLeaders : (leanLeaders as CityLeader[]);
+    if (isAtLargeCouncilCity(leadersForLabel)) return "Neighborhood";
+    return resolveGeographicUnitLabel(mapLeaders, cityData?.geographic_structures);
+  }, [mapLeaders, leanLeaders, cityData?.geographic_structures]);
 
   // ── Briefing data: one batch comparisons call for the current scope ──
   const briefingMetrics = useMemo(
@@ -2223,14 +2230,10 @@ export default function CityView({
     if (hasAtLargeCouncil && !hasNumberedReps) return [];
 
     const structures = cityData?.geographic_structures;
-    const ranges =
-      structures
-        ?.filter((s) => s.min_value != null && s.max_value != null)
-        .map((s) => ({ min: s.min_value as number, max: s.max_value as number })) ?? [];
-    const bounded =
-      ranges.length > 0
-        ? publicCityDistricts.filter((d) => ranges.some((r) => d >= r.min && d <= r.max))
-        : publicCityDistricts;
+    const bounded = filterDistrictsByGeographicStructure(
+      publicCityDistricts,
+      structures,
+    );
 
     return bounded
       .slice()
@@ -2296,6 +2299,16 @@ export default function CityView({
       return da - db;
     });
   }, [mapLeaders, leanLeaders, syntheticLeadersFromDistricts]);
+
+  const neighborhoodNavMode = useMemo(
+    () => isAtLargeCouncilCity(effectiveLeaders),
+    [effectiveLeaders],
+  );
+
+  const selectedNeighborhoodName = useMemo(() => {
+    if (!neighborhoodNavMode || (selectedDistrict ?? 0) <= 0) return null;
+    return resolveNeighborhoodName(selectedDistrict!, mapShapefiles);
+  }, [neighborhoodNavMode, selectedDistrict, mapShapefiles]);
 
   // Compute mayor subtitle for the hero header (e.g. "Mayor: Daniel Lurie")
   const heroSubtitle = useMemo(() => {
@@ -2387,8 +2400,8 @@ export default function CityView({
   /** District follow sits beside the official selector; keep a single Follow control (not duplicated in the hero). */
   const followInlineWithDistrictSelector = useMemo(() => {
     const d = selectedDistrict ?? 0;
-    return d > 0 && selectedPlaceId == null;
-  }, [selectedDistrict, selectedPlaceId]);
+    return d > 0 && selectedPlaceId == null && !neighborhoodNavMode;
+  }, [selectedDistrict, selectedPlaceId, neighborhoodNavMode]);
 
   // Month-to-date on the map when opening a newly saved place (Search Cities / bootstrap job).
   useEffect(() => {
@@ -2663,6 +2676,7 @@ export default function CityView({
       hideTriggerBar={hideBar}
       placeRefreshLastRunAt={lastPlaceRefreshAt}
       geographicStructures={cityData.geographic_structures}
+      cityName={cityData.name}
     />
   );
 
@@ -2907,7 +2921,8 @@ export default function CityView({
               selectedPlaceId != null
                 ? selectedPlace?.label ?? initialPlaceLabel ?? "My place"
                 : (selectedDistrict ?? 0) > 0
-                  ? `${geographicUnitLabel} ${selectedDistrict}`
+                  ? selectedNeighborhoodName ??
+                    `${geographicUnitLabel} ${selectedDistrict}`
                   : cityData.name
             }
             scopeContext={
@@ -2932,9 +2947,14 @@ export default function CityView({
             leaders={briefingEffectiveLeaders}
             isFollowing={isFollowed}
             followPending={followPending}
-            onFollowToggle={handleHeaderFollowToggle}
+            onFollowToggle={
+              neighborhoodNavMode && (selectedDistrict ?? 0) > 0
+                ? undefined
+                : handleHeaderFollowToggle
+            }
             cityEmoji={cityData.emoji ?? null}
             geographicUnitLabel={geographicUnitLabel}
+            neighborhoodNavMode={neighborhoodNavMode}
             onOpenScopeSelector={() => setOpenDistrictTrigger((t) => t + 1)}
             placeLoadingLabel={selectedPlaceId == null ? pendingPlaceLabel : null}
             onMetricClick={(metricId: number) => {
@@ -2942,6 +2962,7 @@ export default function CityView({
               setSelectedMetricPlaceId(selectedPlaceId);
               setSelectedMetricDistrict(selectedPlaceId != null ? null : selectedDistrict);
             }}
+            userPlaces={userPlaces}
             browseAllExpanded={browseAllExpanded}
             onBrowseAllChange={setBrowseAllExpanded}
             onDistrictSelect={(d) => {

@@ -608,14 +608,10 @@ export default function MetricDetailModal({
                       start: comparison?.current_period_start || null,
                       end: comparison?.current_period_end || null,
                     }}
-                    comparisonDateRange={
-                      isPlaceScope
-                        ? undefined
-                        : {
-                            start: comparison?.comparison_period_start || null,
-                            end: comparison?.comparison_period_end || null,
-                          }
-                    }
+                    comparisonDateRange={{
+                      start: comparison?.comparison_period_start || null,
+                      end: comparison?.comparison_period_end || null,
+                    }}
                   />
                   <MetricSourceAttribution
                     sourceInfo={datasetAttribution}

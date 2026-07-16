@@ -504,6 +504,90 @@
   border-color: var(--border-secondary);
 }
 
+/* Scope filter chips above the story list (citywide overview only). */
+.storyFilterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-sm);
+}
+
+.storyFilterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.storyFilterChip:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
+}
+
+.storyFilterChipActive,
+.storyFilterChipActive:hover {
+  background: var(--brand-primary-light);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.storyFilterCount {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* Actor attribution: circular city/district/place avatar + scope name. */
+.storyActor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.storyActorAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  border: 1px solid var(--border-primary);
+}
+
+.storyActorEmoji {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.storyActorDistrict {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.storyActorName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Full-width story image, feed-card style.
    Cover fills the width; top-left anchor keeps map legends from being cropped. */
 .storyImage {

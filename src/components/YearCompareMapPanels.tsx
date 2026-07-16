@@ -7,6 +7,7 @@ import {
   resolveYearComparePanels,
   type YearComparePanel,
 } from "@/lib/maps/yearComparePanels";
+import type { DualPeriodPanelSpec } from "@/lib/maps/dualPeriodPanels";
 import type { ChoroplethBasemapTheme } from "@/lib/mapUtils";
 import "./YearCompareMapPanels.css";
 
@@ -146,6 +147,70 @@ export default function YearCompareMapPanels({
           </div>
         )
       )}
+    </div>
+  );
+}
+
+type DualPeriodMapPanelsProps = {
+  panels: DualPeriodPanelSpec[];
+  height?: number;
+  mapBasemapTheme?: ChoroplethBasemapTheme;
+  onError?: (error: string) => void;
+  compact?: boolean;
+};
+
+/** Side-by-side maps for two explicit periods (e.g. choropleth shape layers). */
+export function DualPeriodMapPanels({
+  panels,
+  height = 420,
+  mapBasemapTheme = "light",
+  onError,
+  compact = false,
+}: DualPeriodMapPanelsProps) {
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
+
+  if (panels.length < 2) return null;
+
+  const panelHeight = Math.max(220, Math.round(height * (compact ? 0.95 : 1)));
+
+  return (
+    <div
+      className={`year-compare-map-panels${compact ? " year-compare-map-panels--compact" : ""}`}
+    >
+      <div className="year-compare-map-grid">
+        {panels.map((panel) => (
+          <section key={panel.label} className="year-compare-map-panel">
+            <header className="year-compare-map-panel-header">
+              <h3 className="year-compare-map-panel-title">{panel.label}</h3>
+              {panel.count != null && (
+                <span className="year-compare-map-panel-count">
+                  {panel.count.toLocaleString()}
+                </span>
+              )}
+            </header>
+            <ProgressiveMapView
+              key={`dual-period-${panel.lockedViewKey}-${panel.label}`}
+              mapData={panel.mapData}
+              mapHash=""
+              height={panelHeight}
+              onError={onError}
+              mapBasemapTheme={mapBasemapTheme}
+              lockedViewKey={panel.lockedViewKey}
+            />
+          </section>
+        ))}
+      </div>
+
+      {legendCollapsed ? (
+        <button
+          type="button"
+          className="year-compare-legend-collapsed"
+          aria-expanded={false}
+          onClick={() => setLegendCollapsed(false)}
+        >
+          Legend <span aria-hidden="true">▸</span>
+        </button>
+      ) : null}
     </div>
   );
 }

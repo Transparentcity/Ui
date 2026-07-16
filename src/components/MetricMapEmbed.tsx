@@ -7,10 +7,12 @@ import { formatDateRangeFromStrings } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import { getMetricMapData, type MapData, type SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
-import YearCompareMapPanels from "./YearCompareMapPanels";
+import YearCompareMapPanels, { DualPeriodMapPanels } from "./YearCompareMapPanels";
+import { buildChoroplethDualPanels } from "@/lib/maps/dualPeriodPanels";
 import Loader from "./Loader";
 import {
   computeMetricMapEmbedViewSpecs,
+  filterMetricMapEmbedViewSpecsForDistrictScope,
   formatMetricMapViewSpecKey,
   type MetricMapViewSpec,
 } from "@/lib/metricMapEmbedViews";
@@ -216,33 +218,68 @@ function mapDataToSavedMap(
 
 interface SecondaryMapProps {
   mapData: SavedMap;
+  comparisonMapData: SavedMap | null;
   spec: MetricMapViewSpec;
   height: number;
   basemapTheme: "dark" | "light";
   metricId: number;
+  yearCompareMap: SavedMap | null;
+  periodLabels: { prior: string; current: string };
+  onError?: (error: string) => void;
 }
 
 function SecondaryMapSection({
   mapData,
+  comparisonMapData,
   spec,
   height,
   basemapTheme,
   metricId,
+  yearCompareMap,
+  periodLabels,
+  onError,
 }: SecondaryMapProps) {
   const subtitle = buildLayerSubtitle(spec.label, spec.kind, true);
+
+  const choroplethDualPanels =
+    spec.kind === "choropleth"
+      ? buildChoroplethDualPanels(mapData, comparisonMapData, spec, periodLabels)
+      : null;
 
   return (
     <div className="metric-map-secondary-section">
       {subtitle && <div className="metric-map-secondary-label">{subtitle}</div>}
-      <ProgressiveMapView
-        key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
-        mapData={mapData}
-        mapHash=""
-        height={height}
-        onError={() => {/* silently ignore secondary map errors */}}
-        mapBasemapTheme={basemapTheme}
-        lockedViewKey={formatMetricMapViewSpecKey(spec)}
-      />
+      {spec.kind === "points" && yearCompareMap ? (
+        <YearCompareMapPanels
+          key={`metric-map-secondary-year-panels-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
+          map={yearCompareMap}
+          height={height}
+          mapBasemapTheme={basemapTheme}
+          onError={onError}
+          compact
+        />
+      ) : choroplethDualPanels ? (
+        <DualPeriodMapPanels
+          key={`metric-map-secondary-dual-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
+          panels={choroplethDualPanels}
+          height={height}
+          mapBasemapTheme={basemapTheme}
+          onError={onError}
+          compact
+        />
+      ) : (
+        <ProgressiveMapView
+          key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
+          mapData={mapData}
+          mapHash=""
+          height={height}
+          onError={() => {
+            /* silently ignore secondary map errors */
+          }}
+          mapBasemapTheme={basemapTheme}
+          lockedViewKey={formatMetricMapViewSpecKey(spec)}
+        />
+      )}
     </div>
   );
 }
@@ -278,6 +315,7 @@ export default function MetricMapEmbed({
   );
 
   const [mapData, setMapData] = useState<SavedMap | null>(null);
+  const [comparisonMapData, setComparisonMapData] = useState<SavedMap | null>(null);
   const [comparisonLocationData, setComparisonLocationData] = useState<Array<Record<string, any>> | null>(null);
   const [limitHit, setLimitHit] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -310,6 +348,7 @@ export default function MetricMapEmbed({
   // Reset map state when navigating to a different metric/scope.
   useEffect(() => {
     setMapData(null);
+    setComparisonMapData(null);
     setComparisonLocationData(null);
     setLimitHit(false);
     setMapNotAvailable(false);
@@ -340,28 +379,57 @@ export default function MetricMapEmbed({
       try {
         setLoading(true);
 
+        const hasComparisonDates = !!(
+          comparisonDateRange?.start && comparisonDateRange?.end
+        );
+
         if (isPlaceScope && placeCircle) {
           const token = await getAccessTokenSilently();
-          const response = await getMetricMapData(
+          const placePayload = {
+            metric_id: metricId,
+            center_lat: placeCircle.lat,
+            center_lon: placeCircle.lng,
+            radius_m: placeCircle.radius_m,
+          };
+
+          const currentPromise = getMetricMapData(
             {
-              metric_id: metricId,
+              ...placePayload,
               start_date: dateRange!.start!,
               end_date: dateRange!.end!,
-              center_lat: placeCircle.lat,
-              center_lon: placeCircle.lng,
-              radius_m: placeCircle.radius_m,
             },
             token
           );
+          const comparisonPromise = hasComparisonDates
+            ? getMetricMapData(
+                {
+                  ...placePayload,
+                  start_date: comparisonDateRange!.start!,
+                  end_date: comparisonDateRange!.end!,
+                },
+                token
+              )
+            : Promise.resolve(null);
+
+          const [currentResponse, comparisonResponse] = await Promise.all([
+            currentPromise,
+            comparisonPromise,
+          ]);
+
           if (!mounted) return;
-          if (response.status === "success" && response.map_data) {
+
+          if (currentResponse.status === "success" && currentResponse.map_data) {
             setMapData(
-              mapDataToSavedMap(response.map_data, metricId, placeCircle, placeLabel)
+              mapDataToSavedMap(
+                currentResponse.map_data,
+                metricId,
+                placeCircle,
+                placeLabel
+              )
             );
-            setComparisonLocationData(null);
             setLimitHit(false);
           } else {
-            const errMsg = response.error || "Failed to load place map";
+            const errMsg = currentResponse.error || "Failed to load place map";
             if (errMsg.includes("map_query")) {
               setMapNotAvailable(true);
               setError(null);
@@ -369,11 +437,31 @@ export default function MetricMapEmbed({
             } else {
               setError(errMsg);
             }
+            setComparisonMapData(null);
+            setComparisonLocationData(null);
+            return;
           }
+
+          if (
+            comparisonResponse?.status === "success" &&
+            comparisonResponse.map_data
+          ) {
+            const compPoints = Array.isArray(
+              comparisonResponse.map_data.location_data
+            )
+              ? comparisonResponse.map_data.location_data
+              : [];
+            setComparisonLocationData(
+              compPoints.length > 0 ? compPoints : null
+            );
+          } else {
+            setComparisonLocationData(null);
+          }
+          setComparisonMapData(null);
           return;
         }
 
-        const response = await getMetricMapPreview(metricId, {
+        const previewPromise = getMetricMapPreview(metricId, {
           start_date: dateRange!.start!,
           end_date: dateRange!.end!,
           district: district || undefined,
@@ -381,14 +469,43 @@ export default function MetricMapEmbed({
           comparison_start_date: comparisonDateRange?.start || undefined,
           comparison_end_date: comparisonDateRange?.end || undefined,
         });
+        const comparisonPreviewPromise = hasComparisonDates
+          ? getMetricMapPreview(metricId, {
+              start_date: comparisonDateRange!.start!,
+              end_date: comparisonDateRange!.end!,
+              district: district || undefined,
+              period_type: selectedPeriod,
+            })
+          : Promise.resolve(null);
+
+        const [response, comparisonResponse] = await Promise.all([
+          previewPromise,
+          comparisonPreviewPromise,
+        ]);
 
         if (mounted) {
           setMapData(previewToSavedMap(response));
           setLimitHit(response.limit_hit ?? false);
 
-          if (response.comparison_location_data && response.comparison_location_data.length > 0) {
+          if (comparisonResponse) {
+            setComparisonMapData(previewToSavedMap(comparisonResponse));
+            const comparisonPoints =
+              comparisonResponse.location_data?.length > 0
+                ? comparisonResponse.location_data
+                : response.comparison_location_data;
+            setComparisonLocationData(
+              comparisonPoints && comparisonPoints.length > 0
+                ? comparisonPoints
+                : null
+            );
+          } else if (
+            response.comparison_location_data &&
+            response.comparison_location_data.length > 0
+          ) {
+            setComparisonMapData(null);
             setComparisonLocationData(response.comparison_location_data);
           } else {
+            setComparisonMapData(null);
             setComparisonLocationData(null);
           }
         }
@@ -524,6 +641,14 @@ export default function MetricMapEmbed({
   const comparisonYear = getYearFromDate(comparisonDateRange?.start);
   const hasComparison = comparisonLocationData && comparisonLocationData.length > 0;
 
+  const periodLabels = useMemo(
+    () => ({
+      prior: comparisonYear ? String(comparisonYear) : "Prior period",
+      current: currentYear ? String(currentYear) : "Current period",
+    }),
+    [comparisonYear, currentYear]
+  );
+
   /** Merge current + prior points into a year_compare map for side-by-side panels. */
   const yearCompareMap = useMemo((): SavedMap | null => {
     if (!mapData || !hasComparison || !comparisonLocationData) return null;
@@ -577,6 +702,8 @@ export default function MetricMapEmbed({
   // point sample, suppress point maps entirely. If a choropleth exists, promote
   // it to primary; otherwise the section produces nothing useful.
   // Place scope always uses pins (same as CityMapView / CityMetricsMap).
+  const isDistrictScope = district != null && district > 0;
+
   const effectiveSpecs = useMemo(() => {
     if (isPlaceScope && mapData) {
       return {
@@ -585,34 +712,57 @@ export default function MetricMapEmbed({
       };
     }
     if (!embedViewSpecs) return null;
-    if (!limitHit) return embedViewSpecs;
 
-    const primaryIsPoints = embedViewSpecs.primary.kind === "points";
+    let specs: { primary: MetricMapViewSpec; secondary: MetricMapViewSpec[] } | null =
+      embedViewSpecs;
 
-    if (!primaryIsPoints) {
-      // Primary is already a choropleth/delta — just strip any secondary point maps.
-      return {
-        primary: embedViewSpecs.primary,
-        secondary: embedViewSpecs.secondary.filter((s) => s.kind !== "points"),
-      };
+    if (!limitHit) {
+      specs = embedViewSpecs;
+    } else {
+      const primaryIsPoints = embedViewSpecs.primary.kind === "points";
+
+      if (!primaryIsPoints) {
+        // Primary is already a choropleth/delta — just strip any secondary point maps.
+        specs = {
+          primary: embedViewSpecs.primary,
+          secondary: embedViewSpecs.secondary.filter((s) => s.kind !== "points"),
+        };
+      } else {
+        // Primary is a point map that's maxing out.  Try to promote a choropleth.
+        const firstChoropleth = embedViewSpecs.secondary.find(
+          (s) => s.kind === "choropleth"
+        );
+        if (firstChoropleth) {
+          specs = {
+            primary: firstChoropleth,
+            secondary: embedViewSpecs.secondary.filter(
+              (s) => s !== firstChoropleth && s.kind !== "points"
+            ),
+          };
+        } else {
+          // Nothing useful to render.
+          specs = null;
+        }
+      }
     }
 
-    // Primary is a point map that's maxing out.  Try to promote a choropleth.
-    const firstChoropleth = embedViewSpecs.secondary.find(
-      (s) => s.kind === "choropleth"
+    if (isDistrictScope && mapData && specs) {
+      specs = filterMetricMapEmbedViewSpecsForDistrictScope(mapData, specs);
+    }
+
+    return specs;
+  }, [isPlaceScope, mapData, embedViewSpecs, limitHit, isDistrictScope]);
+
+  const primaryChoroplethDualPanels = useMemo(() => {
+    if (!mapData || !comparisonMapData || !effectiveSpecs) return null;
+    if (effectiveSpecs.primary.kind !== "choropleth") return null;
+    return buildChoroplethDualPanels(
+      mapData,
+      comparisonMapData,
+      effectiveSpecs.primary,
+      periodLabels
     );
-    if (firstChoropleth) {
-      return {
-        primary: firstChoropleth,
-        secondary: embedViewSpecs.secondary.filter(
-          (s) => s !== firstChoropleth && s.kind !== "points"
-        ),
-      };
-    }
-
-    // Nothing useful to render.
-    return null;
-  }, [isPlaceScope, mapData, embedViewSpecs, limitHit]);
+  }, [mapData, comparisonMapData, effectiveSpecs, periodLabels]);
 
   // Don't produce a caption when the map itself is being suppressed.
   const caption =
@@ -621,17 +771,20 @@ export default function MetricMapEmbed({
   // Notify parent once we know the map section has nothing to show.
   const onMapUnavailableFired = useRef(false);
   useEffect(() => {
+    onMapUnavailableFired.current = false;
+  }, [metricId, district]);
+  useEffect(() => {
     if (
       !loading &&
       mapData &&
-      limitHit &&
       effectiveSpecs === null &&
-      !onMapUnavailableFired.current
+      !onMapUnavailableFired.current &&
+      (limitHit || isDistrictScope)
     ) {
       onMapUnavailableFired.current = true;
       onMapUnavailable?.();
     }
-  }, [loading, mapData, limitHit, effectiveSpecs, onMapUnavailable]);
+  }, [loading, mapData, limitHit, isDistrictScope, effectiveSpecs, onMapUnavailable]);
 
   // Secondary map height: 75 % of primary (but not smaller than 200 px)
   const secondaryHeight = Math.max(200, Math.round(height * 0.75));
@@ -678,9 +831,9 @@ export default function MetricMapEmbed({
     );
   }
 
-  // Data loaded but the only view would be a truncated point sample — nothing useful to render.
-  // The onMapUnavailable callback already notified the parent to collapse its section.
-  if (!loading && mapData && limitHit && effectiveSpecs === null) {
+  // Data loaded but nothing useful to render (truncated point sample or district scope
+  // with only a city-district choropleth). Parent collapses the section via callback.
+  if (!loading && mapData && effectiveSpecs === null && (limitHit || isDistrictScope)) {
     return null;
   }
 
@@ -721,6 +874,24 @@ export default function MetricMapEmbed({
             onError={setError}
             compact
           />
+        ) : primaryChoroplethDualPanels ? (
+          <>
+            <div className="metric-map-primary-shape-label">
+              {buildLayerSubtitle(
+                effectiveSpecs.primary.label,
+                effectiveSpecs.primary.kind,
+                false
+              )}
+            </div>
+            <DualPeriodMapPanels
+              key={`metric-map-choro-dual-${metricId}-${formatMetricMapViewSpecKey(effectiveSpecs.primary)}`}
+              panels={primaryChoroplethDualPanels}
+              height={height}
+              mapBasemapTheme={mapBasemapTheme}
+              onError={setError}
+              compact
+            />
+          </>
         ) : (
           <>
             {effectiveSpecs.primary.kind === "choropleth" && (
@@ -758,7 +929,10 @@ export default function MetricMapEmbed({
       )}
 
       {/* ── Point map legend (single-map / overlay mode only; year panels have their own) ── */}
-      {mapData && !(yearCompareMap && effectiveSpecs?.primary.kind === "points") && (() => {
+      {mapData &&
+        !(yearCompareMap && effectiveSpecs?.primary.kind === "points") &&
+        !primaryChoroplethDualPanels &&
+        (() => {
         const defaultView = mapData.map_config?.default_view;
         const hasAggregations = !!(mapData.map_config?.aggregations && Object.keys(mapData.map_config.aggregations).length > 0);
         const isPointMode =
@@ -875,10 +1049,14 @@ export default function MetricMapEmbed({
             <SecondaryMapSection
               key={formatMetricMapViewSpecKey(secondarySpec)}
               mapData={mapData}
+              comparisonMapData={comparisonMapData}
               spec={secondarySpec}
               height={secondaryHeight}
               basemapTheme={mapBasemapTheme}
               metricId={metricId}
+              yearCompareMap={yearCompareMap}
+              periodLabels={periodLabels}
+              onError={setError}
             />
           ))}
         </div>

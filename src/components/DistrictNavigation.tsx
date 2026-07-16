@@ -21,6 +21,13 @@ import {
 import LocationMapSave from "@/components/LocationMapSave";
 import FollowButton from "@/components/FollowButton";
 import { DEFAULT_PLACE_RADIUS_M } from "@/lib/mapUtils";
+import {
+  extractNeighborhoodOptions,
+  findNeighborhoodFromPoint,
+  getAtLargeCouncilMembers,
+  isAtLargeCouncilCity,
+  resolveNeighborhoodName,
+} from "@/lib/atLargeCouncilNav";
 import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import "./DistrictNavigation.css";
 
@@ -150,6 +157,8 @@ interface DistrictNavigationProps {
   placeRefreshLastRunAt?: string | null;
   /** From city detail; used for Ward vs District (and similar) wording in the selector. */
   geographicStructures?: CityDetail["geographic_structures"];
+  /** City display name (e.g. for at-large council copy in the selector). */
+  cityName?: string | null;
 }
 
 // Helper function to check if a point is inside a polygon
@@ -276,15 +285,28 @@ export default function DistrictNavigation({
   hideTriggerBar = false,
   placeRefreshLastRunAt,
   geographicStructures,
+  cityName,
 }: DistrictNavigationProps) {
   const normalizedSelectedDistrict = useMemo(() => {
     const normalized = normalizeDistrictValue(selectedDistrict);
     return normalized ?? 0;
   }, [selectedDistrict]);
   const district = normalizedSelectedDistrict;
+  const neighborhoodNavMode = useMemo(() => isAtLargeCouncilCity(leaders), [leaders]);
   const geographicUnitLabel = useMemo(
-    () => resolveGeographicUnitLabel(leaders, geographicStructures),
-    [leaders, geographicStructures],
+    () =>
+      neighborhoodNavMode
+        ? "Neighborhood"
+        : resolveGeographicUnitLabel(leaders, geographicStructures),
+    [neighborhoodNavMode, leaders, geographicStructures],
+  );
+  const neighborhoodOptions = useMemo(
+    () => (neighborhoodNavMode ? extractNeighborhoodOptions(shapefiles) : []),
+    [neighborhoodNavMode, shapefiles],
+  );
+  const atLargeCouncilMembers = useMemo(
+    () => (neighborhoodNavMode ? getAtLargeCouncilMembers(leaders) : []),
+    [neighborhoodNavMode, leaders],
   );
   const isPlaceScope = selectedPlaceId != null && selectedPlaceId > 0;
   const selectedPlace = userPlaces.find((p) => p.id === selectedPlaceId);
@@ -325,11 +347,26 @@ export default function DistrictNavigation({
     return district === 0;
   }, [district]);
 
-  // Get all districts with representatives for search (including mayor for district 0)
+  // Navigation options: mayor + neighborhoods (at-large cities) or mayor + district reps.
   const districtOptions = useMemo(() => {
     const mayor = pickCitywideLeader(leaders);
-    
-    // Build options from all leaders (excluding district 0, we'll add it separately)
+    const citywideOption = {
+      district: 0,
+      name: mayor?.name || "Mayor",
+      leader: mayor || null,
+      isMayor: true,
+    };
+
+    if (neighborhoodNavMode) {
+      const hoodOptions = neighborhoodOptions.map((hood) => ({
+        district: hood.id,
+        name: hood.name,
+        leader: null as CityLeader | null,
+        isMayor: false,
+      }));
+      return [citywideOption, ...hoodOptions];
+    }
+
     const otherOptions = leaders
       .map((leader) => ({
         leader,
@@ -337,7 +374,7 @@ export default function DistrictNavigation({
       }))
       .filter(
         (item): item is { leader: CityLeader; district: number } =>
-          item.district !== null && item.district !== 0,
+          item.district !== null && item.district !== 0 && item.district !== -1,
       )
       .map((leader) => ({
         district: leader.district,
@@ -346,18 +383,9 @@ export default function DistrictNavigation({
         isMayor: false,
       }))
       .sort((a, b) => a.district - b.district);
-    
-    // Always include district 0 (citywide/mayor) as the first entry
-    const citywideOption = {
-      district: 0,
-      name: mayor?.name || "Mayor",
-      leader: mayor || null,
-      isMayor: true,
-    };
-    
-    // Return citywide first, then all other districts
+
     return [citywideOption, ...otherOptions];
-  }, [leaders]);
+  }, [leaders, neighborhoodNavMode, neighborhoodOptions]);
 
   // Filter districts based on query
   const filteredDistricts = useMemo(() => {
@@ -499,25 +527,40 @@ export default function DistrictNavigation({
     setError(null);
     setPendingPoint({ lat: suggestion.lat, lng: suggestion.lon });
 
-    const districtResult = findDistrictContainingPoint(
-      suggestion.lat,
-      suggestion.lon,
-      shapefiles,
-      leaders
-    );
-
-    if (districtResult) {
-      const districtNum =
-        typeof districtResult.identifier === "number"
-          ? districtResult.identifier
-          : parseInt(String(districtResult.identifier), 10);
-
-      if (!isNaN(districtNum)) {
-        onDistrictSelect(districtNum);
+    if (neighborhoodNavMode) {
+      const hood = findNeighborhoodFromPoint(
+        suggestion.lat,
+        suggestion.lon,
+        shapefiles,
+      );
+      if (hood) {
+        onDistrictSelect(hood.id);
         onPlaceSelect?.(null);
         if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
         closeModal();
         return;
+      }
+    } else {
+      const districtResult = findDistrictContainingPoint(
+        suggestion.lat,
+        suggestion.lon,
+        shapefiles,
+        leaders,
+      );
+
+      if (districtResult) {
+        const districtNum =
+          typeof districtResult.identifier === "number"
+            ? districtResult.identifier
+            : parseInt(String(districtResult.identifier), 10);
+
+        if (!isNaN(districtNum)) {
+          onDistrictSelect(districtNum);
+          onPlaceSelect?.(null);
+          if (onGPSLocation) onGPSLocation({ lat: suggestion.lat, lng: suggestion.lon });
+          closeModal();
+          return;
+        }
       }
     }
 
@@ -590,26 +633,36 @@ export default function DistrictNavigation({
 
       setPendingPoint({ lat, lng });
 
-      // Find district containing this location
-      const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
-
-      if (districtResult) {
-        const districtNum = typeof districtResult.identifier === "number"
-          ? districtResult.identifier
-          : parseInt(String(districtResult.identifier), 10);
-
-        if (!isNaN(districtNum)) {
-          onDistrictSelect(districtNum);
+      if (neighborhoodNavMode) {
+        const hood = findNeighborhoodFromPoint(lat, lng, shapefiles);
+        if (hood) {
+          onDistrictSelect(hood.id);
           onPlaceSelect?.(null);
           if (onGPSLocation) onGPSLocation({ lat, lng });
           return;
+        }
+      } else {
+        const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
+
+        if (districtResult) {
+          const districtNum =
+            typeof districtResult.identifier === "number"
+              ? districtResult.identifier
+              : parseInt(String(districtResult.identifier), 10);
+
+          if (!isNaN(districtNum)) {
+            onDistrictSelect(districtNum);
+            onPlaceSelect?.(null);
+            if (onGPSLocation) onGPSLocation({ lat, lng });
+            return;
+          }
         }
       }
 
       if (onGPSLocation) onGPSLocation({ lat, lng });
       setError(
-      `Location found but not within any known ${geographicUnitLabel.toLowerCase()}`,
-    );
+        `Location found but not within any known ${geographicUnitLabel.toLowerCase()}`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Geocoding failed");
     } finally {
@@ -654,18 +707,29 @@ export default function DistrictNavigation({
 
       setPendingPoint({ lat, lng });
 
-      const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
-
-      if (districtResult) {
-        const districtNum = typeof districtResult.identifier === "number"
-          ? districtResult.identifier
-          : parseInt(String(districtResult.identifier), 10);
-
-        if (!isNaN(districtNum)) {
-          onDistrictSelect(districtNum);
+      if (neighborhoodNavMode) {
+        const hood = findNeighborhoodFromPoint(lat, lng, shapefiles);
+        if (hood) {
+          onDistrictSelect(hood.id);
           onPlaceSelect?.(null);
           if (onGPSLocation) onGPSLocation({ lat, lng });
           return;
+        }
+      } else {
+        const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
+
+        if (districtResult) {
+          const districtNum =
+            typeof districtResult.identifier === "number"
+              ? districtResult.identifier
+              : parseInt(String(districtResult.identifier), 10);
+
+          if (!isNaN(districtNum)) {
+            onDistrictSelect(districtNum);
+            onPlaceSelect?.(null);
+            if (onGPSLocation) onGPSLocation({ lat, lng });
+            return;
+          }
         }
       }
 
@@ -739,25 +803,37 @@ export default function DistrictNavigation({
 
   // Determine display name and label (place scope overrides district)
   // When place is selected but selectedPlace not yet loaded (userPlaces still fetching), show "My place" to avoid flashing "Citywide"
+  const selectedNeighborhoodName = useMemo(() => {
+    if (!neighborhoodNavMode || district <= 0) return null;
+    return (
+      neighborhoodOptions.find((n) => n.id === district)?.name ??
+      resolveNeighborhoodName(district, shapefiles)
+    );
+  }, [neighborhoodNavMode, district, neighborhoodOptions, shapefiles]);
+
   const displayName = isPlaceScope
     ? (selectedPlace ? selectedPlace.label : "My place")
-    : currentRepresentative
-    ? currentRepresentative.name
-    : isMayor
-    ? "Mayor"
-    : district > 0
-    ? `${geographicUnitLabel} ${district}`
-    : "Mayor";
+    : neighborhoodNavMode && district > 0
+      ? selectedNeighborhoodName ?? `${geographicUnitLabel} ${district}`
+      : currentRepresentative
+        ? currentRepresentative.name
+        : isMayor
+          ? "Mayor"
+          : district > 0
+            ? `${geographicUnitLabel} ${district}`
+            : "Mayor";
   const officialSelectorLabelText = useMemo(() => {
     if (isPlaceScope) return "My place:";
     if (isMayor) return "Mayor:";
     if (district <= 0) return "Mayor:";
+    if (neighborhoodNavMode) return "Neighborhood:";
     const role = resolveDistrictOfficialRoleNoun(district, leaders, currentRepresentative);
     return `${geographicUnitLabel} ${district} ${role}:`;
   }, [
     isPlaceScope,
     isMayor,
     district,
+    neighborhoodNavMode,
     leaders,
     currentRepresentative,
     geographicUnitLabel,
@@ -769,7 +845,8 @@ export default function DistrictNavigation({
     cityId != null &&
     onDistrictFollowToggle != null &&
     !isPlaceScope &&
-    district > 0;
+    district > 0 &&
+    !neighborhoodNavMode;
   const districtFollowEntityLabel = `${geographicUnitLabel} ${district}`;
 
   return (
@@ -887,7 +964,11 @@ export default function DistrictNavigation({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="district-navigation-modal-header">
-                <h2>Find Your {geographicUnitLabel}</h2>
+                <h2>
+                  {neighborhoodNavMode
+                    ? "Find Your Neighborhood"
+                    : `Find Your ${geographicUnitLabel}`}
+                </h2>
                 <button
                   className="district-navigation-modal-close"
                   onClick={closeModal}
@@ -913,7 +994,11 @@ export default function DistrictNavigation({
                         handleQuerySubmit();
                       }
                     }}
-                    placeholder={`Search by address, zipcode, ${geographicUnitLabel.toLowerCase()} number, or representative name...`}
+                    placeholder={
+                      neighborhoodNavMode
+                        ? "Search by address, zipcode, or neighborhood name..."
+                        : `Search by address, zipcode, ${geographicUnitLabel.toLowerCase()} number, or representative name...`
+                    }
                     className="district-navigation-input"
                     autoComplete="off"
                   />
@@ -1008,7 +1093,9 @@ export default function DistrictNavigation({
                         <div className="district-navigation-result-district">
                           {option.district === 0
                             ? "Mayor (Citywide)"
-                            : `${geographicUnitLabel} ${option.district}`}
+                            : neighborhoodNavMode
+                              ? "Neighborhood"
+                              : `${geographicUnitLabel} ${option.district}`}
                         </div>
                         {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                             <div className="district-navigation-result-subscribers">
@@ -1068,11 +1155,13 @@ export default function DistrictNavigation({
                   </div>
                 )}
 
-                {/* All Districts (when no query) */}
+                {/* All districts / neighborhoods (when no query) */}
                 {!trimmed && districtOptions.length > 0 && (
                   <div className="district-navigation-results">
                     <div className="district-navigation-results-header">
-                      All {pluralGeographicUnitLabel(geographicUnitLabel)}:
+                      {neighborhoodNavMode
+                        ? "All neighborhoods:"
+                        : `All ${pluralGeographicUnitLabel(geographicUnitLabel)}:`}
                     </div>
                     {districtOptions.map((option) => {
                       const isSelected =
@@ -1090,10 +1179,10 @@ export default function DistrictNavigation({
                           </div>
                           <div className="district-navigation-result-district">
                             {option.district === 0
-                            ? "Mayor (Citywide)"
-                            : option.district === -1
-                              ? "At-Large Council"
-                              : `${geographicUnitLabel} ${option.district}`}
+                              ? "Mayor (Citywide)"
+                              : neighborhoodNavMode
+                                ? "Neighborhood"
+                                : `${geographicUnitLabel} ${option.district}`}
                           </div>
                           {leaderFollowerCounts != null && (leaderFollowerCounts[String(option.district)] ?? 0) > 0 && (
                               <div className="district-navigation-result-subscribers">
@@ -1103,6 +1192,25 @@ export default function DistrictNavigation({
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* At-large council (informational) */}
+                {!trimmed && atLargeCouncilMembers.length > 0 && (
+                  <div className="district-navigation-council-info">
+                    <div className="district-navigation-results-header">
+                      City Council (at-large)
+                    </div>
+                    <p className="district-navigation-council-note">
+                      {cityName ? `${cityName}'s` : "The city's"} council members
+                      represent the whole city. Choose your neighborhood to see how
+                      your area is doing.
+                    </p>
+                    <ul className="district-navigation-council-list">
+                      {atLargeCouncilMembers.map((member) => (
+                        <li key={member.name}>{member.name}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>

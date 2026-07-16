@@ -18,6 +18,7 @@ import {
   getPublicCityMetricOrdering,
 } from "@/lib/publicApiClient";
 import { slugify, formatLeaderName } from "@/lib/utils";
+import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import DistrictPageContent from "./DistrictPageContent";
 
@@ -171,8 +172,11 @@ export default async function DistrictPage({ params }: PageProps) {
     feedStories = feedRes.stories ?? [];
     maps = mapsRes;
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
-      districts = [...cityDistrictsRes].sort((a, b) => a - b);
-      districtValid = cityDistrictsRes.includes(d);
+      districts = filterDistrictsByGeographicStructure(
+        cityDistrictsRes,
+        cityDetail?.geographic_structures,
+      );
+      districtValid = districts.includes(d);
     }
     const metrics = cityDetail?.metrics ?? [];
     if (metrics.length > 0) {
@@ -181,10 +185,12 @@ export default async function DistrictPage({ params }: PageProps) {
         if (dc?.districts) {
           districtValid = dc.districts.some((x) => x.district === d);
           if (districts.length === 0)
-            districts = dc.districts
-              .map((x) => x.district)
-              .filter((n): n is number => typeof n === "number" && n > 0)
-              .sort((a, b) => a - b);
+            districts = filterDistrictsByGeographicStructure(
+              dc.districts
+                .map((x) => x.district)
+                .filter((n): n is number => typeof n === "number" && n > 0),
+              cityDetail?.geographic_structures,
+            );
         }
       }
       const batch = await getPublicMetricComparisonsBatch({

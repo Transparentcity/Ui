@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SavedMap } from "@/lib/apiClient";
 import {
   computeMetricMapEmbedViewSpecs,
+  filterMetricMapEmbedViewSpecsForDistrictScope,
   formatMetricMapViewSpecKey,
 } from "./metricMapEmbedViews";
 
@@ -207,5 +208,103 @@ describe("computeMetricMapEmbedViewSpecs", () => {
     if (primary.kind === "choropleth") {
       expect(primary.shapeLayerId).toBe("99");
     }
+  });
+});
+
+describe("filterMetricMapEmbedViewSpecsForDistrictScope", () => {
+  it("drops city-district choropleth as primary and promotes points", () => {
+    const map = baseSavedMap({
+      map_config: {
+        available_views: [
+          {
+            type: "choropleth",
+            shape_layer_instance_id: 10,
+            identifier_field: "supervisor_district",
+            display_name: "Supervisor districts",
+            is_city_district: true,
+          },
+          {
+            type: "choropleth",
+            shape_layer_instance_id: 20,
+            identifier_field: "neighborhood",
+            display_name: "Neighborhoods",
+            is_city_district: false,
+          },
+        ],
+      },
+    });
+    const specs = {
+      primary: {
+        kind: "choropleth" as const,
+        shapeLayerId: "10",
+        label: "Supervisor districts",
+      },
+      secondary: [
+        { kind: "points" as const, label: "Location pins" },
+        {
+          kind: "choropleth" as const,
+          shapeLayerId: "20",
+          label: "Neighborhoods",
+        },
+      ],
+    };
+    const filtered = filterMetricMapEmbedViewSpecsForDistrictScope(map, specs);
+    expect(filtered?.primary.kind).toBe("points");
+    expect(filtered?.secondary).toHaveLength(1);
+    expect(filtered?.secondary[0]?.kind).toBe("choropleth");
+    if (filtered?.secondary[0]?.kind === "choropleth") {
+      expect(filtered.secondary[0].shapeLayerId).toBe("20");
+    }
+  });
+
+  it("returns null when only a city-district choropleth is available", () => {
+    const map = baseSavedMap({
+      map_config: {
+        available_views: [
+          {
+            type: "choropleth",
+            shape_layer_instance_id: 10,
+            identifier_field: "supervisor_district",
+            display_name: "Supervisor districts",
+            is_city_district: true,
+          },
+        ],
+      },
+    });
+    const specs = {
+      primary: {
+        kind: "choropleth" as const,
+        shapeLayerId: "10",
+        label: "Supervisor districts",
+      },
+      secondary: [] as const,
+    };
+    expect(filterMetricMapEmbedViewSpecsForDistrictScope(map, specs)).toBeNull();
+  });
+
+  it("keeps neighborhood choropleth as primary on district pages", () => {
+    const map = baseSavedMap({
+      map_config: {
+        available_views: [
+          {
+            type: "choropleth",
+            shape_layer_instance_id: 20,
+            identifier_field: "neighborhood",
+            display_name: "Neighborhoods",
+            is_city_district: false,
+          },
+        ],
+      },
+    });
+    const specs = {
+      primary: {
+        kind: "choropleth" as const,
+        shapeLayerId: "20",
+        label: "Neighborhoods",
+      },
+      secondary: [{ kind: "points" as const, label: "Location pins" }],
+    };
+    const filtered = filterMetricMapEmbedViewSpecsForDistrictScope(map, specs);
+    expect(filtered).toEqual(specs);
   });
 });

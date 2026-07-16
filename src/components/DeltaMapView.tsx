@@ -16,6 +16,10 @@ import {
   getDeltaMapFillColor,
   type DeltaBasemapTheme,
 } from "@/lib/deltaMapColors";
+import {
+  CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
+  CHOROPLETH_FIT_PADDING,
+} from "@/lib/mapUtils";
 import Loader from "./Loader";
 import "./DeltaMapView.css";
 
@@ -352,7 +356,11 @@ export default function DeltaMapView({
       const bounds = getBoundsFromGeoJson(geoJsonWithData);
       if (bounds) {
         try {
-          map.fitBounds(bounds, { padding: 50, maxZoom: 12, duration: 0 });
+          map.fitBounds(bounds, {
+            padding: CHOROPLETH_FIT_PADDING,
+            maxZoom: CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
+            duration: 0,
+          });
         } catch (e) {
           console.warn("[DeltaMapView] fitBounds failed:", e);
         }

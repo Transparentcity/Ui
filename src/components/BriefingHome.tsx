@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -63,13 +63,17 @@ interface BriefingHomeProps {
   onFollowToggle?: () => void;
   /** City emoji/favicon shown in the hero when at citywide scope. */
   cityEmoji?: string | null;
-  /** Ward vs District wording for badges and leader subtitles. */
+  /** Ward vs District vs Neighborhood wording for badges and leader subtitles. */
   geographicUnitLabel?: string;
+  /** At-large council cities navigate by neighborhood instead of district rep. */
+  neighborhoodNavMode?: boolean;
   /** Open the official/place selector (hero title chevron). */
   onOpenScopeSelector?: () => void;
   /** When set, show the onboarding "your place is loading" banner with this label. */
   placeLoadingLabel?: string | null;
   onMetricClick?: (metricId: number) => void;
+  /** User's saved places (id + label) so place-scoped story rows can name the place. */
+  userPlaces?: { id: number; label: string }[];
   /** Whether the section shows the full ordered metrics table vs movers. */
   browseAllExpanded: boolean;
   onBrowseAllChange: (expanded: boolean) => void;
@@ -109,12 +113,12 @@ function leaderInitials(name: string): string {
     .join("");
 }
 
-function PlacePinIcon() {
+function PlacePinIcon({ size = 22 }: { size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="22"
-      height="22"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -128,15 +132,73 @@ function PlacePinIcon() {
   );
 }
 
-/** Compact story row: headline + date, excerpt, and thumbnail when the story has an image. */
+/** Which geographic actor a story belongs to: city, district, or saved place. */
+type StoryActorScope = "city" | "district" | "place";
+
+function storyActorScope(story: EnrichedFeedStory): StoryActorScope {
+  if (story.user_place_id != null) return "place";
+  const rawPlaceIds = (story.metadata ?? {}).user_place_ids;
+  if (Array.isArray(rawPlaceIds) && rawPlaceIds.length > 0) return "place";
+  if ((story.district ?? 0) > 0) return "district";
+  return "city";
+}
+
+/** Small circular avatar attributing the story to the city, a district, or a place. */
+function StoryActorBadge({
+  story,
+  cityEmoji,
+  geographicUnitLabel,
+  placeLabelById,
+}: {
+  story: EnrichedFeedStory;
+  cityEmoji?: string | null;
+  geographicUnitLabel: string;
+  placeLabelById?: Map<number, string>;
+}) {
+  const scope = storyActorScope(story);
+  let avatar: React.ReactNode;
+  let label: string;
+  if (scope === "place") {
+    avatar = <PlacePinIcon size={12} />;
+    const placeLabel =
+      story.user_place_id != null
+        ? placeLabelById?.get(story.user_place_id)
+        : undefined;
+    label = placeLabel?.trim() || "My place";
+  } else if (scope === "district") {
+    avatar = (
+      <span className={styles.storyActorDistrict}>D{story.district}</span>
+    );
+    label = `${geographicUnitLabel} ${story.district}`;
+  } else {
+    avatar = <span className={styles.storyActorEmoji}>{cityEmoji || "🏛️"}</span>;
+    label = story.city_name?.trim() || "Citywide";
+  }
+  return (
+    <span className={styles.storyActor}>
+      <span className={styles.storyActorAvatar} aria-hidden="true">
+        {avatar}
+      </span>
+      <span className={styles.storyActorName}>{label}</span>
+    </span>
+  );
+}
+
+/** Compact story row: actor badge, headline + date, excerpt, and thumbnail when the story has an image. */
 function StoryRowItem({
   story,
   isNew,
   onOpen,
+  cityEmoji,
+  geographicUnitLabel,
+  placeLabelById,
 }: {
   story: EnrichedFeedStory;
   isNew: boolean;
   onOpen: (story: EnrichedFeedStory) => void;
+  cityEmoji?: string | null;
+  geographicUnitLabel: string;
+  placeLabelById?: Map<number, string>;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const excerpt = storyExcerpt(story);
@@ -156,6 +218,12 @@ function StoryRowItem({
           onOpen(story);
         }}
       >
+        <StoryActorBadge
+          story={story}
+          cityEmoji={cityEmoji}
+          geographicUnitLabel={geographicUnitLabel}
+          placeLabelById={placeLabelById}
+        />
         <span className={styles.storyTitleRow}>
           <span className={styles.storyHeadline}>
             {isNew && <span className={styles.storyNewDot} aria-label="New" />}
@@ -290,9 +358,11 @@ export default function BriefingHome({
   onFollowToggle,
   cityEmoji,
   geographicUnitLabel = "District",
+  neighborhoodNavMode = false,
   onOpenScopeSelector,
   placeLoadingLabel,
   onMetricClick,
+  userPlaces,
   browseAllExpanded,
   onBrowseAllChange,
   onDistrictSelect,
@@ -334,8 +404,13 @@ export default function BriefingHome({
   }, [recencyAnchor]);
 
   // ── Stories (scoped) ──────────────────────────────────────────────────
+  // Citywide: every story in the city (citywide + district + the viewer's own
+  // place stories — place privacy is enforced server-side), with a scope
+  // filter above the list. District: that district's stories only. Place:
+  // only stories tagged to the selected place.
   const isPlaceScope = selectedPlaceId != null;
   const district = selectedDistrict ?? 0;
+  const isCitywideScope = !isPlaceScope && district === 0;
   const { data: storiesData, isLoading: storiesLoading } = useFeedStories(
     isPlaceScope
       ? {
@@ -344,14 +419,27 @@ export default function BriefingHome({
           order_by: "created_at",
           enabled: isAuthenticated,
         }
-      : {
-          city_id: cityId,
-          district,
-          limit: 25,
-          order_by: "published_at",
-          enabled: isAuthenticated,
-        },
+      : district > 0
+        ? {
+            city_id: cityId,
+            district,
+            limit: 25,
+            order_by: "published_at",
+            enabled: isAuthenticated,
+          }
+        : {
+            city_id: cityId,
+            limit: 25,
+            order_by: "published_at",
+            enabled: isAuthenticated,
+          },
   );
+
+  const placeLabelById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of userPlaces ?? []) map.set(p.id, p.label);
+    return map;
+  }, [userPlaces]);
 
   const stories = useMemo(() => {
     const raw = storiesData?.stories ?? [];
@@ -365,9 +453,32 @@ export default function BriefingHome({
     return stories.filter((s) => storyTimestamp(s) > anchorTime).length;
   }, [stories, anchorTime]);
 
+  // ── Story scope filter (citywide overview only) ───────────────────────
+  const [storyScopeFilter, setStoryScopeFilter] = useState<
+    "all" | StoryActorScope
+  >("all");
+  useEffect(() => {
+    setStoryScopeFilter("all");
+  }, [cityId, district, isPlaceScope]);
+
+  const storyScopeCounts = useMemo(() => {
+    const counts: Record<StoryActorScope, number> = {
+      city: 0,
+      district: 0,
+      place: 0,
+    };
+    for (const s of stories) counts[storyActorScope(s)] += 1;
+    return counts;
+  }, [stories]);
+
+  const filteredStories = useMemo(() => {
+    if (!isCitywideScope || storyScopeFilter === "all") return stories;
+    return stories.filter((s) => storyActorScope(s) === storyScopeFilter);
+  }, [stories, isCitywideScope, storyScopeFilter]);
+
   const visibleStories = storiesExpanded
-    ? stories.slice(0, 15)
-    : stories.slice(0, STORIES_INITIAL_LIMIT);
+    ? filteredStories.slice(0, 15)
+    : filteredStories.slice(0, STORIES_INITIAL_LIMIT);
 
   // ── Prior editions (inline inbox) ─────────────────────────────────────
   const {
@@ -413,6 +524,10 @@ export default function BriefingHome({
   const accountableLeaders = useMemo(() => {
     const repDistrict = isPlaceScope ? placeDistrict ?? 0 : district;
     if (!isPlaceScope && repDistrict === 0) return [];
+    if (!isPlaceScope && neighborhoodNavMode && repDistrict > 0) {
+      const mayor = pickCitywideLeader(leaders);
+      return mayor ? [mayor] : [];
+    }
     const mayor = pickCitywideLeader(leaders);
     const rep =
       repDistrict > 0 ? leaders.find((l) => l.district === repDistrict) : null;
@@ -420,7 +535,7 @@ export default function BriefingHome({
     if (rep) rows.push(rep);
     if (mayor) rows.push(mayor);
     return rows;
-  }, [leaders, district, isPlaceScope, placeDistrict]);
+  }, [leaders, district, isPlaceScope, placeDistrict, neighborhoodNavMode]);
 
   // ── Recency date (only shown inside the "N new" chip) ────────────────
   const recencyDateLabel = useMemo(() => {
@@ -450,7 +565,11 @@ export default function BriefingHome({
   const heroIcon = isPlaceScope ? (
     <PlacePinIcon />
   ) : district > 0 ? (
-    <span className={styles.heroDistrictBadge}>D{district}</span>
+    neighborhoodNavMode ? (
+      <PlacePinIcon />
+    ) : (
+      <span className={styles.heroDistrictBadge}>D{district}</span>
+    )
   ) : (
     <span className={styles.heroEmoji}>{cityEmoji || "🏛️"}</span>
   );
@@ -660,6 +779,42 @@ export default function BriefingHome({
             <span className={styles.sectionBadge}>{newStoriesCount} new</span>
           )}
         </h3>
+        {/* Scope filter — citywide overview only; district/place feeds are
+            already scoped to a single actor. */}
+        {isCitywideScope && !storiesLoading && stories.length > 0 && (
+          <div
+            className={styles.storyFilterRow}
+            role="radiogroup"
+            aria-label="Filter stories by scope"
+          >
+            {(
+              [
+                { key: "all", label: "All", count: stories.length },
+                { key: "city", label: "Citywide", count: storyScopeCounts.city },
+                {
+                  key: "district",
+                  label: `${geographicUnitLabel}s`,
+                  count: storyScopeCounts.district,
+                },
+                { key: "place", label: "My places", count: storyScopeCounts.place },
+              ] as const
+            )
+              .filter((f) => f.key === "all" || f.count > 0)
+              .map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={storyScopeFilter === f.key}
+                  className={`${styles.storyFilterChip}${storyScopeFilter === f.key ? ` ${styles.storyFilterChipActive}` : ""}`}
+                  onClick={() => setStoryScopeFilter(f.key)}
+                >
+                  {f.label}
+                  <span className={styles.storyFilterCount}>{f.count}</span>
+                </button>
+              ))}
+          </div>
+        )}
         {storiesLoading ? (
           <div className={styles.storiesLoading}>
             <div className={styles.skeletonRow} />
@@ -677,11 +832,14 @@ export default function BriefingHome({
                 story={story}
                 isNew={anchorTime != null && storyTimestamp(story) > anchorTime}
                 onOpen={openStoryDetail}
+                cityEmoji={cityEmoji}
+                geographicUnitLabel={geographicUnitLabel}
+                placeLabelById={placeLabelById}
               />
             ))}
           </ul>
         )}
-        {!storiesLoading && stories.length > STORIES_INITIAL_LIMIT && !storiesExpanded && (
+        {!storiesLoading && filteredStories.length > STORIES_INITIAL_LIMIT && !storiesExpanded && (
           <button
             type="button"
             className={styles.showMoreBtn}

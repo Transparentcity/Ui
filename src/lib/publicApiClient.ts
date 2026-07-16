@@ -207,6 +207,10 @@ export type PublicCityDetail = {
   mayor?: { name: string } | null;
   mayor_subscriber_count?: number;
   is_launched?: boolean;
+  geographic_structures?: Array<{
+    min_value?: number | null;
+    max_value?: number | null;
+  }>;
 };
 
 export function getPublicCityDetail(

@@ -322,3 +322,65 @@ export function computeMetricMapEmbedViewSpecs(mapData: SavedMap): {
 
   return { primary, secondary };
 }
+
+function buildShapeLayerLookup(mapData: SavedMap): Map<string, ShapeLayerRow> {
+  const initialShapeLayers = buildInitialShapeLayers(mapData);
+  const shapeLayersFromConfig = mapData.map_config?.available_shape_layers as
+    | ShapeLayerRow[]
+    | undefined;
+  const lookup = new Map<string, ShapeLayerRow>();
+  for (const sl of initialShapeLayers) {
+    lookup.set(String(sl.shape_layer_instance_id), sl);
+  }
+  for (const sl of shapeLayersFromConfig ?? []) {
+    const id = String(sl.shape_layer_instance_id);
+    if (!lookup.has(id)) lookup.set(id, sl);
+  }
+  return lookup;
+}
+
+function isCityDistrictChoroplethSpec(
+  spec: MetricMapViewSpec,
+  layerLookup: Map<string, ShapeLayerRow>
+): boolean {
+  if (spec.kind !== "choropleth") return false;
+  return Boolean(layerLookup.get(spec.shapeLayerId)?.is_city_district);
+}
+
+/**
+ * On district-scoped metric pages, hide the city council / supervisor district
+ * choropleth (one colored ward among all wards is not useful). Promote points or
+ * a finer-grained choropleth (e.g. neighborhoods) when available.
+ */
+export function filterMetricMapEmbedViewSpecsForDistrictScope(
+  mapData: SavedMap,
+  specs: { primary: MetricMapViewSpec; secondary: MetricMapViewSpec[] }
+): { primary: MetricMapViewSpec; secondary: MetricMapViewSpec[] } | null {
+  const layerLookup = buildShapeLayerLookup(mapData);
+  const keepSpec = (spec: MetricMapViewSpec) =>
+    !isCityDistrictChoroplethSpec(spec, layerLookup);
+
+  const secondary = specs.secondary.filter(keepSpec);
+
+  if (keepSpec(specs.primary)) {
+    return { primary: specs.primary, secondary };
+  }
+
+  const pointsAlt = secondary.find((s) => s.kind === "points");
+  if (pointsAlt) {
+    return {
+      primary: pointsAlt,
+      secondary: secondary.filter((s) => s !== pointsAlt),
+    };
+  }
+
+  const choroAlt = secondary.find((s) => s.kind === "choropleth");
+  if (choroAlt) {
+    return {
+      primary: choroAlt,
+      secondary: secondary.filter((s) => s !== choroAlt),
+    };
+  }
+
+  return null;
+}

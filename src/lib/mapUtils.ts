@@ -13,6 +13,13 @@ export const INITIAL_ZOOM_DISTRICT = 12;
 /** Block view default: zoomed out ~2 levels from close-up so more context is visible. */
 export const INITIAL_ZOOM_BLOCK = 13;
 
+/** Padding (px) when fitBounds frames choropleth / district polygons in embeds. */
+export const CHOROPLETH_FIT_PADDING = 40;
+/** Max zoom when fitting citywide choropleth bounds. */
+export const CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE = 14;
+/** Max zoom when fitting district-scoped choropleth bounds. */
+export const CHOROPLETH_FIT_MAX_ZOOM_DISTRICT = 15;
+
 /**
  * Default brand choropleth ramp (Mapbox fill from GeoJSON `color`).
  * Low is a very light lavender (#f6edff), not pure white, so polygons stay visible on light basemaps.

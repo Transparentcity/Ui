@@ -14,6 +14,7 @@ import {
   listPublicMapsForCity,
 } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
+import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
 import CitySignupCTA from "../../CitySignupCTA";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
@@ -162,7 +163,10 @@ export default async function CityCategoryPage({
     cityDetail = detail;
     maps = mapsRes;
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
-      districts = [...cityDistrictsRes].sort((a, b) => a - b);
+      districts = filterDistrictsByGeographicStructure(
+        cityDistrictsRes,
+        cityDetail?.geographic_structures,
+      );
     }
     const allMetrics = cityDetail?.metrics ?? [];
     const categoryMetrics = allMetrics.filter(
@@ -185,10 +189,12 @@ export default async function CityCategoryPage({
         "ytd"
       ).catch(() => null);
       if (dc?.districts)
-        districts = dc.districts
-          .map((d) => d.district)
-          .filter((n): n is number => typeof n === "number" && n > 0)
-          .sort((a, b) => a - b);
+        districts = filterDistrictsByGeographicStructure(
+          dc.districts
+            .map((d) => d.district)
+            .filter((n): n is number => typeof n === "number" && n > 0),
+          cityDetail?.geographic_structures,
+        );
     }
   } catch {
     notFound();

@@ -57,5 +57,6 @@ export function pluralGeographicUnitLabel(unit: string): string {
   if (lower === "beat") return "Beats";
   if (lower === "division") return "Divisions";
   if (lower === "ward") return "Wards";
+  if (lower === "neighborhood") return "Neighborhoods";
   return `${unit}s`;
 }

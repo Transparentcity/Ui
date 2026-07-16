@@ -21,6 +21,7 @@ import Loader from "@/components/Loader";
 import MapTimeline from "@/components/MapTimeline";
 import MediaGallery, { type MediaViewMode } from "@/components/MediaGallery";
 import { extractMediaFromPoint, extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
+import { prepareGalleryOpen } from "@/lib/mediaPreload";
 import "./CityMetricsMap.css";
 import { getStableColorForKey, LAYER_COLOR_PALETTE } from "@/lib/layerColors";
 import {
@@ -2346,59 +2347,44 @@ export default function CityMetricsMap({
             const props = feature.properties || {};
             const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat];
             
-            // Collect ALL media from ALL points in this layer (not just clicked point)
-            const allMedia: MediaItem[] = [];
-            
-            // Get all features from the source for this layer using public API
-            try {
-              const allSourceFeatures = map.querySourceFeatures(sourceId);
-              if (allSourceFeatures && allSourceFeatures.length > 0) {
-              // Extract media from all features in this layer
-              allSourceFeatures.forEach((f: any) => {
-                const fProps = f.properties || {};
-                const fCoords: [number, number] | undefined = f.geometry?.coordinates 
-                  ? [f.geometry.coordinates[0], f.geometry.coordinates[1]]
-                  : undefined;
-                // Only extract media if coordinates are valid
-                if (fCoords) {
-                  const media = extractMediaFromPoint(fProps, fCoords);
-                  allMedia.push(...media);
-                }
-              });
+            // Only open the gallery when the clicked point itself carries a
+            // photo; a click on a photo-less point should show its popup, not
+            // jump into other points' media.
+            const clickedMedia = extractMediaFromPoint(props, coordinates);
+            if (clickedMedia.length > 0) {
+              // Include media from all points in this layer so the user can
+              // navigate photo to photo.
+              const allMedia: MediaItem[] = [...clickedMedia];
+              try {
+                const allSourceFeatures = map.querySourceFeatures(sourceId);
+                (allSourceFeatures || []).forEach((f: any) => {
+                  const fProps = f.properties || {};
+                  const fCoords: [number, number] | undefined = f.geometry?.coordinates
+                    ? [f.geometry.coordinates[0], f.geometry.coordinates[1]]
+                    : undefined;
+                  if (fCoords) {
+                    allMedia.push(...extractMediaFromPoint(fProps, fCoords));
+                  }
+                });
+              } catch (err) {
+                console.warn("Error querying source features:", err);
               }
-            } catch (err) {
-              console.warn("Error querying source features:", err);
-            }
-            
-            // If no media found from source, try clicked feature as fallback
-            if (allMedia.length === 0) {
-              const clickedMedia = extractMediaFromPoint(props, coordinates);
-              allMedia.push(...clickedMedia);
-            }
-            
-            // If media found, show gallery with all media from this layer
-            if (allMedia.length > 0) {
+
               // Remove duplicates by URL
               const uniqueMedia = Array.from(
                 new Map(allMedia.map((item) => [item.url, item])).values()
               );
-              
-              // Find the index of the clicked point's media (if any)
-              let startIndex = 0;
-              const clickedMedia = extractMediaFromPoint(props, coordinates);
-              if (clickedMedia.length > 0 && clickedMedia[0].url) {
-                const clickedUrl = clickedMedia[0].url;
-                const foundIndex = uniqueMedia.findIndex(item => item.url === clickedUrl);
-                if (foundIndex >= 0) {
-                  startIndex = foundIndex;
-                }
+              const { items, startIndex } = prepareGalleryOpen(
+                uniqueMedia,
+                clickedMedia[0].url
+              );
+              if (items.length > 0) {
+                setMediaItems(items);
+                setCurrentMediaIndex(startIndex);
+                setMediaViewMode("split");
+                setShowMediaGallery(true);
+                return; // Don't show popup if we have media
               }
-              
-              setMediaItems(uniqueMedia);
-              setCurrentMediaIndex(startIndex);
-              setMediaViewMode("split");
-              setShowMediaGallery(true);
-              return; // Don't show popup if we have media
             }
             
             // Fields to exclude (only internal rendering properties)

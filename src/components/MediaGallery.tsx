@@ -1,11 +1,35 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { MediaItem } from "@/lib/mediaUtils";
+import {
+  getMediaStatusVersion,
+  getMediaUrlStatus,
+  markMediaUrlFailed,
+  markMediaUrlOk,
+  preloadMediaWindow,
+  subscribeMediaUrlStatus,
+} from "@/lib/mediaPreload";
 import "./MediaGallery.css";
 
 export type MediaViewMode = "split" | "gallery" | "fullscreen";
+
+/** Minimal map surface the gallery needs (mapbox-gl Map compatible). */
+interface GalleryMapInstance {
+  flyTo: (options: {
+    center: [number, number];
+    zoom: number;
+    duration: number;
+  }) => void;
+  getZoom: () => number;
+}
 
 interface MediaGalleryProps {
   mediaItems: MediaItem[];
@@ -14,10 +38,18 @@ interface MediaGalleryProps {
   onClose: () => void;
   viewMode?: MediaViewMode;
   onViewModeChange?: (mode: MediaViewMode) => void;
-  mapInstanceRef?: React.MutableRefObject<any>;
+  mapInstanceRef?: React.MutableRefObject<GalleryMapInstance | null>;
   onNavigateToLocation?: (coordinates: [number, number]) => void;
 }
 
+/**
+ * Photo gallery for map points.
+ *
+ * Simple rule: only viewable photos are shown. Image URLs are checked via a
+ * shared preload cache (see lib/mediaPreload); any URL that fails to load is
+ * removed from the list, so next/previous and the thumbnail grid never step
+ * through broken images. Nearby images are preloaded ahead of navigation.
+ */
 export default function MediaGallery({
   mediaItems,
   currentIndex,
@@ -29,122 +61,52 @@ export default function MediaGallery({
   onNavigateToLocation,
 }: MediaGalleryProps) {
   const { theme } = useTheme();
-  const [imageError, setImageError] = useState<Set<string>>(new Set()); // Track by URL
-  const [imageLoaded, setImageLoaded] = useState<Set<string>>(new Set()); // Track loaded by URL
-  const [isLoading, setIsLoading] = useState<Record<number, boolean>>({});
-  const [sortedMediaItems, setSortedMediaItems] = useState<MediaItem[]>(mediaItems);
-  const [originalToSortedIndex, setOriginalToSortedIndex] = useState<Map<number, number>>(new Map());
-  const [cameFromGallery, setCameFromGallery] = useState(false); // Track if we opened fullscreen from gallery
 
-  // Sort media items: loaded images first, then loading, then failed
-  useEffect(() => {
-    const sorted = [...mediaItems].sort((a, b) => {
-      const aUrl = a.url;
-      const bUrl = b.url;
-      const aLoaded = imageLoaded.has(aUrl);
-      const bLoaded = imageLoaded.has(bUrl);
-      const aError = imageError.has(aUrl);
-      const bError = imageError.has(bUrl);
-      
-      // Loaded images first
-      if (aLoaded && !bLoaded) return -1;
-      if (!aLoaded && bLoaded) return 1;
-      
-      // Then non-error images
-      if (!aError && bError) return -1;
-      if (aError && !bError) return 1;
-      
-      // Keep original order for items with same status
-      return 0;
-    });
-    
-    setSortedMediaItems(sorted);
-    
-    // Create mapping from original index to sorted index
-    const mapping = new Map<number, number>();
-    mediaItems.forEach((item, originalIndex) => {
-      const sortedIndex = sorted.findIndex(s => s.url === item.url);
-      if (sortedIndex >= 0) {
-        mapping.set(originalIndex, sortedIndex);
-      }
-    });
-    setOriginalToSortedIndex(mapping);
-  }, [mediaItems, imageLoaded, imageError]);
+  // Re-render whenever any image's load status changes.
+  const statusVersion = useSyncExternalStore(
+    subscribeMediaUrlStatus,
+    getMediaStatusVersion,
+    getMediaStatusVersion
+  );
 
-  // Track the clicked URL to maintain selection after sorting
-  const clickedUrlRef = useRef<string | null>(null);
-  const isInternalUpdateRef = useRef(false);
-  
-  // Set clicked URL when mediaItems or currentIndex changes (only from external changes)
-  useEffect(() => {
-    if (mediaItems.length > 0 && currentIndex < mediaItems.length) {
-      const newUrl = mediaItems[currentIndex]?.url || null;
-      // Only update if URL actually changed (not from our own index update)
-      if (newUrl !== clickedUrlRef.current && !isInternalUpdateRef.current) {
-        clickedUrlRef.current = newUrl;
-      }
-      isInternalUpdateRef.current = false;
-    }
-  }, [mediaItems, currentIndex]);
-  
-  // Update current index when sorting changes to maintain selection
-  // Use a ref to track previous sorted URLs to detect actual order changes
-  const prevSortedUrlsRef = useRef<string>("");
-  const lastUpdateRef = useRef<number>(0);
-  
-  useEffect(() => {
-    if (sortedMediaItems.length > 0 && clickedUrlRef.current) {
-      const currentSortedUrls = sortedMediaItems.map(item => item.url).join(",");
-      // Only update if the order actually changed
-      if (currentSortedUrls !== prevSortedUrlsRef.current) {
-        prevSortedUrlsRef.current = currentSortedUrls;
-        const sortedIndex = sortedMediaItems.findIndex(item => item.url === clickedUrlRef.current);
-        // Check if current item at currentIndex is already the clicked URL
-        const currentItemUrl = sortedMediaItems[currentIndex]?.url;
-        // Only update if the index actually needs to change and we haven't updated recently
-        const now = Date.now();
-        if (sortedIndex >= 0 && sortedIndex !== currentIndex && currentItemUrl !== clickedUrlRef.current && (now - lastUpdateRef.current) > 100) {
-          lastUpdateRef.current = now;
-          isInternalUpdateRef.current = true; // Mark that we're updating internally
-          onIndexChange(sortedIndex);
-        }
-      }
-    }
+  // Only keep items whose image isn't known to be broken.
+  const visibleItems = useMemo(
+    () => mediaItems.filter((item) => getMediaUrlStatus(item.url) !== "failed"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedMediaItems]); // Depend on sortedMediaItems but use ref to prevent loops
+    [mediaItems, statusVersion]
+  );
 
-  const currentMedia = sortedMediaItems[currentIndex];
-  const hasMultiple = sortedMediaItems.length > 1;
-  
-  // Reset loading state when index changes
+  const safeIndex = Math.max(0, Math.min(currentIndex, visibleItems.length - 1));
+  const currentMedia: MediaItem | undefined = visibleItems[safeIndex];
+  const hasMultiple = visibleItems.length > 1;
+
+  // Keep the selection anchored to the same photo when earlier items get
+  // pruned (their removal shifts indices). If the current photo itself was
+  // pruned, the clamped index naturally advances to the next viewable one.
+  const currentUrlRef = useRef<string | null>(currentMedia?.url ?? null);
   useEffect(() => {
-    if (currentMedia && !imageError.has(currentMedia.url)) {
-      setIsLoading((prev) => ({ ...prev, [currentIndex]: true }));
+    const anchorUrl = currentUrlRef.current;
+    if (anchorUrl && currentMedia && currentMedia.url !== anchorUrl) {
+      const anchorIndex = visibleItems.findIndex((item) => item.url === anchorUrl);
+      if (anchorIndex >= 0 && anchorIndex !== safeIndex) {
+        onIndexChange(anchorIndex);
+        return;
+      }
     }
-  }, [currentIndex, currentMedia, imageError]);
+    currentUrlRef.current = currentMedia?.url ?? null;
+  }, [visibleItems, currentMedia, safeIndex, onIndexChange]);
 
-  // Navigate to previous media
-  const handlePrevious = useCallback(() => {
-    if (hasMultiple) {
-      const newIndex = (currentIndex - 1 + sortedMediaItems.length) % sortedMediaItems.length;
-      onIndexChange(newIndex);
-      navigateToMediaLocation(newIndex);
+  // Preload images around the current position so navigation stays clean.
+  useEffect(() => {
+    if (visibleItems.length > 0) {
+      preloadMediaWindow(visibleItems, safeIndex);
     }
-  }, [currentIndex, hasMultiple, sortedMediaItems.length, onIndexChange]);
-
-  // Navigate to next media
-  const handleNext = useCallback(() => {
-    if (hasMultiple) {
-      const newIndex = (currentIndex + 1) % sortedMediaItems.length;
-      onIndexChange(newIndex);
-      navigateToMediaLocation(newIndex);
-    }
-  }, [currentIndex, hasMultiple, sortedMediaItems.length, onIndexChange]);
+  }, [visibleItems, safeIndex]);
 
   // Navigate map to media location
   const navigateToMediaLocation = useCallback(
     (index: number) => {
-      const media = sortedMediaItems[index];
+      const media = visibleItems[index];
       if (media?.coordinates && (mapInstanceRef?.current || onNavigateToLocation)) {
         if (onNavigateToLocation) {
           onNavigateToLocation(media.coordinates);
@@ -158,8 +120,26 @@ export default function MediaGallery({
         }
       }
     },
-    [sortedMediaItems, mapInstanceRef, onNavigateToLocation]
+    [visibleItems, mapInstanceRef, onNavigateToLocation]
   );
+
+  const goTo = useCallback(
+    (index: number) => {
+      currentUrlRef.current = visibleItems[index]?.url ?? null;
+      onIndexChange(index);
+    },
+    [visibleItems, onIndexChange]
+  );
+
+  const handlePrevious = useCallback(() => {
+    if (!hasMultiple) return;
+    goTo((safeIndex - 1 + visibleItems.length) % visibleItems.length);
+  }, [hasMultiple, safeIndex, visibleItems.length, goTo]);
+
+  const handleNext = useCallback(() => {
+    if (!hasMultiple) return;
+    goTo((safeIndex + 1) % visibleItems.length);
+  }, [hasMultiple, safeIndex, visibleItems.length, goTo]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -177,37 +157,15 @@ export default function MediaGallery({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handlePrevious, handleNext, onClose]);
 
-  // Navigate to current media location when index changes
+  // Navigate to current media location when the selected photo changes
+  const lastNavigatedUrlRef = useRef<string | null>(null);
   useEffect(() => {
-    navigateToMediaLocation(currentIndex);
-  }, [currentIndex, navigateToMediaLocation]);
+    if (currentMedia && currentMedia.url !== lastNavigatedUrlRef.current) {
+      lastNavigatedUrlRef.current = currentMedia.url;
+      navigateToMediaLocation(safeIndex);
+    }
+  }, [currentMedia, safeIndex, navigateToMediaLocation]);
 
-  // Handle image load - use URL directly to avoid dependency on sortedMediaItems
-  const handleImageLoad = useCallback(
-    (url: string, index: number) => {
-      setImageLoaded((prev) => {
-        // Only update if not already loaded to prevent unnecessary re-renders
-        if (prev.has(url)) return prev;
-        return new Set(prev).add(url);
-      });
-      setIsLoading((prev) => ({ ...prev, [index]: false }));
-    },
-    []
-  );
-
-  // Handle image error - use URL directly to avoid dependency on sortedMediaItems
-  const handleImageError = useCallback(
-    (url: string, index: number) => {
-      setImageError((prev) => {
-        // Only update if not already in error state to prevent unnecessary re-renders
-        if (prev.has(url)) return prev;
-        return new Set(prev).add(url);
-      });
-      setIsLoading((prev) => ({ ...prev, [index]: false }));
-    },
-    []
-  );
-  
   // Stop event propagation for buttons
   const handleButtonClick = useCallback((e: React.MouseEvent, handler: () => void) => {
     e.stopPropagation();
@@ -220,17 +178,44 @@ export default function MediaGallery({
   const showGalleryView = viewMode === "gallery";
   const showFullscreen = viewMode === "fullscreen";
 
-  // Reset cameFromGallery when switching away from fullscreen.
-  // Must run before any early return so hook order stays stable.
-  useEffect(() => {
-    if (!showFullscreen) {
-      setCameFromGallery(false);
-    }
-  }, [showFullscreen]);
+  const currentStatus = currentMedia ? getMediaUrlStatus(currentMedia.url) : "unknown";
 
-  if (sortedMediaItems.length === 0 || !currentMedia) {
-    return null;
-  }
+  const renderMainImage = (className: string) => {
+    if (!currentMedia) return null;
+    return (
+      <>
+        {currentStatus !== "ok" && (
+          <div className="media-gallery-loading">Loading image...</div>
+        )}
+        <img
+          key={currentMedia.url}
+          src={currentMedia.url}
+          alt={currentMedia.title || `Photo ${safeIndex + 1}`}
+          className={className}
+          onLoad={() => markMediaUrlOk(currentMedia.url)}
+          onError={() => markMediaUrlFailed(currentMedia.url)}
+        />
+        {hasMultiple && (
+          <>
+            <button
+              className="media-gallery-nav-btn media-gallery-nav-prev"
+              onClick={(e) => handleButtonClick(e, handlePrevious)}
+              aria-label="Previous photo"
+            >
+              ‹
+            </button>
+            <button
+              className="media-gallery-nav-btn media-gallery-nav-next"
+              onClick={(e) => handleButtonClick(e, handleNext)}
+              aria-label="Next photo"
+            >
+              ›
+            </button>
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <div
@@ -244,11 +229,15 @@ export default function MediaGallery({
         <div className="media-gallery-title">
           <span className="media-gallery-icon">📷</span>
           <span>
-            Media {hasMultiple ? `(${currentIndex + 1}/${sortedMediaItems.length})` : ""}
+            {visibleItems.length === 0
+              ? "Photos"
+              : hasMultiple
+              ? `Photo ${safeIndex + 1} of ${visibleItems.length}`
+              : "Photo"}
           </span>
         </div>
         <div className="media-gallery-controls">
-          {onViewModeChange && (
+          {onViewModeChange && visibleItems.length > 0 && (
             <>
               <button
                 className={`media-gallery-mode-btn ${showSplitView ? "active" : ""}`}
@@ -279,62 +268,18 @@ export default function MediaGallery({
         </div>
       </div>
 
+      {/* Empty state: every photo URL turned out to be broken */}
+      {visibleItems.length === 0 && (
+        <div className="media-gallery-error" style={{ flex: 1 }}>
+          <span>No viewable photos at this location.</span>
+        </div>
+      )}
+
       {/* Split View - Image on one side, details (data point info) on the other */}
-      {showSplitView && (
+      {showSplitView && currentMedia && (
         <div className="media-gallery-split">
           <div className="media-gallery-image-container">
-            {isLoading[currentIndex] && !imageError.has(currentMedia.url) && (
-              <div className="media-gallery-loading">Loading image...</div>
-            )}
-            {!imageError.has(currentMedia.url) ? (
-              <img
-                src={currentMedia.url}
-                alt={currentMedia.title || `Media ${currentIndex + 1}`}
-                className="media-gallery-image"
-                onLoad={() => handleImageLoad(currentMedia.url, currentIndex)}
-                onError={() => handleImageError(currentMedia.url, currentIndex)}
-              />
-            ) : (
-              <div className="media-gallery-error">
-                {(currentMedia.title || currentMedia.description) && (
-                  <div className="media-gallery-error-label">
-                    {currentMedia.title && <strong>{currentMedia.title}</strong>}
-                    {currentMedia.description && (
-                      <span className="media-gallery-description">
-                        {currentMedia.description}
-                      </span>
-                    )}
-                  </div>
-                )}
-                <a
-                  href={currentMedia.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="media-gallery-error-link"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Open image attachment
-                </a>
-              </div>
-            )}
-            {hasMultiple && (
-              <>
-                <button
-                  className="media-gallery-nav-btn media-gallery-nav-prev"
-                  onClick={(e) => handleButtonClick(e, handlePrevious)}
-                  aria-label="Previous image"
-                >
-                  ‹
-                </button>
-                <button
-                  className="media-gallery-nav-btn media-gallery-nav-next"
-                  onClick={(e) => handleButtonClick(e, handleNext)}
-                  aria-label="Next image"
-                >
-                  ›
-                </button>
-              </>
-            )}
+            {renderMainImage("media-gallery-image")}
           </div>
           <div className="media-gallery-details">
             {currentMedia.title && (
@@ -372,36 +317,32 @@ export default function MediaGallery({
         </div>
       )}
 
-      {/* Gallery View - Grid of thumbnails */}
-      {showGalleryView && (
+      {/* Gallery View - Grid of viewable thumbnails */}
+      {showGalleryView && visibleItems.length > 0 && (
         <div className="media-gallery-grid">
-          {sortedMediaItems.map((media, index) => (
+          {visibleItems.map((media, index) => (
             <div
               key={media.url}
               className={`media-gallery-thumbnail ${
-                index === currentIndex ? "active" : ""
+                index === safeIndex ? "active" : ""
               }`}
               onClick={() => {
-                onIndexChange(index);
+                goTo(index);
                 // Switch to fullscreen when clicking a thumbnail
                 if (onViewModeChange) {
-                  setCameFromGallery(true);
                   onViewModeChange("fullscreen");
                 }
               }}
             >
-              {!imageError.has(media.url) ? (
-                <img
-                  src={media.url}
-                  alt={media.title || `Media ${index + 1}`}
-                  className="media-gallery-thumbnail-img"
-                  onLoad={() => handleImageLoad(media.url, index)}
-                  onError={() => handleImageError(media.url, index)}
-                />
-              ) : (
-                <div className="media-gallery-thumbnail-error">Failed to load</div>
-              )}
-              {index === currentIndex && (
+              <img
+                src={media.url}
+                alt={media.title || `Photo ${index + 1}`}
+                className="media-gallery-thumbnail-img"
+                loading="lazy"
+                onLoad={() => markMediaUrlOk(media.url)}
+                onError={() => markMediaUrlFailed(media.url)}
+              />
+              {index === safeIndex && (
                 <div className="media-gallery-thumbnail-badge">Current</div>
               )}
             </div>
@@ -410,25 +351,20 @@ export default function MediaGallery({
       )}
 
       {/* Fullscreen View */}
-      {showFullscreen && (
+      {showFullscreen && currentMedia && (
         <div className="media-gallery-fullscreen">
-          {/* Back to Gallery button when opened from gallery */}
-          {cameFromGallery && onViewModeChange && (
+          {onViewModeChange ? (
             <div className="media-gallery-fullscreen-header">
               <button
                 className="media-gallery-back-btn"
                 onClick={(e) => {
-                  handleButtonClick(e, () => {
-                    setCameFromGallery(false);
-                    onViewModeChange("gallery");
-                  });
+                  handleButtonClick(e, () => onViewModeChange("gallery"));
                 }}
                 title="Back to gallery"
                 aria-label="Back to gallery"
               >
                 ← Back to Gallery
               </button>
-              {/* Close button in fullscreen header */}
               <button
                 className="media-gallery-close-btn media-gallery-close-btn-fullscreen"
                 onClick={(e) => handleButtonClick(e, onClose)}
@@ -438,9 +374,7 @@ export default function MediaGallery({
                 ×
               </button>
             </div>
-          )}
-          {/* Floating close button for fullscreen (when not from gallery) */}
-          {(!cameFromGallery || !onViewModeChange) && (
+          ) : (
             <button
               className="media-gallery-close-btn media-gallery-close-btn-floating"
               onClick={(e) => handleButtonClick(e, onClose)}
@@ -451,58 +385,7 @@ export default function MediaGallery({
             </button>
           )}
           <div className="media-gallery-fullscreen-image-container">
-            {isLoading[currentIndex] && !imageError.has(currentMedia.url) && (
-              <div className="media-gallery-loading">Loading image...</div>
-            )}
-            {!imageError.has(currentMedia.url) ? (
-              <img
-                src={currentMedia.url}
-                alt={currentMedia.title || `Media ${currentIndex + 1}`}
-                className="media-gallery-fullscreen-image"
-                onLoad={() => handleImageLoad(currentMedia.url, currentIndex)}
-                onError={() => handleImageError(currentMedia.url, currentIndex)}
-              />
-            ) : (
-              <div className="media-gallery-error">
-                {(currentMedia.title || currentMedia.description) && (
-                  <div className="media-gallery-error-label">
-                    {currentMedia.title && <strong>{currentMedia.title}</strong>}
-                    {currentMedia.description && (
-                      <span className="media-gallery-description">
-                        {currentMedia.description}
-                      </span>
-                    )}
-                  </div>
-                )}
-                <a
-                  href={currentMedia.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="media-gallery-error-link"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Open image attachment
-                </a>
-              </div>
-            )}
-            {hasMultiple && (
-              <>
-                <button
-                  className="media-gallery-nav-btn media-gallery-nav-prev"
-                  onClick={(e) => handleButtonClick(e, handlePrevious)}
-                  aria-label="Previous image"
-                >
-                  ‹
-                </button>
-                <button
-                  className="media-gallery-nav-btn media-gallery-nav-next"
-                  onClick={(e) => handleButtonClick(e, handleNext)}
-                  aria-label="Next image"
-                >
-                  ›
-                </button>
-              </>
-            )}
+            {renderMainImage("media-gallery-fullscreen-image")}
           </div>
           {(currentMedia.title || currentMedia.description) && (
             <div className="media-gallery-fullscreen-caption">
@@ -517,4 +400,3 @@ export default function MediaGallery({
     </div>
   );
 }
-

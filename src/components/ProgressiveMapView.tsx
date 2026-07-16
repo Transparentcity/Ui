@@ -5,9 +5,13 @@ import type { SavedMap } from "@/lib/apiClient";
 import { getMapView } from "@/lib/apiClient";
 import { API_BASE } from "@/lib/apiBase";
 import {
+  CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
+  CHOROPLETH_FIT_MAX_ZOOM_DISTRICT,
+  CHOROPLETH_FIT_PADDING,
   getCaseInsensitiveProp,
   getChoroplethBrandRamp,
   getInitialMapView,
+  INITIAL_ZOOM_CITYWIDE,
   normalizeChoroplethDistrictKey,
   type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
@@ -20,6 +24,7 @@ import {
   pickPointMediaUrl,
 } from "@/lib/maps/pointPopup";
 import { extractMediaFromPoints, type MediaItem } from "@/lib/mediaUtils";
+import { prepareGalleryOpen } from "@/lib/mediaPreload";
 import Loader from "./Loader";
 import MapLayerPanel from "./MapLayerPanel";
 import MediaGallery, { type MediaViewMode } from "./MediaGallery";
@@ -74,8 +79,6 @@ interface AvailableView {
 // Stable empty arrays to avoid new reference every render (prevents useEffect loops)
 const EMPTY_AVAILABLE_VIEWS: AvailableView[] = [];
 const EMPTY_SHAPE_LAYERS: ShapeLayer[] = [];
-
-const EMBED_BOUNDS_PADDING = 120;
 
 /** Bounding box [[sw_lng, sw_lat], [ne_lng, ne_lat]] from choropleth polygons. */
 function getBoundsFromPolygonFeatures(
@@ -694,7 +697,7 @@ export default function ProgressiveMapView({
         let embeddedZoom: number;
         if (mapData.center) {
           initialCenter = [mapData.center.lng, mapData.center.lat];
-          embeddedZoom = Math.max((mapData.center.zoom ?? 11) - 1, 10);
+          embeddedZoom = mapData.center.zoom ?? INITIAL_ZOOM_CITYWIDE;
         } else if (bounds && bounds.length === 2) {
           const [[swLng, swLat], [neLng, neLat]] = bounds;
           initialCenter = [(swLng + neLng) / 2, (swLat + neLat) / 2];
@@ -782,8 +785,8 @@ export default function ProgressiveMapView({
             if (bounds && bounds.length === 2) {
               try {
                 map.fitBounds(bounds as [[number, number], [number, number]], {
-                  padding: EMBED_BOUNDS_PADDING,
-                  maxZoom: 12,
+                  padding: CHOROPLETH_FIT_PADDING,
+                  maxZoom: CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
                   duration: 0,
                 });
               } catch (fitErr) {
@@ -1315,8 +1318,10 @@ export default function ProgressiveMapView({
       if (shapeBounds) {
         try {
           mapInstance.fitBounds(shapeBounds, {
-            padding: EMBED_BOUNDS_PADDING,
-            maxZoom: isDistrictScoped ? 14 : 11,
+            padding: CHOROPLETH_FIT_PADDING,
+            maxZoom: isDistrictScoped
+              ? CHOROPLETH_FIT_MAX_ZOOM_DISTRICT
+              : CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
             duration: 0,
           });
         } catch (e) {
@@ -1540,13 +1545,11 @@ export default function ProgressiveMapView({
           // Single point with a photo: open the media gallery (with all media on
           // the map so users can navigate point to point) instead of a popup.
           if (count <= 1 && pickPointMediaUrl(props)) {
-            const items = extractMediaFromPoints(pointData);
+            const { items, startIndex } = prepareGalleryOpen(
+              extractMediaFromPoints(pointData),
+              pickPointMediaUrl(props)
+            );
             if (items.length > 0) {
-              const clickedUrl = pickPointMediaUrl(props);
-              const startIndex = Math.max(
-                0,
-                items.findIndex((item) => item.url === clickedUrl)
-              );
               setGalleryItems(items);
               setGalleryIndex(startIndex);
               setGalleryViewMode("split");
