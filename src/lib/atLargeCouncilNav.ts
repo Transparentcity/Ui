@@ -187,7 +187,7 @@ export function findNeighborhoodFromPoint(
 
     for (const feature of geometryData.features) {
       const geometry = feature.geometry;
-      if (!geometry?.coordinates) continue;
+      if (!geometry) continue;
 
       let rings: [number, number][][] = [];
       if (geometry.type === "Polygon") {
@@ -196,6 +196,8 @@ export function findNeighborhoodFromPoint(
         rings = geometry.coordinates.map(
           (poly) => (poly as [number, number][][])[0] as [number, number][],
         );
+      } else {
+        continue;
       }
 
       for (const ring of rings) {
