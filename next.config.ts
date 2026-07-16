@@ -65,6 +65,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    // The legacy /admin/waste console was retired in favor of the primary
+    // /waste interface. Permanently redirect old bookmarks and deep links.
+    return [
+      { source: "/admin/waste", destination: "/waste", permanent: true },
+      { source: "/admin/waste/:path*", destination: "/waste", permanent: true },
+    ];
+  },
   async rewrites() {
     // Proxy all /api/* calls to the backend, avoiding browser CORS issues.
     // Next.js filesystem API routes (geocode, research, cityreadiness, etc.)
