@@ -1271,7 +1271,59 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-07-09"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "🔊 Noise Complaints (311)",
+      "metricKey": "cincinnati_noise_complaints_311",
+      "metricId": 608,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_noise_complaints_311",
+      "normalLagRange": [
+        8,
+        16
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-16"
+    },
+    {
+      "city": "NYC",
+      "metricName": "💀 Homicides",
+      "metricKey": "nyc_homicides",
+      "metricId": 808,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_homicides",
+      "normalLagRange": [
+        101,
+        109
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-16"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🔫 NYPD Shooting Incidents",
+      "metricKey": "nyc_nypd_shooting_incidents",
+      "metricId": 555,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_shooting_incidents",
+      "normalLagRange": [
+        101,
+        109
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-16"
+    },
+    {
+      "city": "Austin",
+      "metricName": "🏢 New Commercial Construction Permits Filed",
+      "metricKey": "austin_new_commercial_construction_permits_filed",
+      "metricId": 788,
+      "cardUrl": "https://transparent.city/c/austin/metrics/austin_new_commercial_construction_permits_filed",
+      "normalLagRange": [
+        8,
+        16
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-16"
     }
   ],
-  "lastRunDate": "2026-07-09"
+  "lastRunDate": "2026-07-16"
 }
