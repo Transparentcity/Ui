@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { formatDateRangeFromStrings } from "@/lib/formatters";
+import { formatDateRangeFromStrings, yearFromDateString } from "@/lib/formatters";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
 import {
@@ -149,53 +149,76 @@ export default function MetricDetailContent({
   const isTimeSeriesLoading = timeSeriesQuery.isLoading || timeSeriesQuery.isFetching;
 
   const currentCalendarYear = new Date().getFullYear();
-  const mostRecentYear = metric.most_recent_data_date
-    ? new Date(metric.most_recent_data_date).getFullYear()
-    : currentCalendarYear;
-  const comparisonCurrentYear = comparison?.current_period_end
-    ? new Date(comparison.current_period_end).getFullYear()
-    : currentCalendarYear;
+  const mostRecentYear =
+    yearFromDateString(metric.most_recent_data_date) ?? currentCalendarYear;
+  const comparisonCurrentYear =
+    yearFromDateString(comparison?.current_period_end) ?? currentCalendarYear;
   const isStale = mostRecentYear < currentCalendarYear || comparisonCurrentYear < currentCalendarYear;
 
-  const periodButtonLabels = {
-    ytd: "Year-to-Date",
-    mtd: "Month-to-Date",
-    mtd_prior_year: "Month-to-Date (Prior Year)",
-  };
+  const isStockMetric = metric.measurement_type === "stock";
 
-  const periodLabels = {
-    ytd: "Year-to-Date Comparison",
-    mtd: "Month-to-Date Comparison",
-    mtd_prior_year: "Month-to-Date Comparison (Prior Year)",
-  };
+  const periodButtonLabels = isStockMetric
+    ? {
+        ytd: "Annual View",
+        mtd: "Monthly View",
+        mtd_prior_year: "Monthly (Prior Year)",
+      }
+    : {
+        ytd: "Year-to-Date",
+        mtd: "Month-to-Date",
+        mtd_prior_year: "Month-to-Date (Prior Year)",
+      };
 
-  const periodDescriptions = {
-    ytd: "compared to last year",
-    mtd: "compared to last month",
-    mtd_prior_year: "compared to the same month last year",
-  };
+  const periodLabels = isStockMetric
+    ? {
+        ytd: "Annual Level Comparison",
+        mtd: "Monthly Level Comparison",
+        mtd_prior_year: "Monthly Level Comparison (Prior Year)",
+      }
+    : {
+        ytd: "Year-to-Date Comparison",
+        mtd: "Month-to-Date Comparison",
+        mtd_prior_year: "Month-to-Date Comparison (Prior Year)",
+      };
+
+  const periodDescriptions = isStockMetric
+    ? {
+        ytd: "compared to a year ago",
+        mtd: "compared to a month ago",
+        mtd_prior_year: "compared to the same month last year",
+      }
+    : {
+        ytd: "compared to last year",
+        mtd: "compared to last month",
+        mtd_prior_year: "compared to the same month last year",
+      };
 
   // Year for headers/labels: from comparison period dates when available
   const currentYear =
-    comparison?.current_period_end || comparison?.current_period_start
-      ? new Date(comparison.current_period_end || comparison.current_period_start!).getFullYear()
-      : new Date().getFullYear();
+    yearFromDateString(comparison?.current_period_end || comparison?.current_period_start) ??
+    new Date().getFullYear();
   const priorYear =
-    comparison?.comparison_period_end || comparison?.comparison_period_start
-      ? new Date(comparison.comparison_period_end || comparison.comparison_period_start!).getFullYear()
-      : currentYear - 1;
+    yearFromDateString(comparison?.comparison_period_end || comparison?.comparison_period_start) ??
+    currentYear - 1;
 
-  const comparisonLabels: Record<typeof selectedPeriod, { previous: string; current: string }> = isStale
-    ? {
-        ytd: { previous: `Prior year to date (${priorYear})`, current: `Last available year to date (${currentYear})` },
-        mtd: { previous: `Prior period (${priorYear})`, current: `Last available period (${currentYear})` },
-        mtd_prior_year: { previous: `Prior year (${priorYear})`, current: `Last available year (${currentYear})` },
-      }
-    : {
-        ytd: { previous: "Last Year", current: "This Year" },
-        mtd: { previous: "Last Month", current: "This Month" },
-        mtd_prior_year: { previous: "Last Year", current: "This Year" },
-      };
+  const comparisonLabels: Record<typeof selectedPeriod, { previous: string; current: string }> =
+    isStockMetric
+      ? {
+          ytd: { previous: `A year ago (${priorYear})`, current: `Currently (${currentYear})` },
+          mtd: { previous: "A month ago", current: "Currently" },
+          mtd_prior_year: { previous: `Same month last year (${priorYear})`, current: `Currently (${currentYear})` },
+        }
+      : isStale
+        ? {
+            ytd: { previous: `Prior year to date (${priorYear})`, current: `Last available year to date (${currentYear})` },
+            mtd: { previous: `Prior period (${priorYear})`, current: `Last available period (${currentYear})` },
+            mtd_prior_year: { previous: `Prior year (${priorYear})`, current: `Last available year (${currentYear})` },
+          }
+        : {
+            ytd: { previous: "Last Year", current: "This Year" },
+            mtd: { previous: "Last Month", current: "This Month" },
+            mtd_prior_year: { previous: "Last Year", current: "This Year" },
+          };
 
   const formatValue = (value: number | null | undefined, isLoading?: boolean): string => {
     if (isLoading) return "Loading...";
@@ -312,9 +335,11 @@ export default function MetricDetailContent({
       {/* Comparison */}
       <section className="metric-section metric-comparison">
         <h2 className="metric-section-title">
-          {isStale
-            ? `Prior year to date: how have ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
-            : `How have ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
+          {isStockMetric
+            ? `${metric.metric_name} level in ${locationLabel}`
+            : isStale
+              ? `Prior year to date: how have ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
+              : `How have ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
         </h2>
         <div className="metric-period-selector">
           {(["ytd", "mtd", "mtd_prior_year"] as const).map((period) => (
@@ -379,7 +404,23 @@ export default function MetricDetailContent({
         )}
         {trend && !isComparisonsLoading && (
           <div className="comparison-summary">
-            {isStale ? (
+            {isStockMetric ? (
+              <>
+                In {locationLabel}, there are currently{" "}
+                <span
+                  className={
+                    trendTone === "neutral"
+                      ? "trend-neutral"
+                      : trendTone === "good"
+                        ? "trend-good"
+                        : "trend-bad"
+                  }
+                >
+                  {trend.isIncrease ? "more" : "fewer"} {metric.item_noun.toLowerCase()} ({Math.round(Math.abs(trend.percent))}% {trend.isIncrease ? "more" : "fewer"})
+                </span>{" "}
+                {periodDescriptions[selectedPeriod]}.
+              </>
+            ) : isStale ? (
               <>
                 In {locationLabel}, {metric.metric_name.toLowerCase()} {metric.item_noun} (prior year to date) are{" "}
                 <span
@@ -432,7 +473,18 @@ export default function MetricDetailContent({
               </a>
             )}
           </div>
-          {isStale ? (
+          {isStockMetric ? (
+            comparison &&
+            comparison.current_period_value !== null ? (
+              <p className="metric-comparison-caption">
+                Currently {formatValue(comparison.current_period_value)} {metric.item_noun.toLowerCase()}{" "}
+                {trend && comparison.comparison_period_value !== null
+                  ? `, ${trend.isIncrease ? "up" : "down"} ${Math.round(Math.abs(trend.percent))}% from ${formatValue(comparison.comparison_period_value)} a year ago`
+                  : ""}
+                {currentPeriodEndFormatted ? ` (as of ${currentPeriodEndFormatted})` : ""}.
+              </p>
+            ) : null
+          ) : isStale ? (
             <p className="metric-comparison-caption">
               No data for the current period. Trends below are prior year to date (through {metric.most_recent_data_date ? new Date(metric.most_recent_data_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "the latest available date"}).
             </p>
@@ -459,6 +511,7 @@ export default function MetricDetailContent({
               yearChartId={yearChartId}
               staleness_days={staleness_days}
               reportingCompletenessHref={reportingCompletenessHref}
+              measurementType={isStockMetric ? "stock" : "flow"}
             />
             <MetricSourceAttribution
               sourceInfo={datasetAttribution}
@@ -534,13 +587,22 @@ export default function MetricDetailContent({
       {/* Category Breakdown */}
       {metric.category_fields && metric.category_fields.length > 0 && (
         <section className="metric-section">
-          <h2 className="metric-section-title">What types of {metric.metric_name.toLowerCase()} are there?</h2>
+          <h2 className="metric-section-title">
+            {selectedDistrict !== null && selectedDistrict > 0
+              ? `How have the types of ${metric.metric_name.toLowerCase()} changed in District ${selectedDistrict}?`
+              : `How have the types of ${metric.metric_name.toLowerCase()} changed?`}
+          </h2>
           <CategoryBreakdown
             metricId={metric.id}
             categoryFields={metric.category_fields}
             timeSeriesSummary={timeSeriesQuery.data ?? undefined}
             currentPeriodStart={comparison?.current_period_start}
             currentPeriodEnd={comparison?.current_period_end}
+            comparisonPeriodStart={comparison?.comparison_period_start}
+            comparisonPeriodEnd={comparison?.comparison_period_end}
+            priorPeriodLabel={priorYear !== currentYear ? String(priorYear) : "Prior"}
+            currentPeriodLabel={priorYear !== currentYear ? String(currentYear) : "Current"}
+            district={selectedDistrict}
           />
         </section>
       )}

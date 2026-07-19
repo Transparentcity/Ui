@@ -12,6 +12,7 @@ import {
   getChoroplethBrandRamp,
   getInitialMapView,
   INITIAL_ZOOM_CITYWIDE,
+  choroplethDistrictKeyAliases,
   normalizeChoroplethDistrictKey,
   type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
@@ -1087,46 +1088,55 @@ export default function ProgressiveMapView({
           : "";
 
       const addRowUnderKeys = (row: any, raw: unknown) => {
-        const norm = normalizeChoroplethDistrictKey(raw);
-        if (!norm) return;
-        districtDataMap.set(norm, row);
-        const n = Number(norm);
-        if (!Number.isNaN(n) && Number.isFinite(n)) {
-          const f = Math.floor(n);
-          districtDataMap.set(n, row);
-          districtDataMap.set(f, row);
-          districtDataMap.set(`District ${f}`, row);
-          districtDataMap.set(`district ${f}`, row);
+        const keyAliases = choroplethDistrictKeyAliases(raw);
+        if (keyAliases.length === 0) return;
+        for (const keyAlias of keyAliases) {
+          districtDataMap.set(keyAlias, row);
+          const n = Number(keyAlias);
+          if (!Number.isNaN(n) && Number.isFinite(n)) {
+            const f = Math.floor(n);
+            districtDataMap.set(n, row);
+            districtDataMap.set(f, row);
+            districtDataMap.set(`District ${f}`, row);
+            districtDataMap.set(`district ${f}`, row);
+          }
         }
         const rawStr = String(raw).trim();
-        if (rawStr && rawStr !== norm) districtDataMap.set(rawStr, row);
+        if (rawStr) districtDataMap.set(rawStr, row);
       };
 
       // The aggregation row key may differ from the shape layer's identifier_field.
       // Example: rows keyed by "analysis_neighborhood" (the Socrata field) while the
-      // shape layer's GeoJSON identifier_field is "nhood". We must try data_field first
-      // so those rows can be found even when identifier_field has no match.
-      const aggDataField = aggregation.data_field?.trim();
+      // shape layer's GeoJSON identifier_field is "nhood". Prefer data_field, and only
+      // use map_config.district_field when that column is actually present on the row
+      // (after consolidation it may be the GeoJSON id, e.g. "sup_dist_num").
+      const aggDataField =
+        aggregation.data_field?.trim() || shapeLayer.data_field?.trim() || "";
 
       aggregation.rows.forEach((row: any) => {
         const rowObj = row as Record<string, unknown>;
         const cands: unknown[] = [];
-        if (districtFieldCfg) {
-          cands.push(
-            rowObj[districtFieldCfg],
-            getCaseInsensitiveProp(rowObj, districtFieldCfg)
-          );
+        const pushField = (field?: string) => {
+          if (!field) return;
+          const direct = rowObj[field];
+          const ci = getCaseInsensitiveProp(rowObj, field);
+          if (direct != null && String(direct).trim() !== "") cands.push(direct);
+          if (ci != null && String(ci).trim() !== "" && ci !== direct) cands.push(ci);
+        };
+
+        pushField(aggDataField);
+        // Aggregations always stash the join key on "district".
+        pushField("district");
+        // Only use map_config.district_field when the row actually carries it.
+        if (
+          districtFieldCfg &&
+          getCaseInsensitiveProp(rowObj, districtFieldCfg) != null &&
+          String(getCaseInsensitiveProp(rowObj, districtFieldCfg)).trim() !== ""
+        ) {
+          pushField(districtFieldCfg);
         }
-        // Try data_field (the Socrata column used to key the aggregation rows) first,
-        // then identifier_field (the GeoJSON property name from the shape layer DB record).
-        // Both are sourced from the database — no hardcoded city/field names needed here.
-        if (aggDataField && aggDataField !== identifierField) {
-          cands.push(
-            rowObj[aggDataField],
-            getCaseInsensitiveProp(rowObj, aggDataField)
-          );
-        }
-        cands.push(getCaseInsensitiveProp(rowObj, identifierField));
+        pushField(identifierField);
+
         for (const raw of cands) {
           if (raw == null || String(raw).trim() === "") continue;
           addRowUnderKeys(row, raw);
@@ -1175,11 +1185,10 @@ export default function ProgressiveMapView({
       
       const lookupDistrictData = (raw: unknown) => {
         if (raw == null) return undefined;
-        const norm = normalizeChoroplethDistrictKey(raw);
-        if (norm) {
-          let d = districtDataMap.get(norm);
+        for (const keyAlias of choroplethDistrictKeyAliases(raw)) {
+          let d = districtDataMap.get(keyAlias);
           if (d) return d;
-          const n = Number(norm);
+          const n = Number(keyAlias);
           if (!Number.isNaN(n) && Number.isFinite(n)) {
             d =
               districtDataMap.get(n) ??

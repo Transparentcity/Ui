@@ -158,7 +158,7 @@ function SketchOverlay({
           );
         })}
 
-      {sketch.districts.map((d) => {
+      {sketch.districts.map((d, idx) => {
         const isHighlighted = d.district_id === highlightDistrict;
         const pathD = d.rings
           .map((ring) => ringToPath(ring, viewBbox, viewW, viewH))
@@ -166,7 +166,7 @@ function SketchOverlay({
         if (!pathD) return null;
         return (
           <path
-            key={d.district_id}
+            key={`${d.district_id}-${idx}`}
             d={pathD}
             fill={
               isHighlighted

@@ -5,7 +5,8 @@
  * place — because the batch-comparisons response shape is identical across
  * them. Given metric definitions plus a comparisons map, it produces rows
  * with prior value, new value, absolute difference, and percent change,
- * ranked by movement, along with summary counts for the stat chips.
+ * ranked by blended movement (percent + absolute change), along with
+ * summary counts for the stat chips.
  */
 
 import type { ComparisonResponse, ComparisonType } from "@/lib/apiClient";
@@ -35,7 +36,10 @@ export interface MoverRow {
    * "worsening" when it moves the bad way, "flat" when unchanged.
    */
   direction: "worsening" | "improving" | "flat";
-  /** True when the metric's data was updated after the recency anchor. */
+  /**
+   * True when the metric's data was updated after the recency anchor.
+   * Display-only (drives the NEW badge); has no effect on ranking.
+   */
   isNew: boolean;
 }
 
@@ -63,7 +67,7 @@ export interface RankMetricMoversOptions {
   >;
   comparisonType?: ComparisonType;
   sort?: MoversSort;
-  /** ISO timestamp: rows with newer data get the NEW badge + tie-break boost. */
+  /** ISO timestamp: rows with newer data get the NEW badge (display only). */
   recencyAnchor?: string | null;
   limit?: number;
 }
@@ -130,12 +134,48 @@ function buildRow(
 }
 
 /**
+ * Blended movement ordering: each candidate is ranked by |percent change|
+ * and separately by |absolute change| within the candidate set, and the two
+ * ranks are summed (lower total = bigger mover). Rank blending — rather than
+ * mixing the raw values — keeps absolute changes usable across metrics with
+ * incomparable units (counts vs dollars vs rates). Ties break by |percent
+ * change|, then metric name. Returns a new sorted array.
+ */
+function sortByMovement(rows: MoverRow[]): MoverRow[] {
+  const rankBy = (value: (r: MoverRow) => number): Map<MoverRow, number> => {
+    const sorted = [...rows].sort((a, b) => value(b) - value(a));
+    const ranks = new Map<MoverRow, number>();
+    for (let i = 0; i < sorted.length; i++) {
+      const prev = i > 0 ? sorted[i - 1] : null;
+      // Equal values share a rank so ordering doesn't depend on input order.
+      const rank =
+        prev && value(prev) === value(sorted[i]) ? ranks.get(prev)! : i;
+      ranks.set(sorted[i], rank);
+    }
+    return ranks;
+  };
+  const pctRank = rankBy((r) => Math.abs(r.pctChange));
+  const diffRank = rankBy((r) => Math.abs(r.diff));
+  return [...rows].sort((a, b) => {
+    const d =
+      pctRank.get(a)! +
+      diffRank.get(a)! -
+      (pctRank.get(b)! + diffRank.get(b)!);
+    if (d !== 0) return d;
+    const p = Math.abs(b.pctChange) - Math.abs(a.pctChange);
+    if (p !== 0) return p;
+    return a.metric.metric_name.localeCompare(b.metric.metric_name);
+  });
+}
+
+/**
  * Rank metric movers for a dashboard scope.
  *
- * Ranking: |pct change| descending, with a noise floor of
- * {@link MOVER_NOISE_FLOOR_PCT}. Rows updated since the recency anchor win
- * ties. "most_recent" sorts by data freshness instead; "worsening"/"improving"
- * filter by direction then rank by movement.
+ * Ranking: blended movement (see {@link sortByMovement}) combining percent
+ * change and absolute change, with a noise floor of
+ * {@link MOVER_NOISE_FLOOR_PCT}. The recency anchor only sets the NEW badge
+ * flag; it does not affect ordering. "most_recent" sorts by data freshness
+ * instead; "worsening"/"improving" filter by direction then rank by movement.
  */
 export function rankMetricMovers(
   options: RankMetricMoversOptions,
@@ -196,20 +236,17 @@ export function rankMetricMovers(
       break;
   }
 
-  const byMovement = (a: MoverRow, b: MoverRow) => {
-    // NEW-since-anchor rows first, then magnitude of change.
-    if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
-    const d = Math.abs(b.pctChange) - Math.abs(a.pctChange);
-    if (d !== 0) return d;
-    return a.metric.metric_name.localeCompare(b.metric.metric_name);
-  };
-  const byFreshness = (a: MoverRow, b: MoverRow) => {
-    const d = metricDataTimestamp(b) - metricDataTimestamp(a);
-    if (d !== 0) return d;
-    return byMovement(a, b);
-  };
-
-  candidates.sort(sort === "most_recent" ? byFreshness : byMovement);
+  if (sort === "most_recent") {
+    candidates.sort((a, b) => {
+      const d = metricDataTimestamp(b) - metricDataTimestamp(a);
+      if (d !== 0) return d;
+      const p = Math.abs(b.pctChange) - Math.abs(a.pctChange);
+      if (p !== 0) return p;
+      return a.metric.metric_name.localeCompare(b.metric.metric_name);
+    });
+  } else {
+    candidates = sortByMovement(candidates);
+  }
 
   return {
     rows: candidates.slice(0, Math.max(0, limit)),

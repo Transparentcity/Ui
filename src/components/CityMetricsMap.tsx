@@ -1601,7 +1601,20 @@ export default function CityMetricsMap({
       districtFields.push(structureData.district_field);
     }
 
-    // Look for geographic structures with district-related names
+    // 1. Prefer the official district shape layer (new model)
+    const officialId = (structureData as any).official_district_shape_layer_id as number | null | undefined;
+    const officialShapefile = officialId
+      ? structureData.shapefiles?.find((sf) => sf.id === officialId)
+      : structureData.shapefiles?.find((sf) => (sf as any).is_official_district_layer);
+
+    if (officialShapefile && officialShapefile.identifier_field) {
+      if (!districtFields.includes(officialShapefile.identifier_field)) {
+        districtFields.push(officialShapefile.identifier_field);
+      }
+      return { field: officialShapefile.identifier_field, shapefile: officialShapefile, districtFields };
+    }
+
+    // 2. Legacy fallback: look for geographic structures with district-related names
     const districtStructure = structureData.geographic_structures?.find(
       (gs) => containsDistrictKeyword(gs.structure_name) ||
               containsDistrictKeyword(gs.structure_type)
@@ -2164,8 +2177,16 @@ export default function CityMetricsMap({
                 // Find matching leader
                 let matchingLeader: any = null;
                 if (districtNumber !== null) {
-                  // First, try matching by geographic_structure_id if both exist (preferred method)
-                  if (districtInfo.shapefile?.geographic_structure_id) {
+                  // Prefer match by district_shape_layer_id (new model)
+                  const shapefileId = districtInfo.shapefile?.id;
+                  if (shapefileId) {
+                    matchingLeader = leaders.find((leader: any) => {
+                      return leader.district === districtNumber && leader.district_shape_layer_id === shapefileId;
+                    });
+                  }
+
+                  // Then try geographic_structure_id (legacy)
+                  if (!matchingLeader && districtInfo.shapefile?.geographic_structure_id) {
                     matchingLeader = leaders.find((leader: any) => {
                       return leader.district === districtNumber && 
                              leader.geographic_structure_id === districtInfo.shapefile.geographic_structure_id;

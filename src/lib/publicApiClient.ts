@@ -192,6 +192,8 @@ export type PublicCityMetricItem = {
   show_on_dash?: boolean;
   /** "up" = increase is good (green); "down" = decrease is good. From API; defaults in UI if absent. */
   greendirection?: string | null;
+  /** "flow" (event counts per period) or "stock" (point-in-time level). Defaults to "flow". */
+  measurement_type?: "flow" | "stock";
 };
 
 export type PublicCityDetail = {
@@ -207,6 +209,7 @@ export type PublicCityDetail = {
   mayor?: { name: string } | null;
   mayor_subscriber_count?: number;
   is_launched?: boolean;
+  official_district_shape_layer_id?: number | null;
   geographic_structures?: Array<{
     min_value?: number | null;
     max_value?: number | null;
@@ -511,6 +514,8 @@ export type PublicMetricDetail = {
   greendirection: string;
   is_active: boolean;
   metric_type: string | null;
+  /** "flow" (event counts per period, default) or "stock" (point-in-time level/inventory) */
+  measurement_type: "flow" | "stock";
   data_source_type: string | null;
   source_url: string | null;
   template_id: number | null;
@@ -739,6 +744,7 @@ export type CategoryBreakdownResponse = {
   metric_name: string;
   period_start: string;
   period_end: string;
+  district?: number | null;
   fields: CategoryBreakdownFieldResult[];
 };
 
@@ -746,13 +752,15 @@ export function getPublicMetricCategoryBreakdown(
   metricId: number,
   startDate?: string | null,
   endDate?: string | null,
+  district?: number | null,
 ): Promise<CategoryBreakdownResponse> {
   const params = new URLSearchParams();
   if (startDate) params.set("start_date", startDate);
   if (endDate) params.set("end_date", endDate);
+  if (district != null && district > 0) params.set("district", String(district));
   const qs = params.toString();
   const path = `/api/public/metrics/${metricId}/category-breakdown${qs ? `?${qs}` : ""}`;
-  const cacheKey = `metric-cat-breakdown:${metricId}:${startDate ?? ""}:${endDate ?? ""}`;
+  const cacheKey = `metric-cat-breakdown:${metricId}:${startDate ?? ""}:${endDate ?? ""}:${district ?? ""}`;
   return getCachedOrFetch(cacheKey, () => requestPublic<CategoryBreakdownResponse>(path), 120000);
 }
 

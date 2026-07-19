@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
-import { formatDateRangeFromStrings } from "@/lib/formatters";
+import { formatDateRangeFromStrings, yearFromDateString } from "@/lib/formatters";
 import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/lib/publicApiClient";
 import { getMetricMapData, type MapData, type SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
@@ -47,9 +47,11 @@ interface MetricMapEmbedProps {
    */
   knownTotal?: number | null;
   /**
-   * Called once after the API responds and the only renderable view would be a
-   * truncated point sample (limit hit, no choropleth available). The parent can
-   * use this to collapse the surrounding section entirely.
+   * Called once after the API responds and there is nothing to render: either
+   * the only renderable view would be a truncated point sample (limit hit, no
+   * choropleth available), or map generation failed server-side (usually a
+   * metric map configuration problem). The parent can use this to collapse the
+   * surrounding section entirely.
    */
   onMapUnavailable?: () => void;
 }
@@ -523,6 +525,7 @@ export default function MetricMapEmbed({
             setError(null);
             setMapData(null);
           } else {
+            console.error(`Map preview failed for metric ${metricId}:`, err);
             setError(err instanceof Error ? err.message : "Failed to load map");
           }
         }
@@ -626,19 +629,8 @@ export default function MetricMapEmbed({
     mtd_prior_year: "Month-to-Date (Prior Year)",
   };
 
-  const getYearFromDate = (dateStr: string | null | undefined): number | null => {
-    if (!dateStr) return null;
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return null;
-      return date.getFullYear();
-    } catch {
-      return null;
-    }
-  };
-
-  const currentYear = getYearFromDate(dateRange?.start);
-  const comparisonYear = getYearFromDate(comparisonDateRange?.start);
+  const currentYear = yearFromDateString(dateRange?.start);
+  const comparisonYear = yearFromDateString(comparisonDateRange?.start);
   const hasComparison = comparisonLocationData && comparisonLocationData.length > 0;
 
   const periodLabels = useMemo(
@@ -673,6 +665,9 @@ export default function MetricMapEmbed({
       location_data: [...prior, ...current] as SavedMap["location_data"],
       map_config: {
         ...mapData.map_config,
+        // Place map-data responses often omit item_noun; fall back to the
+        // metric's noun so the panel headers can label the counts.
+        item_noun: (mapData.map_config?.item_noun as string | undefined) || itemNoun,
         year_compare: true,
         layout: "year_panels",
         year_field: "year",
@@ -691,6 +686,7 @@ export default function MetricMapEmbed({
     comparisonYear,
     comparisonDateRange?.start,
     comparisonDateRange?.end,
+    itemNoun,
   ]);
 
   const embedViewSpecs = useMemo(
@@ -774,17 +770,17 @@ export default function MetricMapEmbed({
     onMapUnavailableFired.current = false;
   }, [metricId, district]);
   useEffect(() => {
-    if (
-      !loading &&
-      mapData &&
-      effectiveSpecs === null &&
-      !onMapUnavailableFired.current &&
-      (limitHit || isDistrictScope)
-    ) {
+    if (loading || onMapUnavailableFired.current) return;
+    const nothingRenderable =
+      error !== null ||
+      (mapData !== null &&
+        effectiveSpecs === null &&
+        (limitHit || isDistrictScope));
+    if (nothingRenderable) {
       onMapUnavailableFired.current = true;
       onMapUnavailable?.();
     }
-  }, [loading, mapData, limitHit, isDistrictScope, effectiveSpecs, onMapUnavailable]);
+  }, [loading, error, mapData, limitHit, isDistrictScope, effectiveSpecs, onMapUnavailable]);
 
   // Secondary map height: 75 % of primary (but not smaller than 200 px)
   const secondaryHeight = Math.max(200, Math.round(height * 0.75));
@@ -837,12 +833,12 @@ export default function MetricMapEmbed({
     return null;
   }
 
+  // Map generation failed server-side (usually a metric map configuration
+  // problem, e.g. map_query selecting a column that doesn't exist in the
+  // dataset). Hide the map instead of showing a raw error on a public page;
+  // the parent collapses the whole section via onMapUnavailable.
   if (error) {
-    return (
-      <div className="metric-map-embed" ref={containerRef} style={{ minHeight: height }}>
-        <div className="map-error">{error}</div>
-      </div>
-    );
+    return null;
   }
 
   // ── Full render ───────────────────────────────────────────────────────────────

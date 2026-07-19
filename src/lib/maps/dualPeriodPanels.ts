@@ -8,12 +8,30 @@ import { formatMetricMapViewSpecKey, type MetricMapViewSpec } from "@/lib/metric
 export type DualPeriodPanelSpec = {
   label: string;
   count?: number;
+  /** Noun shown next to the count (e.g. "permits"). */
+  countNoun?: string;
   mapData: SavedMap;
   lockedViewKey: string;
 };
 
-function rowCountForAgg(agg: { rows?: unknown[] } | undefined): number {
-  return Array.isArray(agg?.rows) ? agg.rows.length : 0;
+type AggRow = { value?: number; count?: number };
+
+/**
+ * Panel header count: sum of aggregation values (total items) with the item
+ * noun; falls back to the row count (number of areas) when values don't sum.
+ */
+function panelCountForAgg(
+  agg: { rows?: AggRow[] } | undefined,
+  itemNoun: string | undefined,
+  areaNoun: string | undefined
+): { count: number; countNoun?: string } {
+  const rows = Array.isArray(agg?.rows) ? agg.rows : [];
+  const total = rows.reduce(
+    (sum, row) => sum + (Number(row?.value ?? row?.count ?? 0) || 0),
+    0
+  );
+  if (total > 0) return { count: total, countNoun: itemNoun };
+  return { count: rows.length, countNoun: areaNoun };
 }
 
 function panelMapForChoroplethLayer(
@@ -50,29 +68,34 @@ export function buildChoroplethDualPanels(
   const shapeLayerId = spec.shapeLayerId;
   const currentAggregations = (currentMap.map_config?.aggregations || {}) as Record<
     string,
-    { rows?: unknown[] }
+    { rows?: AggRow[] }
   >;
   const comparisonAggregations = (comparisonMap.map_config?.aggregations || {}) as Record<
     string,
-    { rows?: unknown[] }
+    { rows?: AggRow[] }
   >;
   const currentAgg = currentAggregations[shapeLayerId];
   const comparisonAgg = comparisonAggregations[shapeLayerId];
 
   if (!currentAgg || !comparisonAgg) return null;
 
+  const itemNoun = (currentMap.map_config?.item_noun as string | undefined)?.trim();
+  const areaNoun = (
+    currentMap.map_config?.choropleth_area_noun as string | undefined
+  )?.trim();
+
   const lockedViewKey = formatMetricMapViewSpecKey(spec);
 
   return [
     {
       label: labels.prior,
-      count: rowCountForAgg(comparisonAgg),
+      ...panelCountForAgg(comparisonAgg, itemNoun, areaNoun),
       mapData: panelMapForChoroplethLayer(comparisonMap, shapeLayerId, comparisonAgg),
       lockedViewKey,
     },
     {
       label: labels.current,
-      count: rowCountForAgg(currentAgg),
+      ...panelCountForAgg(currentAgg, itemNoun, areaNoun),
       mapData: panelMapForChoroplethLayer(currentMap, shapeLayerId, currentAgg),
       lockedViewKey,
     },

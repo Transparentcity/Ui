@@ -35,6 +35,7 @@ import {
 } from "@/lib/hooks/useMetrics";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import TemplateOrderEditor from "./TemplateOrderEditor";
+import ShapeLayerTemplatesAdmin from "./ShapeLayerTemplatesAdmin";
 import CrossCityComparisonChart from "./CrossCityComparisonChart";
 import MetricActions from "./MetricActions";
 import MetricEditModal from "./MetricEditModal";
@@ -1080,6 +1081,9 @@ export default function MetricsAdmin() {
       <TemplateOrderEditor
         templates={templatesQuery.data ?? []}
       />
+
+      {/* Shape Layer Templates (view/edit city-agnostic boundary layer templates) */}
+      <ShapeLayerTemplatesAdmin />
 
       {/* Filters */}
       <div className={styles.filtersContainer}>

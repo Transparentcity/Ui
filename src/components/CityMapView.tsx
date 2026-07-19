@@ -63,8 +63,8 @@ function pointInPolygon(point: [number, number], polygon: [number, number][]): b
   return inside;
 }
 
-// Find which district contains the GPS point
-// Prioritizes shapefiles that match the primary geographic structure (used by leaders)
+// Find which district contains the GPS point.
+// Prioritizes the official district shape layer, then falls back to leader plurality heuristic.
 function findDistrictContainingPoint(
   lat: number, 
   lng: number, 
@@ -74,54 +74,68 @@ function findDistrictContainingPoint(
 ): { shapefile: CityShapefile; feature: any; identifier: string | number } | null {
   const point: [number, number] = [lng, lat];
   
-  // Find the primary geographic structure (the one used by most leaders)
-  let primaryGeographicStructureId: number | null = null;
-  
-  if (cityStructure && leaders && leaders.length > 0) {
-    // Count which geographic_structure_id is used by most leaders
-    const structureIdCounts = new Map<number, number>();
-    leaders.forEach((leader) => {
-      if (leader.geographic_structure_id) {
-        const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
-        structureIdCounts.set(leader.geographic_structure_id, count + 1);
-      }
-    });
-    
-    // Find the most common geographic_structure_id
-    let maxCount = 0;
-    structureIdCounts.forEach((count, structureId) => {
-      if (count > maxCount) {
-        maxCount = count;
-        primaryGeographicStructureId = structureId;
-      }
-    });
-    
-    // If no clear winner, try to find by name (supervisor, council, etc.)
-    if (!primaryGeographicStructureId && cityStructure.geographic_structures) {
-      const districtStructure = cityStructure.geographic_structures.find(
-        (gs) => gs.structure_name?.toLowerCase().includes('supervisor') ||
-                gs.structure_name?.toLowerCase().includes('council') ||
-                gs.structure_name?.toLowerCase().includes('ward') ||
-                gs.structure_type?.toLowerCase().includes('supervisor') ||
-                gs.structure_type?.toLowerCase().includes('council')
-      );
-      if (districtStructure && districtStructure.id !== undefined) {
-        primaryGeographicStructureId = districtStructure.id;
-      }
-    }
-  }
-  
-  // Separate shapefiles into primary (matching primary structure) and others
   const primaryShapefiles: CityShapefile[] = [];
   const otherShapefiles: CityShapefile[] = [];
-  
-  shapefiles.forEach((shapefile) => {
-    if (primaryGeographicStructureId && shapefile.geographic_structure_id === primaryGeographicStructureId) {
-      primaryShapefiles.push(shapefile);
-    } else {
-      otherShapefiles.push(shapefile);
+
+  const officialId = (cityStructure as any)?.official_district_shape_layer_id as number | null | undefined;
+  const hasOfficialFlag = shapefiles.some((sf) => (sf as any).is_official_district_layer);
+
+  if (officialId) {
+    shapefiles.forEach((sf) => {
+      if (sf.id === officialId) {
+        primaryShapefiles.push(sf);
+      } else {
+        otherShapefiles.push(sf);
+      }
+    });
+  } else if (hasOfficialFlag) {
+    shapefiles.forEach((sf) => {
+      if ((sf as any).is_official_district_layer) {
+        primaryShapefiles.push(sf);
+      } else {
+        otherShapefiles.push(sf);
+      }
+    });
+  } else {
+    // Legacy fallback: use plurality of leaders' district_shape_layer_id, then geographic_structure_id
+    let primaryShapeLayerId: number | null = null;
+    let primaryGeoStructureId: number | null = null;
+
+    if (leaders && leaders.length > 0) {
+      const layerIdCounts = new Map<number, number>();
+      leaders.forEach((leader) => {
+        const lid = (leader as any).district_shape_layer_id;
+        if (lid) layerIdCounts.set(lid, (layerIdCounts.get(lid) || 0) + 1);
+      });
+      let maxCount = 0;
+      layerIdCounts.forEach((count, id) => {
+        if (count > maxCount) { maxCount = count; primaryShapeLayerId = id; }
+      });
+
+      if (!primaryShapeLayerId) {
+        const geoIdCounts = new Map<number, number>();
+        leaders.forEach((leader) => {
+          if (leader.geographic_structure_id) {
+            geoIdCounts.set(leader.geographic_structure_id, (geoIdCounts.get(leader.geographic_structure_id) || 0) + 1);
+          }
+        });
+        let maxGeoCount = 0;
+        geoIdCounts.forEach((count, id) => {
+          if (count > maxGeoCount) { maxGeoCount = count; primaryGeoStructureId = id; }
+        });
+      }
     }
-  });
+
+    shapefiles.forEach((sf) => {
+      if (primaryShapeLayerId && sf.id === primaryShapeLayerId) {
+        primaryShapefiles.push(sf);
+      } else if (!primaryShapeLayerId && primaryGeoStructureId && sf.geographic_structure_id === primaryGeoStructureId) {
+        primaryShapefiles.push(sf);
+      } else {
+        otherShapefiles.push(sf);
+      }
+    });
+  }
   
   // Check primary shapefiles first
   const shapefilesToCheck = [...primaryShapefiles, ...otherShapefiles];
@@ -1191,15 +1205,21 @@ export default function CityMapView({
             if (districtNumber !== null) {
               let matchingLeader = null;
               
-              // First, try matching by geographic_structure_id if both exist (preferred method)
-              if (shapefile.geographic_structure_id) {
+              // Prefer match by district_shape_layer_id (new), then geographic_structure_id (legacy),
+              // then district number alone as final fallback.
+              const shapefileId = shapefile.id;
+              matchingLeader = leaders.find((leader) => {
+                const lid = (leader as any).district_shape_layer_id;
+                return leader.district === districtNumber && lid && lid === shapefileId;
+              });
+
+              if (!matchingLeader && shapefile.geographic_structure_id) {
                 matchingLeader = leaders.find((leader) => {
                   return leader.district === districtNumber && 
                          leader.geographic_structure_id === shapefile.geographic_structure_id;
                 });
               }
               
-              // If no match found and geographic_structure_id method didn't work, try matching by district alone (fallback)
               if (!matchingLeader) {
                 matchingLeader = leaders.find((leader) => {
                   return leader.district === districtNumber;

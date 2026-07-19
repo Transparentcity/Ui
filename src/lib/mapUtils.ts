@@ -262,6 +262,28 @@ export function normalizeChoroplethDistrictKey(raw: unknown): string {
 }
 
 /**
+ * All join keys a district identifier should match under.
+ *
+ * Datasets and shapefiles often disagree on the identifier format for the
+ * same district: Oakland 311 stores `councildistrict = "CCD1"` while the
+ * council-district shapefile's identifier_field (`district_num`) is `"1"`.
+ * For alpha-prefixed values ending in a number ("CCD1", "D-5", "Ward 03"),
+ * this returns the normalized key plus the bare trailing number so either
+ * side of the join can find the other.
+ */
+export function choroplethDistrictKeyAliases(raw: unknown): string[] {
+  const primary = normalizeChoroplethDistrictKey(raw);
+  if (!primary) return [];
+  const aliases = [primary];
+  const suffixMatch = primary.match(/^[^\d]+?[\s\-_]*0*(\d+)$/);
+  if (suffixMatch) {
+    const numeric = String(Number(suffixMatch[1]));
+    if (!aliases.includes(numeric)) aliases.push(numeric);
+  }
+  return aliases;
+}
+
+/**
  * Finite WGS84 degrees that are safe to plot and use in Mapbox `fitBounds`.
  * Rejects null-island sentinels and near-pole junk rows (e.g. lat -90) that
  * force the camera to span the globe when mixed with city-scale points.
