@@ -27,6 +27,8 @@ import {
 } from "@/lib/metricDatasetAttribution";
 import CompletenessSparkline from "./CompletenessSparkline";
 import MetricSourceAttribution from "./MetricSourceAttribution";
+import MetricChainView from "./MetricChainView";
+import "./MetricChainView.css";
 
 interface MetricDetailContentProps {
   metric: PublicMetricDetail;
@@ -583,6 +585,15 @@ export default function MetricDetailContent({
           sourceEndDate={sourcePeriodEnd}
         />
       )}
+
+      {/* Causal Chain — "Why did this change?" */}
+      <section className="metric-section">
+        <MetricChainView
+          metricId={metric.id}
+          comparisonType={selectedPeriod}
+          district={selectedDistrict}
+        />
+      </section>
 
       {/* Category Breakdown */}
       {metric.category_fields && metric.category_fields.length > 0 && (

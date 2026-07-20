@@ -1,0 +1,308 @@
+/* ============================================================================
+   MetricChainView — Causal process chain funnel + decomposition waterfall
+   ============================================================================ */
+
+.metric-chain-view {
+  margin-top: 0;
+}
+
+/* ── Divergence banner ─────────────────────────────────────────────────────── */
+
+.chain-divergence-banner {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+/* ── Funnel row ────────────────────────────────────────────────────────────── */
+
+.chain-funnel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+}
+
+.chain-stage-card {
+  flex: 1 1 120px;
+  min-width: 110px;
+  max-width: 200px;
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 6px;
+  padding: 0.75rem;
+  position: relative;
+  transition: border-color 0.15s;
+}
+
+.chain-stage-card--focused {
+  border-color: var(--accent, #2563eb);
+  background: #eff6ff;
+}
+
+.chain-stage-card--divergence {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.chain-stage-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.35rem;
+  line-height: 1.3;
+}
+
+.chain-stage-values {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.chain-stage-current {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+}
+
+.chain-stage-delta {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.chain-stage-delta--up {
+  color: var(--color-increase, #16a34a);
+}
+
+.chain-stage-delta--down {
+  color: var(--color-decrease, #dc2626);
+}
+
+.chain-stage-rate {
+  font-size: 0.72rem;
+  color: var(--text-tertiary, #9ca3af);
+  margin-top: 0.3rem;
+}
+
+.chain-rate-up {
+  color: #16a34a;
+}
+
+.chain-rate-down {
+  color: #dc2626;
+}
+
+.chain-stage-divergence-badge {
+  margin-top: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  display: inline-block;
+  cursor: default;
+}
+
+.chain-stage-arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 0.35rem;
+  font-size: 1.3rem;
+  color: var(--text-tertiary, #9ca3af);
+  padding-top: 1.6rem; /* align with top of card values */
+  flex-shrink: 0;
+}
+
+.chain-accounting-note {
+  font-size: 0.72rem;
+  color: var(--text-tertiary, #9ca3af);
+  margin: 0.25rem 0 1.25rem;
+  font-style: italic;
+}
+
+/* ── Decomposition section ─────────────────────────────────────────────────── */
+
+.chain-decomp-section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.chain-decomp-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin: 0 0 0.35rem;
+}
+
+.chain-decomp-caption {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.chain-edge-block {
+  margin-bottom: 1.25rem;
+}
+
+.chain-edge-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.chain-edge-suppressed {
+  font-size: 0.8rem;
+  color: var(--text-tertiary, #9ca3af);
+  font-style: italic;
+}
+
+/* ── Waterfall chart ───────────────────────────────────────────────────────── */
+
+.chain-waterfall {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.chain-waterfall-row {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 600px) {
+  .chain-waterfall-row {
+    grid-template-columns: 140px 1fr auto;
+  }
+}
+
+.chain-waterfall-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chain-waterfall-bar-wrap {
+  height: 14px;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.chain-waterfall-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.chain-waterfall-bar--positive {
+  background: #16a34a;
+}
+
+.chain-waterfall-bar--negative {
+  background: #dc2626;
+}
+
+.chain-waterfall-value {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+}
+
+.chain-waterfall-pct {
+  font-weight: 400;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+/* ── Category details table ────────────────────────────────────────────────── */
+
+.chain-category-details {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chain-category-summary {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  background: var(--bg-secondary, #f9fafb);
+  list-style: none;
+  user-select: none;
+}
+
+.chain-category-summary::-webkit-details-marker {
+  display: none;
+}
+
+.chain-category-summary::before {
+  content: "▶ ";
+  font-size: 0.65rem;
+}
+
+details[open] .chain-category-summary::before {
+  content: "▼ ";
+}
+
+.chain-category-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.chain-category-table th,
+.chain-category-table td {
+  padding: 0.35rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  white-space: nowrap;
+}
+
+.chain-category-table th:first-child,
+.chain-category-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chain-category-table thead th {
+  background: var(--bg-secondary, #f9fafb);
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+}
+
+.chain-category-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.chain-category-table tbody tr:hover td {
+  background: var(--bg-secondary, #f9fafb);
+}

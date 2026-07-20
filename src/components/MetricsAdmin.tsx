@@ -36,6 +36,7 @@ import {
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import TemplateOrderEditor from "./TemplateOrderEditor";
 import ShapeLayerTemplatesAdmin from "./ShapeLayerTemplatesAdmin";
+import MetricChainAdmin from "./MetricChainAdmin";
 import CrossCityComparisonChart from "./CrossCityComparisonChart";
 import MetricActions from "./MetricActions";
 import MetricEditModal from "./MetricEditModal";
@@ -1084,6 +1085,9 @@ export default function MetricsAdmin() {
 
       {/* Shape Layer Templates (view/edit city-agnostic boundary layer templates) */}
       <ShapeLayerTemplatesAdmin />
+
+      {/* Causal Metric Chains (define cause-and-effect relationships between metrics) */}
+      <MetricChainAdmin />
 
       {/* Filters */}
       <div className={styles.filtersContainer}>
