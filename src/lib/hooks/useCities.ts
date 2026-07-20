@@ -20,6 +20,9 @@ import {
   getCityShapeLayers,
   updateShapeLayerInstance,
   deleteShapeLayerInstance,
+  getShapeLayerInstantiationStatus,
+  retryMissingShapeLayers,
+  setOfficialDistrictLayer,
   saveCity,
   unsaveCity,
   type CityDetail,
@@ -58,6 +61,8 @@ export const cityKeys = {
   shapefiles: (id: number) => [...cityKeys.all, "shapefiles", id] as const,
   shapeLayers: (id: number, includeGeometry?: boolean) =>
     [...cityKeys.all, "shapeLayers", id, includeGeometry] as const,
+  shapeLayerInstantiationStatus: (id: number) =>
+    [...cityKeys.all, "shapeLayerInstantiationStatus", id] as const,
   publicDistricts: (id: number) =>
     [...cityKeys.all, "publicDistricts", id] as const,
   leanLeaders: (id: number) => [...cityKeys.all, "leanLeaders", id] as const,
@@ -554,6 +559,67 @@ export function useDeleteShapeLayerInstance(cityId: number | null) {
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
       queryClient.invalidateQueries({ queryKey: cityKeys.shapefiles(cityId!) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.structure(cityId!) });
+    },
+  });
+}
+
+/**
+ * Hook to fetch shape layer instantiation status for a city.
+ */
+export function useShapeLayerInstantiationStatus(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityKeys.shapeLayerInstantiationStatus(cityId!),
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return getShapeLayerInstantiationStatus(cityId, token);
+    },
+    enabled: !!cityId,
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook to retry missing shape layer templates for a city.
+ */
+export function useRetryMissingShapeLayers(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return retryMissingShapeLayers(cityId, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayerInstantiationStatus(cityId!) });
+    },
+  });
+}
+
+/**
+ * Hook to set the official district shape layer for a city.
+ */
+export function useSetOfficialDistrictLayer(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (instanceId: number) => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return setOfficialDistrictLayer(cityId, instanceId, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayerInstantiationStatus(cityId!) });
       queryClient.invalidateQueries({ queryKey: cityKeys.structure(cityId!) });
     },
   });

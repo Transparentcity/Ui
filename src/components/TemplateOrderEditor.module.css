@@ -87,19 +87,47 @@
 .templateList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+}
+
+.templateGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.categoryRow {
+  margin-top: 8px;
+  padding: 4px 8px 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.templateGroup:first-child .categoryRow {
+  margin-top: 0;
+}
+
+.subcategoryRow {
+  padding: 2px 8px 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
 }
 
 .templateItem {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 8px 10px;
   background: var(--bg-primary);
-  border: 2px solid var(--border-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   cursor: move;
   transition: all 0.2s;
+  min-height: 40px;
 }
 
 .templateItem:hover {
@@ -122,9 +150,10 @@
 .templateDragHandle {
   color: var(--text-tertiary);
   cursor: grab;
-  padding: 4px;
+  padding: 2px;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .templateDragHandle:active {
@@ -132,51 +161,41 @@
 }
 
 .templateColor {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
   border: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
-.templateInfo {
+.templateName {
   flex: 1;
   min-width: 0;
-}
-
-.templateName {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.templateMeta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.templateMeta .badge {
-  font-size: 10px;
-  padding: 2px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .muted {
   color: var(--text-tertiary);
   font-size: 11px;
+  flex-shrink: 0;
 }
 
 .templateActions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .moveButton {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,7 +205,7 @@
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .moveButton:hover:not(:disabled) {

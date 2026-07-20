@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatDateRangeFromStrings } from "@/lib/formatters";
+import { formatDateRangeFromStrings, yearFromDateString } from "@/lib/formatters";
 import { usePublicMetric, usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import { usePlaceMetricComparisons } from "@/lib/hooks/useMetrics";
 import {
@@ -83,6 +83,13 @@ export default function MetricDetailModal({
     [metric]
   );
 
+  // Collapses to false when MetricMapEmbed determines there's nothing renderable
+  // (truncated point sample, or map generation failed server-side).
+  const [mapSectionVisible, setMapSectionVisible] = useState(true);
+  useEffect(() => {
+    setMapSectionVisible(true);
+  }, [metricId, selectedDistrict, placeId]);
+
   // Fetch completeness information
   const [completenessDaily, setCompletenessDaily] = useState<DailyCompletenessResponse | null>(null);
   const [completenessLoading, setCompletenessLoading] = useState(false);
@@ -155,12 +162,10 @@ export default function MetricDetailModal({
   const error = metricQuery.error;
 
   const currentCalendarYear = new Date().getFullYear();
-  const mostRecentYear = metric?.most_recent_data_date
-    ? new Date(metric.most_recent_data_date).getFullYear()
-    : currentCalendarYear;
-  const comparisonCurrentYear = comparison?.current_period_end
-    ? new Date(comparison.current_period_end).getFullYear()
-    : currentCalendarYear;
+  const mostRecentYear =
+    yearFromDateString(metric?.most_recent_data_date) ?? currentCalendarYear;
+  const comparisonCurrentYear =
+    yearFromDateString(comparison?.current_period_end) ?? currentCalendarYear;
   const isStale = !!(metric && (mostRecentYear < currentCalendarYear || comparisonCurrentYear < currentCalendarYear));
 
   const resolvedCityName = cityDetail?.name || cityName;
@@ -191,13 +196,11 @@ export default function MetricDetailModal({
 
   // Dynamic labels for comparison cards; when stale, contextualize as prior year to date
   const currentYear =
-    comparison?.current_period_end || comparison?.current_period_start
-      ? new Date(comparison.current_period_end || comparison.current_period_start!).getFullYear()
-      : new Date().getFullYear();
+    yearFromDateString(comparison?.current_period_end || comparison?.current_period_start) ??
+    new Date().getFullYear();
   const priorYear =
-    comparison?.comparison_period_end || comparison?.comparison_period_start
-      ? new Date(comparison.comparison_period_end || comparison.comparison_period_start!).getFullYear()
-      : currentYear - 1;
+    yearFromDateString(comparison?.comparison_period_end || comparison?.comparison_period_start) ??
+    currentYear - 1;
   const comparisonLabels: Record<typeof selectedPeriod, { previous: string; current: string }> = isStale
     ? {
         ytd: { previous: `Prior year to date (${priorYear})`, current: `Last available year to date (${currentYear})` },
@@ -562,7 +565,8 @@ export default function MetricDetailModal({
               )}
 
               {/* Map — place-scoped uses lat/lng/radius; city/district uses public preview */}
-              {metric.map_query &&
+              {mapSectionVisible &&
+                metric.map_query &&
                 (!isPlaceScope ||
                   (placeLat != null &&
                     placeLng != null &&
@@ -612,6 +616,7 @@ export default function MetricDetailModal({
                       start: comparison?.comparison_period_start || null,
                       end: comparison?.comparison_period_end || null,
                     }}
+                    onMapUnavailable={() => setMapSectionVisible(false)}
                   />
                   <MetricSourceAttribution
                     sourceInfo={datasetAttribution}
@@ -641,13 +646,22 @@ export default function MetricDetailModal({
               {/* Category Breakdown — city/district only (not place-scoped) */}
               {!isPlaceScope && metric.category_fields && metric.category_fields.length > 0 && (
                 <section className="metric-section">
-                  <h2 className="metric-section-title">What types of {metric.metric_name.toLowerCase()} are there?</h2>
+                  <h2 className="metric-section-title">
+                    {selectedDistrict !== null && selectedDistrict > 0
+                      ? `How have the types of ${metric.metric_name.toLowerCase()} changed in District ${selectedDistrict}?`
+                      : `How have the types of ${metric.metric_name.toLowerCase()} changed?`}
+                  </h2>
                   <CategoryBreakdown
                     metricId={metric.id}
                     categoryFields={metric.category_fields}
                     timeSeriesSummary={timeSeriesQuery.data ?? undefined}
                     currentPeriodStart={comparison?.current_period_start}
                     currentPeriodEnd={comparison?.current_period_end}
+                    comparisonPeriodStart={comparison?.comparison_period_start}
+                    comparisonPeriodEnd={comparison?.comparison_period_end}
+                    priorPeriodLabel={priorYear !== currentYear ? String(priorYear) : "Prior"}
+                    currentPeriodLabel={priorYear !== currentYear ? String(currentYear) : "Current"}
+                    district={selectedDistrict}
                   />
                 </section>
               )}

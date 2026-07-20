@@ -213,7 +213,6 @@ export interface UpdateCityRequest {
 
 export interface UpdateCityStructureRequest {
   city_id: number;
-  geographic_structures: any[];
   governance_structures: any[];
   leaders?: any[];
   query_configs?: any[];
@@ -3053,6 +3052,9 @@ export interface CityShapefile {
   feature_count?: number | null;
   identifier_field?: string | null;
   identifier_field_aliases?: string[];
+  identifier_type?: string | null;
+  min_identifier_value?: number | null;
+  max_identifier_value?: number | null;
   status?: "active" | "disabled" | "needs_refresh";
   render_order?: number | null;
   style_overrides_json?: Record<string, any> | null;
@@ -3060,6 +3062,7 @@ export interface CityShapefile {
   created_at?: string;
   updated_at?: string;
   last_fetched_at?: string | null;
+  is_official_district_layer?: boolean;
 }
 
 // Shape Layers API (templates + city instances)
@@ -3075,6 +3078,8 @@ export interface TemplateShapeLayer {
   source_strategy: string;
   source_defaults_json?: Record<string, any>;
   is_active?: boolean;
+  is_required?: boolean;
+  structuring_prompt?: string | null;
   metadata?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
@@ -3148,6 +3153,61 @@ export function deleteShapeLayerInstance(
   return request<DeleteShapeLayerInstanceResponse>(
     `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
     "DELETE",
+    undefined,
+    token
+  );
+}
+
+export interface ShapeLayerInstantiationStatusItem {
+  template_id: number;
+  layer_key: string;
+  display_name: string;
+  is_required: boolean;
+  has_instance: boolean;
+  instance_id: number | null;
+  instance_status: string | null;
+  is_official_district_layer: boolean;
+}
+
+export interface ShapeLayerInstantiationStatusResponse {
+  city_id: number;
+  templates: ShapeLayerInstantiationStatusItem[];
+  missing_required: number;
+  missing_optional: number;
+}
+
+export function getShapeLayerInstantiationStatus(
+  cityId: number,
+  token: string
+): Promise<ShapeLayerInstantiationStatusResponse> {
+  return request<ShapeLayerInstantiationStatusResponse>(
+    `/api/shape-layers/cities/${cityId}/instantiation-status`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function retryMissingShapeLayers(
+  cityId: number,
+  token: string
+): Promise<{ city_id: number; job_id: number | null; status: string; message: string }> {
+  return request(
+    `/api/shape-layers/cities/${cityId}/retry-missing`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export function setOfficialDistrictLayer(
+  cityId: number,
+  instanceId: number,
+  token: string
+): Promise<{ city_id: number; official_district_shape_layer_id: number; updated: boolean }> {
+  return request(
+    `/api/shape-layers/cities/${cityId}/official-district/${instanceId}`,
+    "POST",
     undefined,
     token
   );

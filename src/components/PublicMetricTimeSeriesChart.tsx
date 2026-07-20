@@ -9,8 +9,14 @@ import {
 import TimeSeriesChart, { type PeriodType } from "./TimeSeriesChart";
 import Loader from "./Loader";
 
+/**
+ * De-duplicate multiple points per (period, group) by aggregation strategy.
+ * Flow metrics: SUM values (e.g. multiple event sources for the same month).
+ * Stock metrics: keep LAST value (a level series should not be summed).
+ */
 function aggregateTimeSeries(
-  data: PublicTimeSeriesChartResponse["data"]
+  data: PublicTimeSeriesChartResponse["data"],
+  strategy: "sum" | "last" = "sum"
 ): PublicTimeSeriesChartResponse["data"] {
   const map = new Map<
     string,
@@ -20,7 +26,11 @@ function aggregateTimeSeries(
     const key = `${point.time_period}|${point.group_value ?? ""}`;
     const existing = map.get(key);
     if (existing) {
-      existing.numeric_value += point.numeric_value || 0;
+      if (strategy === "last") {
+        existing.numeric_value = point.numeric_value || 0;
+      } else {
+        existing.numeric_value += point.numeric_value || 0;
+      }
     } else {
       map.set(key, {
         time_period: point.time_period,
@@ -37,12 +47,15 @@ export default function PublicMetricTimeSeriesChart({
   yearChartId,
   staleness_days,
   reportingCompletenessHref,
+  measurementType = "flow",
 }: {
   primaryChartId: number | null;
   yearChartId: number | null;
   staleness_days?: number;
   /** When set with a reporting lag, shown under the chart (e.g. deep-link to #reporting-completeness). */
   reportingCompletenessHref?: string | null;
+  /** "flow" (default) or "stock" — controls how duplicate points are aggregated. */
+  measurementType?: "flow" | "stock";
 }) {
   const [useNativeYearSeries, setUseNativeYearSeries] = useState(false);
 
@@ -109,9 +122,18 @@ export default function PublicMetricTimeSeriesChart({
     );
   }
 
-  const aggregated = aggregateTimeSeries(data.data);
+  const aggregated = aggregateTimeSeries(
+    data.data,
+    measurementType === "stock" ? "last" : "sum"
+  );
+  // Stock metrics don't have a meaningful "year-to-date" overlay — default to the plain
+  // monthly view so the level series renders as a continuous line without YTD summing.
   const defaultPeriod: PeriodType =
-    useNativeYearSeries && yearChartId != null ? "year" : "ytd";
+    measurementType === "stock"
+      ? "month"
+      : useNativeYearSeries && yearChartId != null
+        ? "year"
+        : "ytd";
 
   return (
     <>

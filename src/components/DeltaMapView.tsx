@@ -19,6 +19,7 @@ import {
 import {
   CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
   CHOROPLETH_FIT_PADDING,
+  choroplethDistrictKeyAliases,
 } from "@/lib/mapUtils";
 import Loader from "./Loader";
 import "./DeltaMapView.css";
@@ -225,14 +226,21 @@ export default function DeltaMapView({
   const geoJsonWithData = useMemo(() => {
     if (!shapeData?.geometry || !districtData?.districts) return null;
 
-    // Create a map from district number to change data (support string and number keys)
-    const districtMap = new Map<string | number, typeof districtData.districts[0]>();
+    // Join on normalized keys (case-insensitive, numeric-suffix aliases) so
+    // e.g. API "AVONDALE" matches shapefile "Avondale" and "CCD1" matches "1".
+    const districtMap = new Map<string, typeof districtData.districts[0]>();
     for (const d of districtData.districts) {
-      districtMap.set(d.district, d);
-      districtMap.set(String(d.district), d);
-      districtMap.set(`District ${d.district}`, d);
-      districtMap.set(`district ${d.district}`, d);
+      for (const key of choroplethDistrictKeyAliases(d.district)) {
+        districtMap.set(key, d);
+      }
     }
+    const lookupDistrict = (id: string | number) => {
+      for (const key of choroplethDistrictKeyAliases(id)) {
+        const hit = districtMap.get(key);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
 
     const districtFieldNames = [
       ...new Set(
@@ -252,13 +260,7 @@ export default function DeltaMapView({
       );
 
       const data =
-        districtId === undefined
-          ? undefined
-          : districtMap.get(districtId as string | number) ||
-            districtMap.get(String(districtId)) ||
-            (typeof districtId === "string" && /^\d+$/.test(districtId)
-              ? districtMap.get(Number(districtId))
-              : undefined);
+        districtId === undefined ? undefined : lookupDistrict(districtId);
 
       const changePctRaw = data?.change_percent;
       const changePct =

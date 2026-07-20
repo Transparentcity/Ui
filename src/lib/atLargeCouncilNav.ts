@@ -42,7 +42,12 @@ function parseGeometryData(geometryData: unknown): GeoJSON.FeatureCollection | n
 function isNeighborhoodShapefile(shapefile: CityShapefile): boolean {
   const type = (shapefile.structure_type || "").toLowerCase();
   const name = (shapefile.shapefile_name || "").toLowerCase();
-  return type === "neighborhood" || name.includes("neighborhood") || name.includes("sna");
+  return (
+    type === "neighborhood" ||
+    name.includes("neighborhood") ||
+    name.includes("subcommunit") ||
+    name.includes("sna")
+  );
 }
 
 function resolveNeighborhoodNameFromProps(

@@ -49,7 +49,8 @@ function mapOf(...entries: Array<[number, ComparisonResponse]>) {
 }
 
 describe("rankMetricMovers", () => {
-  it("ranks by absolute percent change descending", () => {
+  it("ranks by movement descending (equal bases: follows percent change)", () => {
+    // Same prior for all, so percent and absolute ranks agree.
     const metrics = [metric(1), metric(2), metric(3)];
     const comparisonsMap = mapOf(
       [1, comparison(1, 100, 110)], // +10%
@@ -58,6 +59,18 @@ describe("rankMetricMovers", () => {
     );
     const { rows } = rankMetricMovers({ metrics, comparisonsMap });
     expect(rows.map((r) => r.metric.id)).toEqual([2, 3, 1]);
+  });
+
+  it("blends percent and absolute change so big absolute movers rank up", () => {
+    const metrics = [metric(1), metric(2), metric(3)];
+    const comparisonsMap = mapOf(
+      [1, comparison(1, 10, 25)], // +150%, diff 15 — huge pct, tiny base
+      [2, comparison(2, 1000, 1500)], // +50%, diff 500 — big absolute move
+      [3, comparison(3, 100, 130)], // +30%, diff 30
+    );
+    const { rows } = rankMetricMovers({ metrics, comparisonsMap });
+    // Rank sums: m2 = 1 (pct 1 + diff 0), m1 = 2 (pct 0 + diff 2), m3 = 3.
+    expect(rows.map((r) => r.metric.id)).toEqual([2, 1, 3]);
   });
 
   it("computes prior, new, diff and pct for each row", () => {
@@ -137,7 +150,7 @@ describe("rankMetricMovers", () => {
     expect(improving.rows.map((r) => r.metric.id)).toEqual([2]);
   });
 
-  it("flags rows updated since the recency anchor and ranks them first", () => {
+  it("flags rows updated since the recency anchor without affecting rank", () => {
     const metrics = [
       metric(1, { most_recent_data_date: "2026-07-01" }), // before anchor
       metric(2, { most_recent_data_date: "2026-07-05" }), // after anchor
@@ -151,9 +164,10 @@ describe("rankMetricMovers", () => {
       comparisonsMap,
       recencyAnchor: "2026-07-03T00:00:00Z",
     });
-    expect(rows[0].metric.id).toBe(2);
-    expect(rows[0].isNew).toBe(true);
-    expect(rows[1].isNew).toBe(false);
+    // The bigger mover stays first; NEW is badge-only.
+    expect(rows.map((r) => r.metric.id)).toEqual([1, 2]);
+    expect(rows[0].isNew).toBe(false);
+    expect(rows[1].isNew).toBe(true);
   });
 
   it("sorts by data freshness for most_recent", () => {

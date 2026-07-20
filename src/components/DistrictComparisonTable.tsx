@@ -6,6 +6,7 @@ import {
   type PublicDistrictComparisonsResponse,
 } from "@/lib/publicApiClient";
 import Loader from "./Loader";
+import { yearFromDateString } from "@/lib/formatters";
 import "./DistrictComparisonTable.css";
 
 interface DistrictComparisonTableProps {
@@ -230,9 +231,8 @@ export default function DistrictComparisonTable({
     return byCurrent[0];
   }, [sortedDistricts]);
 
-  const currentYear = currentPeriodEnd
-    ? new Date(currentPeriodEnd).getFullYear()
-    : new Date().getFullYear();
+  const currentYear =
+    yearFromDateString(currentPeriodEnd) ?? new Date().getFullYear();
   const currentPeriodEndFormatted = currentPeriodEnd
     ? new Date(currentPeriodEnd).toLocaleDateString("en-US", {
         month: "long",

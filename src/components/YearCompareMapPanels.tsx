@@ -74,6 +74,7 @@ export default function YearCompareMapPanels({
 
   if (!panels || panels.length < 2) return null;
 
+  const itemNoun = (map.map_config?.item_noun as string | undefined)?.trim();
   const panelHeight = Math.max(220, Math.round(height * (compact ? 0.95 : 1)));
 
   return (
@@ -87,6 +88,7 @@ export default function YearCompareMapPanels({
               <h3 className="year-compare-map-panel-title">{panel.label}</h3>
               <span className="year-compare-map-panel-count">
                 {panel.points.length.toLocaleString()}
+                {itemNoun ? ` ${itemNoun}` : ""}
               </span>
             </header>
             <ProgressiveMapView
@@ -185,6 +187,7 @@ export function DualPeriodMapPanels({
               {panel.count != null && (
                 <span className="year-compare-map-panel-count">
                   {panel.count.toLocaleString()}
+                  {panel.countNoun ? ` ${panel.countNoun}` : ""}
                 </span>
               )}
             </header>

@@ -39,10 +39,7 @@ import {
   resolveNeighborhoodName,
 } from "@/lib/atLargeCouncilNav";
 import { pickCitywideLeader } from "@/lib/publicLeadersPick";
-import {
-  resolveDistrictFromShapefiles,
-  primaryStructureIdFromLeaders,
-} from "@/lib/findDistrictFromCoordinates";
+import { resolveDistrictFromShapefiles } from "@/lib/findDistrictFromCoordinates";
 import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
 import "./CityView.css";
@@ -148,6 +145,8 @@ interface MetricWithYTD {
   staleComparisonDataEnd?: string;
   /** For derived metrics: A/B=C breakdown for tooltip (hover shows formula) */
   calculationBreakdown?: import("@/lib/apiClient").CalculationBreakdown | null;
+  /** "flow" (event counts per period) or "stock" (point-in-time level). */
+  measurement_type?: "flow" | "stock";
 }
 
 /** Minimal place for Official Selector "My place" scope */
@@ -885,6 +884,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         stale: ytdData[metric.id]?.stale ?? false,
         staleComparisonDataEnd: ytdData[metric.id]?.staleComparisonDataEnd,
         calculationBreakdown: ytdData[metric.id]?.calculationBreakdown,
+        measurement_type: (metric as any).measurement_type ?? "flow",
         metricOrder, // Store for sorting
       } as MetricWithYTD & { metricOrder: number });
     });
@@ -1564,7 +1564,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         <div className="dashboard-header-left">
           <span className="dashboard-scope-label" aria-hidden="true">
             {selectedPlaceId && selectedPlace
-              ? "My Place"
+              ? selectedPlace.label
               : district === 0 || district === null
                 ? "Citywide"
                 : `${geographicUnitLabel} ${district}`}
@@ -1970,7 +1970,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                               <Loader size="sm" color="dark" />
                             ) : (
                               <>
-                                <span className="metric-date-label">{formatPeriodDateWithYear(metric.currentPeriodStart, metric.currentPeriodEnd) || currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`}</span>
+                                <span className="metric-date-label">
+                                  {metric.measurement_type === "stock"
+                                    ? "Currently"
+                                    : (formatPeriodDateWithYear(metric.currentPeriodStart, metric.currentPeriodEnd) || currentPeriodDates || `Jan 1 - Jan ${displayYears.dataYear}`)}
+                                </span>
                                 <span className="metric-value">
                                   {formatMetricValue(metric.ytdThisYear, metric.display_unit)}
                                 </span>
@@ -2160,8 +2164,19 @@ export default function CityView({
     const leadersForLabel =
       mapLeaders.length > 0 ? mapLeaders : (leanLeaders as CityLeader[]);
     if (isAtLargeCouncilCity(leadersForLabel)) return "Neighborhood";
-    return resolveGeographicUnitLabel(mapLeaders, cityData?.geographic_structures);
-  }, [mapLeaders, leanLeaders, cityData?.geographic_structures]);
+    const shapeLayers = mapShapefiles.map((sf) => ({
+      id: (sf as any).id,
+      shapefile_name: sf.shapefile_name,
+      structure_type: sf.structure_type,
+      is_official_district_layer: (sf as any).is_official_district_layer,
+    }));
+    return resolveGeographicUnitLabel(
+      mapLeaders,
+      cityData?.geographic_structures,
+      shapeLayers,
+      (cityData as any)?.official_district_shape_layer_id ?? null
+    );
+  }, [mapLeaders, leanLeaders, cityData?.geographic_structures, mapShapefiles, (cityData as any)?.official_district_shape_layer_id]);
 
   // ── Briefing data: one batch comparisons call for the current scope ──
   const briefingMetrics = useMemo(
@@ -2210,11 +2225,13 @@ export default function CityView({
     const lat = place?.lat ?? initialPlaceGps?.lat;
     const lng = place?.lng ?? initialPlaceGps?.lng;
     if (lat == null || lng == null || mapShapefiles.length === 0) return null;
+    const officialId = (cityData as any)?.official_district_shape_layer_id ?? null;
     return resolveDistrictFromShapefiles(
       lat,
       lng,
       mapShapefiles,
-      primaryStructureIdFromLeaders(mapLeaders),
+      null,
+      officialId,
     );
   }, [selectedPlaceId, userPlaces, initialPlaceGps, mapShapefiles, mapLeaders]);
 
@@ -2230,9 +2247,15 @@ export default function CityView({
     if (hasAtLargeCouncil && !hasNumberedReps) return [];
 
     const structures = cityData?.geographic_structures;
+    const shapeLayerRanges = mapShapefiles.map((sf) => ({
+      min_identifier_value: (sf as any).min_identifier_value ?? null,
+      max_identifier_value: (sf as any).max_identifier_value ?? null,
+      structure_type: sf.structure_type,
+    }));
     const bounded = filterDistrictsByGeographicStructure(
       publicCityDistricts,
       structures,
+      shapeLayerRanges,
     );
 
     return bounded
@@ -2244,7 +2267,7 @@ export default function CityView({
         title: geographicUnitLabel,
         district: d,
       }));
-  }, [cityId, publicCityDistricts, geographicUnitLabel, mapLeaders, cityData?.geographic_structures]);
+  }, [cityId, publicCityDistricts, geographicUnitLabel, mapLeaders, cityData?.geographic_structures, mapShapefiles]);
 
   /**
    * Official selector options: city structure leaders (mayor + named council), plus any

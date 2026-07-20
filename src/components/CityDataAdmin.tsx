@@ -27,7 +27,6 @@ import {
   useLoadCityData,
   useRestructureCity,
   useReloadQueryConfig,
-  useReloadAllGeographicQueryConfigs,
   useReExtractLeaders,
   useRecreateStructureFromQueryConfigs,
   useCreateCityLeader,
@@ -69,6 +68,9 @@ import {
   useCityShapeLayers,
   useUpdateShapeLayerInstance,
   useDeleteShapeLayerInstance,
+  useShapeLayerInstantiationStatus,
+  useRetryMissingShapeLayers,
+  useSetOfficialDistrictLayer,
 } from "@/lib/hooks/useCities";
 import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import styles from "./CityDataAdmin.module.css";
@@ -110,7 +112,6 @@ interface CityData {
   last_fetch_error?: string;
   structure_status?: string;
   metrics?: Metric[];
-  geographic_structures?: GeographicStructure[];
   governance_structures?: GovernanceStructure[];
 }
 
@@ -142,13 +143,6 @@ interface Metric {
   } | null;
 }
 
-interface GeographicStructure {
-  id?: number;
-  structure_name?: string;
-  structure_type?: string;
-  identifier_field?: string;
-}
-
 interface GovernanceStructure {
   id?: number;
   body_name?: string;
@@ -157,7 +151,6 @@ interface GovernanceStructure {
 }
 
 interface CityStructure {
-  geographic_structures?: GeographicStructure[];
   governance_structures?: any[];
   leaders?: any[];
   query_configs?: any[];
@@ -175,12 +168,15 @@ interface CityDataAdminProps {
 
 /**
  * Shape Layers Section Component
- * Displays shape layer instances and allows editing identifier field aliases
+ * Displays shape layer instances, template instantiation status, and management controls.
  */
 function ShapeLayersSection({ cityId }: { cityId: number }) {
   const { data: shapeLayers, isLoading, refetch } = useCityShapeLayers(cityId, false);
+  const { data: instantiationStatus, refetch: refetchStatus } = useShapeLayerInstantiationStatus(cityId);
   const updateMutation = useUpdateShapeLayerInstance(cityId);
   const deleteMutation = useDeleteShapeLayerInstance(cityId);
+  const retryMutation = useRetryMissingShapeLayers(cityId);
+  const setOfficialMutation = useSetOfficialDistrictLayer(cityId);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingAliases, setEditingAliases] = useState<string[]>([]);
 
@@ -191,7 +187,6 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
 
   const handleSaveAliases = async (instanceId: number) => {
     try {
-      // Filter out empty strings
       const cleanAliases = editingAliases.filter((a) => a.trim() !== "");
       await updateMutation.mutateAsync({
         instanceId,
@@ -226,10 +221,37 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
     }
   };
 
+  const handleRetryMissing = async () => {
+    try {
+      const result = await retryMutation.mutateAsync();
+      await Promise.all([refetch(), refetchStatus()]);
+      alert(result.message || "Retry job started.");
+    } catch (err: any) {
+      alert("Failed to retry missing shape layers: " + err.message);
+    }
+  };
+
+  const handleSetOfficial = async (instanceId: number) => {
+    try {
+      await setOfficialMutation.mutateAsync(instanceId);
+      await Promise.all([refetch(), refetchStatus()]);
+    } catch (err: any) {
+      alert("Failed to set official district layer: " + err.message);
+    }
+  };
+
   // Get instances that exist (have been fetched/created)
   const instances = (shapeLayers || [])
     .filter((layer: any) => layer.instance !== null)
     .map((layer: any) => layer.instance);
+
+  // Guard: API returns { templates, missing_required, missing_optional } — not a plain array
+  const statusObj = (instantiationStatus && !Array.isArray(instantiationStatus))
+    ? instantiationStatus
+    : null;
+  const missingRequired = statusObj?.missing_required ?? 0;
+  const missingOptional = statusObj?.missing_optional ?? 0;
+  const hasMissing = missingRequired + missingOptional > 0;
 
   return (
     <div
@@ -241,19 +263,94 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
         background: "var(--bg-primary)",
       }}
     >
-      <h4 style={{ margin: "0 0 12px 0" }}>
-        Shape Layers {instances.length > 0 ? `(${instances.length})` : ""}
-      </h4>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <h4 style={{ margin: 0 }}>
+          Shape Layers {instances.length > 0 ? `(${instances.length})` : ""}
+        </h4>
+        {hasMissing && (
+          <button
+            onClick={handleRetryMissing}
+            disabled={retryMutation.isPending}
+            style={{
+              padding: "5px 12px",
+              background: "#f59e0b",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: retryMutation.isPending ? "not-allowed" : "pointer",
+              fontSize: "11px",
+              fontWeight: 600,
+              opacity: retryMutation.isPending ? 0.6 : 1,
+            }}
+          >
+            {retryMutation.isPending ? "Retrying..." : `Retry Missing (${missingRequired + missingOptional})`}
+          </button>
+        )}
+      </div>
+
+      {/* Template instantiation status */}
+      {statusObj && statusObj.templates.length > 0 && (
+        <div
+          style={{
+            marginBottom: "12px",
+            fontSize: "11px",
+            border: "1px solid var(--border-primary)",
+            borderRadius: "6px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-secondary)",
+              padding: "6px 10px",
+              fontWeight: 600,
+              borderBottom: "1px solid var(--border-primary)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Template Coverage
+          </div>
+          <div style={{ padding: "8px 10px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {statusObj.templates.map((t) => (
+              <span
+                key={t.template_id}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  background: t.has_instance
+                    ? (t.is_official_district_layer ? "#1d4ed8" : "#10b981")
+                    : (t.is_required ? "#dc2626" : "#6b7280"),
+                  color: "white",
+                  fontSize: "10px",
+                  fontWeight: 500,
+                }}
+                title={`${t.display_name}${t.is_required ? " (required)" : " (optional)"}${t.is_official_district_layer ? " — official district layer" : ""}${!t.has_instance ? " — missing" : ""}`}
+              >
+                {t.is_official_district_layer ? "★ " : ""}{t.display_name}
+                {!t.has_instance && (t.is_required ? " ✕" : " –")}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "12px" }}>
-        Shape layers define geographic boundaries for choropleth maps. You can add <strong>field name aliases</strong> to 
-        match datasets that use different field names for the same geographic unit (e.g., &quot;pddistrict&quot; for Police Districts).
+        Shape layers define geographic boundaries for choropleth maps and metric breakdowns.
+        The <strong>official district layer ★</strong> is the source of truth for district navigation and metric filtering —
+        its <strong>identifier field + aliases</strong> are the field names the metric engine looks for in city datasets.
+        Use <strong>Edit Field Aliases</strong> on the official layer to add all dataset field names that represent districts
+        (e.g., <code style={{ fontSize: "11px", background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: "3px" }}>supervisor_district</code>,{" "}
+        <code style={{ fontSize: "11px", background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: "3px" }}>sup_dist_num</code>).
       </div>
 
       {isLoading ? (
         <div style={{ padding: "12px", textAlign: "center" }}>Loading shape layers...</div>
       ) : instances.length === 0 ? (
         <div style={{ fontSize: "12px", color: "var(--text-secondary)", padding: "12px" }}>
-          No shape layers found. Run &quot;Re-load All&quot; in Geographic Structures above to fetch shape layers.
+          No shape layers found. Re-structure the city to fetch shape layers, or click &quot;Retry Missing&quot; above.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -269,7 +366,10 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: "13px" }}>
+                  <div style={{ fontWeight: 600, fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    {instance.is_official_district_layer && (
+                      <span style={{ color: "#1d4ed8", fontSize: "12px" }} title="Official district layer">★</span>
+                    )}
                     {instance.shapefile_name || instance.structure_type}
                   </div>
                   <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>
@@ -278,7 +378,26 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
                   </div>
                 </div>
                 {editingId !== instance.id && (
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {!instance.is_official_district_layer && (
+                      <button
+                        onClick={() => handleSetOfficial(instance.id)}
+                        disabled={setOfficialMutation.isPending}
+                        style={{
+                          padding: "4px 10px",
+                          background: "#1d4ed8",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: setOfficialMutation.isPending ? "not-allowed" : "pointer",
+                          fontSize: "11px",
+                          opacity: setOfficialMutation.isPending ? 0.6 : 1,
+                        }}
+                        title="Set as the official elected-representative district layer"
+                      >
+                        Set Official
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEditAliases(instance)}
                       disabled={deleteMutation.isPending}
@@ -292,8 +411,11 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
                         fontSize: "11px",
                         opacity: deleteMutation.isPending ? 0.6 : 1,
                       }}
+                      title={instance.is_official_district_layer
+                        ? "Edit dataset field name aliases — used by the metric engine for district filtering"
+                        : "Edit alternative field names for this layer's identifier"}
                     >
-                      Edit Aliases
+                      Edit Field Aliases
                     </button>
                     <button
                       onClick={() => handleDeleteShapeLayer(instance)}
@@ -316,18 +438,36 @@ function ShapeLayersSection({ cityId }: { cityId: number }) {
               </div>
 
               {/* Identifier Field Info */}
-              <div style={{ fontSize: "12px", marginBottom: "8px" }}>
-                <strong>Identifier Field:</strong>{" "}
-                <code style={{ background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: "3px" }}>
-                  {instance.identifier_field || "(not set)"}
-                </code>
+              <div style={{ fontSize: "12px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span>
+                  <strong>Identifier Field:</strong>{" "}
+                  <code style={{ background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: "3px" }}>
+                    {instance.identifier_field || "(not set)"}
+                  </code>
+                </span>
+                {(instance.identifier_field_aliases?.length > 0) && (
+                  <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>
+                    + aliases: {instance.identifier_field_aliases.join(", ")}
+                  </span>
+                )}
+                {instance.is_official_district_layer && (
+                  <span style={{ fontSize: "10px", color: "#1d4ed8", fontStyle: "italic" }}>
+                    ↳ used for metric district filtering
+                  </span>
+                )}
               </div>
 
               {/* Aliases display/edit */}
               {editingId === instance.id ? (
                 <div style={{ marginTop: "8px" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px", color: "var(--text-secondary)" }}>
-                    Field Name Aliases:
+                  <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "4px", color: "var(--text-secondary)" }}>
+                    Dataset Field Aliases
+                    {instance.is_official_district_layer && (
+                      <span style={{ fontWeight: 400, marginLeft: "6px", color: "#1d4ed8" }}>
+                        — these are the field names the metric engine looks for in datasets to find district data
+                      </span>
+                    )}
+                    :
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     {editingAliases.map((alias, index) => (
@@ -496,7 +636,6 @@ export default function CityDataAdmin({
   const loadCityDataMutation = useLoadCityData();
   const restructureCityMutation = useRestructureCity();
   const reloadQueryConfigMutation = useReloadQueryConfig();
-  const reloadAllGeographicQueryConfigsMutation = useReloadAllGeographicQueryConfigs();
   const reExtractLeadersMutation = useReExtractLeaders();
   const recreateStructureFromQueryConfigsMutation = useRecreateStructureFromQueryConfigs();
   const createCityLeaderMutation = useCreateCityLeader();
@@ -510,6 +649,7 @@ export default function CityDataAdmin({
   const [runningSingleJobByTemplateId, setRunningSingleJobByTemplateId] = useState<Record<number, string>>({});
   const [runningAllJobId, setRunningAllJobId] = useState<string | null>(null);
   const [showRunAllTemplatesModal, setShowRunAllTemplatesModal] = useState(false);
+  const [templateSectionOpen, setTemplateSectionOpen] = useState(false);
   const [templateStructuringModelKey, setTemplateStructuringModelKey] = useState<string>("");
   const [structuringNotesTarget, setStructuringNotesTarget] = useState<{
     metricId?: number | null;
@@ -1148,6 +1288,12 @@ export default function CityDataAdmin({
     });
   }, [templateStatusQuery.data?.templates]);
 
+  const metricNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    (cityDataTyped?.metrics ?? []).forEach((m) => map.set(m.id, m.metric_name));
+    return map;
+  }, [cityDataTyped?.metrics]);
+
   const handleSaveCityData = async () => {
     try {
       setSaving(true);
@@ -1213,7 +1359,6 @@ export default function CityDataAdmin({
 
       const structureConfig = {
         city_id: cityId,
-        geographic_structures: structureDataTyped?.geographic_structures || [],
         governance_structures: [], // No longer used in UI
         leaders,
         query_configs,
@@ -1366,7 +1511,6 @@ export default function CityDataAdmin({
         `Deleted:`,
         `  - ${result.deleted.shapefiles} shapefiles`,
         `  - ${result.deleted.leaders} leaders`,
-        `  - ${result.deleted.geographic_structures} geographic structures`,
         `  - ${result.deleted.governance_structures} governance structures`,
         `  - ${result.deleted.mappings} mappings`,
         ``,
@@ -2497,292 +2641,6 @@ export default function CityDataAdmin({
             </button>
           </div>
 
-          {/* Geographic Structures Box */}
-          {(() => {
-            const geographicConfigs = structureData?.query_configs?.filter(
-              (qc: any) => qc.structure_type === "geographic"
-            ) || [];
-            
-            return (
-              <div
-                style={{
-                  marginBottom: "24px",
-                  border: "1px solid var(--border-primary)",
-                  borderRadius: "8px",
-                  padding: "16px",
-                  background: "var(--bg-primary)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                    Geographic Structures {geographicConfigs.length > 0 ? `(${geographicConfigs.length})` : ""}
-                    {geographicConfigs.map((config: any) => {
-                      const confidence = config.metadata?.confidence || config.confidence;
-                      if (confidence) {
-                        const confidencePercent = Math.round(confidence * 100);
-                        return (
-                          <span
-                            key={config.id}
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: "12px",
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              background: confidence >= 0.8 ? "#d1fae5" : confidence >= 0.7 ? "#fef3c7" : "#fee2e2",
-                              color: confidence >= 0.8 ? "#065f46" : confidence >= 0.7 ? "#92400e" : "#991b1b",
-                            }}
-                          >
-                            Confidence: {confidencePercent}%
-                          </span>
-                        );
-                      }
-                      return null;
-                    })}
-                  </h4>
-                  <button
-                    onClick={async () => {
-                      try {
-                        if (geographicConfigs.length === 0) {
-                          alert("No geographic structures query configurations found. Please run re-structure first.");
-                          return;
-                        }
-                        const result = await reloadAllGeographicQueryConfigsMutation.mutateAsync(cityId);
-                        await refetchStructure();
-                        let message = `Reloaded ${result.reloaded} of ${result.total_configs} geographic structures.\n\n`;
-                        message += `Shapefiles created: ${result.shapefiles_created}\n\n`;
-                        if (result.results.length > 0) {
-                          message += "Results:\n";
-                          result.results.forEach((r: any) => {
-                            message += `- ${r.structure_name}: ${r.status === "success" ? `${r.record_count} records${r.shapefile_id ? `, shapefile ID ${r.shapefile_id}` : ""}` : `Error: ${r.error}`}\n`;
-                          });
-                        }
-                        alert(message);
-                      } catch (err: any) {
-                        alert("Failed to reload geographic structures: " + err.message);
-                      }
-                    }}
-                    disabled={geographicConfigs.length === 0}
-                    style={{
-                      padding: "6px 12px",
-                      background: geographicConfigs.length > 0 ? "var(--brand-primary)" : "#ccc",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: geographicConfigs.length > 0 ? "pointer" : "not-allowed",
-                      fontWeight: 500,
-                      fontSize: "12px",
-                    }}
-                    title={geographicConfigs.length > 0 ? "Re-run all geographic queries and store as shapefiles" : "No query configurations found"}
-                  >
-                    Re-load All ({geographicConfigs.length})
-                  </button>
-                </div>
-                {geographicConfigs.length === 0 ? (
-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", padding: "12px" }}>
-                    No geographic structures query configurations found. Please run re-structure first.
-                  </div>
-                ) : (
-                  geographicConfigs.map((geographicConfig: any, index: number) => {
-                    const geographicData = geographicConfig?.query_output || [];
-                    return (
-                      <div key={geographicConfig.id || index} style={{ marginBottom: index < geographicConfigs.length - 1 ? "16px" : "0" }}>
-                        <div style={{ marginBottom: "8px", fontWeight: 600, fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span
-                            style={{
-                              cursor: geographicConfig.query ? "pointer" : "default",
-                              textDecoration: geographicConfig.query ? "underline" : "none",
-                              color: geographicConfig.query ? "var(--brand-primary)" : "var(--text-primary)",
-                            }}
-                            onClick={(e) => {
-                              if (geographicConfig.query) {
-                                setHoveredQuery({
-                                  config: geographicConfig,
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                });
-                              }
-                            }}
-                            onMouseEnter={(e) => {
-                              if (geographicConfig.query) {
-                                setHoveredQuery({
-                                  config: geographicConfig,
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                });
-                              }
-                            }}
-                            onMouseLeave={() => {
-                              // Don't clear on mouse leave - let click handle it
-                            }}
-                            title={geographicConfig.query ? "Click or hover to view query" : ""}
-                          >
-                            {geographicConfig.structure_name || `Geographic Structure ${index + 1}`}
-                          </span>
-                          {(() => {
-                            const confidence = geographicConfig.metadata?.confidence || geographicConfig.confidence;
-                            if (confidence) {
-                              const confidencePercent = Math.round(confidence * 100);
-                              return (
-                                <span
-                                  style={{
-                                    padding: "2px 8px",
-                                    borderRadius: "12px",
-                                    fontSize: "10px",
-                                    fontWeight: 600,
-                                    background: confidence >= 0.8 ? "#d1fae5" : confidence >= 0.7 ? "#fef3c7" : "#fee2e2",
-                                    color: confidence >= 0.8 ? "#065f46" : confidence >= 0.7 ? "#92400e" : "#991b1b",
-                                  }}
-                                >
-                                  Confidence: {confidencePercent}%
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                        <textarea
-                          value={JSON.stringify(geographicData, null, 2)}
-                          readOnly
-                          rows={8}
-                          style={{
-                            width: "100%",
-                            padding: "8px",
-                            border: "1px solid var(--border-primary)",
-                            borderRadius: "4px",
-                            fontFamily: "monospace",
-                            fontSize: "12px",
-                            background: "var(--bg-secondary)",
-                            color: "var(--text-primary)",
-                          }}
-                        />
-                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>
-                          {geographicData.length > 0
-                            ? `${geographicData.length} geographic feature${geographicData.length !== 1 ? "s" : ""} found`
-                            : "No data. Click 'Re-load All' to fetch from query."}
-                        </div>
-                        {index < geographicConfigs.length - 1 && (
-                          <hr style={{ margin: "12px 0", border: "none", borderTop: "1px solid var(--border-primary)" }} />
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            );
-          })()}
-
-          {/* District Field Names Box */}
-          <div
-            style={{
-              marginBottom: "24px",
-              border: "1px solid var(--border-primary)",
-              borderRadius: "8px",
-              padding: "16px",
-              background: "var(--bg-primary)",
-            }}
-          >
-            <h4 style={{ margin: "0 0 12px 0" }}>
-              District Field Names
-            </h4>
-            <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "12px" }}>
-              List of field names used for districts in different endpoints. Some endpoints may use different field names (e.g., "supervisor_district" vs "sup_dist_num"). 
-              <strong>Add ALL field names</strong> that identify districts in this city's datasets. The system will automatically use whichever field exists in each dataset.
-            </div>
-            {structureFormData.district_fields.length > 0 && (
-              <div style={{ 
-                padding: "8px", 
-                background: "var(--bg-secondary)", 
-                borderRadius: "4px",
-                fontSize: "11px",
-                color: "var(--text-secondary)",
-                marginBottom: "8px"
-              }}>
-                Currently configured: {structureFormData.district_fields.filter(f => f.trim()).join(", ") || "none"}
-              </div>
-            )}
-            {structureFormData.district_fields.length === 0 && (
-              <div style={{ 
-                padding: "8px", 
-                background: "var(--bg-secondary)", 
-                borderRadius: "4px",
-                fontSize: "12px",
-                color: "var(--text-secondary)",
-                marginBottom: "8px"
-              }}>
-                No district fields configured. Click "Add Field Name" to add district fields.
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {structureFormData.district_fields.map((field, index) => (
-                <div key={index} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={field}
-                    onChange={(e) => {
-                      const newFields = [...structureFormData.district_fields];
-                      newFields[index] = e.target.value;
-                      setStructureFormData({ ...structureFormData, district_fields: newFields });
-                    }}
-                    placeholder="e.g., supervisor_district"
-                    style={{
-                      flex: 1,
-                      padding: "6px 12px",
-                      border: "1px solid var(--border-primary)",
-                      borderRadius: "4px",
-                      background: "var(--bg-tertiary)",
-                      color: "var(--text-primary)",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      const newFields = structureFormData.district_fields.filter((_, i) => i !== index);
-                      setStructureFormData({ ...structureFormData, district_fields: newFields });
-                    }}
-                    style={{
-                      padding: "6px 12px",
-                      background: "#ef4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => {
-                  setStructureFormData({
-                    ...structureFormData,
-                    district_fields: [...structureFormData.district_fields, ""],
-                  });
-                }}
-                style={{
-                  padding: "6px 12px",
-                  background: "var(--brand-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  alignSelf: "flex-start",
-                }}
-              >
-                + Add Field Name
-              </button>
-            </div>
-          </div>
-
           {/* Shape Layers Box */}
           <ShapeLayersSection cityId={cityId} />
 
@@ -2800,12 +2658,22 @@ export default function CityDataAdmin({
             // Combine query_output and manual_data from all leaders configs
             const officialsData: any[] = [];
             const officialsDataMap = new Map<string, any>(); // Track by name+district to avoid duplicates
-            
+
+            // Normalize district for dedupe: 0 and "0" must produce the same key
+            // (district 0 = at-large/citywide; `0 || "null"` would wrongly yield "null")
+            const districtKey = (d: any): string => {
+              if (d === undefined || d === null || d === "") return "null";
+              const n = Number(d);
+              return Number.isNaN(n) ? String(d).toLowerCase() : String(n);
+            };
+            const officialKey = (o: any): string =>
+              `${(o.name || "").toLowerCase()}_${districtKey(o.district)}`;
+
             leadersConfigs.forEach((config: any) => {
               // Add query_output entries (regular dataset entries)
               if (config.query_output && Array.isArray(config.query_output)) {
                 config.query_output.forEach((official: any) => {
-                  const key = `${(official.name || "").toLowerCase()}_${official.district || "null"}`;
+                  const key = officialKey(official);
                   if (!officialsDataMap.has(key)) {
                     officialsDataMap.set(key, official);
                     officialsData.push(official);
@@ -2818,7 +2686,7 @@ export default function CityDataAdmin({
               if (manualData) {
                 const dataArray = Array.isArray(manualData) ? manualData : [manualData];
                 dataArray.forEach((official: any) => {
-                  const key = `${(official.name || "").toLowerCase()}_${official.district || "null"}`;
+                  const key = officialKey(official);
                   if (!officialsDataMap.has(key)) {
                     officialsDataMap.set(key, official);
                     officialsData.push(official);
@@ -2831,7 +2699,7 @@ export default function CityDataAdmin({
             // This ensures we can always edit stored leaders even if they're not in the current query output
             // We'll mark these with a special flag so they're always recognized as stored
             storedLeaders.forEach((leader: any) => {
-              const key = `${(leader.name || "").toLowerCase()}_${leader.district || "null"}`;
+              const key = officialKey(leader);
               if (!officialsDataMap.has(key)) {
                 // Create an official entry from stored leader
                 // Include the stored leader's ID so it can be matched properly
@@ -2957,8 +2825,6 @@ export default function CityDataAdmin({
               }
             });
             
-            // Get geographic structures for dropdown
-            const geographicStructures = structureData?.geographic_structures || [];
             // Get governance structures for dropdown
             const governanceStructures = structureData?.governance_structures || [];
             
@@ -2983,7 +2849,6 @@ export default function CityDataAdmin({
                   name: leaderData.name,
                   title: leaderData.title,
                   district: leaderData.district || null,
-                  geographic_structure_id: leaderData.geographic_structure_id || null,
                   governance_structure_id: leaderData.governance_structure_id || null,
                   metadata: cleanedMetadata,
                 };
@@ -3125,17 +2990,8 @@ export default function CityDataAdmin({
                           setError(null);
                           const token = await getAccessTokenSilently();
                           
-                          // Get geographic and governance structures for mapping
-                          const geoStructures = structureData?.geographic_structures || [];
-                          const govStructures = structureData?.governance_structures || [];
-                          
-                          // Try to find matching geographic structure by identifier_field
-                          const matchingGeoStructure = geoStructures.find((g: any) => {
-                            const identifierField = g.identifier_field?.toLowerCase() || "";
-                            return identifierField.includes("supervisor") || identifierField.includes("district");
-                          });
-                          
                           // Try to find matching governance structure
+                          const govStructures = structureData?.governance_structures || [];
                           const matchingGovStructure = govStructures.find((g: any) => {
                             const bodyName = g.body_name?.toLowerCase() || "";
                             return bodyName.includes("supervisor") || bodyName.includes("board");
@@ -3187,7 +3043,6 @@ export default function CityDataAdmin({
                                   name: officialName,
                                   title: officialTitle,
                                   district: districtNum,
-                                  geographic_structure_id: matchingGeoStructure?.id || null,
                                   governance_structure_id: matchingGovStructure?.id || null,
                                   metadata: official,
                                 },
@@ -3523,15 +3378,6 @@ export default function CityDataAdmin({
                                     : "At-large"}
                                 </td>
                                 <td style={{ padding: "8px" }}>
-                                  {storedLeader?.geographic_structure_id ? (
-                                    <span style={{ color: "var(--brand-primary)", fontWeight: 500 }}>
-                                      {geographicStructures.find((g: any) => g.id === storedLeader.geographic_structure_id)?.structure_name || storedLeader.geographic_structure_id}
-                                    </span>
-                                  ) : (
-                                    <span style={{ color: "var(--text-secondary)", fontStyle: "italic" }}>Not mapped</span>
-                                  )}
-                                </td>
-                                <td style={{ padding: "8px" }}>
                                   <button
                                     onClick={() => {
                                       // If we have a stored leader, use its data (including metadata and IDs)
@@ -3544,7 +3390,6 @@ export default function CityDataAdmin({
                                         name: officialName,
                                         title: officialTitle,
                                         district: officialDistrict,
-                                        geographic_structure_id: null,
                                         governance_structure_id: null,
                                         metadata: official.metadata || {},
                                       };
@@ -3696,34 +3541,6 @@ export default function CityDataAdmin({
                             color: "var(--text-primary)",
                           }}
                         />
-                      </div>
-                      
-                      <div style={{ marginBottom: "12px" }}>
-                        <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: 600 }}>
-                          Geographic Structure
-                        </label>
-                        <select
-                          value={editingLeader.data.geographic_structure_id || ""}
-                          onChange={(e) => setEditingLeader({
-                            ...editingLeader,
-                            data: { ...editingLeader.data, geographic_structure_id: e.target.value ? parseInt(e.target.value) : null },
-                          })}
-                          style={{
-                            width: "100%",
-                            padding: "6px",
-                            border: "1px solid var(--border-primary)",
-                            borderRadius: "4px",
-                            background: "var(--bg-tertiary)",
-                            color: "var(--text-primary)",
-                          }}
-                        >
-                          <option value="">None</option>
-                          {geographicStructures.map((geo: any) => (
-                            <option key={geo.id} value={geo.id}>
-                              {geo.structure_name} (ID: {geo.id})
-                            </option>
-                          ))}
-                        </select>
                       </div>
                       
                       <div style={{ marginBottom: "12px" }}>
@@ -4122,7 +3939,28 @@ export default function CityDataAdmin({
                 flexWrap: "wrap",
                 gap: "8px",
               }}>
-                <span>Template metrics</span>
+                <button
+                  type="button"
+                  onClick={() => setTemplateSectionOpen((prev) => !prev)}
+                  aria-expanded={templateSectionOpen}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    textTransform: "inherit",
+                    letterSpacing: "inherit",
+                    color: "inherit",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <span style={{ fontSize: "11px" }}>{templateSectionOpen ? "▼" : "▶"}</span>
+                  <span>Template metrics ({sortedTemplateInstantiationRows.length})</span>
+                </button>
+                {templateSectionOpen && (
                 <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                   <label style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
                     Model:
@@ -4250,95 +4088,92 @@ export default function CityDataAdmin({
                     </div>
                   )}
                 </span>
+                )}
               </h4>
+              {templateSectionOpen && (
               <div className={styles.metricsTableContainer}>
                 <table className={styles.metricsTable}>
                   <thead>
                     <tr>
-                      <th>Metric</th>
-                      <th>Most Recent Data</th>
-                      <th>Active</th>
-                      <th>Inactive</th>
-                      <th>Last Execution</th>
+                      <th>Template</th>
+                      <th>Mapped Metric</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedTemplateInstantiationRows.map((t, idx) => {
+                    {sortedTemplateInstantiationRows.map((t, index) => {
                       const jobId = runningSingleJobByTemplateId[t.template_id];
                       const job = jobId ? jobs?.find((j) => j.job_id === jobId) : null;
                       const isRunning = !!jobId && job && (job.status === "pending" || job.status === "running");
                       const isInstantiated = t.status === "instantiated";
-                      const slug = templateCategorySlug(t.category, t.category_slug);
-                      const prev = idx > 0 ? sortedTemplateInstantiationRows[idx - 1] : null;
-                      const prevSlug = prev ? templateCategorySlug(prev.category, prev.category_slug) : null;
-                      const showCategoryDivider = slug !== prevSlug;
                       const categoryLabel = t.category?.trim() ? t.category : "Uncategorized";
+                      const subcategoryLabel = t.subcategory?.trim() || "";
+                      const prev = index > 0 ? sortedTemplateInstantiationRows[index - 1] : null;
+                      const prevCategory = prev
+                        ? (prev.category?.trim() ? prev.category : "Uncategorized")
+                        : null;
+                      const prevSubcategory = prev?.subcategory?.trim() || "";
+                      const showCategory = prevCategory !== categoryLabel;
+                      const showSubcategory =
+                        !!subcategoryLabel &&
+                        (showCategory || prevSubcategory !== subcategoryLabel);
+                      const mappedMetricName = t.metric_id != null ? metricNameById.get(t.metric_id) : undefined;
                       return (
                         <Fragment key={t.template_id}>
-                        {showCategoryDivider && (
-                          <tr className={styles.metricCategoryDividerRow}>
-                            <td
-                              colSpan={5}
-                              style={{
-                                padding: "10px 12px",
-                                background: "var(--bg-secondary, #f5f5f7)",
-                                borderTop: "1px solid var(--border-color, #e5e5ea)",
-                                borderBottom: "1px solid var(--border-color, #e5e5ea)",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.04em",
-                                color: "var(--text-secondary)",
-                              }}
-                            >
-                              <span style={{ color: "var(--text-primary)" }}>{categoryLabel}</span>
-                              <code
+                          {showCategory && (
+                            <tr className={styles.templateCategoryRow}>
+                              <td colSpan={3}>{categoryLabel}</td>
+                            </tr>
+                          )}
+                          {showSubcategory && (
+                            <tr className={styles.templateSubcategoryRow}>
+                              <td colSpan={3}>{subcategoryLabel}</td>
+                            </tr>
+                          )}
+                          <tr
+                            className={styles.metricTableRow}
+                            style={{
+                              opacity: isInstantiated ? 0.9 : 0.7,
+                              backgroundColor: isRunning ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                            }}
+                          >
+                            <td className={styles.metricNameCell}>
+                              <div
                                 style={{
-                                  marginLeft: "8px",
-                                  fontSize: "11px",
-                                  color: "var(--text-tertiary)",
-                                  textTransform: "none",
-                                  letterSpacing: 0,
+                                  display: "flex",
+                                  alignItems: "baseline",
+                                  gap: "6px",
+                                  flexWrap: "nowrap",
+                                  minWidth: 0,
+                                  fontWeight: 500,
+                                  color: isInstantiated ? "var(--text-primary)" : "var(--text-secondary)",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
                                 }}
-                                title="Category slug"
                               >
-                                {slug}
-                              </code>
-                            </td>
-                          </tr>
-                        )}
-                        <tr
-                          className={styles.metricTableRow}
-                          style={{
-                            opacity: isInstantiated ? 0.9 : 0.7,
-                            backgroundColor: isRunning ? "rgba(99, 102, 241, 0.05)" : "transparent",
-                          }}
-                        >
-                          <td className={styles.metricNameCell}>
-                            <div className={styles.metricNameContent}>
-                              <div style={{ fontWeight: 500, color: isInstantiated ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                                {t.template_name}
-                                <span className={styles.metricIdInline}> (template {t.template_id})</span>
-                                {t.subcategory?.trim() && (
-                                  <span
-                                    style={{
-                                      marginLeft: "8px",
-                                      fontSize: "11px",
-                                      color: "var(--text-tertiary)",
-                                      fontWeight: 400,
-                                    }}
-                                    title="Subcategory"
-                                  >
-                                    · {t.subcategory}
-                                  </span>
-                                )}
-                                {isInstantiated && t.metric_id != null && (
-                                  <span style={{ marginLeft: "6px", fontSize: "12px", color: "var(--color-success, #22c55e)" }}>
-                                    → metric #{t.metric_id}
-                                  </span>
-                                )}
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {t.template_name}
+                                </span>
+                                <span className={styles.metricIdInline}>(template {t.template_id})</span>
                               </div>
-                              <div className={styles.metricActionsWrapper} style={{ opacity: 1, visibility: "visible" }}>
+                              {isRunning && job?.status_message && (
+                                <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                  {job.status_message}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ whiteSpace: "nowrap" }}>
+                              {isInstantiated && t.metric_id != null ? (
+                                <span style={{ fontSize: "12px", color: "var(--color-success, #22c55e)" }}>
+                                  {mappedMetricName ? `${mappedMetricName} ` : ""}#{t.metric_id}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className={styles.templateMetricActions}>
                                 <button
                                   onClick={async () => {
                                     try {
@@ -4355,14 +4190,15 @@ export default function CityDataAdmin({
                                   }}
                                   disabled={isRunning || instantiateSingleMutation.isPending}
                                   style={{
-                                    padding: "6px 12px",
+                                    padding: "4px 10px",
                                     background: isRunning || instantiateSingleMutation.isPending ? "var(--text-secondary, #999)" : "var(--brand-accent, #6366f1)",
                                     color: "white",
                                     border: "none",
                                     borderRadius: "4px",
-                                    fontSize: "12px",
+                                    fontSize: "11px",
                                     fontWeight: 500,
                                     cursor: isRunning || instantiateSingleMutation.isPending ? "wait" : "pointer",
+                                    flexShrink: 0,
                                   }}
                                 >
                                   {isRunning ? "Running…" : isInstantiated ? "Re-run" : "Run"}
@@ -4373,7 +4209,7 @@ export default function CityDataAdmin({
                                     templateId: t.template_id,
                                   })}
                                   style={{
-                                    padding: "6px 10px",
+                                    padding: "4px 8px",
                                     background: "transparent",
                                     color: "var(--text-secondary)",
                                     border: "1px solid var(--border-color, #ddd)",
@@ -4381,6 +4217,7 @@ export default function CityDataAdmin({
                                     fontSize: "11px",
                                     fontWeight: 500,
                                     cursor: "pointer",
+                                    flexShrink: 0,
                                   }}
                                   title="View AI structuring notes"
                                 >
@@ -4388,31 +4225,15 @@ export default function CityDataAdmin({
                                   Notes
                                 </button>
                               </div>
-                            </div>
-                          </td>
-                          <td className={styles.metricDateCell}>
-                            <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                          </td>
-                          <td className={styles.metricDateCell}>
-                            <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                          </td>
-                          <td className={styles.metricDateCell}>
-                            <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                          </td>
-                          <td className={styles.metricExecutionCell}>
-                            {isRunning && job?.status_message ? (
-                              <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{job.status_message}</span>
-                            ) : (
-                              <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>—</span>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                          </tr>
                         </Fragment>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
 

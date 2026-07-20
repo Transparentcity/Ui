@@ -188,9 +188,9 @@ export default function FeedStoryModal({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-2">
           {isLoading && (
-            <div className={styles.detailContainer}>
+            <div className={`${styles.detailContainer} ${styles.detailContainerModal}`}>
               <div className={styles.loadingState}>
                 <div className={styles.pullSpinner} />
               </div>
@@ -198,7 +198,7 @@ export default function FeedStoryModal({
           )}
 
           {!isLoading && (error || !story) && (
-            <div className={styles.detailContainer}>
+            <div className={`${styles.detailContainer} ${styles.detailContainerModal}`}>
               <h1 className={styles.detailHeadline}>Story not found</h1>
               <p className={styles.detailDescription}>
                 {error
@@ -209,7 +209,7 @@ export default function FeedStoryModal({
           )}
 
           {!isLoading && story && rawStory && (
-            <div className={styles.detailContainer}>
+            <div className={`${styles.detailContainer} ${styles.detailContainerModal}`}>
               <FeedStoryDetailView
                 story={story}
                 detailNarrative={detailNarrative}

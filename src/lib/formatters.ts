@@ -66,6 +66,25 @@ export function formatMetricValue(
 }
 
 /**
+ * Extract the calendar year from a date string (e.g. "2026-01-01" → 2026).
+ *
+ * `new Date("YYYY-MM-DD").getFullYear()` parses as UTC midnight but reads the
+ * year in local time, so in timezones behind UTC a Jan 1 date reports the
+ * *previous* year. Reads the year straight from the string when possible,
+ * falling back to a UTC parse for other formats.
+ */
+export function yearFromDateString(
+  dateStr: string | null | undefined
+): number | null {
+  if (!dateStr) return null;
+  const match = /^(\d{4})(?:[-/]|$)/.exec(dateStr.trim());
+  if (match) return Number(match[1]);
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getUTCFullYear();
+}
+
+/**
  * Format a date range from string dates (e.g., "Jan 1 – Mar 15, 2026").
  * Uses UTC timezone to avoid off-by-one issues with server dates.
  * Accepts an optional loading/fallback string.

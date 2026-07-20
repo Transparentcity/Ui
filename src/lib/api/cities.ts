@@ -71,9 +71,45 @@ export interface CityAdminData {
   governance_structures?: any[];
 }
 
+export interface CityShapeLayerInstance {
+  id: number;
+  template_layer_id?: number | null;
+  shapefile_name: string;
+  structure_type: string;
+  identifier_field?: string | null;
+  identifier_field_aliases?: string[];
+  identifier_type?: string | null;
+  min_identifier_value?: number | null;
+  max_identifier_value?: number | null;
+  status?: "active" | "disabled" | "needs_refresh";
+  render_order?: number | null;
+  feature_count?: number | null;
+  last_fetched_at?: string | null;
+  is_official_district_layer?: boolean;
+}
+
+export interface CityShapeLayerEntry {
+  template: {
+    id: number;
+    layer_key: string;
+    default_display_name: string;
+    category: string;
+    icon?: string | null;
+    geometry_kind: string;
+    default_identifier_field?: string | null;
+    default_style_json?: Record<string, unknown>;
+    source_strategy: string;
+    is_active: boolean;
+    is_required: boolean;
+    structuring_prompt?: string | null;
+  } | null;
+  instance: CityShapeLayerInstance | null;
+}
+
 export interface CityStructureData {
   city_id?: number;
   status?: string;
+  official_district_shape_layer_id?: number | null;
   geographic_structures?: Array<{
     id?: number;
     structure_name?: string;
@@ -83,7 +119,15 @@ export interface CityStructureData {
     shapefile_storage_path?: string | null;
   }>;
   governance_structures?: any[];
-  leaders?: any[];
+  leaders?: Array<{
+    id?: number;
+    name?: string;
+    title?: string;
+    district?: number | null;
+    district_shape_layer_id?: number | null;
+    geographic_structure_id?: number | null;
+    metadata?: Record<string, unknown>;
+  }>;
   query_configs?: Array<{
     id?: number;
     structure_type?: string;
@@ -93,7 +137,7 @@ export interface CityStructureData {
     identifier_field?: string;
     query_output?: any[];
   }>;
-  shapefiles?: any[];
+  shapefiles?: CityShapeLayerInstance[];
   mappings?: any[];
   district_field?: string | null;
   district_fields?: string[];
@@ -979,9 +1023,51 @@ export interface TemplateShapeLayer {
   source_strategy: string;
   source_defaults_json?: Record<string, any>;
   is_active?: boolean;
+  is_required?: boolean;
+  structuring_prompt?: string | null;
   metadata?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
+}
+
+export function listShapeLayerTemplates(
+  token: string,
+  includeInactive: boolean = false
+): Promise<TemplateShapeLayer[]> {
+  const params = new URLSearchParams();
+  params.set("include_inactive", includeInactive ? "true" : "false");
+  return request<TemplateShapeLayer[]>(
+    `/api/shape-layers/templates?${params.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface UpdateShapeLayerTemplateRequest {
+  layer_key?: string;
+  default_display_name?: string;
+  category?: string;
+  icon?: string | null;
+  geometry_kind?: string;
+  default_identifier_field?: string | null;
+  source_strategy?: string;
+  is_active?: boolean;
+  is_required?: boolean;
+  structuring_prompt?: string | null;
+}
+
+export function updateShapeLayerTemplate(
+  templateId: number,
+  updates: UpdateShapeLayerTemplateRequest,
+  token: string
+): Promise<{ template_id: number; template: TemplateShapeLayer | null }> {
+  return request(
+    `/api/shape-layers/templates/${templateId}`,
+    "PUT",
+    updates,
+    token
+  );
 }
 
 export interface CityShapeLayerInstance extends CityShapefile {
@@ -1052,6 +1138,76 @@ export function deleteShapeLayerInstance(
   return request<DeleteShapeLayerInstanceResponse>(
     `/api/shape-layers/cities/${cityId}/instances/${instanceId}`,
     "DELETE",
+    undefined,
+    token
+  );
+}
+
+// Shape layer instantiation status
+
+export interface ShapeLayerInstantiationStatusItem {
+  template_id: number;
+  layer_key: string;
+  display_name: string;
+  is_required: boolean;
+  has_instance: boolean;
+  instance_id: number | null;
+  instance_status: string | null;
+  is_official_district_layer: boolean;
+}
+
+export interface ShapeLayerInstantiationStatusResponse {
+  city_id: number;
+  templates: ShapeLayerInstantiationStatusItem[];
+  missing_required: number;
+  missing_optional: number;
+}
+
+export function getShapeLayerInstantiationStatus(
+  cityId: number,
+  token: string
+): Promise<ShapeLayerInstantiationStatusResponse> {
+  return request<ShapeLayerInstantiationStatusResponse>(
+    `/api/shape-layers/cities/${cityId}/instantiation-status`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface RetryMissingShapeLayersResponse {
+  city_id: number;
+  job_id: number | null;
+  status: string;
+  message: string;
+}
+
+export function retryMissingShapeLayers(
+  cityId: number,
+  token: string
+): Promise<RetryMissingShapeLayersResponse> {
+  return request<RetryMissingShapeLayersResponse>(
+    `/api/shape-layers/cities/${cityId}/retry-missing`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export interface SetOfficialDistrictLayerResponse {
+  city_id: number;
+  official_district_shape_layer_id: number;
+  updated: boolean;
+}
+
+export function setOfficialDistrictLayer(
+  cityId: number,
+  instanceId: number,
+  token: string
+): Promise<SetOfficialDistrictLayerResponse> {
+  return request<SetOfficialDistrictLayerResponse>(
+    `/api/shape-layers/cities/${cityId}/official-district/${instanceId}`,
+    "POST",
     undefined,
     token
   );

@@ -179,7 +179,7 @@ function pointInPolygon(point: [number, number], polygon: [number, number][]): b
 }
 
 // Find which district contains a GPS point
-// Prioritizes shapefiles that match the primary geographic structure (used by leaders)
+// Prioritizes the official district layer, then falls back to leader plurality heuristic.
 function findDistrictContainingPoint(
   lat: number,
   lng: number,
@@ -188,40 +188,63 @@ function findDistrictContainingPoint(
 ): { shapefile: CityShapefile; feature: any; identifier: string | number } | null {
   const point: [number, number] = [lng, lat];
   
-  // Find the primary geographic structure (the one used by most leaders)
-  let primaryGeographicStructureId: number | null = null;
-  
-  if (leaders && leaders.length > 0) {
-    // Count which geographic_structure_id is used by most leaders
-    const structureIdCounts = new Map<number, number>();
-    leaders.forEach((leader) => {
-      if (leader.geographic_structure_id) {
-        const count = structureIdCounts.get(leader.geographic_structure_id) || 0;
-        structureIdCounts.set(leader.geographic_structure_id, count + 1);
+  // Prefer the official district shape layer (flagged by the backend)
+  const primaryShapefiles: CityShapefile[] = [];
+  const otherShapefiles: CityShapefile[] = [];
+
+  const hasOfficialFlag = shapefiles.some((sf) => (sf as any).is_official_district_layer);
+
+  if (hasOfficialFlag) {
+    shapefiles.forEach((sf) => {
+      if ((sf as any).is_official_district_layer) {
+        primaryShapefiles.push(sf);
+      } else {
+        otherShapefiles.push(sf);
       }
     });
-    
-    // Find the most common geographic_structure_id
-    let maxCount = 0;
-    structureIdCounts.forEach((count, structureId) => {
-      if (count > maxCount) {
-        maxCount = count;
-        primaryGeographicStructureId = structureId;
+  } else {
+    // Legacy fallback: use plurality of leaders' district_shape_layer_id first,
+    // then geographic_structure_id
+    let primaryShapeLayerId: number | null = null;
+    let primaryGeoStructureId: number | null = null;
+
+    if (leaders && leaders.length > 0) {
+      const layerIdCounts = new Map<number, number>();
+      leaders.forEach((leader) => {
+        const lid = (leader as any).district_shape_layer_id;
+        if (lid) {
+          layerIdCounts.set(lid, (layerIdCounts.get(lid) || 0) + 1);
+        }
+      });
+      let maxCount = 0;
+      layerIdCounts.forEach((count, id) => {
+        if (count > maxCount) { maxCount = count; primaryShapeLayerId = id; }
+      });
+
+      if (!primaryShapeLayerId) {
+        const geoIdCounts = new Map<number, number>();
+        leaders.forEach((leader) => {
+          if (leader.geographic_structure_id) {
+            geoIdCounts.set(leader.geographic_structure_id, (geoIdCounts.get(leader.geographic_structure_id) || 0) + 1);
+          }
+        });
+        let maxGeoCount = 0;
+        geoIdCounts.forEach((count, id) => {
+          if (count > maxGeoCount) { maxGeoCount = count; primaryGeoStructureId = id; }
+        });
+      }
+    }
+
+    shapefiles.forEach((sf) => {
+      if (primaryShapeLayerId && sf.id === primaryShapeLayerId) {
+        primaryShapefiles.push(sf);
+      } else if (!primaryShapeLayerId && primaryGeoStructureId && sf.geographic_structure_id === primaryGeoStructureId) {
+        primaryShapefiles.push(sf);
+      } else {
+        otherShapefiles.push(sf);
       }
     });
   }
-  
-  // Separate shapefiles into primary (matching primary structure) and others
-  const primaryShapefiles: CityShapefile[] = [];
-  const otherShapefiles: CityShapefile[] = [];
-  
-  shapefiles.forEach((shapefile) => {
-    if (primaryGeographicStructureId && shapefile.geographic_structure_id === primaryGeographicStructureId) {
-      primaryShapefiles.push(shapefile);
-    } else {
-      otherShapefiles.push(shapefile);
-    }
-  });
   
   // Check primary shapefiles first
   const shapefilesToCheck = [...primaryShapefiles, ...otherShapefiles];
@@ -1083,7 +1106,7 @@ export default function DistrictNavigation({
                     </div>
                     {filteredDistricts.map((option) => (
                       <button
-                        key={option.district}
+                        key={option.leader?.id ?? `${option.district}-${option.name}`}
                         className="district-navigation-result-item"
                         onClick={() => handleDistrictSelect(option.district)}
                       >

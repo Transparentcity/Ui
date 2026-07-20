@@ -32,6 +32,7 @@ import {
   getCaseInsensitiveProp,
   getChoroplethBrandRamp,
   getInitialMapView,
+  choroplethDistrictKeyAliases,
   normalizeChoroplethDistrictKey,
   normalizeGeoJsonLngLatPair,
   normalizeLocationRowLatLng,
@@ -1993,8 +1994,8 @@ export default function PublicMapPage() {
             row.sup_dist_num ??
             row.district ??
             "";
-          const normalizedId = normalizeChoroplethDistrictKey(rawDistrict);
-          if (!normalizedId) return;
+          const keyAliases = choroplethDistrictKeyAliases(rawDistrict);
+          if (keyAliases.length === 0) return;
           const entry = {
             count: row.count ?? row.value ?? 0,
             value: row.value ?? row.count ?? 0,
@@ -2004,17 +2005,19 @@ export default function PublicMapPage() {
             count_current: row.count_current ?? null,
             count_comparison: row.count_comparison ?? null,
           };
-          districtDataMap.set(normalizedId, entry);
           const rawStr = String(rawDistrict).trim();
-          if (rawStr && rawStr !== normalizedId) {
+          if (rawStr) {
             districtDataMap.set(rawStr, entry);
           }
-          const districtIdNum = Number(normalizedId);
-          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-            districtDataMap.set(String(districtIdNum), entry);
-            districtDataMap.set(`District ${districtIdNum}`, entry);
-            districtDataMap.set(`district ${districtIdNum}`, entry);
-          }
+          keyAliases.forEach((keyAlias) => {
+            districtDataMap.set(keyAlias, entry);
+            const districtIdNum = Number(keyAlias);
+            if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
+              districtDataMap.set(String(districtIdNum), entry);
+              districtDataMap.set(`District ${districtIdNum}`, entry);
+              districtDataMap.set(`district ${districtIdNum}`, entry);
+            }
+          });
         });
       } else {
         // Compute aggregation from location_data
@@ -2032,10 +2035,10 @@ export default function PublicMapPage() {
             getCaseInsensitiveProp(itemRec, String(shapeGeoPropertyField)) ??
             item.district ??
             "";
-          const normalizedId = normalizeChoroplethDistrictKey(rawDistrict);
-          if (!normalizedId) return;
+          const keyAliases = choroplethDistrictKeyAliases(rawDistrict);
+          if (keyAliases.length === 0) return;
 
-          const prev = districtDataMap.get(normalizedId) || { count: 0, value: 0 };
+          const prev = districtDataMap.get(keyAliases[0]) || { count: 0, value: 0 };
           if (isCountAgg) {
             prev.count = (prev.count || 0) + 1;
             prev.value = prev.count;
@@ -2043,15 +2046,17 @@ export default function PublicMapPage() {
             prev.value = (prev.value || 0) + (Number(item[valueField]) || 0);
             prev.count = prev.value;
           }
-          districtDataMap.set(normalizedId, prev);
           const rawStr = String(rawDistrict).trim();
-          if (rawStr && rawStr !== normalizedId) {
+          if (rawStr) {
             districtDataMap.set(rawStr, prev);
           }
-          const districtIdNum = Number(normalizedId);
-          if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-            districtDataMap.set(String(districtIdNum), prev);
-          }
+          keyAliases.forEach((keyAlias) => {
+            districtDataMap.set(keyAlias, prev);
+            const districtIdNum = Number(keyAlias);
+            if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
+              districtDataMap.set(String(districtIdNum), prev);
+            }
+          });
         });
       }// ── Determine if this is a delta (red/green) or regular choropleth ──────────
       const isDeltaMap =
@@ -2107,16 +2112,18 @@ export default function PublicMapPage() {
         sourceMap: Map<string, Record<string, any>>
       ): Record<string, any> | null => {
         if (!prepared.districtId) return null;
-        let districtData = sourceMap.get(prepared.districtId);
-        if (!districtData) {
-          const districtIdNum = Number(prepared.districtId);
+        for (const keyAlias of choroplethDistrictKeyAliases(prepared.districtId)) {
+          const districtData = sourceMap.get(keyAlias);
+          if (districtData) return districtData;
+          const districtIdNum = Number(keyAlias);
           if (!isNaN(districtIdNum) && isFinite(districtIdNum)) {
-            districtData =
+            const numericData =
               sourceMap.get(String(districtIdNum)) ||
               sourceMap.get(String(Math.floor(districtIdNum)));
+            if (numericData) return numericData;
           }
         }
-        return districtData || null;
+        return null;
       };
 
       let finalDistrictDataMap = districtDataMap;
