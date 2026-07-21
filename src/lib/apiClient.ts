@@ -3213,6 +3213,36 @@ export function setOfficialDistrictLayer(
   );
 }
 
+export interface PublicShapeLayerInstanceResponse {
+  instance: {
+    id: number;
+    city_id: number;
+    template_layer_id: number | null;
+    shapefile_name: string | null;
+    structure_type: string | null;
+    identifier_field: string | null;
+    status: string;
+    geometry_data: any | null; // GeoJSON FeatureCollection
+    geometry_type: string | null;
+    feature_count: number | null;
+  };
+  template: {
+    layer_key: string;
+    default_display_name: string;
+    category: string;
+  } | null;
+}
+
+/** Fetch a single shape layer instance with geometry (public, used for map previews). */
+export function getPublicShapeLayerInstance(
+  instanceId: number
+): Promise<PublicShapeLayerInstanceResponse> {
+  return request<PublicShapeLayerInstanceResponse>(
+    `/api/shape-layers/public/instances/${instanceId}?include_geometry=true`,
+    "GET"
+  );
+}
+
 export function getCityShapefiles(cityId: number, token: string): Promise<CityShapefile[]> {
   return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
     .then((data: any) => {
@@ -8167,4 +8197,96 @@ export function giftMintSession(params: {
     }
     return res.json() as Promise<GiftAuthTokens>;
   });
+}
+
+// ============================================================================
+// METRIC RELATIONSHIPS (ADMIN)
+// ============================================================================
+
+export interface MetricRelationshipEdge {
+  id: number;
+  source_metric_id: number;
+  target_metric_id: number;
+  relationship_type: "conversion" | "stock_flow_in" | "stock_flow_out" | "component";
+  chain_key: string;
+  chain_name: string;
+  display_order: number;
+  category_field: string | null;
+  category_value_mapping: Record<string, string> | null;
+  lag_months: number | null;
+  min_category_count_for_attribution: number;
+  city_id: number | null;
+}
+
+export interface MetricRelationshipCreate {
+  source_metric_id: number;
+  target_metric_id: number;
+  relationship_type: string;
+  chain_key: string;
+  chain_name: string;
+  display_order?: number;
+  category_field?: string | null;
+  category_value_mapping?: Record<string, string> | null;
+  lag_months?: number | null;
+  city_id?: number | null;
+}
+
+export interface ChainSummary {
+  chain_key: string;
+  chain_name: string;
+  edge_count: number;
+  max_order: number | null;
+}
+
+export function listMetricChains(
+  token: string,
+  cityId?: number | null
+): Promise<ChainSummary[]> {
+  const params = cityId != null ? `?city_id=${cityId}` : "";
+  return request<ChainSummary[]>(
+    `/api/admin/metric-relationships/chains${params}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function listMetricRelationships(
+  token: string,
+  options?: { chainKey?: string; cityId?: number | null }
+): Promise<MetricRelationshipEdge[]> {
+  const params = new URLSearchParams();
+  if (options?.chainKey) params.append("chain_key", options.chainKey);
+  if (options?.cityId != null) params.append("city_id", options.cityId.toString());
+  const qs = params.toString();
+  return request<MetricRelationshipEdge[]>(
+    `/api/admin/metric-relationships${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function createMetricRelationship(
+  body: MetricRelationshipCreate,
+  token: string
+): Promise<MetricRelationshipEdge> {
+  return request<MetricRelationshipEdge>(
+    "/api/admin/metric-relationships",
+    "POST",
+    body,
+    token
+  );
+}
+
+export function deleteMetricRelationship(
+  id: number,
+  token: string
+): Promise<void> {
+  return request<void>(
+    `/api/admin/metric-relationships/${id}`,
+    "DELETE",
+    undefined,
+    token
+  );
 }

@@ -15,6 +15,14 @@ export function emitOpenEditPlace(placeId: number): void {
   );
 }
 
+/** Request the "add a place" flow (home-location modal, as in onboarding) to open. */
+export const OPEN_ADD_PLACE_EVENT = "tc:open-add-place";
+
+export function emitOpenAddPlace(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(OPEN_ADD_PLACE_EVENT));
+}
+
 
 
 

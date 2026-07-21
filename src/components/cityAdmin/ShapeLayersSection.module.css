@@ -1,0 +1,419 @@
+/* Shape Layers admin section — layer list + live map preview */
+
+.section {
+  margin-bottom: 24px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--bg-primary);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.retryButton {
+  padding: 5px 12px;
+  background: var(--warning);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.retryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.helpText {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.helpText code {
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Template coverage chips */
+.coverageBox {
+  margin-bottom: 12px;
+  font-size: 11px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.coverageHeader {
+  background: var(--bg-secondary);
+  padding: 6px 10px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.coverageChips {
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: none;
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.chipClickable {
+  cursor: pointer;
+}
+
+.chipClickable:hover {
+  filter: brightness(1.1);
+}
+
+/* Two-pane layout: list + map */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 5fr) minmax(320px, 6fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.layerList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.layerCard {
+  padding: 10px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
+.layerCardVisible {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-light);
+}
+
+.layerCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.layerToggleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.colorDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.colorDotOff {
+  background: transparent !important;
+  border-color: var(--border-primary);
+}
+
+.layerName {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.layerMeta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+.officialStar {
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
+.layerActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.actionButton {
+  padding: 4px 10px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.actionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.setOfficialButton {
+  background: #1d4ed8;
+}
+
+.editButton {
+  background: var(--brand-primary);
+}
+
+.deleteButton {
+  background: var(--error);
+}
+
+.identifierRow {
+  font-size: 12px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.identifierRow code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.aliasesRow {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.aliasesRow code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.noneText {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.geomError {
+  font-size: 11px;
+  color: var(--error);
+  margin-top: 6px;
+}
+
+/* Alias editor */
+.aliasEditor {
+  margin-top: 8px;
+}
+
+.aliasEditorLabel {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.aliasRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aliasRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.aliasInput {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.aliasRemoveButton {
+  padding: 4px 8px;
+  background: var(--error);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.aliasAddButton {
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--brand-primary);
+  border: 1px dashed var(--brand-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  align-self: flex-start;
+}
+
+.aliasEditorActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.saveButton {
+  padding: 6px 12px;
+  background: var(--success);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.saveButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cancelButton {
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* Map preview */
+.mapPanel {
+  position: sticky;
+  top: 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  min-width: 0;
+}
+
+.mapContainer {
+  width: 100%;
+  height: 480px;
+}
+
+.mapEmptyOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+  pointer-events: none;
+  text-align: center;
+  padding: 0 24px;
+  z-index: 2;
+}
+
+.mapWrap {
+  position: relative;
+}
+
+.mapLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-primary);
+  font-size: 11px;
+  color: var(--text-secondary);
+  align-items: center;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.mapError {
+  padding: 24px;
+  font-size: 12px;
+  color: var(--error);
+  text-align: center;
+}
+
+.loadingBox {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.emptyBox {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 12px;
+}

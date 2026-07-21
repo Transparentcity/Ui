@@ -299,6 +299,21 @@ Soft blurred circles behind hero content (`landing.css`):
 
 Do not add new spinner styles; extend bracket loader variants only.
 
+### 7.6 Anti-pattern: left-edge accent bars
+
+We explicitly **do not** use the vertical left-border / left-margin accent stripe
+convention (e.g. `border-left: 3px solid var(--brand-primary)` on cards, list items,
+selected nav entries, callouts, or blockquote-style highlights). It is a common
+component-library default, but it is not part of our visual language.
+
+To indicate selection, emphasis, or active state, use instead:
+
+- Background tint: `--brand-primary-light` fill
+- Full border: `--brand-primary` border on all sides (see featured cards, §7.4)
+- Pills/badges (§7.3) or text color changes
+
+If a third-party component ships with a left accent bar, override or remove it.
+
 ---
 
 ## 8. Assets
@@ -354,3 +369,4 @@ Before merging a new route or major component:
 | Date | Notes |
 |------|--------|
 | 2026-05 | Expanded: Legibility Project vision, Seymour charter summary, production tokens from `tokens.css` / `landing.css`, UI patterns (orbs, pills, loader). |
+| 2026-07 | Added §7.6 anti-pattern: no left-edge accent bars for selection/emphasis. |

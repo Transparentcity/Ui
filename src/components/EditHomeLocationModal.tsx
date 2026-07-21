@@ -7,9 +7,13 @@ import { createPortal } from "react-dom";
 import { cityKeys } from "@/lib/hooks/useCities";
 import { searchPublicCities, type PublicCitySearchResult } from "@/lib/publicApiClient";
 import {
+  fetchAddressSuggestions,
   geocodeQuery,
   getCurrentLocation,
+  isGeographicQuery,
   resolveCityFromGeocode,
+  suggestionToGeocodeResult,
+  type AddressSuggestion,
 } from "@/lib/locationSearchUtils";
 import {
   saveCity,
@@ -44,14 +48,21 @@ const LOCATION_GPS_HERO_ICON = (
 export interface EditHomeLocationModalProps {
   open: boolean;
   onClose: () => void;
-  /** Called after home location and My places are updated so parent can refresh. */
-  onSaved?: () => void;
+  /** Called after home location and My places are updated so parent can refresh.
+   *  Receives the saved place so the parent can navigate to it; `isNewPlace`
+   *  is true when the place was just created (metrics job still needed). */
+  onSaved?: (place?: UserPlace, opts?: { isNewPlace: boolean }) => void;
+  /** Start the place metrics job after creating the place (default true).
+   *  Pass false when the parent's onSaved flow bootstraps the job itself
+   *  (e.g. navigating to the place dashboard), to avoid running it twice. */
+  startMetricsJob?: boolean;
 }
 
 export default function EditHomeLocationModal({
   open,
   onClose,
   onSaved,
+  startMetricsJob = true,
 }: EditHomeLocationModalProps) {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
@@ -67,6 +78,11 @@ export default function EditHomeLocationModal({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [mounted, setMounted] = useState(false);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
+
+  // Address autocomplete (same Mapbox suggest flow as onboarding)
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSuggestionsLoading, setAddressSuggestionsLoading] = useState(false);
+  const addressSuggestTimeoutRef = useRef<number | null>(null);
 
   /** When set, we have city (and optionally coords) for the map step. */
   const [pending, setPending] = useState<{
@@ -117,6 +133,8 @@ export default function EditHomeLocationModal({
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
+      if (addressSuggestTimeoutRef.current)
+        window.clearTimeout(addressSuggestTimeoutRef.current);
     };
   }, []);
 
@@ -133,6 +151,8 @@ export default function EditHomeLocationModal({
     setStep("search");
     setQuery("");
     setResults([]);
+    setAddressSuggestions([]);
+    setAddressSuggestionsLoading(false);
     setError(null);
     setPending(null);
     setSelectedIndex(-1);
@@ -195,11 +215,29 @@ export default function EditHomeLocationModal({
 
   const scheduleSearch = (q: string) => {
     if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current);
+    if (addressSuggestTimeoutRef.current)
+      window.clearTimeout(addressSuggestTimeoutRef.current);
     const t = q.trim();
     if (!t) {
       setResults([]);
+      setAddressSuggestions([]);
+      setAddressSuggestionsLoading(false);
       return;
     }
+    // Address / ZIP-like queries: autocomplete street addresses (like onboarding).
+    if (isGeographicQuery(t)) {
+      setResults([]);
+      setAddressSuggestionsLoading(true);
+      addressSuggestTimeoutRef.current = window.setTimeout(async () => {
+        const list = await fetchAddressSuggestions(t);
+        setAddressSuggestions(list);
+        setAddressSuggestionsLoading(false);
+        setSelectedIndex(-1);
+      }, 300);
+      return;
+    }
+    setAddressSuggestions([]);
+    setAddressSuggestionsLoading(false);
     searchTimeoutRef.current = window.setTimeout(async () => {
       setLoading(true);
       setError(null);
@@ -214,6 +252,43 @@ export default function EditHomeLocationModal({
         setLoading(false);
       }
     }, 300);
+  };
+
+  /** Selecting an autocomplete suggestion: resolve city + district, go to map step. */
+  const handleAddressSuggestionSelect = async (suggestion: AddressSuggestion) => {
+    setAddressSuggestions([]);
+    setAddressSuggestionsLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const geo = suggestionToGeocodeResult(suggestion);
+      const { city, coordinates } = await resolveCityFromGeocode(geo, (q, limit) =>
+        searchPublicCities(q, limit)
+      );
+      const coords = coordinates ?? { lat: suggestion.lat, lng: suggestion.lon };
+      const token = await getAccessTokenSilently();
+      let district: number | null = null;
+      try {
+        district = await findDistrictFromCoordinates(
+          coords.lat,
+          coords.lng,
+          city.id,
+          token
+        );
+      } catch {
+        district = null;
+      }
+      openMapStep({
+        city,
+        coords,
+        district,
+        homeDisplayLabel: suggestion.place_name,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not use that address");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSelectCityOnly = (city: PublicCitySearchResult) => {
@@ -317,8 +392,10 @@ export default function EditHomeLocationModal({
         radius_m: opts.radius_m,
       });
 
-      // Kick off neighborhood story generation and show the loading banner
-      if (createdPlace?.id) {
+      // Kick off neighborhood story generation and show the loading banner.
+      // Skipped when the parent bootstraps the job itself (dashboard flow),
+      // so the place metrics job doesn't run twice.
+      if (createdPlace?.id && startMetricsJob) {
         try {
           const { job_id } = await runPlaceMetricsAndAnomaliesAsJob(createdPlace.id, token);
           startJob(createdPlace.id, job_id);
@@ -337,7 +414,7 @@ export default function EditHomeLocationModal({
       });
       emitSavedCitiesChanged();
       queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
-      onSaved?.();
+      onSaved?.(createdPlace, { isNewPlace: true });
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
@@ -380,7 +457,7 @@ export default function EditHomeLocationModal({
 
       emitSavedCitiesChanged();
       queryClient.invalidateQueries({ queryKey: cityKeys.savedDistricts() });
-      onSaved?.();
+      onSaved?.(place, { isNewPlace: false });
       closeModal();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to use saved place");
@@ -495,14 +572,35 @@ export default function EditHomeLocationModal({
                   className={searchStyles.input}
                   value={query}
                   placeholder="City, ZIP code, or address"
+                  autoComplete="off"
+                  aria-autocomplete="list"
+                  aria-expanded={addressSuggestions.length > 0 || results.length > 0}
                   onChange={(e) => {
                     setQuery(e.target.value);
                     scheduleSearch(e.target.value);
                   }}
                   onKeyDown={(e) => {
+                    const listLength =
+                      addressSuggestions.length > 0
+                        ? addressSuggestions.length
+                        : results.length;
+                    if (e.key === "ArrowDown" && listLength > 0) {
+                      e.preventDefault();
+                      setSelectedIndex((i) => (i + 1) % listLength);
+                      return;
+                    }
+                    if (e.key === "ArrowUp" && listLength > 0) {
+                      e.preventDefault();
+                      setSelectedIndex((i) => (i <= 0 ? listLength - 1 : i - 1));
+                      return;
+                    }
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      if (results.length > 0 && selectedIndex >= 0) {
+                      if (addressSuggestions.length > 0) {
+                        void handleAddressSuggestionSelect(
+                          addressSuggestions[Math.max(selectedIndex, 0)]
+                        );
+                      } else if (results.length > 0 && selectedIndex >= 0) {
                         handleSelectCityOnly(results[selectedIndex]);
                       } else {
                         handleGeocodeAddress();
@@ -542,6 +640,40 @@ export default function EditHomeLocationModal({
                 {loading ? "Searching…" : "Search address"}
               </button>
             </div>
+            {(addressSuggestions.length > 0 || addressSuggestionsLoading) && (
+              <div style={{ padding: "0 20px 16px" }} role="listbox">
+                {addressSuggestionsLoading && addressSuggestions.length === 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      color: "var(--text-secondary)",
+                      fontSize: 13,
+                      padding: "8px 0",
+                    }}
+                  >
+                    <Loader size="sm" color="dark" />
+                    <span>Searching addresses…</span>
+                  </div>
+                ) : (
+                  addressSuggestions.map((suggestion, i) => (
+                    <button
+                      key={`${suggestion.place_name}-${i}`}
+                      type="button"
+                      className={`${searchStyles.resultBtn} ${i === selectedIndex ? searchStyles.resultBtnSelected : ""}`}
+                      role="option"
+                      aria-selected={i === selectedIndex}
+                      onMouseEnter={() => setSelectedIndex(i)}
+                      onClick={() => void handleAddressSuggestionSelect(suggestion)}
+                      disabled={loading}
+                    >
+                      <span>{suggestion.place_name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
             {results.length > 0 && (
               <div style={{ padding: "0 20px 16px" }}>
                 {results.map((city, i) => (

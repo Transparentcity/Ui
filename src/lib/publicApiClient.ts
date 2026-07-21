@@ -1243,3 +1243,114 @@ export async function listAnomaliesPublic(options?: {
   return requestPublic<ListAnomaliesPublicResponse>(path);
 }
 
+// ============================================================================
+// CAUSAL METRIC CHAINS (PUBLIC - NO AUTH REQUIRED)
+// ============================================================================
+
+export interface ChainStageValue {
+  metric_id: number;
+  metric_name: string;
+  metric_key: string;
+  display_order: number;
+  measurement_type: string;
+  current_value: number | null;
+  prior_value: number | null;
+  absolute_change: number | null;
+  percent_change: number | null;
+  conversion_rate_current: number | null;
+  conversion_rate_prior: number | null;
+  conversion_rate_change: number | null;
+  divergence_flag: boolean;
+  divergence_note: string | null;
+  most_recent_data_date: string | null;
+}
+
+export interface ChainResponse {
+  chain_key: string;
+  chain_name: string;
+  comparison_type: string;
+  district: number | null;
+  stages: ChainStageValue[];
+  has_divergence: boolean;
+}
+
+export interface AttributionTerm {
+  term: string;
+  label: string;
+  value: number;
+  percent_of_change: number | null;
+}
+
+export interface CategoryAttribution {
+  category_value: string;
+  upstream_current: number | null;
+  upstream_prior: number | null;
+  rate_current: number | null;
+  rate_prior: number | null;
+  volume_contribution: number;
+  rate_contribution: number;
+  interaction: number;
+}
+
+export interface ChainDecomposition {
+  source_metric_id: number;
+  target_metric_id: number;
+  relationship_type: string;
+  category_field: string | null;
+  terms: AttributionTerm[];
+  category_breakdown: CategoryAttribution[];
+  attribution_suppressed: boolean;
+  suppression_reason: string | null;
+}
+
+export interface ChainDecompositionResponse {
+  chain_key: string;
+  chain_name: string;
+  comparison_type: string;
+  district: number | null;
+  focus_metric_id: number;
+  edges: ChainDecomposition[];
+}
+
+export async function getMetricChain(
+  metricId: number,
+  options?: {
+    comparisonType?: string;
+    district?: number | null;
+  }
+): Promise<ChainResponse | null> {
+  const params = new URLSearchParams();
+  if (options?.comparisonType) params.append("comparison_type", options.comparisonType);
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  const query = params.toString();
+  const path = `/api/public/metrics/${metricId}/chain${query ? `?${query}` : ""}`;
+  try {
+    return await requestPublic<ChainResponse>(path);
+  } catch {
+    return null;
+  }
+}
+
+export async function getMetricChainDecomposition(
+  metricId: number,
+  options?: {
+    comparisonType?: string;
+    district?: number | null;
+  }
+): Promise<ChainDecompositionResponse | null> {
+  const params = new URLSearchParams();
+  if (options?.comparisonType) params.append("comparison_type", options.comparisonType);
+  if (options?.district !== undefined && options?.district !== null) {
+    params.append("district", options.district.toString());
+  }
+  const query = params.toString();
+  const path = `/api/public/metrics/${metricId}/chain/decomposition${query ? `?${query}` : ""}`;
+  try {
+    return await requestPublic<ChainDecompositionResponse>(path);
+  } catch {
+    return null;
+  }
+}
+

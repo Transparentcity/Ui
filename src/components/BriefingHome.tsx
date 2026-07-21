@@ -14,7 +14,7 @@ import {
 import type { CityLeader } from "@/lib/apiClient";
 import type { BoundarySketch } from "@/lib/publicApiClient";
 import MiniScopeMap from "@/components/MiniScopeMap";
-import { emitOpenEditPlace } from "@/lib/uiEvents";
+import { emitOpenAddPlace, emitOpenEditPlace } from "@/lib/uiEvents";
 import { getImpersonationCacheKey } from "@/lib/impersonation";
 import { feedKeys, useFeedStories, type FeedStory } from "@/lib/hooks/useFeed";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
@@ -69,6 +69,11 @@ interface BriefingHomeProps {
   neighborhoodNavMode?: boolean;
   /** Open the official/place selector (hero title chevron). */
   onOpenScopeSelector?: () => void;
+  /** Open the selector from the personalize nudge: the next district the user
+   *  picks is followed for them (with a toast). */
+  onOpenScopeSelectorToFollow?: () => void;
+  /** True while the selected place's metrics job is still running. */
+  placeJobRunning?: boolean;
   /** When set, show the onboarding "your place is loading" banner with this label. */
   placeLoadingLabel?: string | null;
   onMetricClick?: (metricId: number) => void;
@@ -360,6 +365,8 @@ export default function BriefingHome({
   geographicUnitLabel = "District",
   neighborhoodNavMode = false,
   onOpenScopeSelector,
+  onOpenScopeSelectorToFollow,
+  placeJobRunning = false,
   placeLoadingLabel,
   onMetricClick,
   userPlaces,
@@ -435,6 +442,17 @@ export default function BriefingHome({
           },
   );
 
+  // On district/place overviews, also fetch the citywide feed so the header
+  // tabs can surface the remainder of the city's stories (citywide + other
+  // districts) without leaving the current scope.
+  const { data: cityStoriesData, isLoading: cityStoriesLoading } =
+    useFeedStories({
+      city_id: cityId,
+      limit: 25,
+      order_by: "published_at",
+      enabled: isAuthenticated && !isCitywideScope,
+    });
+
   const placeLabelById = useMemo(() => {
     const map = new Map<number, string>();
     for (const p of userPlaces ?? []) map.set(p.id, p.label);
@@ -448,10 +466,34 @@ export default function BriefingHome({
     );
   }, [storiesData?.stories]);
 
-  const newStoriesCount = useMemo(() => {
-    if (anchorTime == null) return 0;
-    return stories.filter((s) => storyTimestamp(s) > anchorTime).length;
-  }, [stories, anchorTime]);
+  const cityStories = useMemo(() => {
+    const raw = cityStoriesData?.stories ?? [];
+    return enrichStories(raw, undefined, undefined, { skipInterleave: true }).sort(
+      (a, b) => storyTimestamp(b) - storyTimestamp(a),
+    );
+  }, [cityStoriesData?.stories]);
+
+  // New stories across every scope visible from this overview (current scope
+  // plus, on district/place overviews, the rest of the city's feed).
+  const newStories = useMemo(() => {
+    if (anchorTime == null) return [];
+    const seen = new Set<number>();
+    return [...stories, ...(isCitywideScope ? [] : cityStories)]
+      .filter((s) => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return storyTimestamp(s) > anchorTime;
+      })
+      .sort((a, b) => storyTimestamp(b) - storyTimestamp(a));
+  }, [stories, cityStories, isCitywideScope, anchorTime]);
+  const newStoriesCount = newStories.length;
+
+  // ── "N new" badge doubles as a filter — on by default ─────────────────
+  const [newOnlyFilter, setNewOnlyFilter] = useState(true);
+  useEffect(() => {
+    setNewOnlyFilter(true);
+  }, [cityId, district, isPlaceScope, selectedPlaceId]);
+  const newFilterActive = newOnlyFilter && newStoriesCount > 0;
 
   // ── Story scope filter (citywide overview only) ───────────────────────
   const [storyScopeFilter, setStoryScopeFilter] = useState<
@@ -471,10 +513,70 @@ export default function BriefingHome({
     return counts;
   }, [stories]);
 
+  // ── Story scope tabs (district / place overviews) ─────────────────────
+  // The current scope is the selected tab; the remainder of the city's
+  // stories (citywide + the other districts + the viewer's saved places)
+  // sit behind greyed-out tabs.
+  const [storyScopeTab, setStoryScopeTab] = useState<
+    "current" | "city" | "district" | "place"
+  >("current");
+  useEffect(() => {
+    setStoryScopeTab("current");
+  }, [cityId, district, isPlaceScope, selectedPlaceId]);
+
+  const remainderCityStories = useMemo(
+    () => cityStories.filter((s) => storyActorScope(s) === "city"),
+    [cityStories],
+  );
+  const remainderDistrictStories = useMemo(
+    () =>
+      cityStories.filter(
+        (s) =>
+          storyActorScope(s) === "district" &&
+          (isPlaceScope || (s.district ?? 0) !== district),
+      ),
+    [cityStories, isPlaceScope, district],
+  );
+  const remainderPlaceStories = useMemo(
+    () =>
+      cityStories.filter((s) => {
+        if (storyActorScope(s) !== "place") return false;
+        if (!isPlaceScope || selectedPlaceId == null) return true;
+        // On a place overview, the current place's stories live in the
+        // "current" tab — only other saved places belong here.
+        if (s.user_place_id === selectedPlaceId) return false;
+        const ids = (s.metadata ?? {}).user_place_ids;
+        return !(Array.isArray(ids) && ids.includes(selectedPlaceId));
+      }),
+    [cityStories, isPlaceScope, selectedPlaceId],
+  );
+
   const filteredStories = useMemo(() => {
-    if (!isCitywideScope || storyScopeFilter === "all") return stories;
-    return stories.filter((s) => storyActorScope(s) === storyScopeFilter);
-  }, [stories, isCitywideScope, storyScopeFilter]);
+    if (newFilterActive) return newStories;
+    if (isCitywideScope) {
+      if (storyScopeFilter === "all") return stories;
+      return stories.filter((s) => storyActorScope(s) === storyScopeFilter);
+    }
+    if (storyScopeTab === "city") return remainderCityStories;
+    if (storyScopeTab === "district") return remainderDistrictStories;
+    if (storyScopeTab === "place") return remainderPlaceStories;
+    return stories;
+  }, [
+    stories,
+    newStories,
+    newFilterActive,
+    isCitywideScope,
+    storyScopeFilter,
+    storyScopeTab,
+    remainderCityStories,
+    remainderDistrictStories,
+    remainderPlaceStories,
+  ]);
+
+  const activeStoriesLoading =
+    !isCitywideScope && (newFilterActive || storyScopeTab !== "current")
+      ? storiesLoading || cityStoriesLoading
+      : storiesLoading;
 
   const visibleStories = storiesExpanded
     ? filteredStories.slice(0, 15)
@@ -716,6 +818,46 @@ export default function BriefingHome({
         )}
       </section>
 
+      {/* ── Personalize nudge: city/district members without a saved place ── */}
+      {isAuthenticated &&
+      !isPlaceScope &&
+      !placeLoadingLabel &&
+      (userPlaces?.length ?? 0) === 0 ? (
+        <div className={styles.personalizeBanner} role="note">
+          <span className={styles.personalizeIcon} aria-hidden="true">
+            <PlacePinIcon size={16} />
+          </span>
+          <p className={styles.personalizeText}>
+            {district > 0 ? (
+              "Add a place near you to personalize your data for your block."
+            ) : (
+              <>
+                Make this page yours —{" "}
+                {(onOpenScopeSelectorToFollow ?? onOpenScopeSelector) ? (
+                  <button
+                    type="button"
+                    className={styles.personalizeInlineLink}
+                    onClick={onOpenScopeSelectorToFollow ?? onOpenScopeSelector}
+                  >
+                    pick your {geographicUnitLabel.toLowerCase()}
+                  </button>
+                ) : (
+                  <>pick your {geographicUnitLabel.toLowerCase()}</>
+                )}{" "}
+                or add a place near you to personalize your data.
+              </>
+            )}
+          </p>
+          <button
+            type="button"
+            className={styles.personalizeAction}
+            onClick={emitOpenAddPlace}
+          >
+            Add a place
+          </button>
+        </div>
+      ) : null}
+
       {/* ── Place-loading banner (onboarding) ───────────────────────── */}
       {placeLoadingLabel ? (
         <div className={styles.placeLoadingBanner} role="status" aria-live="polite">
@@ -757,16 +899,27 @@ export default function BriefingHome({
           </button>
         </div>
         {!browseAllExpanded ? (
-          <MoversList
-            metrics={metrics}
-            comparisonsMap={comparisonsMap}
-            comparisonType={comparisonType}
-            onComparisonTypeChange={onComparisonTypeChange}
-            recencyAnchor={recencyAnchor}
-            loading={comparisonsLoading}
-            scopeLabel={scopeLabel}
-            onMetricClick={onMetricClick}
-          />
+          isPlaceScope && placeJobRunning ? (
+            <div className={styles.calculatingRow} role="status" aria-live="polite">
+              <Loader size="sm" color="purple" />
+              <p className={styles.calculatingText}>
+                Calculating your biggest movers — pulling public data for{" "}
+                <strong>{scopeLabel}</strong>. This can take a few minutes for a
+                new place.
+              </p>
+            </div>
+          ) : (
+            <MoversList
+              metrics={metrics}
+              comparisonsMap={comparisonsMap}
+              comparisonType={comparisonType}
+              onComparisonTypeChange={onComparisonTypeChange}
+              recencyAnchor={recencyAnchor}
+              loading={comparisonsLoading}
+              scopeLabel={scopeLabel}
+              onMetricClick={onMetricClick}
+            />
+          )
         ) : null}
         {fullDashboardSlot}
       </section>
@@ -776,9 +929,85 @@ export default function BriefingHome({
         <h3 className={styles.sectionTitle}>
           New stories
           {newStoriesCount > 0 && (
-            <span className={styles.sectionBadge}>{newStoriesCount} new</span>
+            <button
+              type="button"
+              className={`${styles.sectionBadge} ${styles.sectionBadgeButton}${newFilterActive ? "" : ` ${styles.sectionBadgeInactive}`}`}
+              aria-pressed={newFilterActive}
+              title={
+                newFilterActive
+                  ? "Showing new stories only — click to show all"
+                  : "Show new stories only"
+              }
+              onClick={() => {
+                setNewOnlyFilter((v) => !v);
+                setStoriesExpanded(false);
+              }}
+            >
+              {newStoriesCount} new
+            </button>
           )}
         </h3>
+        {/* Scope tabs — district/place overviews: current scope selected,
+            the remainder of the city's stories behind greyed-out tabs. */}
+        {!isCitywideScope && (
+          <div
+            className={styles.storyFilterRow}
+            role="radiogroup"
+            aria-label="Story scope"
+          >
+            {(
+              [
+                {
+                  key: "current" as const,
+                  label: scopeLabel,
+                  count: stories.length,
+                },
+                {
+                  key: "city" as const,
+                  label: "Citywide",
+                  count: remainderCityStories.length,
+                },
+                {
+                  key: "district" as const,
+                  label: isPlaceScope
+                    ? `${geographicUnitLabel}s`
+                    : `Other ${geographicUnitLabel.toLowerCase()}s`,
+                  count: remainderDistrictStories.length,
+                },
+                {
+                  key: "place" as const,
+                  label: isPlaceScope ? "My other places" : "My places",
+                  count: remainderPlaceStories.length,
+                },
+              ]
+            )
+              // Saved-place tab is personal — only offer it when the viewer
+              // actually has place stories elsewhere in the city.
+              .filter((tab) => tab.key !== "place" || tab.count > 0)
+              .map((tab) => {
+              const active = !newFilterActive && storyScopeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`${styles.storyFilterChip}${active ? ` ${styles.storyFilterChipActive}` : ` ${styles.storyFilterChipMuted}`}`}
+                  onClick={() => {
+                    setNewOnlyFilter(false);
+                    setStoryScopeTab(tab.key);
+                    setStoriesExpanded(false);
+                  }}
+                >
+                  {tab.label}
+                  {(tab.key === "current" || !cityStoriesLoading) && (
+                    <span className={styles.storyFilterCount}>{tab.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* Scope filter — citywide overview only; district/place feeds are
             already scoped to a single actor. */}
         {isCitywideScope && !storiesLoading && stories.length > 0 && (
@@ -805,9 +1034,12 @@ export default function BriefingHome({
                   key={f.key}
                   type="button"
                   role="radio"
-                  aria-checked={storyScopeFilter === f.key}
-                  className={`${styles.storyFilterChip}${storyScopeFilter === f.key ? ` ${styles.storyFilterChipActive}` : ""}`}
-                  onClick={() => setStoryScopeFilter(f.key)}
+                  aria-checked={!newFilterActive && storyScopeFilter === f.key}
+                  className={`${styles.storyFilterChip}${!newFilterActive && storyScopeFilter === f.key ? ` ${styles.storyFilterChipActive}` : ""}`}
+                  onClick={() => {
+                    setNewOnlyFilter(false);
+                    setStoryScopeFilter(f.key);
+                  }}
                 >
                   {f.label}
                   <span className={styles.storyFilterCount}>{f.count}</span>
@@ -815,14 +1047,22 @@ export default function BriefingHome({
               ))}
           </div>
         )}
-        {storiesLoading ? (
+        {activeStoriesLoading ? (
           <div className={styles.storiesLoading}>
             <div className={styles.skeletonRow} />
             <div className={styles.skeletonRow} />
           </div>
         ) : visibleStories.length === 0 ? (
           <p className={styles.emptyText}>
-            No stories for {scopeLabel} yet — new editions arrive weekly.
+            No stories for{" "}
+            {!isCitywideScope && storyScopeTab === "city"
+              ? "the rest of the city"
+              : !isCitywideScope && storyScopeTab === "district"
+                ? `other ${geographicUnitLabel.toLowerCase()}s`
+                : !isCitywideScope && storyScopeTab === "place"
+                  ? "your places"
+                  : scopeLabel}{" "}
+            yet — new editions arrive weekly.
           </p>
         ) : (
           <ul className={styles.storyList}>
@@ -839,7 +1079,7 @@ export default function BriefingHome({
             ))}
           </ul>
         )}
-        {!storiesLoading && filteredStories.length > STORIES_INITIAL_LIMIT && !storiesExpanded && (
+        {!activeStoriesLoading && filteredStories.length > STORIES_INITIAL_LIMIT && !storiesExpanded && (
           <button
             type="button"
             className={styles.showMoreBtn}
