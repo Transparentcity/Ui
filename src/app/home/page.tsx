@@ -55,7 +55,7 @@ import {
 } from "@/lib/giftOnboarding";
 import EditHomeLocationModal from "@/components/EditHomeLocationModal";
 import EditPlaceModal from "@/components/EditPlaceModal";
-import { OPEN_EDIT_PLACE_EVENT } from "@/lib/uiEvents";
+import { OPEN_ADD_PLACE_EVENT, OPEN_EDIT_PLACE_EVENT } from "@/lib/uiEvents";
 import RedisStatusIndicator from "@/components/RedisStatusIndicator";
 import {
   trackSignupComplete,
@@ -124,10 +124,8 @@ const CityDataTable = dynamic(() => import("@/components/CityDataTable"), { ssr:
 const DatasetsAdmin = dynamic(() => import("@/components/DatasetsAdmin"), { ssr: false });
 const MetricsAdmin = dynamic(() => import("@/components/MetricsAdmin"), { ssr: false });
 const UserManagement = dynamic(() => import("@/components/UserManagement"), { ssr: false });
-const ClaimsAdmin = dynamic(() => import("@/components/ClaimsAdmin"), { ssr: false });
 const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr: false });
 const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
-const DataCompletenessAdmin = dynamic(() => import("@/components/DataCompletenessAdmin"), { ssr: false });
 const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
 const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { ssr: false });
 const ProductAnalyticsDashboard = dynamic(() => import("@/components/ProductAnalyticsDashboard"), { ssr: false });
@@ -139,7 +137,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import { listInbox, getPlaceMetrics } from "@/lib/apiClient";
 import { recordProductEvent } from "@/lib/productAnalytics";
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "claims-admin" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "metric" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "research" | "research-new" | "feed";
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -1519,6 +1517,14 @@ export default function DashboardPage() {
     return () => window.removeEventListener(OPEN_EDIT_PLACE_EVENT, handler);
   }, [getAccessTokenSilently]);
 
+  // Open the "add a place" flow (same home-location modal as onboarding)
+  // when requested from nested views, e.g. the overview personalize nudge.
+  useEffect(() => {
+    const handler = () => setShowEditHomeLocationModal(true);
+    window.addEventListener(OPEN_ADD_PLACE_EVENT, handler);
+    return () => window.removeEventListener(OPEN_ADD_PLACE_EVENT, handler);
+  }, []);
+
   const handlePlaceEdited = useCallback(
     (updated: UserPlace) => {
       refreshAllUserPlaces();
@@ -2330,13 +2336,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {currentView === "claims-admin" && (
-            <div id="claims-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <div className={styles.adminContainer}>
-                <ClaimsAdmin />
-              </div>
-            </div>
-          )}
 
           {currentView === "metrics-admin" && (
             <div id="metrics-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
@@ -2399,15 +2398,6 @@ export default function DashboardPage() {
                   openAllMetrics={openAllMetricsOnLoad}
                   onConsumeOpenAllMetrics={consumeOpenAllMetrics}
                 />
-              </div>
-            </div>
-          )}
-
-          {currentView === "metric" && (
-            <div id="metric-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <div className={styles.adminContainer}>
-                <h2>Metric View</h2>
-                <p>Metric view coming soon...</p>
               </div>
             </div>
           )}
@@ -2547,9 +2537,21 @@ export default function DashboardPage() {
       <EditHomeLocationModal
         open={showEditHomeLocationModal}
         onClose={() => setShowEditHomeLocationModal(false)}
-        onSaved={async () => {
+        // handlePlaceSaved bootstraps the metrics job on the place dashboard;
+        // don't also start it from the modal (would run the job twice).
+        startMetricsJob={false}
+        onSaved={async (place, opts) => {
           await loadUserSettings();
-          handlePlaceSaved();
+          if (place && opts?.isNewPlace === false) {
+            // Existing place: its metrics already exist — just open its briefing.
+            handlePlaceClick(place.city_id, place.id, place);
+            setCurrentView("city");
+            setInitialSection(null);
+          } else {
+            // New place: land on its briefing and bootstrap the metrics job
+            // so the user sees it was added and metrics are being built.
+            handlePlaceSaved(place);
+          }
         }}
       />
 

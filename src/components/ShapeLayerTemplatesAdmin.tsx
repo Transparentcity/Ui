@@ -33,7 +33,7 @@ interface EditState {
 export default function ShapeLayerTemplatesAdmin() {
   const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [editing, setEditing] = useState<EditState | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [expandedPromptId, setExpandedPromptId] = useState<number | null>(null);

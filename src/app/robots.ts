@@ -48,7 +48,6 @@ const HUMAN_DISALLOW = [
   "/anomalies",
   "/cityreadiness",
   "/research-queue",
-  "/feed-preview",
   // CRM / comms
   "/contacts",
   "/compose",

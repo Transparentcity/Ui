@@ -292,6 +292,68 @@
   color: var(--text-tertiary);
 }
 
+/* ── Personalize nudge (city/district members without a saved place) ── */
+
+.personalizeBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.personalizeIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--brand-primary);
+}
+
+.personalizeText {
+  margin: 0;
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.personalizeInlineLink {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--brand-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.personalizeAction {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.personalizeAction:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 480px) {
+  .personalizeBanner {
+    flex-wrap: wrap;
+  }
+
+  .personalizeAction {
+    margin-left: calc(16px + var(--space-sm));
+  }
+}
+
 /* ── Place-loading banner ────────────────────────────────────────────── */
 
 .placeLoadingBanner {
@@ -308,6 +370,23 @@
   margin: 0;
   font-size: 13px;
   color: var(--text-primary);
+}
+
+/* ── Calculating row (place metrics job still running) ──────────────── */
+
+.calculatingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.calculatingText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 /* ── Sections ────────────────────────────────────────────────────────── */
@@ -366,6 +445,26 @@
   background: var(--brand-primary);
   border-radius: 999px;
   padding: 2px 8px;
+}
+
+/* "N new" badge as a toggleable filter (on by default). */
+.sectionBadgeButton {
+  border: 1px solid var(--brand-primary);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.sectionBadgeInactive {
+  background: var(--bg-primary);
+  border-color: var(--border-primary);
+  color: var(--text-tertiary);
+}
+
+.sectionBadgeInactive:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .sectionLabelCaps {
@@ -538,6 +637,19 @@
   background: var(--brand-primary-light);
   border-color: var(--brand-primary);
   color: var(--brand-primary);
+}
+
+/* Greyed-out (unselected) scope tabs on district/place overviews. */
+.storyFilterChipMuted {
+  color: var(--text-tertiary, #9ca3af);
+  background: var(--bg-secondary, #f9fafb);
+  border-color: transparent;
+}
+
+.storyFilterChipMuted:hover {
+  color: var(--text-secondary);
+  background: var(--bg-secondary, #f3f4f6);
+  border-color: var(--border-primary);
 }
 
 .storyFilterCount {

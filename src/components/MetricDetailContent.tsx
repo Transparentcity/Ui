@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
+import { useQuery } from "@tanstack/react-query";
+import { getMyPermissions } from "@/lib/apiClient";
 import { formatDateRangeFromStrings, yearFromDateString } from "@/lib/formatters";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
@@ -48,6 +51,19 @@ export default function MetricDetailContent({
   initialComparisons,
   initialTimeSeriesSummary,
 }: MetricDetailContentProps) {
+  const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently } = useAuth0();
+  const permissionsQuery = useQuery({
+    queryKey: ["admin", "me", "permissions"],
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return getMyPermissions(token);
+    },
+    enabled: !authLoading && isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const isAdmin = Boolean(permissionsQuery.data?.is_admin);
+
   const [selectedPeriod, setSelectedPeriod] = useState<"ytd" | "mtd" | "mtd_prior_year">("ytd");
   const selectedDistrict = district ?? null; // null = citywide, number = specific district
   // Collapses to false when MetricMapEmbed determines there's nothing renderable
@@ -586,14 +602,41 @@ export default function MetricDetailContent({
         />
       )}
 
-      {/* Causal Chain — "Why did this change?" */}
-      <section className="metric-section">
-        <MetricChainView
-          metricId={metric.id}
-          comparisonType={selectedPeriod}
-          district={selectedDistrict}
-        />
-      </section>
+      {/* Causal Chain — admin preview only, not shown to public users */}
+      {isAdmin && (
+        <section className="metric-section">
+          <div
+            style={{
+              border: "1px dashed var(--text-tertiary)",
+              borderRadius: "6px",
+              padding: "1rem",
+              opacity: 0.85,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontSize: "0.72rem",
+                color: "var(--text-tertiary)",
+                marginBottom: "0.75rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                fontWeight: 600,
+              }}
+            >
+              <span>🛠️</span>
+              <span>Admin preview — Causal chain (not visible to public)</span>
+            </div>
+            <MetricChainView
+              metricId={metric.id}
+              comparisonType={selectedPeriod}
+              district={selectedDistrict}
+            />
+          </div>
+        </section>
+      )}
 
       {/* Category Breakdown */}
       {metric.category_fields && metric.category_fields.length > 0 && (

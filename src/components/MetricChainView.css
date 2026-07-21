@@ -1,23 +1,24 @@
 /* ============================================================================
    MetricChainView — Causal process chain funnel + decomposition waterfall
+   All colors use CSS variables from tokens.css so dark mode works automatically.
    ============================================================================ */
-
-.metric-chain-view {
-  margin-top: 0;
-}
 
 /* ── Divergence banner ─────────────────────────────────────────────────────── */
 
 .chain-divergence-banner {
-  background: #fffbeb;
-  border: 1px solid #f59e0b;
-  border-left: 4px solid #f59e0b;
-  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid var(--warning, #f59e0b);
+  border-radius: var(--radius-sm, 6px);
   padding: 0.75rem 1rem;
   margin-bottom: 1.25rem;
   font-size: 0.875rem;
-  color: #78350f;
+  color: var(--text-primary);
   line-height: 1.5;
+}
+
+[data-theme="dark"] .chain-divergence-banner,
+.dark .chain-divergence-banner {
+  background: rgba(245, 158, 11, 0.12);
 }
 
 /* ── Funnel row ────────────────────────────────────────────────────────────── */
@@ -35,28 +36,33 @@
   flex: 1 1 120px;
   min-width: 110px;
   max-width: 200px;
-  background: var(--bg-secondary, #f9fafb);
-  border: 1px solid var(--border-primary, #e5e7eb);
-  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 6px);
   padding: 0.75rem;
   position: relative;
   transition: border-color 0.15s;
 }
 
 .chain-stage-card--focused {
-  border-color: var(--accent, #2563eb);
-  background: #eff6ff;
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-light);
 }
 
 .chain-stage-card--divergence {
-  border-color: #f59e0b;
-  background: #fffbeb;
+  border-color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+[data-theme="dark"] .chain-stage-card--divergence,
+.dark .chain-stage-card--divergence {
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .chain-stage-name {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   margin-bottom: 0.35rem;
@@ -72,7 +78,7 @@
 .chain-stage-current {
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .chain-stage-delta {
@@ -81,37 +87,42 @@
 }
 
 .chain-stage-delta--up {
-  color: var(--color-increase, #16a34a);
+  color: var(--success, #16a34a);
 }
 
 .chain-stage-delta--down {
-  color: var(--color-decrease, #dc2626);
+  color: var(--error, #ef4444);
 }
 
 .chain-stage-rate {
   font-size: 0.72rem;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-muted);
   margin-top: 0.3rem;
 }
 
 .chain-rate-up {
-  color: #16a34a;
+  color: var(--success, #16a34a);
 }
 
 .chain-rate-down {
-  color: #dc2626;
+  color: var(--error, #ef4444);
 }
 
 .chain-stage-divergence-badge {
   margin-top: 0.4rem;
   font-size: 0.68rem;
   font-weight: 600;
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.12);
   border-radius: 3px;
   padding: 0.1rem 0.35rem;
   display: inline-block;
   cursor: default;
+}
+
+[data-theme="dark"] .chain-stage-divergence-badge,
+.dark .chain-stage-divergence-badge {
+  background: rgba(245, 158, 11, 0.15);
 }
 
 .chain-stage-arrow {
@@ -119,14 +130,14 @@
   align-items: center;
   padding: 0 0.35rem;
   font-size: 1.3rem;
-  color: var(--text-tertiary, #9ca3af);
-  padding-top: 1.6rem; /* align with top of card values */
+  color: var(--text-muted);
+  padding-top: 1.6rem;
   flex-shrink: 0;
 }
 
 .chain-accounting-note {
   font-size: 0.72rem;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-muted);
   margin: 0.25rem 0 1.25rem;
   font-style: italic;
 }
@@ -136,19 +147,19 @@
 .chain-decomp-section {
   margin-top: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
 }
 
 .chain-decomp-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 0.35rem;
 }
 
 .chain-decomp-caption {
   font-size: 0.8rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   margin: 0 0 1rem;
   line-height: 1.5;
 }
@@ -160,7 +171,7 @@
 .chain-edge-label {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-tertiary);
   margin-bottom: 0.5rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -168,7 +179,7 @@
 
 .chain-edge-suppressed {
   font-size: 0.8rem;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -195,7 +206,7 @@
 
 .chain-waterfall-label {
   font-size: 0.78rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -203,7 +214,7 @@
 
 .chain-waterfall-bar-wrap {
   height: 14px;
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -215,31 +226,43 @@
 }
 
 .chain-waterfall-bar--positive {
-  background: #16a34a;
+  background: var(--success, #16a34a);
+  opacity: 0.85;
 }
 
 .chain-waterfall-bar--negative {
-  background: #dc2626;
+  background: var(--error, #ef4444);
+  opacity: 0.85;
+}
+
+[data-theme="dark"] .chain-waterfall-bar--positive,
+.dark .chain-waterfall-bar--positive {
+  opacity: 0.7;
+}
+
+[data-theme="dark"] .chain-waterfall-bar--negative,
+.dark .chain-waterfall-bar--negative {
+  opacity: 0.7;
 }
 
 .chain-waterfall-value {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .chain-waterfall-pct {
   font-weight: 400;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-muted);
 }
 
 /* ── Category details table ────────────────────────────────────────────────── */
 
 .chain-category-details {
   margin-top: 0.75rem;
-  border: 1px solid var(--border-primary, #e5e7eb);
-  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 4px);
   overflow: hidden;
 }
 
@@ -247,9 +270,9 @@
   padding: 0.5rem 0.75rem;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   cursor: pointer;
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
   list-style: none;
   user-select: none;
 }
@@ -271,14 +294,16 @@ details[open] .chain-category-summary::before {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.75rem;
+  background: var(--bg-primary);
 }
 
 .chain-category-table th,
 .chain-category-table td {
   padding: 0.35rem 0.75rem;
   text-align: right;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .chain-category-table th:first-child,
@@ -291,9 +316,9 @@ details[open] .chain-category-summary::before {
 }
 
 .chain-category-table thead th {
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.68rem;
@@ -304,5 +329,5 @@ details[open] .chain-category-summary::before {
 }
 
 .chain-category-table tbody tr:hover td {
-  background: var(--bg-secondary, #f9fafb);
+  background: var(--bg-secondary);
 }

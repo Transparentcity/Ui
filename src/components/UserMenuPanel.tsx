@@ -1,9 +1,10 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
-  ADMIN_MENU_ITEMS,
+  ADMIN_MENU_GROUPS,
   ADMIN_API_DOCS_ICON,
   ADMIN_SITEMAP_ICON,
 } from "@/lib/adminMenuItems";
@@ -95,20 +96,25 @@ export default function UserMenuPanel({
             <MenuIcon>{ADMIN_API_DOCS_ICON}</MenuIcon>
             <span>API Documentation</span>
           </a>
-          <div className={styles.divider}>Administration</div>
-          {ADMIN_MENU_ITEMS.map((item) => (
-            <button
-              key={item.view}
-              type="button"
-              className={styles.item}
-              data-view={item.view}
-              role="menuitem"
-              onClick={() => handleAdminView(item.view)}
-            >
-              <MenuIcon>{item.icon}</MenuIcon>
-              <span>{item.label}</span>
-            </button>
+          {ADMIN_MENU_GROUPS.map((group) => (
+            <React.Fragment key={group.label}>
+              <div className={styles.divider}>{group.label}</div>
+              {group.items.map((item) => (
+                <button
+                  key={item.view}
+                  type="button"
+                  className={styles.item}
+                  data-view={item.view}
+                  role="menuitem"
+                  onClick={() => handleAdminView(item.view)}
+                >
+                  <MenuIcon>{item.icon}</MenuIcon>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </React.Fragment>
           ))}
+          <div className={styles.separator} role="separator" />
         </>
       )}
       {onOpenSettings && (

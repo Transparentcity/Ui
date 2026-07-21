@@ -25,7 +25,8 @@ import { getPresetMetricDateRange, type MetricDateRange } from "@/lib/dateRange"
 // AnomalyResult import removed – anomalies section hidden
 import { useAuth0 } from "@auth0/auth0-react";
 import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type BatchComparisonsResponse, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
-import { useMetricComparisons, useBatchComparisons, usePlaceBatchComparisons } from "@/lib/hooks/useMetrics";
+import { useMetricComparisons, useBatchComparisons, usePlaceBatchComparisons, metricKeys } from "@/lib/hooks/useMetrics";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Loader from "@/components/Loader";
 import { MetricLink } from "@/components/MetricLink";
@@ -2091,6 +2092,20 @@ export default function CityView({
   const [userOrderDialogOpen, setUserOrderDialogOpen] = useState(false);
   const [lastPlaceRefreshAt, setLastPlaceRefreshAt] = useState<string | null>(null);
   const [isPlaceJobRunning, setIsPlaceJobRunning] = useState(false);
+  const queryClient = useQueryClient();
+
+  // When the place metrics job finishes, refetch the briefing data for that
+  // place (movers/comparisons + feed stories) so the page updates in place.
+  const prevPlaceJobRunningRef = useRef(false);
+  useEffect(() => {
+    const wasRunning = prevPlaceJobRunningRef.current;
+    prevPlaceJobRunningRef.current = isPlaceJobRunning;
+    if (!wasRunning || isPlaceJobRunning || selectedPlaceId == null) return;
+    void queryClient.invalidateQueries({
+      queryKey: [...metricKeys.all, "place-batch-comparisons", selectedPlaceId],
+    });
+    void queryClient.invalidateQueries({ queryKey: ["feed"] });
+  }, [isPlaceJobRunning, selectedPlaceId, queryClient]);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const dashboardSectionRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<CityViewSection>(() =>
@@ -2420,6 +2435,30 @@ export default function CityView({
     geographicUnitLabel,
   ]);
 
+  /** Set when the personalize nudge opens the scope selector: the next
+   *  district the user picks there is followed for them (with a toast). */
+  const followDistrictOnNextPickRef = useRef(false);
+  const maybeFollowPickedDistrict = useCallback(
+    (district: number | null) => {
+      if (!followDistrictOnNextPickRef.current) return;
+      followDistrictOnNextPickRef.current = false;
+      if (district == null || district <= 0) return;
+      const districtStr = String(district);
+      const label = `${geographicUnitLabel} ${districtStr}`;
+      if (followedDistricts[districtStr]) {
+        toast.success(`You're already following ${label}`);
+        return;
+      }
+      followMutation.mutate(districtStr, {
+        onSuccess: () =>
+          toast.success(`Following ${label}`, {
+            description: "You'll get weekly updates",
+          }),
+      });
+    },
+    [followedDistricts, followMutation, geographicUnitLabel],
+  );
+
   /** District follow sits beside the official selector; keep a single Follow control (not duplicated in the hero). */
   const followInlineWithDistrictSelector = useMemo(() => {
     const d = selectedDistrict ?? 0;
@@ -2478,11 +2517,14 @@ export default function CityView({
     });
   }, [selectedDistrict, selectedPlaceId, onOfficialSelectionChange]);
 
-  // Listen for saved cities changes (from other components)
+  // Listen for saved cities changes (from other components). Saved-cities
+  // updates can also mean a new place was created outside this view (e.g. the
+  // home-location modal), so refetch My places too.
   useEffect(() => {
     const handleSavedCitiesChanged = () => {
-      // React Query will automatically refetch saved cities when cache is invalidated
-      // No manual refetch needed
+      // React Query refetches saved cities via cache invalidation; places are
+      // fetched imperatively here, so bump the key to reload them.
+      setPlacesRefreshKey((k) => k + 1);
     };
 
     window.addEventListener(SAVED_CITIES_CHANGED_EVENT, handleSavedCitiesChanged);
@@ -2672,6 +2714,7 @@ export default function CityView({
         setSelectedDistrict(district);
         setSelectedPlaceId(null);
         setDistrictGPSLocation(null);
+        maybeFollowPickedDistrict(district);
       }}
       onGPSLocation={(location) => setDistrictGPSLocation(location)}
       leaderFollowerCounts={leaderFollowerCounts}
@@ -2978,7 +3021,15 @@ export default function CityView({
             cityEmoji={cityData.emoji ?? null}
             geographicUnitLabel={geographicUnitLabel}
             neighborhoodNavMode={neighborhoodNavMode}
-            onOpenScopeSelector={() => setOpenDistrictTrigger((t) => t + 1)}
+            onOpenScopeSelector={() => {
+              followDistrictOnNextPickRef.current = false;
+              setOpenDistrictTrigger((t) => t + 1);
+            }}
+            onOpenScopeSelectorToFollow={() => {
+              followDistrictOnNextPickRef.current = true;
+              setOpenDistrictTrigger((t) => t + 1);
+            }}
+            placeJobRunning={isPlaceJobRunning}
             placeLoadingLabel={selectedPlaceId == null ? pendingPlaceLabel : null}
             onMetricClick={(metricId: number) => {
               setSelectedMetricId(metricId);

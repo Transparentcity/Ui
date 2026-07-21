@@ -3213,6 +3213,36 @@ export function setOfficialDistrictLayer(
   );
 }
 
+export interface PublicShapeLayerInstanceResponse {
+  instance: {
+    id: number;
+    city_id: number;
+    template_layer_id: number | null;
+    shapefile_name: string | null;
+    structure_type: string | null;
+    identifier_field: string | null;
+    status: string;
+    geometry_data: any | null; // GeoJSON FeatureCollection
+    geometry_type: string | null;
+    feature_count: number | null;
+  };
+  template: {
+    layer_key: string;
+    default_display_name: string;
+    category: string;
+  } | null;
+}
+
+/** Fetch a single shape layer instance with geometry (public, used for map previews). */
+export function getPublicShapeLayerInstance(
+  instanceId: number
+): Promise<PublicShapeLayerInstanceResponse> {
+  return request<PublicShapeLayerInstanceResponse>(
+    `/api/shape-layers/public/instances/${instanceId}?include_geometry=true`,
+    "GET"
+  );
+}
+
 export function getCityShapefiles(cityId: number, token: string): Promise<CityShapefile[]> {
   return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
     .then((data: any) => {

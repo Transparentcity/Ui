@@ -41,7 +41,7 @@ export default function CrossCityMetricComparisonPage() {
   return (
     <main className="cross-city-chart-page">
       <div className="cross-city-chart-page-inner">
-        <Link href="/admin?tab=metrics" className="cross-city-chart-page-back">
+        <Link href="/home?view=metrics-admin" className="cross-city-chart-page-back">
           ← Back to Metrics Admin
         </Link>
         <h1 className="cross-city-chart-page-title">Cross-City Metric Comparison</h1>
