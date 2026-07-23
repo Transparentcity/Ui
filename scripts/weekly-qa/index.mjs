@@ -41,15 +41,15 @@ const BROWSER_SETTLE_MS = 6000;
 const PAGE_TIMEOUT_MS   = 30000;
 
 const TARGET_CITIES = [
-  { label: "SF",         slugPatterns: ["san-francisco", "sf"] },
-  { label: "Oakland",    slugPatterns: ["oakland"] },
-  { label: "Chicago",    slugPatterns: ["chicago"] },
-  { label: "Detroit",    slugPatterns: ["detroit"] },
-  { label: "Denver",     slugPatterns: ["denver"] },
-  { label: "Cincinnati", slugPatterns: ["cincinnati"] },
-  { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"] },
-  { label: "Austin",     slugPatterns: ["austin"] },
-  { label: "Seattle",    slugPatterns: ["seattle"] },
+  { label: "SF",         slugPatterns: ["san-francisco", "sf"], canonicalSlug: "san-francisco" },
+  { label: "Oakland",    slugPatterns: ["oakland"], canonicalSlug: "oakland" },
+  { label: "Chicago",    slugPatterns: ["chicago"], canonicalSlug: "chicago" },
+  { label: "Detroit",    slugPatterns: ["detroit"], canonicalSlug: "detroit" },
+  { label: "Denver",     slugPatterns: ["denver"], canonicalSlug: "denver" },
+  { label: "Cincinnati", slugPatterns: ["cincinnati"], canonicalSlug: "cincinnati" },
+  { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"], canonicalSlug: "new-york-city" },
+  { label: "Austin",     slugPatterns: ["austin"], canonicalSlug: "austin" },
+  { label: "Seattle",    slugPatterns: ["seattle"], canonicalSlug: "seattle" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -237,7 +237,9 @@ async function main() {
       resolvedCities.push({
         ...target,
         cityId:   found.id,
-        slug:     found.slug || "",
+        // The sitemap API stopped returning a `slug` field (verified 2026-07-23);
+        // fall back to the canonical slug so card/dashboard URLs don't break.
+        slug:     found.slug || target.canonicalSlug || "",
         cityName: found.name,
       });
     }
