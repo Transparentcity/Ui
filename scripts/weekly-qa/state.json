@@ -1323,7 +1323,46 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-07-16"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "💀 Homicides",
+      "metricKey": "chicago_homicides",
+      "metricId": 807,
+      "cardUrl": "https://transparent.city/c//metrics/chicago_homicides",
+      "normalLagRange": [
+        6,
+        14
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-23"
+    },
+    {
+      "city": "Detroit",
+      "metricName": "📋🔨 Demolition Permits Issued",
+      "metricKey": "detroit_demolition_permits",
+      "metricId": 387,
+      "cardUrl": "https://transparent.city/c//metrics/detroit_demolition_permits",
+      "normalLagRange": [
+        17,
+        25
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-23"
+    },
+    {
+      "city": "Austin",
+      "metricName": "🏗️ Austin Code Compliance 311 Requests",
+      "metricKey": "austin_311_code_compliance",
+      "metricId": 366,
+      "cardUrl": "https://transparent.city/c//metrics/austin_311_code_compliance",
+      "normalLagRange": [
+        5,
+        13
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-23"
     }
   ],
-  "lastRunDate": "2026-07-16"
+  "lastRunDate": "2026-07-23"
 }
