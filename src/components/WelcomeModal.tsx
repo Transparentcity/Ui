@@ -43,6 +43,9 @@ import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
+import NewsletterPromptBuilder, {
+  type PersonaSelection,
+} from "@/components/newsletter/NewsletterPromptBuilder";
 import {
   stripUnsupportedHomeRequest,
 } from "@/lib/onboardingHomeLocation";
@@ -164,6 +167,7 @@ export default function WelcomeModal({
   const [weeklyNewsletterOptIn, setWeeklyNewsletterOptIn] = useState(true);
   const [showDigestNudge, setShowDigestNudge] = useState(false);
   const [newsletterDescription, setNewsletterDescription] = useState("");
+  const [personaSelections, setPersonaSelections] = useState<PersonaSelection[]>([]);
   const newsletterFrequency = "weekly" as const;
   const [showAdvancedNewsletterSettings, setShowAdvancedNewsletterSettings] = useState(false);
 
@@ -415,9 +419,12 @@ export default function WelcomeModal({
           const preferences = await getUserPreferences(token);
           if (cancelled) return;
 
-          const { newsletterDescription } =
-            readNewsletterPreferenceFields(preferences.extra);
+          const {
+            newsletterDescription,
+            newsletterPersonaSelections,
+          } = readNewsletterPreferenceFields(preferences.extra);
           setNewsletterDescription(newsletterDescription);
+          setPersonaSelections(newsletterPersonaSelections);
         } catch (err) {
           console.error("Error loading saved newsletter preferences:", err);
         }
@@ -1228,16 +1235,17 @@ export default function WelcomeModal({
         </div>
 
         <div className={styles.giftPromptSection}>
-          <label className={styles.giftSectionLabel} htmlFor="gift-newsletter-personalization">
-            What should Seymour focus on? <span className={styles.optionalTag}>optional</span>
-          </label>
-          <textarea
-            id="gift-newsletter-personalization"
-            className={styles.newsletterDescriptionInput}
-            rows={3}
+          <div className={styles.giftSectionLabel}>
+            What should Seymour focus on?{" "}
+            <span className={styles.optionalTag}>optional</span>
+          </div>
+          <NewsletterPromptBuilder
             value={newsletterDescription}
-            onChange={(e) => setNewsletterDescription(e.target.value)}
-            placeholder="e.g. street safety, new permits on my block, 311 response times."
+            onChange={setNewsletterDescription}
+            personaSelections={personaSelections}
+            onPersonaSelectionsChange={setPersonaSelections}
+            idPrefix="gift"
+            compact
           />
         </div>
 
@@ -1739,36 +1747,14 @@ export default function WelcomeModal({
           </button>
           {showAdvancedNewsletterSettings && (
             <div className={styles.advancedNewsletterPanel}>
-              <p className={styles.personalizationIntro}>
-                Share a few things you care about and we&apos;ll use them to tailor what we send.
-              </p>
-              <label className={styles.textInputLabel} htmlFor="welcome-newsletter-personalization">
-                In your own words (optional)
-              </label>
-              <textarea
-                id="welcome-newsletter-personalization"
-                className={styles.newsletterDescriptionInput}
-                rows={3}
+              <NewsletterPromptBuilder
                 value={newsletterDescription}
-                onChange={(e) => setNewsletterDescription(e.target.value)}
-                placeholder="e.g. street safety, transit delays, new restaurants, anything near my block."
+                onChange={setNewsletterDescription}
+                personaSelections={personaSelections}
+                onPersonaSelectionsChange={setPersonaSelections}
+                idPrefix="welcome"
+                compact
               />
-              {hasPreciseLocation && (
-                <div className={styles.radiusSliderRow}>
-                  <span className={styles.radiusSliderLabel}>Place radius</span>
-                  <input
-                    type="range"
-                    min={50}
-                    max={MAX_PLACE_RADIUS_M}
-                    step={50}
-                    value={placeRadius}
-                    onChange={(e) => setPlaceRadius(Number(e.target.value))}
-                    className={styles.radiusSliderInput}
-                    aria-label="Place radius in metres"
-                  />
-                  <span className={styles.radiusSliderValue}>{placeRadius}m</span>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1929,6 +1915,7 @@ export default function WelcomeModal({
             {
               newsletterDescription,
               newsletterFrequency,
+              newsletterPersonaSelections: personaSelections,
             }
           );
           const extraBase = stripUnsupportedHomeRequest(

@@ -6,7 +6,9 @@
  *
  * Supported shortcodes:
  *   [eyebrow text="…"]
- *   [card stat="…" sublabel="…" headline="…" body="…" url="…"]
+ *   [card stat="…" sublabel="…" headline="…" body="…" url="…"
+ *         direction="up|down|flat" greendirection="up|down"]
+ *   [stat value="…" direction="up|down|flat" greendirection="up|down"]
  *   [scorecard city="…" year_compare="…" dashboard_url="…"]
  *     [metric name="…" key="…" date_range="…" source_url="…"
  *       prior_label="…" prior_value="…" current_label="…" current_value="…"
@@ -62,19 +64,26 @@ function expandEyebrow(a: Attrs): string {
   return `<p style="font-family:${ARIAL};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:${COLOR.accent};margin:32px 0 12px;">${text}</p>`;
 }
 
+function statColor(direction: string, greendirection: string): string {
+  if (!direction || direction === "flat" || !greendirection) return COLOR.accent;
+  return direction === greendirection ? COLOR.goodText : COLOR.badText;
+}
+
 function expandCard(a: Attrs): string {
   const stat = attr(a, "stat", "");
   const sublabel = attr(a, "sublabel", "");
   const headline = attr(a, "headline", "");
   const body = attr(a, "body", "");
   const url = attr(a, "url", "#");
-  // 9-char rule: drop big stat to 24px when long
+  const direction = attr(a, "direction", "");
+  const greendirection = attr(a, "greendirection", "");
   const statSize = stat.length > 9 ? "28px" : "32px";
+  const color = statColor(direction, greendirection);
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLOR.panel};border:1px solid ${COLOR.hairline};border-radius:12px;border-collapse:separate;border-spacing:0;margin:0 0 16px;">
   <tr>
     <td style="padding:0;">
       <a href="${url}" style="display:block;text-decoration:none;padding:24px;color:${COLOR.secondary};cursor:pointer;">
-      <div style="font-size:${statSize};font-weight:800;color:${COLOR.accent};line-height:1.1;">${stat}</div>
+      <div style="font-size:${statSize};font-weight:800;color:${color};line-height:1.1;">${stat}</div>
       ${sublabel ? `<div style="font-size:11px;font-weight:600;color:${COLOR.muted};letter-spacing:0.6px;text-transform:uppercase;margin-top:6px;">${sublabel}</div>` : ""}
       <div style="font-size:16px;font-weight:700;color:${COLOR.body};line-height:22px;margin-top:14px;">${headline}</div>
       <div style="font-size:14px;line-height:22px;color:${COLOR.secondary};margin-top:10px;">${body}</div>
@@ -82,6 +91,14 @@ function expandCard(a: Attrs): string {
     </td>
   </tr>
 </table>`;
+}
+
+function expandStat(a: Attrs): string {
+  const value = attr(a, "value", "");
+  const direction = attr(a, "direction", "");
+  const greendirection = attr(a, "greendirection", "");
+  const color = statColor(direction, greendirection);
+  return `<div style="font-size:26px;font-weight:700;color:${color};line-height:1;">${value}</div>`;
 }
 
 function badgeStyle(direction: string, favorable: boolean): { bg: string; border: string; text: string; arrow: string } {
@@ -200,6 +217,7 @@ function expandEvent(a: Attrs): string {
 
 const EYEBROW_RE = new RegExp(`\\[eyebrow\\s+(${BODY})\\]`, "g");
 const CARD_RE = new RegExp(`\\[card\\s+(${BODY})\\]`, "g");
+const STAT_RE = new RegExp(`\\[stat\\s+(${BODY})\\]`, "g");
 const EVENT_RE = new RegExp(`\\[event\\s+(${BODY})\\]`, "g");
 const SCORECARD_OPEN_RE = new RegExp(`\\[scorecard(\\s+${BODY})?\\]`);
 const SCORECARD_CLOSE_RE = /\[\/scorecard\]/;
@@ -230,6 +248,7 @@ export function expand(src: string): string {
   let out = expandScorecardBlocks(src);
   out = out.replace(EYEBROW_RE, (_, attrs) => expandEyebrow(parseAttrs(attrs)));
   out = out.replace(CARD_RE, (_, attrs) => expandCard(parseAttrs(attrs)));
+  out = out.replace(STAT_RE, (_, attrs) => expandStat(parseAttrs(attrs)));
   out = out.replace(EVENT_RE, (_, attrs) => expandEvent(parseAttrs(attrs)));
   return out;
 }

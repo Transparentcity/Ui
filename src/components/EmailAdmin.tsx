@@ -150,62 +150,86 @@ export default function EmailAdmin() {
     }
   };
 
+  const isRefreshing = tab === "inbox" ? loading : outboundLoading;
+
+  const handleRefresh = () => {
+    if (tab === "inbox") {
+      void loadList();
+    } else {
+      void loadOutboundList();
+    }
+  };
+
   return (
     <div className={styles.container}>
       <p className={styles.intro}>
-        <strong>Inbox:</strong> Inbound emails and Seymour&apos;s replies.{" "}
+        <strong>Inbox:</strong> Mail sent to seymour@transparent.city (forwarded via
+        the parse subdomain) and Seymour&apos;s replies.{" "}
         <strong>Sent items:</strong> Newsletters Seymour generated and sent (e.g. &quot;Generate sample newsletter&quot;).
         Each sample is emailed to the user who requested it and logged here.
       </p>
 
-      <div className={styles.tabs}>
-        <button
-          type="button"
-          className={tab === "inbox" ? styles.tabActive : styles.tab}
-          onClick={() => {
-            setTab("inbox");
-            setSelectedOutboundId(null);
-          }}
-        >
-          Inbox
-        </button>
-        <button
-          type="button"
-          className={tab === "outbox" ? styles.tabActive : styles.tab}
-          onClick={() => {
-            setTab("outbox");
-            setSelectedId(null);
-          }}
-        >
-          Sent items
-        </button>
-      </div>
-
-      {tab === "inbox" && (
-        <div className={styles.filters}>
-          <div className={styles.filterRow}>
-            <label htmlFor="email-admin-status" className={styles.label}>
-              Status
-            </label>
-            <select
-              id="email-admin-status"
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setOffset(0);
-              }}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="pending">Pending</option>
-              <option value="retry">Retry</option>
-              <option value="processing">Processing</option>
-              <option value="replied">Replied</option>
-              <option value="failed">Failed</option>
-            </select>
-          </div>
+      <div className={styles.toolbar}>
+        <div className={styles.tabs}>
+          <button
+            type="button"
+            className={tab === "inbox" ? styles.tabActive : styles.tab}
+            onClick={() => {
+              setTab("inbox");
+              setSelectedOutboundId(null);
+            }}
+          >
+            Inbox
+          </button>
+          <button
+            type="button"
+            className={tab === "outbox" ? styles.tabActive : styles.tab}
+            onClick={() => {
+              setTab("outbox");
+              setSelectedId(null);
+            }}
+          >
+            Sent items
+          </button>
         </div>
-      )}
+
+        <div className={styles.toolbarActions}>
+          {tab === "inbox" && (
+            <div className={styles.filterRow}>
+              <label htmlFor="email-admin-status" className={styles.label}>
+                Status
+              </label>
+              <select
+                id="email-admin-status"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setOffset(0);
+                }}
+                className={styles.select}
+              >
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="retry">Retry</option>
+                <option value="processing">Processing</option>
+                <option value="replied">Replied</option>
+                <option value="failed">Failed</option>
+                <option value="auto_filtered">Auto-filtered</option>
+                <option value="throttled">Throttled</option>
+              </select>
+            </div>
+          )}
+          <button
+            type="button"
+            className={styles.refreshBtn}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            aria-label="Refresh"
+          >
+            {isRefreshing ? "Refreshing…" : "↻ Refresh"}
+          </button>
+        </div>
+      </div>
 
       {error && (
         <div className={styles.error} role="alert">

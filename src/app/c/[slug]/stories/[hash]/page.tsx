@@ -29,6 +29,8 @@ import { slugify } from "@/lib/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 import { enrichStory } from "@/lib/feed/mockFeedData";
 import type { FeedStory } from "@/lib/hooks/useFeed";
+import StoryViewTracker from "@/components/feed/StoryViewTracker";
+import NewsletterEmailLandingBanner from "@/components/newsletter/NewsletterEmailLandingBanner";
 
 export const revalidate = 3600;
 
@@ -216,6 +218,10 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
 
   return (
     <SignupEmailProvider>
+      {/* Fire story_view product event for ranking signal */}
+      <StoryViewTracker storyId={story.id} cityId={story.city_id} citySlug={slug} />
+      {/* Newsletter email landing: recognize returning users / show signup banner */}
+      <NewsletterEmailLandingBanner citySlug={slug} cityName={cityDisplay} />
       <PublicNavBar>
         <CitySignupButton citySlug={slug} cityName={story.city_name ?? slug} />
       </PublicNavBar>

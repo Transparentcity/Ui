@@ -30,7 +30,9 @@ export function filterDistrictsByGeographicStructure(
         sl.min_identifier_value != null &&
         sl.max_identifier_value != null &&
         (!sl.structure_type ||
-          ["district", "ward", "precinct"].includes(sl.structure_type.toLowerCase()))
+          ["district", "ward", "precinct", "neighborhood"].includes(
+            sl.structure_type.toLowerCase(),
+          ))
     )
     .map((sl) => ({ min: sl.min_identifier_value as number, max: sl.max_identifier_value as number }));
 

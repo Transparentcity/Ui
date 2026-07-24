@@ -77,6 +77,9 @@ import {
   mergeNewsletterPreferenceFields,
   readNewsletterPreferenceFields,
 } from "@/lib/newsletterPreferences";
+import NewsletterPromptBuilder, {
+  type PersonaSelection,
+} from "@/components/newsletter/NewsletterPromptBuilder";
 import {
   clearImpersonation,
   getImpersonationState,
@@ -301,6 +304,7 @@ export default function DashboardPage() {
   const [editableMonthlyReport, setEditableMonthlyReport] = useState(false);
   const [editableReportScope, setEditableReportScope] = useState<"district" | "city">("district");
   const [editableNewsletterDescription, setEditableNewsletterDescription] = useState("");
+  const [editablePersonaSelections, setEditablePersonaSelections] = useState<PersonaSelection[]>([]);
   const savedNewsletterDescriptionRef = useRef("");
   const [editableNewsletterFrequency, setEditableNewsletterFrequency] = useState<"weekly" | "monthly">("weekly");
   const [generatingSampleNewsletter, setGeneratingSampleNewsletter] = useState(false);
@@ -1622,13 +1626,14 @@ export default function DashboardPage() {
       
       // Initialize editable state from preferences
       const commPrefs = prefs.extra?.communication_preferences || {};
-      const { newsletterDescription, newsletterFrequency } =
+      const { newsletterDescription, newsletterFrequency, newsletterPersonaSelections } =
         readNewsletterPreferenceFields(prefs.extra);
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
       setEditableNewsletterDescription(newsletterDescription);
+      setEditablePersonaSelections(newsletterPersonaSelections);
       savedNewsletterDescriptionRef.current = newsletterDescription;
       setEditableNewsletterFrequency(newsletterFrequency);
 
@@ -1755,6 +1760,7 @@ export default function DashboardPage() {
         {
           newsletterDescription: editableNewsletterDescription,
           newsletterFrequency: editableNewsletterFrequency,
+          newsletterPersonaSelections: editablePersonaSelections,
         }
       );
       
@@ -1795,7 +1801,7 @@ export default function DashboardPage() {
       
       // Re-initialize editable state from refreshed preferences to ensure sync
       const commPrefs = refreshed.extra?.communication_preferences || {};
-      const { newsletterDescription, newsletterFrequency } =
+      const { newsletterDescription, newsletterFrequency, newsletterPersonaSelections } =
         readNewsletterPreferenceFields(refreshed.extra);
       
       setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
@@ -1805,6 +1811,7 @@ export default function DashboardPage() {
       const newsletterDescriptionChanged =
         newsletterDescription !== savedNewsletterDescriptionRef.current;
       setEditableNewsletterDescription(newsletterDescription);
+      setEditablePersonaSelections(newsletterPersonaSelections);
       savedNewsletterDescriptionRef.current = newsletterDescription;
       setEditableNewsletterFrequency(newsletterFrequency);
 
@@ -2749,18 +2756,15 @@ export default function DashboardPage() {
                     </div>
                     {/* Customize your newsletter - all users */}
                     <div className={styles.settingsNewsletterBlock} style={{ marginTop: "16px" }}>
-                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "4px" }}>
+                      <div style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)", marginBottom: "12px" }}>
                         Customize your newsletter
-                      </label>
-                      <p className={styles.settingsNewsletterIntro} style={{ marginBottom: "10px" }}>
-                        Tell us what you care about and we&apos;ll tailor each edition to you.
-                      </p>
-                      <textarea
-                        className={styles.settingsTextarea}
+                      </div>
+                      <NewsletterPromptBuilder
                         value={editableNewsletterDescription}
-                        onChange={(e) => setEditableNewsletterDescription(e.target.value)}
-                        placeholder="e.g. Focus on crime trends near me, the timing of new building permits, and how the city budget is being spent."
-                        rows={3}
+                        onChange={setEditableNewsletterDescription}
+                        personaSelections={editablePersonaSelections}
+                        onPersonaSelectionsChange={setEditablePersonaSelections}
+                        idPrefix="settings"
                       />
                     </div>
                   </section>
@@ -2919,34 +2923,6 @@ export default function DashboardPage() {
                   </section>
                   )}
 
-                  {/* System statistics - admin only */}
-                  {isAdmin && (
-                  <section className={styles.settingsSection}>
-                    <h3 className={styles.settingsSectionTitle}>System statistics</h3>
-                    <div className={styles.settingsSectionCard}>
-                      <div className={styles.settingsRow}>
-                        <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowTitle}>Product analytics</div>
-                          <div className={styles.settingsRowDescription}>
-                            DAU/WAU/MAU, growth accounting, retention, marketing & signup funnel, LLM costs, and integration QA.
-                          </div>
-                        </div>
-                        <div className={styles.settingsRowControl}>
-                          <button
-                            type="button"
-                            className={styles.settingsSecondaryBtn}
-                            onClick={() => {
-                              setSettingsOpen(false);
-                              setCurrentView("system-stats");
-                            }}
-                          >
-                            Open
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-                  )}
                 </div>
               )}
             </div>

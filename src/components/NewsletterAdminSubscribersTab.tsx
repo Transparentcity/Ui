@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   adminQueueNewsletterPendingForUser,
+  adminQueueUnifiedNewsletterForUser,
   getAdminUserNewsletterOverview,
   getAdminUserNewsletterSendHistory,
   getAvailableModels,
@@ -405,6 +406,36 @@ export default function NewsletterAdminSubscribersTab() {
     }
   };
 
+  const handleGenerateUnifiedNewsletter = async (userId: number) => {
+    if (!testCityId) {
+      toast.error("Select a city for the newsletter.");
+      return;
+    }
+    setTestBusy(true);
+    setTestTitle(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await adminQueueUnifiedNewsletterForUser(
+        userId,
+        {
+          city_id: testCityId,
+          district: testDistrict === "0" ? null : Number(testDistrict),
+          frequency: testFrequency,
+          ...(seymourModelKey.trim() ? { seymour_model_key: seymourModelKey.trim() } : {}),
+        },
+        token
+      );
+      setTestTitle(res.job_id);
+      toast.success(
+        `Unified draft queued (campaign: ${res.campaign}). Check the Queue tab in Newsletter Admin when ready.`
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not queue unified newsletter");
+    } finally {
+      setTestBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 0", gap: 12 }}>
@@ -498,6 +529,7 @@ export default function NewsletterAdminSubscribersTab() {
                     onSeymourModelKey={setSeymourModelKey}
                     onTestPrompt={setTestPrompt}
                     onGenerateNewsletter={() => handleGenerateNewsletter(u.id)}
+                    onGenerateUnifiedNewsletter={() => handleGenerateUnifiedNewsletter(u.id)}
                     onSavePromptToPreferences={() => handleSavePromptToPreferences(u.id)}
                     onPreviewOutbound={handlePreviewOutbound}
                     previewJobSessionId={previewJobSessionId}
@@ -543,6 +575,7 @@ function UserNewsletterRow({
   onSeymourModelKey,
   onTestPrompt,
   onGenerateNewsletter,
+  onGenerateUnifiedNewsletter,
   onSavePromptToPreferences,
   onPreviewOutbound,
   previewJobSessionId,
@@ -574,6 +607,7 @@ function UserNewsletterRow({
   onSeymourModelKey: (v: string) => void;
   onTestPrompt: (v: string) => void;
   onGenerateNewsletter: () => void;
+  onGenerateUnifiedNewsletter: () => void;
   onSavePromptToPreferences: () => void;
   onPreviewOutbound: (item: AdminNewsletterHistoryItem) => void;
   previewJobSessionId: string | null;
@@ -905,14 +939,25 @@ function UserNewsletterRow({
                           ))}
                         </select>
                       </div>
-                      <div className={styles.testField} style={{ alignSelf: "flex-end" }}>
+                      <div className={styles.testField} style={{ alignSelf: "flex-end", display: "flex", gap: 8 }}>
                         <button
                           type="button"
                           className={styles.primaryBtn}
                           disabled={!user.email?.trim() || !testCityId || testBusy}
                           onClick={onGenerateNewsletter}
+                          title="Old pipeline: full Seymour research + HTML prompt"
                         >
-                          {testBusy ? "Queuing…" : "Generate newsletter"}
+                          {testBusy ? "Queuing…" : "Generate (legacy)"}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.primaryBtn}
+                          disabled={!user.email?.trim() || !testCityId || testBusy}
+                          onClick={onGenerateUnifiedNewsletter}
+                          title="New unified pipeline: story selector + light LLM wrapper pass (no HTML)"
+                          style={{ background: "var(--brand-primary-alt, #6d28d9)" }}
+                        >
+                          {testBusy ? "Queuing…" : "Draft (unified ✦)"}
                         </button>
                       </div>
                     </div>

@@ -17,6 +17,10 @@ import {
   useFollowRepresentative,
   useUnfollowRepresentative,
 } from "@/lib/hooks/useCities";
+import {
+  formatSubdivisionLabel,
+  type PublicGeographicContext,
+} from "@/lib/publicGeographicUnit";
 
 type Props = {
   cityId: number;
@@ -24,6 +28,7 @@ type Props = {
   cityDisplayName: string;
   districts: number[];
   leaders?: PublicLeader[] | null;
+  geographicContext?: PublicGeographicContext;
 };
 
 export default function DistrictListWithFollow({
@@ -32,9 +37,16 @@ export default function DistrictListWithFollow({
   cityDisplayName,
   districts,
   leaders = [],
+  geographicContext,
 }: Props) {
   const base = `/c/${slug}`;
   const { isAuthenticated, loginWithRedirect } = useAuth0();
+  const unitLabel = geographicContext?.unitLabel ?? "District";
+  const unitLabelPlural = geographicContext?.unitLabelPlural ?? "Districts";
+  const subdivisionLabel = (id: number) =>
+    geographicContext
+      ? formatSubdivisionLabel(geographicContext, id)
+      : `${unitLabel} ${id}`;
 
   // Public counts (work when logged out)
   const { data: publicCounts = [] } = useQuery({
@@ -87,7 +99,7 @@ export default function DistrictListWithFollow({
       });
       return;
     }
-    const label = district === 0 ? cityDisplayName : `District ${district}`;
+    const label = district === 0 ? cityDisplayName : subdivisionLabel(district);
     if (isFollowing(district)) {
       unfollowMutation.mutate(d, {
         onSuccess: () => toast.success(`Unfollowed ${label}`),
@@ -122,7 +134,7 @@ export default function DistrictListWithFollow({
         className="metrics-category-title"
         style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}
       >
-        By district
+        By {unitLabelPlural.toLowerCase()}
       </div>
       <div
         style={{
@@ -145,6 +157,7 @@ export default function DistrictListWithFollow({
               followMutation.variables === String(d)) ||
             (unfollowMutation.isPending &&
               unfollowMutation.variables === String(d));
+          const label = subdivisionLabel(d);
           return (
             <div
               key={d}
@@ -161,7 +174,7 @@ export default function DistrictListWithFollow({
                   className="nav-link"
                   style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
                 >
-                  District {d}
+                  {label}
                   {repLabel ? ` – ${repLabel}` : ""}
                 </Link>
                 {count > 0 && (
@@ -175,7 +188,7 @@ export default function DistrictListWithFollow({
                 loading={loading}
                 size="compact"
                 onClick={() => handleFollowClick(d)}
-                entityLabel={`District ${d}`}
+                entityLabel={label}
               />
             </div>
           );

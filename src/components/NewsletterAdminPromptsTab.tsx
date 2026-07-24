@@ -18,7 +18,10 @@ export default function NewsletterAdminPromptsTab() {
   const [data, setData] = useState<NewsletterPromptsResponse | null>(null);
   const [sharedPrompt, setSharedPrompt] = useState("");
   const [personalizedPrompt, setPersonalizedPrompt] = useState("");
-  const [activePrompt, setActivePrompt] = useState<"shared" | "personalized">("shared");
+  const [unifiedPrompt, setUnifiedPrompt] = useState("");
+  const [activePrompt, setActivePrompt] = useState<"unified" | "shared" | "personalized">(
+    "unified"
+  );
 
   const load = useCallback(async () => {
     try {
@@ -28,6 +31,7 @@ export default function NewsletterAdminPromptsTab() {
       setData(res);
       setSharedPrompt(res.shared_newsletter_prompt);
       setPersonalizedPrompt(res.personalized_newsletter_prompt);
+      setUnifiedPrompt(res.unified_newsletter_prompt ?? "");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load newsletter prompts");
     } finally {
@@ -47,6 +51,7 @@ export default function NewsletterAdminPromptsTab() {
         {
           shared_newsletter_prompt: sharedPrompt,
           personalized_newsletter_prompt: personalizedPrompt,
+          unified_newsletter_prompt: unifiedPrompt,
         },
         token
       );
@@ -74,11 +79,18 @@ export default function NewsletterAdminPromptsTab() {
     if (data) setPersonalizedPrompt(data.default_personalized_prompt);
   };
 
+  const handleResetUnified = () => {
+    if (data) setUnifiedPrompt(data.default_unified_prompt);
+  };
+
   const sharedDirty = data ? sharedPrompt !== data.shared_newsletter_prompt : false;
   const personalizedDirty = data
     ? personalizedPrompt !== data.personalized_newsletter_prompt
     : false;
-  const anyDirty = sharedDirty || personalizedDirty;
+  const unifiedDirty = data
+    ? unifiedPrompt !== (data.unified_newsletter_prompt ?? "")
+    : false;
+  const anyDirty = sharedDirty || personalizedDirty || unifiedDirty;
 
   if (loading) {
     return (
@@ -116,6 +128,12 @@ export default function NewsletterAdminPromptsTab() {
         <code>
           {"{subs_text}"} {"{instructions_block}"} {"{city_id}"} {"{district_int}"}
         </code>
+        <br />
+        <strong>Unified prompt</strong> placeholders:{" "}
+        <code>
+          {"{subs_text}"} {"{instructions_block}"} {"{city_id}"} {"{district_int}"}{" "}
+          {"{city_name}"}
+        </code>
         {data?.custom_job_id && (
           <span style={{ marginLeft: 12, color: "var(--text-secondary)", fontSize: 12 }}>
             (Job #{data.custom_job_id})
@@ -136,6 +154,25 @@ export default function NewsletterAdminPromptsTab() {
       </div>
 
       <div className={styles.promptTabs}>
+        <button
+          className={`${styles.promptTab} ${activePrompt === "unified" ? styles.promptTabActive : ""}`}
+          type="button"
+          onClick={() => setActivePrompt("unified")}
+        >
+          Unified (plan-based)
+          {unifiedDirty && (
+            <span
+              style={{
+                marginLeft: 6,
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "var(--brand-primary, #ad35fa)",
+                display: "inline-block",
+              }}
+            />
+          )}
+        </button>
         <button
           className={`${styles.promptTab} ${activePrompt === "shared" ? styles.promptTabActive : ""}`}
           type="button"
@@ -177,6 +214,41 @@ export default function NewsletterAdminPromptsTab() {
           )}
         </button>
       </div>
+
+      {activePrompt === "unified" && (
+        <div className={styles.promptEditor}>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 10px" }}>
+            Used by the <strong>unified pipeline</strong> (draft assembly). Seymour researches
+            with tools guided by the pre-ranked story slate, then submits a structured plan via{" "}
+            <code>submit_newsletter_plan</code> — it never writes HTML. The platform renders the
+            Public Record layout and the Citywide Scorecard deterministically.
+          </p>
+          <textarea
+            className={styles.textarea}
+            value={unifiedPrompt}
+            onChange={(e) => setUnifiedPrompt(e.target.value)}
+            rows={18}
+          />
+          <div className={styles.promptActions}>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={handleSave}
+              disabled={saving || !anyDirty}
+            >
+              {saving ? "Saving…" : "Save prompts"}
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              onClick={handleResetUnified}
+              disabled={saving}
+            >
+              Reset to default
+            </button>
+          </div>
+        </div>
+      )}
 
       {activePrompt === "shared" && (
         <div className={styles.promptEditor}>

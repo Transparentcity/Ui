@@ -12,6 +12,7 @@ import {
   getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
   getPublicCityDistricts,
+  getPublicCitySubdivisions,
   getPublicLeadersForCity,
   listPublicFeedStories,
   listPublicMapsForCity,
@@ -19,6 +20,11 @@ import {
 } from "@/lib/publicApiClient";
 import { slugify, formatLeaderName } from "@/lib/utils";
 import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import {
+  loadPublicGeographicContext,
+  subdivisionLabelFor,
+} from "@/lib/loadPublicGeographicContext";
+import { resolvePublicGeographicContext } from "@/lib/publicGeographicUnit";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import DistrictPageContent from "./DistrictPageContent";
 
@@ -60,9 +66,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   let supervisorName: string | null = null;
+  let subdivisionName = `District ${d}`;
+  let unitLabel = "District";
   if (cityId) {
     try {
-      const leaders = await getPublicLeadersForCity(cityId);
+      const [leaders, subdivisionsRes] = await Promise.all([
+        getPublicLeadersForCity(cityId),
+        getPublicCitySubdivisions(cityId).catch(() => null),
+      ]);
+      const geo = resolvePublicGeographicContext({
+        leaders,
+        geographicUnitLabel: subdivisionsRes?.unit_label,
+        geographicUnitLabelPlural: subdivisionsRes?.unit_label_plural,
+        navigationMode: subdivisionsRes?.navigation_mode,
+        subdivisions: subdivisionsRes?.subdivisions,
+      });
+      unitLabel = geo.unitLabel;
+      subdivisionName = subdivisionLabelFor(geo, d);
       const districtLeader = leaders.find((l) => l.district === d);
       if (districtLeader) supervisorName = formatLeaderName(districtLeader.name.trim());
     } catch {
@@ -74,23 +94,27 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const canonical = supervisorSlug ? `/c/${slug}/district/${d}/${supervisorSlug}` : null;
 
   const title = supervisorName
-    ? `${supervisorName} \u2013 District ${d} \u2013 ${cityName}`
-    : `District ${d} \u2013 ${cityName}`;
+    ? `${supervisorName} \u2013 ${subdivisionName} \u2013 ${cityName}`
+    : `${subdivisionName} \u2013 ${cityName}`;
 
   const description = supervisorName
-    ? `Track District ${d} in ${cityName}, represented by ${supervisorName}. Public metrics, accountability data, and district updates.`
-    : `District ${d} dashboard for ${cityName}. Public metrics and monthly accountability updates.`;
+    ? `Track ${subdivisionName} in ${cityName}, represented by ${supervisorName}. Public metrics, accountability data, and local updates.`
+    : `${subdivisionName} dashboard for ${cityName}. Public metrics and monthly accountability updates.`;
 
   const keywords = supervisorName
     ? [
         supervisorName,
-        `${supervisorName} District ${d}`,
+        `${supervisorName} ${subdivisionName}`,
         `${supervisorName} ${cityName}`,
-        `${cityName} District ${d}`,
-        `District ${d} supervisor`,
-        `${cityName} district dashboard`,
+        `${cityName} ${subdivisionName}`,
+        `${unitLabel} dashboard`,
+        `${cityName} ${unitLabel.toLowerCase()} dashboard`,
       ]
-    : [`${cityName} District ${d}`, `District ${d} supervisor`, `${cityName} district dashboard`];
+    : [
+        `${cityName} ${subdivisionName}`,
+        `${subdivisionName} dashboard`,
+        `${cityName} ${unitLabel.toLowerCase()} dashboard`,
+      ];
 
   return {
     title,
@@ -141,9 +165,11 @@ export default async function DistrictPage({ params }: PageProps) {
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let orderings: MetricOrderingEntry[] | undefined = undefined;
+  let geographicContext = resolvePublicGeographicContext({});
 
   try {
-    const [detail, leadersRes, feedRes, mapsRes, cityDistrictsRes, orderingRes] = await Promise.all([
+    const [detail, leadersRes, feedRes, mapsRes, cityDistrictsRes, orderingRes, geoContext] =
+      await Promise.all([
       getPublicCityDetail(city.id),
       getPublicLeadersForCity(city.id).catch(() => []),
       listPublicFeedStories({
@@ -155,6 +181,7 @@ export default async function DistrictPage({ params }: PageProps) {
       listPublicMapsForCity(city.id).catch(() => []),
       getPublicCityDistricts(city.id).catch((): number[] => []),
       getPublicCityMetricOrdering(city.id).catch(() => null),
+      loadPublicGeographicContext(city.id),
     ]);
     if (orderingRes?.orderings?.length) {
       orderings = orderingRes.orderings
@@ -169,6 +196,7 @@ export default async function DistrictPage({ params }: PageProps) {
     }
     cityDetail = detail;
     leaders = leadersRes;
+    geographicContext = geoContext;
     feedStories = feedRes.stories ?? [];
     maps = mapsRes;
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
@@ -239,6 +267,7 @@ export default async function DistrictPage({ params }: PageProps) {
       districts={districts}
       maps={maps}
       orderings={orderings}
+      geographicContext={geographicContext}
     />
   );
 }

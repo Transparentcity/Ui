@@ -12,6 +12,7 @@ import {
 import type {
   CityFreshness,
   CityFreshnessMetricRow,
+  CityHealthAttentionSummary,
   CityScheduleHealth,
   CityScheduleRun,
   CityScheduleStructureSummary,
@@ -23,6 +24,8 @@ import {
   updateAdminMetric,
 } from "@/lib/apiClient";
 import MetricEditModal from "./MetricEditModal";
+import CityHealthAttentionDashboard from "./CityHealthAttentionDashboard";
+import { ensureCitiesAttention } from "@/lib/cityHealthAttention";
 import {
   BadgeCheck,
   Layers,
@@ -634,6 +637,8 @@ export default function ScheduleHealthDashboard({
 }: ScheduleHealthDashboardProps) {
   const { isAuthenticated, user } = useAuth0();
   const [cities, setCities] = useState<CityScheduleHealth[]>([]);
+  const [attentionSummary, setAttentionSummary] =
+    useState<CityHealthAttentionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastLoaded, setLastLoaded] = useState<Date | null>(null);
@@ -649,7 +654,12 @@ export default function ScheduleHealthDashboard({
       setError(null);
       const t = token || (await getAccessTokenSilently());
       const res = await getCityScheduleHealth(t, { daysBack: 14 });
-      setCities(res.cities || []);
+      const enriched = ensureCitiesAttention(
+        res.cities || [],
+        res.attention_summary ?? null
+      );
+      setCities(enriched.cities);
+      setAttentionSummary(enriched.summary);
       setLastLoaded(new Date());
     } catch (e) {
       console.error(e);
@@ -735,9 +745,9 @@ export default function ScheduleHealthDashboard({
         <div className={styles.titleRow}>
           <h3 className={styles.title}>City schedule health</h3>
           <p className={styles.subtitle}>
-            Under each city: structure (leaders, geo, shapes, population, districts, metric
-            wiring). Top chip: last batch run per period. Bottom: freshness via{" "}
-            <code>most_recent_data_date</code> (2d / 10d / 35d / 400d thresholds).
+            Schedule runs and freshness by period. Use Needs attention above to triage
+            incomplete wiring, mapping, jobs, and city structure. Thresholds:{" "}
+            <code>most_recent_data_date</code> at 2d / 10d / 35d / 400d.
             {lastLoaded && (
               <>
                 {" "}
@@ -752,6 +762,15 @@ export default function ScheduleHealthDashboard({
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
+
+      <CityHealthAttentionDashboard
+        cities={cities}
+        summary={attentionSummary}
+        getAccessTokenSilently={getAccessTokenSilently}
+        onEditMetric={setEditingMetricId}
+        onViewJob={onViewJob}
+        onRefresh={() => void load()}
+      />
 
       <div className={styles.legend}>
         <span className={styles.legendItem}>
@@ -809,6 +828,14 @@ export default function ScheduleHealthDashboard({
                           >
                             {city.city_name}
                           </span>
+                          {city.attention && city.attention.total_issues > 0 && (
+                            <span
+                              className={styles.attentionBadge}
+                              title={`${city.attention.total_issues} issues needing attention (${city.attention.severity})`}
+                            >
+                              {city.attention.total_issues}
+                            </span>
+                          )}
                           <button
                             type="button"
                             className={styles.expandBtn}

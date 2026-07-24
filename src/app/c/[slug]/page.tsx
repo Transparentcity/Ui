@@ -32,6 +32,8 @@ import MobileCitySignupBar from "./MobileCitySignupBar";
 import { slugify, formatLeaderName } from "@/lib/utils";
 import { pickMayorFromPublicLeaders } from "@/lib/publicLeadersPick";
 import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import { loadPublicGeographicContext } from "@/lib/loadPublicGeographicContext";
+import { resolvePublicGeographicContext } from "@/lib/publicGeographicUnit";
 
 export const revalidate = 3600;
 
@@ -220,19 +222,23 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let leaders: Awaited<ReturnType<typeof getPublicLeadersForCity>> = [];
   let cityOrdering: PublicMetricOrderingResponse | null = null;
+  let geographicContext = resolvePublicGeographicContext({});
   if (city?.id) {
     try {
-      const [detail, mapsRes, leadersRes, cityDistrictsRes, orderingRes] = await Promise.all([
+      const [detail, mapsRes, leadersRes, cityDistrictsRes, orderingRes, geoContext] =
+        await Promise.all([
         getPublicCityDetail(city.id),
         listPublicMapsForCity(city.id).catch(() => []),
         getPublicLeadersForCity(city.id).catch(() => []),
         getPublicCityDistricts(city.id).catch((): number[] => []),
         getPublicCityMetricOrdering(city.id).catch(() => null),
+        loadPublicGeographicContext(city.id),
       ]);
       cityOrdering = orderingRes;
       cityDetail = detail;
       maps = mapsRes;
       leaders = leadersRes;
+      geographicContext = geoContext;
       // Use city-level districts (any metric with district data); fallback to first metric
       if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
         districts = filterDistrictsByGeographicStructure(
@@ -314,6 +320,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                 districts={districts}
                 mayorName={cityDetail?.mayor?.name}
                 leaders={leaders}
+                geographicContext={geographicContext}
               />
             ) : cityDetail?.mayor?.name ? (
               <span className="city-hero-v2-mayor-inline">Mayor: {formatLeaderName(cityDetail.mayor.name)}</span>
@@ -369,6 +376,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               }))}
             cityId={city.id}
             leaders={leaders}
+            geographicContext={geographicContext}
             storiesSlot={
               <Suspense fallback={<FeaturedStoriesSkeleton />}>
                 <FeaturedStoriesAsync

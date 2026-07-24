@@ -18,6 +18,7 @@ type Props = {
   district: number;
   slug: string;
   cityDisplayName?: string;
+  subdivisionLabel?: string;
 };
 
 export default function DistrictFollowClaimBlock({
@@ -25,12 +26,13 @@ export default function DistrictFollowClaimBlock({
   district,
   slug,
   cityDisplayName,
+  subdivisionLabel,
 }: Props) {
   const districtKey = String(district);
   const isCitywide = district === 0;
   const entityLabel = isCitywide
     ? (cityDisplayName || "this city")
-    : `District ${district}`;
+    : (subdivisionLabel ?? `District ${district}`);
   const { isAuthenticated, loginWithRedirect } = useAuth0();
 
   const { data: publicCounts = [] } = useQuery({

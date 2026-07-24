@@ -13,6 +13,7 @@ interface DistrictStoryCardProps {
   href: string;
   cityName: string;
   district: number;
+  locationLabel?: string;
 }
 
 export default function DistrictStoryCard({
@@ -21,6 +22,7 @@ export default function DistrictStoryCard({
   href,
   cityName,
   district,
+  locationLabel,
 }: DistrictStoryCardProps) {
   const router = useRouter();
   const cleanedHeadline = improveGenericHeadline(headline, { description });
@@ -59,7 +61,9 @@ export default function DistrictStoryCard({
           <span className={styles.cardActor}>Story</span>
         </div>
         <div className={styles.cardHeaderRight}>
-          <span className={styles.cardHeaderNeighborhoodText}>{cityName} District {district}</span>
+          <span className={styles.cardHeaderNeighborhoodText}>
+            {locationLabel ?? `${cityName} District ${district}`}
+          </span>
         </div>
       </div>
       <h2 className={styles.cardHeadline}>{cleanedHeadline}</h2>
