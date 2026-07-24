@@ -10,6 +10,10 @@ import "@/components/CityView.css";
 import { formatMetricValue, formatPeriodDate, formatCategoryName } from "@/lib/formatters";
 import { changeGoodBadFromGreenDirection } from "@/lib/metricGreenDirection";
 import DistrictListWithFollow from "./DistrictListWithFollow";
+import {
+  formatSubdivisionLabel,
+  type PublicGeographicContext,
+} from "@/lib/publicGeographicUnit";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
 export type MetricOrderingEntry = {
@@ -38,6 +42,8 @@ type CityDashboardSectionProps = {
   storiesSlot?: React.ReactNode;
   /** Number of public datasets for this city */
   datasetsCount?: number | null;
+  /** Optional: neighborhood vs district labeling for public pages */
+  geographicContext?: PublicGeographicContext;
 };
 
 export default function CityDashboardSection({
@@ -53,9 +59,16 @@ export default function CityDashboardSection({
   leaders,
   storiesSlot,
   datasetsCount,
+  geographicContext,
 }: CityDashboardSectionProps) {
   const base = `/c/${slug}`;
   const isDistrictView = districtFilter != null && districtFilter >= 1;
+  const unitLabel = geographicContext?.unitLabel ?? "District";
+  const unitLabelPlural = geographicContext?.unitLabelPlural ?? "Districts";
+  const subdivisionLabel = (id: number) =>
+    geographicContext
+      ? formatSubdivisionLabel(geographicContext, id)
+      : `${unitLabel} ${id}`;
 
   const orderingMap = React.useMemo(() => {
     if (!orderings?.length) return null;
@@ -148,7 +161,9 @@ export default function CityDashboardSection({
       <section className="dashboard-section" style={{ marginTop: 0 }}>
         <div className="dashboard-comparison-selector">
           <div className="comparison-selector-scope">
-            {isDistrictView ? `District ${districtFilter}` : "Citywide"} Dashboard
+            {isDistrictView
+              ? `${subdivisionLabel(districtFilter!)} Dashboard`
+              : "Citywide Dashboard"}
           </div>
         </div>
         <div className="ytd-placeholder">
@@ -165,16 +180,17 @@ export default function CityDashboardSection({
               cityDisplayName={cityDisplayName}
               districts={districts}
               leaders={leaders}
+              geographicContext={geographicContext}
             />
           ) : (
             <div className="metrics-category-section" style={{ marginTop: 24 }}>
               <div className="metrics-category-title" style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}>
-                By district
+                By {unitLabelPlural.toLowerCase()}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: "0 0 8px 0" }}>
                 {districts.map((d) => (
                   <Link key={d} href={`${base}/district/${d}`} className="nav-link" style={{ fontSize: 14 }}>
-                    District {d}
+                    {subdivisionLabel(d)}
                   </Link>
                 ))}
               </div>
@@ -205,7 +221,9 @@ export default function CityDashboardSection({
       {/* Comparison bar: scope label + YTD date */}
       <div className="dashboard-comparison-selector">
         <div className="comparison-selector-scope">
-          {isDistrictView ? `District ${districtFilter}` : "Citywide"} Dashboard
+          {isDistrictView
+            ? `${subdivisionLabel(districtFilter!)} Dashboard`
+            : "Citywide Dashboard"}
         </div>
         <div className="comparison-selector-label">
           Year to Date
@@ -423,7 +441,7 @@ export default function CityDashboardSection({
             className="metrics-category-title"
             style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}
           >
-            All districts
+            All {unitLabelPlural.toLowerCase()}
           </div>
           <div
             style={{
@@ -458,6 +476,7 @@ export default function CityDashboardSection({
             cityDisplayName={cityDisplayName}
             districts={districts}
             leaders={leaders}
+            geographicContext={geographicContext}
           />
         ) : (
           <div className="metrics-category-section" style={{ marginTop: 24 }}>

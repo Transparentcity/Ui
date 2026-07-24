@@ -10,9 +10,44 @@
   font-size: 14px;
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.toolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .tabs {
   display: flex;
   gap: 4px;
+}
+
+.refreshBtn {
+  padding: 8px 14px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .tab,
@@ -33,13 +68,6 @@
 .tabActive {
   background: var(--bg-tertiary);
   font-weight: 600;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
 }
 
 .filterRow {

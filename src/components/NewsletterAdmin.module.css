@@ -746,6 +746,44 @@
   color: var(--brand-primary-hover);
 }
 
+/* Search autocomplete (Find emails) */
+.autocompleteWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.autocompleteDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  z-index: 50;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.autocompleteOption {
+  display: block;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.autocompleteOption:hover {
+  background: var(--bg-secondary);
+}
+
 /* Subscriber info */
 .infoBox {
   background: rgba(59, 130, 246, 0.06);

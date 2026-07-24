@@ -23,6 +23,7 @@ import {
 import LandingSourcesMatrix from "@/components/LandingSourcesMatrix";
 import RetentionLagTable from "@/components/RetentionLagTable";
 import RetentionTriangle from "@/components/RetentionTriangle";
+import NeedsAttentionPanel from "@/components/NeedsAttentionPanel";
 import SignupFunnelDashboard from "@/components/SignupFunnelDashboard";
 import {
   getProductAnalyticsOverview,
@@ -35,7 +36,12 @@ import {
 } from "@/lib/apiClient";
 import styles from "./ProductAnalyticsDashboard.module.css";
 
-type TabId = "overview" | "marketing" | "llm-costs" | "integrations";
+type TabId =
+  | "overview"
+  | "needs-attention"
+  | "marketing"
+  | "llm-costs"
+  | "integrations";
 
 type ActiveMetric = "dau" | "wau" | "mau";
 
@@ -43,6 +49,7 @@ type AudienceFilter = "logged_in" | "logged_out" | "both";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "needs-attention", label: "Needs attention" },
   { id: "marketing", label: "Marketing" },
   { id: "llm-costs", label: "LLM costs" },
   { id: "integrations", label: "Integrations QA" },
@@ -369,36 +376,38 @@ export default function ProductAnalyticsDashboard() {
     <div className={styles.root}>
       <div className={styles.header}>
         <div>
-          <h2 className={styles.title}>Product analytics</h2>
-          {overview && (
+          <h2 className={styles.title}>Dashboards</h2>
+          {tab !== "needs-attention" && overview && (
             <div className={styles.subtitle}>
               {overview.active_users.date_from} → {overview.active_users.date_to}
             </div>
           )}
         </div>
-        <div className={styles.toolbar}>
-          {PRESETS.map((p) => (
+        {tab !== "needs-attention" && (
+          <div className={styles.toolbar}>
+            {PRESETS.map((p) => (
+              <button
+                key={p.days}
+                type="button"
+                className={days === p.days ? styles.presetBtnActive : styles.presetBtn}
+                onClick={() => {
+                  setDays(p.days);
+                  void load(p.days);
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
             <button
-              key={p.days}
               type="button"
-              className={days === p.days ? styles.presetBtnActive : styles.presetBtn}
-              onClick={() => {
-                setDays(p.days);
-                void load(p.days);
-              }}
+              className={styles.refreshBtn}
+              onClick={() => void load()}
+              disabled={loading}
             >
-              {p.label}
+              {loading ? "Loading…" : "↻ Refresh"}
             </button>
-          ))}
-          <button
-            type="button"
-            className={styles.refreshBtn}
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            {loading ? "Loading…" : "↻ Refresh"}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className={styles.tabBar}>
@@ -414,11 +423,16 @@ export default function ProductAnalyticsDashboard() {
         ))}
       </div>
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {tab !== "needs-attention" && error && (
+        <div className={styles.errorBanner}>{error}</div>
+      )}
 
-      {loading && !overview && (
+      {tab !== "needs-attention" && loading && !overview && (
         <div className={styles.loading}>Loading analytics…</div>
       )}
+
+      {/* Needs attention tab */}
+      {tab === "needs-attention" && <NeedsAttentionPanel />}
 
       {/* Overview tab */}
       {tab === "overview" && overview && (
@@ -712,15 +726,33 @@ export default function ProductAnalyticsDashboard() {
             <StatCard label="Total cost" value={money(tokenSeries.total_cost_usd)} highlight />
             <StatCard label="LLM calls" value={fmt(tokenSeries.llm_call_count)} />
             <StatCard label="Total tokens" value={fmt(tokenSeries.total_tokens)} />
-            <StatCard
-              label="LangSmith"
-              value={health?.langsmith_configured ? "On" : "Off"}
-              sub={health?.langsmith_project ?? "not configured"}
-            />
+            {(tokenSeries.cache_savings_usd ?? 0) > 0 ? (
+              <StatCard
+                label="Prompt-cache savings"
+                value={money(tokenSeries.cache_savings_usd ?? 0)}
+                sub={`${fmt(tokenSeries.total_cache_read_tokens ?? 0)} cached read tokens`}
+                highlight
+              />
+            ) : (
+              <StatCard
+                label="LangSmith"
+                value={health?.langsmith_configured ? "On" : "Off"}
+                sub={health?.langsmith_project ?? "not configured"}
+              />
+            )}
           </div>
           <p className={styles.note}>
             Costs from <code>token_usage_log</code> (first-party). Custom scheduled jobs are attributed by job name;
-            newsletter, chat, and structuring runs use fixed labels.
+            newsletter, chat, and structuring runs use fixed labels.{" "}
+            {(tokenSeries.total_cache_read_tokens ?? 0) > 0 && (
+              <>
+                Prompt caching served{" "}
+                <strong>{fmt(tokenSeries.total_cache_read_tokens ?? 0)}</strong> input tokens from
+                cache (billed 0.10×) and wrote{" "}
+                <strong>{fmt(tokenSeries.total_cache_creation_tokens ?? 0)}</strong> (1.25×), saving{" "}
+                <strong>{money(tokenSeries.cache_savings_usd ?? 0)}</strong> vs. full input price.
+              </>
+            )}
           </p>
           {tokenChart.length > 0 && (
             <div className={styles.section}>
@@ -747,11 +779,13 @@ export default function ProductAnalyticsDashboard() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      {["Model", "Calls", "Tokens in", "Tokens out", "Cost"].map((h, i) => (
-                        <th key={h} className={i > 0 ? styles.thRight : styles.th}>
-                          {h}
-                        </th>
-                      ))}
+                      {["Model", "Calls", "Tokens in", "Cache read", "Tokens out", "Cost"].map(
+                        (h, i) => (
+                          <th key={h} className={i > 0 ? styles.thRight : styles.th}>
+                            {h}
+                          </th>
+                        )
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -760,6 +794,7 @@ export default function ProductAnalyticsDashboard() {
                         <td className={styles.td}>{model}</td>
                         <td className={styles.tdRight}>{fmt(stats.calls)}</td>
                         <td className={styles.tdRight}>{fmt(stats.input_tokens)}</td>
+                        <td className={styles.tdRight}>{fmt(stats.cache_read_tokens ?? 0)}</td>
                         <td className={styles.tdRight}>{fmt(stats.output_tokens)}</td>
                         <td className={styles.tdRight}>{money(stats.cost_usd)}</td>
                       </tr>

@@ -5,43 +5,29 @@ import {
   Fragment,
   useCallback,
   useEffect,
-  useMemo,
+  useRef,
   useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
 } from "react";
 import { toast } from "sonner";
 import {
   adminGenerateSharedNewsletter,
-  deleteResearch,
+  adminGenerateUnifiedNewsletterForCity,
+  adminQueueNewsletterPendingForUser,
+  adminQueueUnifiedNewsletterForUser,
   listCities,
-  listNewsletterReports,
   generateSampleNewsletter,
   listNewsletterPending,
-  listNewsletterSends,
   getNewsletterPendingDetail,
   sendNewsletterPendingBatch,
-  deleteNewsletterEditionsBatch,
   deleteNewsletterPendingBatch,
-  deleteNewsletterSendsBatch,
   archiveNewsletterPendingBatch,
   runScheduleJob,
-  getNewsletterGenerationPreview,
+  typeaheadAdminUsers,
   getAvailableModels,
-  putNewsletterWeeklySeymourModel,
-  listNewsletterEditionsAdmin,
   type CityListItem,
-  type NewsletterReport,
   type NewsletterPendingListItem,
-  type NewsletterSendItem,
-  type NewsletterGenerationPreview,
-  type NewsletterEditionAdminItem,
+  type NewsletterPendingSelection,
 } from "@/lib/apiClient";
-import {
-  listPublicCitiesForSitemap,
-  type PublicCitySitemapItem,
-} from "@/lib/publicApiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "@/components/Loader";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
@@ -52,16 +38,13 @@ import styles from "./NewsletterAdmin.module.css";
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-type TabId = "dashboard" | "browse" | "prompts" | "subscribers";
+type TabId = "dashboard" | "prompts" | "subscribers";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "browse", label: "Browse" },
   { id: "prompts", label: "Prompts" },
   { id: "subscribers", label: "Subscribers" },
 ];
-
-const PAGE_SIZE = 50;
 
 const DEFAULT_WEEKLY_PROMPT = `**This newsletter is for:** {city_name} ({district_label}). All data and comparisons must be for this city only.
 
@@ -209,34 +192,6 @@ function emailUsername(email: string | null | undefined): string {
   return idx > 0 ? email.slice(0, idx) : email;
 }
 
-function daysSince(dateStr?: string | null): number {
-  if (!dateStr) return Infinity;
-  const dt = new Date(dateStr);
-  if (Number.isNaN(dt.getTime())) return Infinity;
-  return Math.floor((Date.now() - dt.getTime()) / (24 * 60 * 60 * 1000));
-}
-
-function freshnessBadge(dateStr?: string | null) {
-  const days = daysSince(dateStr);
-  if (days <= 7) return { cls: styles.badgeGreen, label: "Fresh" };
-  if (days <= 30) return { cls: styles.badgeYellow, label: `${days}d ago` };
-  if (days === Infinity) return { cls: styles.badgeGray, label: "Never" };
-  return { cls: styles.badgeGray, label: `${days}d ago` };
-}
-
-function countWords(html?: string | null): number {
-  if (!html) return 0;
-  const text = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  return text ? text.split(" ").length : 0;
-}
-
-function escapeCSV(value: string): string {
-  if (value.includes('"') || value.includes(",") || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
 function getPromptFromStorage(frequency: string): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(`newsletter-prompt-${frequency}`) || "";
@@ -321,15 +276,6 @@ function LlmUsagePill({
 // ---------------------------------------------------------------------------
 // Types for aggregated city newsletter data
 // ---------------------------------------------------------------------------
-interface CityNewsletterStatus {
-  city: CityListItem;
-  isLaunched: boolean;
-  reports: NewsletterReport[];
-  latestDate: string | null;
-  totalCount: number;
-  districts: Set<string>;
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -342,24 +288,6 @@ export default function NewsletterAdmin() {
 
   // Data
   const [cities, setCities] = useState<CityListItem[]>([]);
-  const [publicCities, setPublicCities] = useState<PublicCitySitemapItem[]>([]);
-  const [cityStatuses, setCityStatuses] = useState<CityNewsletterStatus[]>([]);
-  /** Non-personalized (shared LLM) editions from ``newsletter_editions``, grouped by city_id. */
-  const [editionsByCityId, setEditionsByCityId] = useState<
-    Record<number, NewsletterEditionAdminItem[]>
-  >({});
-
-  // Browse tab
-  const [browseCity, setBrowseCity] = useState<number | null>(null);
-  const [browseDistrict, setBrowseDistrict] = useState<string>("");
-  const [browseFrequency, setBrowseFrequency] = useState<string>("");
-  const [browseSearch, setBrowseSearch] = useState("");
-  const [browseReports, setBrowseReports] = useState<NewsletterReport[]>([]);
-  const [browseLoading, setBrowseLoading] = useState(false);
-  const [browsePage, setBrowsePage] = useState(0);
-  const [expandedReportId, setExpandedReportId] = useState<number | null>(null);
-  const [showExport, setShowExport] = useState(false);
-  const [exportMode, setExportMode] = useState<"full" | "headlines">("full");
 
   // Prompts tab
   const [promptFrequency, setPromptFrequency] = useState<"weekly" | "monthly">("weekly");
@@ -370,22 +298,31 @@ export default function NewsletterAdmin() {
   const [testGenerating, setTestGenerating] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  // Dashboard expanded city
-  const [expandedCityId, setExpandedCityId] = useState<number | null>(null);
-  const [deletingReportIds, setDeletingReportIds] = useState<Set<number>>(new Set());
-  const [deletingEditionIds, setDeletingEditionIds] = useState<Set<number>>(new Set());
-
   // Generate modal
   const [genCityId, setGenCityId] = useState<number | null>(null);
   const [genDistrict, setGenDistrict] = useState("0");
   const [genFrequency, setGenFrequency] = useState<"weekly" | "monthly">("weekly");
   const [genModelKey, setGenModelKey] = useState<string>("");
   const [generating, setGenerating] = useState(false);
-  /** Weekly workload / save UI — shared with generate modal for defaults and options. */
-  const [workloadEstimateModelKey, setWorkloadEstimateModelKey] = useState("");
   const [workloadModelOptions, setWorkloadModelOptions] = useState<
-    Array<{ key: string; name: string }>
+    Array<{ key: string; name: string; isDefault: boolean }>
   >([]);
+
+  useEffect(() => {
+    getAccessTokenSilently()
+      .then((token) => getAvailableModels(token))
+      .then((modelGroups) => {
+        const flat = modelGroups
+          .flatMap((g) =>
+            g.models
+              .filter((m) => m.is_available)
+              .map((m) => ({ key: m.key, name: m.name, isDefault: !!m.is_default }))
+          )
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (flat.length > 0) setWorkloadModelOptions(flat);
+      })
+      .catch(() => {});
+  }, [getAccessTokenSilently]);
 
   // -----------------------------------------------------------------------
   // Load initial data
@@ -395,83 +332,8 @@ export default function NewsletterAdmin() {
       setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
-
-      const [citiesList, publicList, editionsRes] = await Promise.all([
-        listCities(token),
-        listPublicCitiesForSitemap(),
-        listNewsletterEditionsAdmin(token).catch(() => ({ items: [] as NewsletterEditionAdminItem[], count: 0 })),
-      ]);
-
+      const citiesList = await listCities(token);
       setCities(citiesList);
-      setPublicCities(publicList);
-
-      const launchedIds = new Set(
-        publicList.filter((c) => c.is_launched).map((c) => c.id)
-      );
-
-      const byCity: Record<number, NewsletterEditionAdminItem[]> = {};
-      for (const e of editionsRes.items) {
-        if (!launchedIds.has(e.city_id)) continue;
-        if (!byCity[e.city_id]) byCity[e.city_id] = [];
-        byCity[e.city_id].push(e);
-      }
-      for (const k of Object.keys(byCity)) {
-        const id = Number(k);
-        byCity[id].sort((a, b) => {
-          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return tb - ta;
-        });
-      }
-      setEditionsByCityId(byCity);
-
-      // Fetch newsletter status for launched cities (parallel, capped)
-      const launchedCities = citiesList.filter(
-        (c) => launchedIds.has(c.city_id) && c.is_active !== false
-      );
-
-      const statusResults = await Promise.allSettled(
-        launchedCities.map(async (city) => {
-          const reports = await listNewsletterReports(city.city_id, { limit: 50 }, token);
-          const districts = new Set<string>();
-          let latestDate: string | null = null;
-
-          for (const r of reports) {
-            if (r.district) districts.add(r.district);
-            if (r.created_at && (!latestDate || r.created_at > latestDate)) {
-              latestDate = r.created_at;
-            }
-          }
-
-          // Weekly Seymour shared path persists to newsletter_editions, not research_reports.
-          // Merge edition timestamps so "Last Generated" reflects real weekly runs.
-          const cityEditions = byCity[city.city_id] || [];
-          for (const ed of cityEditions) {
-            if (ed.created_at && (!latestDate || ed.created_at > latestDate)) {
-              latestDate = ed.created_at;
-            }
-          }
-
-          return {
-            city,
-            isLaunched: true,
-            reports,
-            latestDate,
-            totalCount: reports.length,
-            districts,
-          } as CityNewsletterStatus;
-        })
-      );
-
-      const statuses: CityNewsletterStatus[] = [];
-      for (const result of statusResults) {
-        if (result.status === "fulfilled") {
-          statuses.push(result.value);
-        }
-      }
-      // Sort by city name
-      statuses.sort((a, b) => a.city.city_name.localeCompare(b.city.city_name));
-      setCityStatuses(statuses);
     } catch (err: any) {
       setError(err?.message || "Failed to load data");
     } finally {
@@ -492,98 +354,6 @@ export default function NewsletterAdmin() {
     setPromptText(saved || defaultPrompt);
     setPromptDirty(false);
   }, [promptFrequency]);
-
-  // -----------------------------------------------------------------------
-  // Browse: fetch reports when filters change
-  // -----------------------------------------------------------------------
-  const loadBrowseReports = useCallback(async () => {
-    if (!browseCity) {
-      setBrowseReports([]);
-      return;
-    }
-    try {
-      setBrowseLoading(true);
-      const token = await getAccessTokenSilently();
-      const opts: { district?: number | null; frequency?: string; limit?: number } = { limit: 200 };
-      if (browseDistrict) opts.district = Number(browseDistrict);
-      if (browseFrequency) opts.frequency = browseFrequency;
-      const reports = await listNewsletterReports(browseCity, opts, token);
-      setBrowseReports(reports);
-      setBrowsePage(0);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load reports");
-    } finally {
-      setBrowseLoading(false);
-    }
-  }, [browseCity, browseDistrict, browseFrequency, getAccessTokenSilently]);
-
-  useEffect(() => {
-    if (activeTab === "browse") {
-      loadBrowseReports();
-    }
-  }, [activeTab, loadBrowseReports]);
-
-  // -----------------------------------------------------------------------
-  // Derived data
-  // -----------------------------------------------------------------------
-  const stats = useMemo(() => {
-    let totalNewsletters = 0;
-    let citiesWithNewsletters = 0;
-    let totalWords = 0;
-    let reportsWithHtml = 0;
-    const now = Date.now();
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    let thisWeek = 0;
-
-    for (const cs of cityStatuses) {
-      totalNewsletters += cs.totalCount;
-      const editionCount = editionsByCityId[cs.city.city_id]?.length ?? 0;
-      if (cs.totalCount > 0 || editionCount > 0) citiesWithNewsletters++;
-      for (const r of cs.reports) {
-        if (r.final_report_html) {
-          const wc = countWords(r.final_report_html);
-          totalWords += wc;
-          reportsWithHtml++;
-        }
-        if (r.created_at) {
-          const d = new Date(r.created_at).getTime();
-          if (!Number.isNaN(d) && d >= weekAgo) thisWeek++;
-        }
-      }
-    }
-
-    for (const editions of Object.values(editionsByCityId)) {
-      for (const ed of editions) {
-        if (ed.created_at) {
-          const d = new Date(ed.created_at).getTime();
-          if (!Number.isNaN(d) && d >= weekAgo) thisWeek++;
-        }
-      }
-    }
-
-    const avgWords = reportsWithHtml > 0 ? Math.round(totalWords / reportsWithHtml) : 0;
-    return { totalNewsletters, citiesWithNewsletters, thisWeek, avgWords, totalCities: cityStatuses.length };
-  }, [cityStatuses, editionsByCityId]);
-
-  // Browse filtered + paginated
-  const filteredBrowse = useMemo(() => {
-    let result = browseReports;
-    if (browseSearch) {
-      const q = browseSearch.toLowerCase();
-      result = result.filter(
-        (r) =>
-          (r.title || "").toLowerCase().includes(q) ||
-          (r.social_summary || "").toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [browseReports, browseSearch]);
-
-  const browseTotalPages = Math.max(1, Math.ceil(filteredBrowse.length / PAGE_SIZE));
-  const pagedBrowse = useMemo(() => {
-    const start = browsePage * PAGE_SIZE;
-    return filteredBrowse.slice(start, start + PAGE_SIZE);
-  }, [filteredBrowse, browsePage]);
 
   // -----------------------------------------------------------------------
   // Handlers
@@ -650,197 +420,6 @@ export default function NewsletterAdmin() {
     }
   }, [testCityId, testDistrict, promptFrequency, promptText, getAccessTokenSilently]);
 
-  const handleDeleteDashboardReport = useCallback(async (cityId: number, report: NewsletterReport) => {
-    const scope =
-      !report.district || report.district === "0"
-        ? "City-wide"
-        : `District ${report.district}`;
-    const confirmed = window.confirm(
-      `Delete this ${scope.toLowerCase()} newsletter?\n\n` +
-      `${report.title || "Untitled"}\n` +
-      "This cannot be undone."
-    );
-    if (!confirmed) return;
-
-    setError(null);
-    setDeletingReportIds((prev) => {
-      const next = new Set(prev);
-      next.add(report.id);
-      return next;
-    });
-
-    try {
-      const token = await getAccessTokenSilently();
-      await deleteResearch(report.id, token);
-
-      setCityStatuses((prev) =>
-        prev.map((cs) => {
-          if (cs.city.city_id !== cityId) return cs;
-          const nextReports = cs.reports.filter((r) => r.id !== report.id);
-          if (nextReports.length === cs.reports.length) return cs;
-
-          const nextDistricts = new Set<string>();
-          let nextLatestDate: string | null = null;
-
-          for (const r of nextReports) {
-            if (r.district) nextDistricts.add(r.district);
-            if (r.created_at && (!nextLatestDate || r.created_at > nextLatestDate)) {
-              nextLatestDate = r.created_at;
-            }
-          }
-
-          const cityEditions = editionsByCityId[cs.city.city_id] || [];
-          for (const ed of cityEditions) {
-            if (ed.created_at && (!nextLatestDate || ed.created_at > nextLatestDate)) {
-              nextLatestDate = ed.created_at;
-            }
-          }
-
-          return {
-            ...cs,
-            reports: nextReports,
-            latestDate: nextLatestDate,
-            totalCount: nextReports.length,
-            districts: nextDistricts,
-          };
-        })
-      );
-      setBrowseReports((prev) => prev.filter((r) => r.id !== report.id));
-      setExpandedReportId((prev) => (prev === report.id ? null : prev));
-      toast.success("Newsletter deleted.");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to delete newsletter";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setDeletingReportIds((prev) => {
-        const next = new Set(prev);
-        next.delete(report.id);
-        return next;
-      });
-    }
-  }, [editionsByCityId, getAccessTokenSilently]);
-
-  const handleDeleteDashboardEdition = useCallback(
-    async (cityId: number, edition: NewsletterEditionAdminItem) => {
-      const scope =
-        edition.district > 0 ? `District ${edition.district}` : "City-wide";
-      const confirmed = window.confirm(
-        `Delete this ${scope.toLowerCase()} shared edition permalink?\n\n` +
-          `${edition.summary_headline || "Untitled"}\n` +
-          "The public newsletter page will no longer be available. This cannot be undone."
-      );
-      if (!confirmed) return;
-
-      setError(null);
-      setDeletingEditionIds((prev) => {
-        const next = new Set(prev);
-        next.add(edition.id);
-        return next;
-      });
-
-      try {
-        const token = await getAccessTokenSilently();
-        const result = await deleteNewsletterEditionsBatch([edition.id], token);
-        if (!result.deleted) {
-          throw new Error("Edition not found or already deleted");
-        }
-
-        setEditionsByCityId((prev) => {
-          const cityEditions = prev[cityId];
-          if (!cityEditions) return prev;
-          const nextEditions = cityEditions.filter((e) => e.id !== edition.id);
-          if (nextEditions.length === cityEditions.length) return prev;
-          return { ...prev, [cityId]: nextEditions };
-        });
-
-        setCityStatuses((prev) =>
-          prev.map((cs) => {
-            if (cs.city.city_id !== cityId) return cs;
-            const remainingEditions = (editionsByCityId[cityId] || []).filter(
-              (e) => e.id !== edition.id
-            );
-            let nextLatestDate: string | null = null;
-
-            for (const r of cs.reports) {
-              if (r.created_at && (!nextLatestDate || r.created_at > nextLatestDate)) {
-                nextLatestDate = r.created_at;
-              }
-            }
-            for (const ed of remainingEditions) {
-              if (ed.created_at && (!nextLatestDate || ed.created_at > nextLatestDate)) {
-                nextLatestDate = ed.created_at;
-              }
-            }
-
-            return { ...cs, latestDate: nextLatestDate };
-          })
-        );
-        toast.success("Shared edition deleted.");
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Failed to delete shared edition";
-        setError(message);
-        toast.error(message);
-      } finally {
-        setDeletingEditionIds((prev) => {
-          const next = new Set(prev);
-          next.delete(edition.id);
-          return next;
-        });
-      }
-    },
-    [editionsByCityId, getAccessTokenSilently]
-  );
-
-  const handleExport = useCallback(() => {
-    const toExport = filteredBrowse;
-    const city = cities.find((c) => c.city_id === browseCity);
-    const cityLabel = city?.city_name || "all";
-
-    if (exportMode === "headlines") {
-      const header = "date,city,district,title,frequency";
-      const rows = toExport.map((r) =>
-        [
-          escapeCSV(r.created_at || ""),
-          escapeCSV(cityLabel),
-          escapeCSV(r.district || "city-wide"),
-          escapeCSV(r.title || ""),
-          escapeCSV(r.frequency || ""),
-        ].join(",")
-      );
-      downloadCSV([header, ...rows].join("\n"), `newsletter-headlines-${cityLabel}`);
-    } else {
-      const header = "date,city,district,title,frequency,word_count,summary,url";
-      const rows = toExport.map((r) =>
-        [
-          escapeCSV(r.created_at || ""),
-          escapeCSV(cityLabel),
-          escapeCSV(r.district || "city-wide"),
-          escapeCSV(r.title || ""),
-          escapeCSV(r.frequency || ""),
-          String(countWords(r.final_report_html)),
-          escapeCSV(r.social_summary || ""),
-          escapeCSV(r.public_url || ""),
-        ].join(",")
-      );
-      downloadCSV([header, ...rows].join("\n"), `newsletters-${cityLabel}`);
-    }
-    setShowExport(false);
-  }, [filteredBrowse, browseCity, cities, exportMode]);
-
-  function downloadCSV(csv: string, prefix: string) {
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
@@ -875,52 +454,7 @@ export default function NewsletterAdmin() {
       )}
 
       {/* Dashboard Tab */}
-      {activeTab === "dashboard" && (
-        <DashboardTab
-          stats={stats}
-          cityStatuses={cityStatuses}
-          editionsByCityId={editionsByCityId}
-          expandedCityId={expandedCityId}
-          workloadEstimateModelKey={workloadEstimateModelKey}
-          setWorkloadEstimateModelKey={setWorkloadEstimateModelKey}
-          workloadModelOptions={workloadModelOptions}
-          setWorkloadModelOptions={setWorkloadModelOptions}
-          deletingReportIds={deletingReportIds}
-          deletingEditionIds={deletingEditionIds}
-          onToggleExpand={(id) => setExpandedCityId(expandedCityId === id ? null : id)}
-          onGenerate={(cityId) => {
-            setGenCityId(cityId);
-            setGenModelKey(workloadEstimateModelKey);
-          }}
-          onDeleteReport={handleDeleteDashboardReport}
-          onDeleteEdition={handleDeleteDashboardEdition}
-        />
-      )}
-
-      {/* Browse Tab */}
-      {activeTab === "browse" && (
-        <BrowseTab
-          cities={cities}
-          cityStatuses={cityStatuses}
-          browseCity={browseCity}
-          browseDistrict={browseDistrict}
-          browseFrequency={browseFrequency}
-          browseSearch={browseSearch}
-          browseLoading={browseLoading}
-          pagedReports={pagedBrowse}
-          filteredCount={filteredBrowse.length}
-          page={browsePage}
-          totalPages={browseTotalPages}
-          expandedReportId={expandedReportId}
-          onCityChange={(id) => { setBrowseCity(id); setBrowsePage(0); }}
-          onDistrictChange={setBrowseDistrict}
-          onFrequencyChange={setBrowseFrequency}
-          onSearchChange={setBrowseSearch}
-          onPageChange={setBrowsePage}
-          onToggleExpand={(id) => setExpandedReportId(expandedReportId === id ? null : id)}
-          onExport={() => setShowExport(true)}
-        />
-      )}
+      {activeTab === "dashboard" && <DashboardTab cities={cities} />}
 
       {activeTab === "prompts" && <NewsletterAdminPromptsTab />}
 
@@ -979,6 +513,7 @@ export default function NewsletterAdmin() {
                 {workloadModelOptions.map((m) => (
                   <option key={m.key} value={m.key}>
                     {m.name}
+                    {m.isDefault ? " (default)" : ""}
                   </option>
                 ))}
               </select>
@@ -994,34 +529,6 @@ export default function NewsletterAdmin() {
               <button className={styles.primaryBtn} onClick={handleGenerate} disabled={generating}>
                 {generating ? "Generating..." : "Generate shared"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Export Modal */}
-      {showExport && (
-        <div className={styles.exportOverlay} onClick={() => setShowExport(false)}>
-          <div className={styles.exportPanel} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.exportTitle}>Export Newsletters</div>
-            <div className={styles.exportField}>
-              <label className={styles.exportLabel}>Export Type</label>
-              <select
-                className={styles.select}
-                value={exportMode}
-                onChange={(e) => setExportMode(e.target.value as "full" | "headlines")}
-                style={{ width: "100%" }}
-              >
-                <option value="full">Full Data (with word count, summary, URL)</option>
-                <option value="headlines">Headlines Only</option>
-              </select>
-            </div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
-              {filteredBrowse.length} newsletter{filteredBrowse.length !== 1 ? "s" : ""} will be exported
-            </div>
-            <div className={styles.exportActions}>
-              <button className={styles.secondaryBtn} onClick={() => setShowExport(false)}>Cancel</button>
-              <button className={styles.primaryBtn} onClick={handleExport}>Export CSV</button>
             </div>
           </div>
         </div>
@@ -1068,341 +575,488 @@ function newsletterScopeLabel(item: NewsletterPendingListItem): string {
   return dt || geographicNewsletterScopeLabel(item.district);
 }
 
-function NewsletterCustomInstructionsCell({ row }: { row: NewsletterPendingListItem }) {
-  const has = Boolean(row.has_custom_instructions);
-  return (
-    <td
-      className={styles.td}
-      style={{ textAlign: "center", verticalAlign: "middle" }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <input
-        type="checkbox"
-        checked={has}
-        disabled
-        title={
-          has
-            ? "Subscriber has custom newsletter instructions (profile)"
-            : "No custom instructions on file for this email"
-        }
-        aria-label={has ? "Has custom instructions" : "No custom instructions"}
-      />
-    </td>
-  );
+const SELECTION_SLOT_LABELS: Record<string, string> = {
+  place_lead: "Saved place",
+  anomaly_or_event: "Anomaly / event",
+  district: "District",
+  citywide: "Citywide",
+};
+
+function formatSelectionScore(finalScore: number, personalizationScore: number, multiplier?: number): string {
+  const base = `${Math.round(finalScore)} \u2192 ${Math.round(personalizationScore)}`;
+  if (multiplier != null && Math.abs(multiplier - 1) > 0.001) {
+    return `${base} (\u00d7${multiplier.toFixed(2)})`;
+  }
+  return base;
 }
 
-function formatWorkloadMoneyUsd(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return "\u2014";
-  if (n < 0.005) return "<$0.01";
-  return `$${n.toFixed(2)}`;
-}
+type SelectionCandidateFilter = "all" | "chosen" | "not_chosen";
 
-function WorkloadCard({
-  label,
-  value,
-  sub,
-  accent,
+/**
+ * Admin-only story-selection panel shown above the email preview for
+ * unified-pipeline drafts: full scored candidate list, the slate handed to
+ * the LLM, and which stories the submitted plan actually used.
+ */
+function NewsletterSelectionPanel({
+  selection,
 }: {
-  label: string;
-  value: number;
-  sub: string;
-  accent?: boolean;
+  selection: NewsletterPendingSelection;
 }) {
+  // Open by default so admins see why a story led without an extra click.
+  const [open, setOpen] = useState(true);
+  const [candidateFilter, setCandidateFilter] =
+    useState<SelectionCandidateFilter>("all");
+  const ps = selection.pool_stats || {};
+  const candidates = selection.scored_candidates || [];
+  const usedCount = selection.sections.filter((s) => s.used).length;
+  const recipientDistrict =
+    selection.recipient_district != null && selection.recipient_district > 0
+      ? selection.recipient_district
+      : null;
+
+  const chosenCandidates = candidates.filter(
+    (c) => Boolean(c.selected_slot) || Boolean(c.used),
+  );
+  const notChosenCandidates = candidates.filter(
+    (c) => !c.selected_slot && !c.used,
+  );
+  const visibleCandidates =
+    candidateFilter === "chosen"
+      ? chosenCandidates
+      : candidateFilter === "not_chosen"
+        ? notChosenCandidates
+        : candidates;
+
+  const summaryParts: string[] = [];
+  if (recipientDistrict != null) {
+    summaryParts.push(`recipient D${recipientDistrict}`);
+  }
+  if (ps.candidates_total != null) {
+    summaryParts.push(`${ps.candidates_total} candidates scored`);
+  }
+  if (candidates.length > 0) {
+    summaryParts.push(
+      `${chosenCandidates.length} chosen · ${notChosenCandidates.length} not chosen`,
+    );
+  }
+  if (ps.deduped_recent) {
+    summaryParts.push(`${ps.deduped_recent} skipped (sent recently)`);
+  }
+  summaryParts.push(`slate of ${selection.sections.length}`);
+  summaryParts.push(`${usedCount} used in email`);
+
+  const poolBreakdown = [
+    ["place", ps.place_pool],
+    ["anomaly/event", ps.anomaly_pool],
+    ["district", ps.district_pool],
+    ["citywide", ps.citywide_pool],
+  ]
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => `${k} ${v}`)
+    .join(" · ");
+
+  const filterBtn = (id: SelectionCandidateFilter, label: string) => {
+    const active = candidateFilter === id;
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => setCandidateFilter(id)}
+        style={{
+          padding: "2px 8px",
+          fontSize: 11,
+          borderRadius: 4,
+          border: active
+            ? "1px solid var(--text-primary, #111)"
+            : "1px solid var(--border-primary, #e5e7eb)",
+          background: active
+            ? "var(--bg-primary, #fff)"
+            : "transparent",
+          cursor: "pointer",
+          fontWeight: active ? 700 : 400,
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+
   return (
     <div
       style={{
-        background: accent ? "var(--brand-primary-faint, rgba(173,53,250,0.06))" : "var(--bg-subtle, #f9fafb)",
-        border: `1px solid ${accent ? "var(--brand-primary-light, #e9c6ff)" : "var(--border-color, #e5e7eb)"}`,
-        borderRadius: 6,
-        padding: "8px 12px",
+        margin: "0 0 12px",
+        border: "1px solid var(--border-primary, #e5e7eb)",
+        borderRadius: 8,
+        background: "var(--bg-secondary, #f9fafb)",
+        fontSize: 12,
       }}
     >
-      <div style={{ fontSize: 18, fontWeight: 700, color: accent ? "var(--brand-primary, #ad35fa)" : "var(--text-primary)" }}>
-        {value.toLocaleString()}
-      </div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>{sub}</div>
-    </div>
-  );
-}
-
-function WaterfallRow({
-  indent = 0,
-  connector,
-  label,
-  count,
-  badge,
-  badgeColor,
-  muted,
-  children,
-}: {
-  indent?: number;
-  connector?: "branch" | "last";
-  label: ReactNode;
-  count?: number | null;
-  badge?: string;
-  badgeColor?: string;
-  muted?: boolean;
-  children?: ReactNode;
-}) {
-  const INDENT_PX = 20;
-  return (
-    <div style={{ marginLeft: indent * INDENT_PX }}>
-      <div
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
         style={{
           display: "flex",
           alignItems: "baseline",
           gap: 8,
+          width: "100%",
+          padding: "8px 12px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
           fontSize: 12,
-          lineHeight: 1.5,
-          color: muted ? "var(--text-tertiary, #9ca3af)" : "var(--text-primary)",
         }}
       >
-        {connector && (
-          <span style={{ color: "var(--text-tertiary, #9ca3af)", fontFamily: "monospace", flexShrink: 0, fontSize: 11 }}>
-            {connector === "branch" ? "├─" : "└─"}
-          </span>
-        )}
-        <span style={{ fontWeight: muted ? 400 : 500 }}>{label}</span>
-        {count != null && (
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: 13,
-              color: muted ? "var(--text-tertiary, #9ca3af)" : "var(--text-primary)",
-              minWidth: 28,
-            }}
-          >
-            {count.toLocaleString()}
-          </span>
-        )}
-        {badge && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: "0.03em",
-              background: `${badgeColor ?? "var(--text-tertiary, #9ca3af)"}22`,
-              color: badgeColor ?? "var(--text-secondary)",
-              border: `1px solid ${badgeColor ?? "var(--border-color, #e5e7eb)"}`,
-              borderRadius: 3,
-              padding: "1px 5px",
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-            }}
-          >
-            {badge}
-          </span>
-        )}
-      </div>
-      {children && <div style={{ marginTop: 2 }}>{children}</div>}
-    </div>
-  );
-}
-
-function WorkloadWaterfall({ workload }: { workload: NewsletterGenerationPreview }) {
-  const ex = workload.exclusion_summary ?? {};
-  const totalUsers = workload.total_active_users ?? null;
-  const noAccountSub = workload.users_without_any_subscription ?? null;
-  const anySubCount = ex.distinct_emails_any_city ?? null;
-  const excludedLaunched = ex.excluded_from_pipeline_launched_cohort ?? 0;
-  const onlyNonLaunched = ex.distinct_emails_only_non_launched_cities ?? 0;
-  const totalExcluded = excludedLaunched + onlyNonLaunched;
-  const inPipeline = ex.included_distinct_emails ?? (workload.total_pipeline_recipients ?? workload.total_weekly_recipients);
-  const personalized = workload.personalized_recipients;
-  const sharedRecipients = workload.shared_recipients;
-  const sharedGroups = workload.shared_llm_calls_planned;
-
-  const PURPLE = "var(--brand-primary, #ad35fa)";
-  const BLUE = "#2563eb";
-  const GREEN = "var(--green, #16a34a)";
-  const GRAY = "var(--text-tertiary, #9ca3af)";
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* ── Main waterfall: root = newsletter subscribers ──────────── */}
-      <div
-        style={{
-          border: "1px solid var(--border-color, #e5e7eb)",
-          borderRadius: 8,
-          padding: "12px 14px",
-          background: "var(--bg-subtle, #f9fafb)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-        }}
-      >
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-          Subscriber waterfall — token distribution
-        </div>
-
-        {/* Root: total subscribers */}
-        <WaterfallRow
-          label="Subscribers (any city, this frequency)"
-          count={anySubCount}
-        >
-          {/* Excluded */}
-          {totalExcluded > 0 && (
-            <WaterfallRow
-              indent={1}
-              connector="branch"
-              label="Excluded from this run"
-              count={totalExcluded}
-              badge="no email · 0 LLM"
-              badgeColor={GRAY}
-              muted
+        <span style={{ fontWeight: 700 }}>
+          {open ? "\u25BC" : "\u25B6"} Story selection
+        </span>
+        <span style={{ color: "var(--text-secondary, #6b7280)" }}>
+          {summaryParts.join(" \u2192 ")}
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: "0 12px 10px" }}>
+          {poolBreakdown && (
+            <div
+              style={{
+                color: "var(--text-secondary, #6b7280)",
+                margin: "0 0 8px",
+              }}
             >
-              {onlyNonLaunched > 0 && (
-                <WaterfallRow
-                  indent={1}
-                  connector="branch"
-                  label="Only subscribed to non-launched cities"
-                  count={onlyNonLaunched}
-                  muted
-                />
-              )}
-              {excludedLaunched > 0 && (
-                <WaterfallRow
-                  indent={1}
-                  connector="last"
-                  label="Subscribed to launched city but no active account"
-                  count={excludedLaunched}
-                  muted
-                />
-              )}
-            </WaterfallRow>
+              Candidate pools: {poolBreakdown}
+            </div>
           )}
 
-          {/* In this run */}
-          <WaterfallRow
-            indent={1}
-            connector="last"
-            label={<strong>In this run</strong>}
-            count={inPipeline}
-            badge={`${workload.total_llm_calls_planned} LLM run${workload.total_llm_calls_planned !== 1 ? "s" : ""}`}
-            badgeColor={GREEN}
-          >
-            {/* Personalized */}
-            <WaterfallRow
-              indent={1}
-              connector="branch"
-              label="Personalized email"
-              count={personalized}
-              badge={`${personalized} LLM run${personalized !== 1 ? "s" : ""} · 1 per subscriber`}
-              badgeColor={PURPLE}
-            />
-
-            {/* Shared */}
-            <WaterfallRow
-              indent={1}
-              connector="last"
-              label="Shared email"
-              count={sharedRecipients}
-              badge={`${sharedGroups} LLM run${sharedGroups !== 1 ? "s" : ""} · 1 per group`}
-              badgeColor={BLUE}
-            >
-              {workload.shared_groups_per_city.length > 0 && (
-                <div style={{ marginLeft: 20, marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
-                  {workload.shared_groups_per_city.map((city, ci) => {
-                    const isLast = ci === workload.shared_groups_per_city.length - 1;
-                    return (
-                      <div key={city.city_id}>
-                        <WaterfallRow
-                          connector={isLast ? "last" : "branch"}
-                          label={<span style={{ fontWeight: 600 }}>{city.city_name}</span>}
-                          count={city.shared_recipients}
-                          badge={`${city.shared_groups} group${city.shared_groups !== 1 ? "s" : ""}`}
-                          badgeColor={BLUE}
-                        >
-                          {city.group_details && city.group_details.length > 0 && (
-                            <div style={{ marginLeft: 20, display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
-                              {city.group_details.map((g, gi) => {
-                                const isLastGroup = gi === (city.group_details?.length ?? 0) - 1;
-                                return (
-                                  <WaterfallRow
-                                    key={g.district}
-                                    connector={isLastGroup ? "last" : "branch"}
-                                    label={g.district === 0 ? "Whole city (no district)" : `District ${g.district}`}
-                                    count={g.recipients}
-                                    badge={`${g.recipients} recipient${g.recipients !== 1 ? "s" : ""} share 1 LLM run`}
-                                    badgeColor={BLUE}
-                                    muted={false}
-                                  />
-                                );
-                              })}
-                            </div>
-                          )}
-                        </WaterfallRow>
-                      </div>
-                    );
-                  })}
+          {candidates.length > 0 ? (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  margin: "0 0 4px",
+                }}
+              >
+                <div style={{ fontWeight: 700 }}>Scored candidates</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {filterBtn("all", `All (${candidates.length})`)}
+                  {filterBtn("chosen", `Chosen (${chosenCandidates.length})`)}
+                  {filterBtn(
+                    "not_chosen",
+                    `Not chosen (${notChosenCandidates.length})`,
+                  )}
                 </div>
-              )}
-            </WaterfallRow>
-          </WaterfallRow>
-        </WaterfallRow>
-      </div>
+              </div>
+              <div
+                style={{
+                  color: "var(--text-secondary, #6b7280)",
+                  margin: "0 0 6px",
+                }}
+              >
+                Ranked by personalization score. Selected-for-slate rows first.
+                Score = story final \u2192 after geo/interest multiplier.
+                {selection.scored_candidates_source === "live"
+                  ? " List re-scored live (this draft predated full candidate storage)."
+                  : null}
+              </div>
+              <div
+                style={{
+                  maxHeight: 420,
+                  overflow: "auto",
+                  marginBottom: 12,
+                  border: "1px solid var(--border-primary, #e5e7eb)",
+                  borderRadius: 6,
+                  background: "var(--bg-primary, #fff)",
+                }}
+              >
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr
+                      style={{
+                        textAlign: "left",
+                        color: "var(--text-secondary, #6b7280)",
+                        position: "sticky",
+                        top: 0,
+                        background: "var(--bg-primary, #fff)",
+                      }}
+                    >
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>#</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>Story</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>D</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>Type</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>Eligible</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>Score</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>Slate</th>
+                      <th style={{ padding: "6px 8px 4px", fontWeight: 600 }}>Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleCandidates.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            padding: "10px 8px",
+                            color: "var(--text-secondary, #6b7280)",
+                          }}
+                        >
+                          No stories in this filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleCandidates.map((c, idx) => {
+                        const isRecipientDistrict =
+                          recipientDistrict != null &&
+                          c.district === recipientDistrict;
+                        const rowOpacity = c.deduped
+                          ? 0.45
+                          : c.selected_slot || c.used
+                            ? 1
+                            : 0.7;
+                        return (
+                          <tr
+                            key={`${c.story_id}-${idx}`}
+                            style={{
+                              borderTop:
+                                "1px solid var(--border-primary, #e5e7eb)",
+                              opacity: rowOpacity,
+                              background:
+                                c.used_as === "lead"
+                                  ? "rgba(34, 197, 94, 0.12)"
+                                  : c.selected_slot
+                                    ? "rgba(59, 130, 246, 0.08)"
+                                    : undefined,
+                            }}
+                          >
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                color: "var(--text-secondary, #9ca3af)",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {idx + 1}
+                            </td>
+                            <td style={{ padding: "4px 8px" }}>
+                              {c.short_hash ? (
+                                <a
+                                  href={`/s/${c.short_hash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: "inherit",
+                                    textDecoration: "underline",
+                                  }}
+                                >
+                                  {c.headline || `Story ${c.story_id}`}
+                                </a>
+                              ) : (
+                                c.headline || `Story ${c.story_id}`
+                              )}
+                              <span
+                                style={{
+                                  color: "var(--text-secondary, #9ca3af)",
+                                  marginLeft: 6,
+                                }}
+                              >
+                                #{c.story_id}
+                              </span>
+                              {c.deduped ? (
+                                <span
+                                  style={{
+                                    marginLeft: 6,
+                                    color: "var(--text-secondary, #9ca3af)",
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  (sent recently)
+                                </span>
+                              ) : null}
+                            </td>
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                whiteSpace: "nowrap",
+                                fontWeight: isRecipientDistrict ? 700 : 400,
+                              }}
+                              title={
+                                isRecipientDistrict
+                                  ? "Matches recipient district"
+                                  : undefined
+                              }
+                            >
+                              {c.district > 0 ? c.district : "\u2014"}
+                            </td>
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {c.story_type || "\u2014"}
+                            </td>
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                whiteSpace: "nowrap",
+                                fontSize: 11,
+                              }}
+                            >
+                              {(c.eligible_slots || [])
+                                .map((s) => SELECTION_SLOT_LABELS[s] || s)
+                                .join(", ") || "\u2014"}
+                            </td>
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                whiteSpace: "nowrap",
+                              }}
+                              title="final score → personalized score (× multiplier)"
+                            >
+                              {formatSelectionScore(
+                                c.final_score,
+                                c.personalization_score,
+                                c.multiplier,
+                              )}
+                            </td>
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {c.selected_slot
+                                ? SELECTION_SLOT_LABELS[c.selected_slot] ||
+                                  c.selected_slot
+                                : "\u2014"}
+                            </td>
+                            <td
+                              style={{
+                                padding: "4px 8px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {c.used_as === "lead"
+                                ? "LEAD"
+                                : c.used_as === "card"
+                                  ? "Card"
+                                  : "\u2014"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                color: "var(--text-secondary, #6b7280)",
+                margin: "0 0 8px",
+              }}
+            >
+              Full scored list unavailable for this draft. Slate only:
+            </div>
+          )}
 
-      {/* ── Platform account context (separate callout) ─────────────── */}
-      {(totalUsers != null || noAccountSub != null) && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            fontSize: 12,
-            color: "var(--text-secondary)",
-          }}
-        >
-          {totalUsers != null && (
-            <span
-              style={{
-                background: "var(--bg-canvas, #fff)",
-                border: "1px solid var(--border-color, #e5e7eb)",
-                borderRadius: 5,
-                padding: "4px 10px",
-              }}
-            >
-              <strong style={{ color: "var(--text-primary)" }}>{totalUsers.toLocaleString()}</strong> active platform account{totalUsers !== 1 ? "s" : ""}
-            </span>
-          )}
-          {noAccountSub != null && (
-            <span
-              style={{
-                background: "var(--bg-canvas, #fff)",
-                border: "1px solid var(--border-color, #e5e7eb)",
-                borderRadius: 5,
-                padding: "4px 10px",
-              }}
-            >
-              <strong style={{ color: "var(--text-primary)" }}>{noAccountSub.toLocaleString()}</strong> account{noAccountSub !== 1 ? "s" : ""} with no newsletter subscription
-            </span>
-          )}
+          <div style={{ fontWeight: 700, margin: "0 0 4px" }}>
+            Slate handed to LLM
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr
+                style={{
+                  textAlign: "left",
+                  color: "var(--text-secondary, #6b7280)",
+                }}
+              >
+                <th style={{ padding: "2px 8px 4px 0", fontWeight: 600 }}>Slot</th>
+                <th style={{ padding: "2px 8px 4px 0", fontWeight: 600 }}>Story</th>
+                <th style={{ padding: "2px 8px 4px 0", fontWeight: 600 }}>D</th>
+                <th style={{ padding: "2px 8px 4px 0", fontWeight: 600 }}>Type</th>
+                <th style={{ padding: "2px 8px 4px 0", fontWeight: 600 }}>Score</th>
+                <th style={{ padding: "2px 0 4px 0", fontWeight: 600 }}>Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selection.sections.map((s) => (
+                <tr
+                  key={s.story_id}
+                  style={{
+                    borderTop: "1px solid var(--border-primary, #e5e7eb)",
+                    opacity: s.used ? 1 : 0.55,
+                  }}
+                >
+                  <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}>
+                    {SELECTION_SLOT_LABELS[s.slot] || s.slot}
+                  </td>
+                  <td style={{ padding: "4px 8px 4px 0" }}>
+                    {s.short_hash ? (
+                      <a
+                        href={`/s/${s.short_hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "inherit", textDecoration: "underline" }}
+                      >
+                        {s.headline || `Story ${s.story_id}`}
+                      </a>
+                    ) : (
+                      s.headline || `Story ${s.story_id}`
+                    )}
+                    <span
+                      style={{
+                        color: "var(--text-secondary, #9ca3af)",
+                        marginLeft: 6,
+                      }}
+                    >
+                      #{s.story_id}
+                    </span>
+                  </td>
+                  <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}>
+                    {s.district != null && s.district > 0 ? s.district : "\u2014"}
+                  </td>
+                  <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}>
+                    {s.story_type || "\u2014"}
+                  </td>
+                  <td
+                    style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}
+                    title="final score → personalized score"
+                  >
+                    {formatSelectionScore(s.final_score, s.personalization_score)}
+                  </td>
+                  <td style={{ padding: "4px 0", whiteSpace: "nowrap" }}>
+                    {s.used_as === "lead"
+                      ? "LEAD"
+                      : s.used_as === "card"
+                        ? "Card"
+                        : "\u2014"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
 
-function NewsletterDashboardQueue({
-  workloadEstimateModelKey,
-  setWorkloadEstimateModelKey,
-  workloadModelOptions,
-  setWorkloadModelOptions,
-}: {
-  workloadEstimateModelKey: string;
-  setWorkloadEstimateModelKey: Dispatch<SetStateAction<string>>;
-  workloadModelOptions: Array<{ key: string; name: string }>;
-  setWorkloadModelOptions: Dispatch<SetStateAction<Array<{ key: string; name: string }>>>;
-}) {
+type SearchSuggestion =
+  | { kind: "city"; cityId: number; label: string; sublabel: string }
+  | { kind: "user"; userId: number; email: string; label: string; sublabel: string };
+
+type SearchSelection =
+  | { kind: "city"; cityId: number; label: string }
+  | { kind: "user"; userId: number; email: string; label: string };
+
+function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const { getAccessTokenSilently } = useAuth0();
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
-  const [archive, setArchive] = useState<NewsletterPendingListItem[]>([]);
-  const [directSends, setDirectSends] = useState<NewsletterSendItem[]>([]);
-  const [pendingOpen, setPendingOpen] = useState(false);
-  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(true);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [runBusy, setRunBusy] = useState(false);
@@ -1411,38 +1065,41 @@ function NewsletterDashboardQueue({
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewPublicUrl, setPreviewPublicUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewSelection, setPreviewSelection] =
+    useState<NewsletterPendingSelection | null>(null);
 
-  // Archive preview state (shared between queue archive + direct-send archive)
-  // Key format: "q-{id}" for queue archive rows, "d-{id}" for direct-send rows
-  const [archiveExpandedKey, setArchiveExpandedKey] = useState<string | null>(null);
-  const [archivePreviewHtml, setArchivePreviewHtml] = useState<string | null>(null);
-  const [archivePreviewPublicUrl, setArchivePreviewPublicUrl] = useState<string | null>(
-    null
-  );
-  const [archivePreviewLoading, setArchivePreviewLoading] = useState(false);
+  // Search (replaces archive)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [searchSelection, setSearchSelection] = useState<SearchSelection | null>(null);
+  const [searchResults, setSearchResults] = useState<NewsletterPendingListItem[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchExpandedId, setSearchExpandedId] = useState<number | null>(null);
+  const [searchPreviewHtml, setSearchPreviewHtml] = useState<string | null>(null);
+  const [searchPreviewPublicUrl, setSearchPreviewPublicUrl] = useState<string | null>(null);
+  const [searchPreviewLoading, setSearchPreviewLoading] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
 
-  // Workload preview
-  const [workload, setWorkload] = useState<NewsletterGenerationPreview | null>(null);
-  const [workloadLoading, setWorkloadLoading] = useState(true);
-  const [workloadOpen, setWorkloadOpen] = useState(false);
-  const [workloadFrequency, setWorkloadFrequency] = useState<"weekly" | "monthly">("weekly");
-  const [saveNewsletterModelBusy, setSaveNewsletterModelBusy] = useState(false);
-  const previewModalOpen = expandedId !== null || archiveExpandedKey !== null;
+  // Generate from search selection
+  const [searchGenDistrict, setSearchGenDistrict] = useState("0");
+  const [searchGenFrequency, setSearchGenFrequency] = useState<"weekly" | "monthly">("weekly");
+  const [searchGenCityId, setSearchGenCityId] = useState<number | null>(null);
+  const [searchGenModelKey, setSearchGenModelKey] = useState("");
+  const [searchGenModelOptions, setSearchGenModelOptions] = useState<
+    Array<{ key: string; name: string }>
+  >([]);
+  const [searchGenBusy, setSearchGenBusy] = useState(false);
+
+  const previewModalOpen = expandedId !== null || searchExpandedId !== null;
 
   const loadAll = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAccessTokenSilently();
-      const [u, a, sends] = await Promise.all([
-        listNewsletterPending(token, { unsent_only: true, limit: 200 }),
-        listNewsletterPending(token, { sent_only: true, limit: 200 }),
-        listNewsletterSends(token, { limit: 500 }),
-      ]);
+      const u = await listNewsletterPending(token, { unsent_only: true, limit: 200 });
       setPending(u.items);
-      setArchive(a.items);
-      // Show only direct system sends (not via the admin review queue) so there
-      // is no duplication with the queue archive shown directly above.
-      setDirectSends(sends.items.filter((s) => !s.via_queue));
       setSelected(new Set(u.items.map((x) => x.id)));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load newsletter queue");
@@ -1451,75 +1108,251 @@ function NewsletterDashboardQueue({
     }
   }, [getAccessTokenSilently]);
 
-  const loadWorkload = useCallback(
-    async (previewModelKeyOverride?: string) => {
-      try {
-        setWorkloadLoading(true);
-        const token = await getAccessTokenSilently();
-        const mkSource =
-          previewModelKeyOverride !== undefined
-            ? previewModelKeyOverride
-            : workloadEstimateModelKey;
-        const mk = mkSource.trim();
-        const [preview, modelGroups] = await Promise.all([
-          getNewsletterGenerationPreview(token, {
-            frequency: workloadFrequency,
-            ...(mk ? { model_key: mk } : {}),
-          }),
-          getAvailableModels(token).catch(() => []),
-        ]);
-        setWorkload(preview);
-        const flat = modelGroups
-          .flatMap((g) =>
-            g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
-          )
-          .sort((a, b) => a.name.localeCompare(b.name));
-        if (flat.length > 0) {
-          setWorkloadModelOptions(flat);
-        }
-      } catch {
-        // Non-critical; don't toast — show fallback UI
-      } finally {
-        setWorkloadLoading(false);
-      }
-    },
-    [getAccessTokenSilently, workloadFrequency, workloadEstimateModelKey]
-  );
-
-  const handleSaveWeeklyNewsletterModel = async () => {
-    setSaveNewsletterModelBusy(true);
-    try {
-      const token = await getAccessTokenSilently();
-      const res = await putNewsletterWeeklySeymourModel(workloadEstimateModelKey, token);
-      const nextKey = res.newsletter_seymour_model_key ?? "";
-      setWorkloadEstimateModelKey(nextKey);
-      toast.success(
-        res.newsletter_seymour_model_key
-          ? `Weekly newsletter job will use ${res.newsletter_seymour_model_key}.`
-          : "Saved: weekly job will use AGENT_MODEL (override cleared)."
-      );
-      await loadWorkload(nextKey);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to save newsletter model");
-    } finally {
-      setSaveNewsletterModelBusy(false);
-    }
-  };
-
-  const newsletterModelSaveMatchesServer = useMemo(() => {
-    if (!workload) return true;
-    const desired = workloadEstimateModelKey.trim() || null;
-    const saved = workload.saved_newsletter_seymour_model_key ?? null;
-    return desired === saved;
-  }, [workload, workloadEstimateModelKey]);
-
   useEffect(() => {
     loadAll();
   }, [loadAll]);
 
   useEffect(() => {
-    loadWorkload();
-  }, [loadWorkload]);
+    getAccessTokenSilently()
+      .then((token) => getAvailableModels(token))
+      .then((modelGroups) => {
+        const flat = modelGroups
+          .flatMap((g) =>
+            g.models.filter((m) => m.is_available).map((m) => ({ key: m.key, name: m.name }))
+          )
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (flat.length > 0) setSearchGenModelOptions(flat);
+      })
+      .catch(() => {});
+  }, [getAccessTokenSilently]);
+
+  useEffect(() => {
+    if (searchSelection?.kind === "city") {
+      setSearchGenCityId(searchSelection.cityId);
+    }
+  }, [searchSelection]);
+
+  // Close suggestion dropdown on outside click
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!searchWrapRef.current?.contains(e.target as Node)) {
+        setSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  // Debounced typeahead: cities (local) + users (API)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2 || searchSelection) {
+      setSuggestions([]);
+      setSuggestionsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSuggestionsLoading(true);
+    const timer = window.setTimeout(async () => {
+      const ql = q.toLowerCase();
+      const cityHits: SearchSuggestion[] = cities
+        .filter(
+          (c) =>
+            c.city_name.toLowerCase().includes(ql) ||
+            (c.state || "").toLowerCase().includes(ql)
+        )
+        .slice(0, 6)
+        .map((c) => ({
+          kind: "city" as const,
+          cityId: c.city_id,
+          label: c.city_name,
+          sublabel: c.state ? `${c.state} · city` : "city",
+        }));
+
+      let userHits: SearchSuggestion[] = [];
+      try {
+        const token = await getAccessTokenSilently();
+        const users = await typeaheadAdminUsers(q, token);
+        if (!cancelled) {
+          userHits = users.slice(0, 8).map((u) => ({
+            kind: "user" as const,
+            userId: u.id,
+            email: u.email,
+            label: u.full_name?.trim() || u.email,
+            sublabel: u.full_name?.trim() ? u.email : "user",
+          }));
+        }
+      } catch {
+        // Non-fatal — still show city matches
+      }
+
+      if (!cancelled) {
+        setSuggestions([...cityHits, ...userHits]);
+        setSuggestionsOpen(true);
+        setSuggestionsLoading(false);
+      }
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery, searchSelection, cities, getAccessTokenSilently]);
+
+  const loadSearchResults = useCallback(
+    async (sel: SearchSelection) => {
+      setSearchLoading(true);
+      setSearchResults([]);
+      setSearchExpandedId(null);
+      setSearchPreviewHtml(null);
+      setSearchPreviewPublicUrl(null);
+      try {
+        const token = await getAccessTokenSilently();
+        const res = await listNewsletterPending(token, {
+          unsent_only: false,
+          limit: 100,
+          ...(sel.kind === "city"
+            ? { city_id: sel.cityId }
+            : { q: sel.email }),
+        });
+        setSearchResults(res.items);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Search failed");
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [getAccessTokenSilently]
+  );
+
+  const handleSelectSuggestion = (s: SearchSuggestion) => {
+    const sel: SearchSelection =
+      s.kind === "city"
+        ? { kind: "city", cityId: s.cityId, label: s.label }
+        : { kind: "user", userId: s.userId, email: s.email, label: s.label };
+    setSearchSelection(sel);
+    setSearchQuery(s.kind === "city" ? s.label : s.email);
+    setSearchGenDistrict("0");
+    setSearchGenFrequency("weekly");
+    if (s.kind === "city") {
+      setSearchGenCityId(s.cityId);
+    } else {
+      setSearchGenCityId(null);
+    }
+    setSuggestionsOpen(false);
+    setSuggestions([]);
+    void loadSearchResults(sel);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchSelection(null);
+    setSearchResults([]);
+    setSuggestions([]);
+    setSuggestionsOpen(false);
+    setSearchExpandedId(null);
+    setSearchPreviewHtml(null);
+    setSearchPreviewPublicUrl(null);
+    setSearchGenCityId(null);
+    setSearchGenDistrict("0");
+    setSearchGenFrequency("weekly");
+  };
+
+  const handleSearchGenerateLegacy = async () => {
+    if (!searchSelection) return;
+    setSearchGenBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const modelKey = searchGenModelKey.trim() || null;
+
+      if (searchSelection.kind === "city") {
+        const res = await adminGenerateSharedNewsletter(
+          {
+            city_id: searchSelection.cityId,
+            district: searchGenDistrict === "0" ? null : Number(searchGenDistrict),
+            frequency: searchGenFrequency,
+            model_key: modelKey,
+          },
+          token
+        );
+        if (res.job_id) notifyJobCreated(res.job_id);
+        toast.success(
+          "Legacy shared newsletter generation queued. Drafts will appear in Pending review when ready."
+        );
+      } else {
+        if (!searchGenCityId) {
+          toast.error("Select a city for this user's newsletter.");
+          return;
+        }
+        const res = await adminQueueNewsletterPendingForUser(
+          searchSelection.userId,
+          {
+            city_id: searchGenCityId,
+            district: searchGenDistrict === "0" ? null : Number(searchGenDistrict),
+            frequency: searchGenFrequency,
+            generation_mode: "seymour",
+            ...(modelKey ? { seymour_model_key: modelKey } : {}),
+          },
+          token
+        );
+        if (res.job_id) notifyJobCreated(res.job_id);
+        toast.success(
+          "Legacy newsletter generation queued. It will appear in Pending review when ready."
+        );
+      }
+      await Promise.all([loadAll(), loadSearchResults(searchSelection)]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not queue legacy newsletter");
+    } finally {
+      setSearchGenBusy(false);
+    }
+  };
+
+  const handleSearchGenerateUnified = async () => {
+    if (!searchSelection) return;
+    setSearchGenBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const modelKey = searchGenModelKey.trim() || null;
+
+      if (searchSelection.kind === "city") {
+        const res = await adminGenerateUnifiedNewsletterForCity(
+          {
+            city_id: searchSelection.cityId,
+            model_key: modelKey,
+          },
+          token
+        );
+        if (res.job_id) notifyJobCreated(res.job_id);
+        toast.success(
+          "Unified draft assembly queued for this city. Check Pending review when jobs complete."
+        );
+      } else {
+        if (!searchGenCityId) {
+          toast.error("Select a city for this user's newsletter.");
+          return;
+        }
+        const res = await adminQueueUnifiedNewsletterForUser(
+          searchSelection.userId,
+          {
+            city_id: searchGenCityId,
+            district: searchGenDistrict === "0" ? null : Number(searchGenDistrict),
+            frequency: searchGenFrequency,
+            ...(modelKey ? { seymour_model_key: modelKey } : {}),
+          },
+          token
+        );
+        if (res.job_id) notifyJobCreated(res.job_id);
+        toast.success(
+          `Unified draft queued (campaign: ${res.campaign}). Check Pending review when ready.`
+        );
+      }
+      await Promise.all([loadAll(), loadSearchResults(searchSelection)]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not queue unified newsletter");
+    } finally {
+      setSearchGenBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!previewModalOpen) return;
@@ -1530,9 +1363,9 @@ function NewsletterDashboardQueue({
         setExpandedId(null);
         setPreviewHtml(null);
         setPreviewPublicUrl(null);
-        setArchiveExpandedKey(null);
-        setArchivePreviewHtml(null);
-        setArchivePreviewPublicUrl(null);
+        setSearchExpandedId(null);
+        setSearchPreviewHtml(null);
+        setSearchPreviewPublicUrl(null);
       }
     };
 
@@ -1565,7 +1398,7 @@ function NewsletterDashboardQueue({
       const jobId = (res.result as { job_id?: string })?.job_id;
       if (jobId) notifyJobCreated(jobId);
       toast.success("Weekly newsletter run started (drafts queued for review).");
-      await Promise.all([loadAll(), loadWorkload()]);
+      await loadAll();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to start generation");
     } finally {
@@ -1637,337 +1470,80 @@ function NewsletterDashboardQueue({
     }
   };
 
-  const handlePreview = async (id: number) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-      setPreviewHtml(null);
-      setPreviewPublicUrl(null);
+  const openPreview = async (
+    id: number,
+    currentId: number | null,
+    setId: (v: number | null) => void,
+    setHtml: (v: string | null) => void,
+    setUrl: (v: string | null) => void,
+    setBusy: (v: boolean) => void
+  ) => {
+    if (currentId === id) {
+      setId(null);
+      setHtml(null);
+      setUrl(null);
+      setPreviewSelection(null);
       return;
     }
-    setExpandedId(id);
-    setPreviewLoading(true);
-    setPreviewHtml(null);
-    setPreviewPublicUrl(null);
+    setId(id);
+    setBusy(true);
+    setHtml(null);
+    setUrl(null);
+    setPreviewSelection(null);
     try {
       const token = await getAccessTokenSilently();
       const d = await getNewsletterPendingDetail(id, token);
-      setPreviewHtml(d.email_html || d.body_html);
-      setPreviewPublicUrl(d.public_url || null);
+      setHtml(d.email_html || d.body_html);
+      setUrl(d.public_url || null);
+      setPreviewSelection(d.selection ?? null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Preview failed");
     } finally {
-      setPreviewLoading(false);
+      setBusy(false);
     }
   };
 
-  // Archive preview: queue rows use getNewsletterPendingDetail directly;
-  // direct-send rows use their pending_send_id if available.
-  const handleDeleteArchivePending = async (id: number, subject: string) => {
-    const label = subject?.trim() || `newsletter #${id}`;
-    if (
-      !confirm(
-        `Delete "${label}" from the archive? This permanently removes the stored draft and cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    setActionBusy(true);
-    try {
-      const token = await getAccessTokenSilently();
-      const r = await deleteNewsletterPendingBatch([id], token, { fromArchive: true });
-      if (r.deleted < 1) {
-        toast.error("Could not delete — item may already be removed.");
-        return;
-      }
-      toast.success("Removed from archive.");
-      if (archiveExpandedKey === `q-${id}`) {
-        setArchiveExpandedKey(null);
-        setArchivePreviewHtml(null);
-        setArchivePreviewPublicUrl(null);
-      }
-      await loadAll();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
-    } finally {
-      setActionBusy(false);
-    }
-  };
+  const handlePreview = (id: number) =>
+    openPreview(
+      id,
+      expandedId,
+      setExpandedId,
+      setPreviewHtml,
+      setPreviewPublicUrl,
+      setPreviewLoading
+    );
 
-  const handleDeleteDirectSend = async (id: number, subject: string | null) => {
-    const label = subject?.trim() || `send record #${id}`;
-    if (
-      !confirm(
-        `Delete "${label}" from the send log? This removes the audit record only and cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    setActionBusy(true);
-    try {
-      const token = await getAccessTokenSilently();
-      const r = await deleteNewsletterSendsBatch([id], token);
-      if (r.deleted < 1) {
-        toast.error("Could not delete — item may already be removed.");
-        return;
-      }
-      toast.success("Removed from send log.");
-      if (archiveExpandedKey === `d-${id}`) {
-        setArchiveExpandedKey(null);
-        setArchivePreviewHtml(null);
-        setArchivePreviewPublicUrl(null);
-      }
-      await loadAll();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleArchivePreview = async (key: string, pendingId: number) => {
-    if (archiveExpandedKey === key) {
-      setArchiveExpandedKey(null);
-      setArchivePreviewHtml(null);
-      setArchivePreviewPublicUrl(null);
-      return;
-    }
-    setArchiveExpandedKey(key);
-    setArchivePreviewLoading(true);
-    setArchivePreviewHtml(null);
-    setArchivePreviewPublicUrl(null);
-    try {
-      const token = await getAccessTokenSilently();
-      const d = await getNewsletterPendingDetail(pendingId, token);
-      setArchivePreviewHtml(d.email_html || d.body_html || "(empty)");
-      setArchivePreviewPublicUrl(d.public_url || null);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Preview failed");
-    } finally {
-      setArchivePreviewLoading(false);
-    }
-  };
+  const handleSearchPreview = (id: number) =>
+    openPreview(
+      id,
+      searchExpandedId,
+      setSearchExpandedId,
+      setSearchPreviewHtml,
+      setSearchPreviewPublicUrl,
+      setSearchPreviewLoading
+    );
 
   const closePreviewModal = () => {
     setExpandedId(null);
     setPreviewHtml(null);
     setPreviewPublicUrl(null);
-    setArchiveExpandedKey(null);
-    setArchivePreviewHtml(null);
-    setArchivePreviewPublicUrl(null);
+    setPreviewSelection(null);
+    setSearchExpandedId(null);
+    setSearchPreviewHtml(null);
+    setSearchPreviewPublicUrl(null);
+  };
+
+  const modelLabel = (row: NewsletterPendingListItem) =>
+    row.llm_usage?.model_key?.trim() || row.generation_mode || "—";
+
+  const statusLabel = (row: NewsletterPendingListItem) => {
+    if (row.sent_at) return `Sent ${formatDate(row.sent_at)}`;
+    if (row.archived_at) return `Archived ${formatDate(row.archived_at)}`;
+    return "Unsent";
   };
 
   return (
     <>
-      <div className={styles.filtersContainer}>
-        <div
-          className={styles.filtersRow}
-          style={{
-            flexWrap: "wrap",
-            alignItems: "center",
-            flexDirection: "row",
-            gap: 10,
-          }}
-        >
-          <span style={{ fontWeight: 600, fontSize: 13 }}>Actions</span>
-          <button
-            type="button"
-            className={styles.primaryBtn}
-            onClick={handleGenerateOnce}
-            disabled={runBusy}
-          >
-            {runBusy ? "Starting…" : "Generate newsletters (one-time)"}
-          </button>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={handleSendSelected}
-            disabled={actionBusy || selected.size === 0}
-          >
-            {actionBusy ? "…" : "Send selected"}
-          </button>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={handleArchiveSelected}
-            disabled={actionBusy || selected.size === 0}
-          >
-            Archive selected as unsent
-          </button>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={handleDeleteSelected}
-            disabled={actionBusy || selected.size === 0}
-          >
-            Delete selected
-          </button>
-          <button type="button" className={styles.linkBtn} onClick={() => setSelected(new Set(pending.map((p) => p.id)))}>
-            Select all
-          </button>
-          <button type="button" className={styles.linkBtn} onClick={() => setSelected(new Set())}>
-            Clear
-          </button>
-          <button
-            type="button"
-            className={styles.linkBtn}
-            onClick={() => { loadAll(); loadWorkload(); }}
-            disabled={loading || workloadLoading}
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* ── Workload preview strip ─────────────────────────────────── */}
-      <div className={styles.tableContainer} style={{ marginBottom: 8 }}>
-        <div
-          className={styles.tableHeader}
-          style={{
-            cursor: "pointer",
-            userSelect: "none",
-            flexWrap: "wrap",
-            gap: "8px 12px",
-            alignItems: "center",
-          }}
-          onClick={() => setWorkloadOpen((o) => !o)}
-        >
-          <span className={styles.tableTitle}>
-            {workloadOpen ? "▼" : "▶"} Next run workload
-          </span>
-          <div
-            style={{ display: "flex", alignItems: "center", gap: 8 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Mode</span>
-              <select
-                className={styles.select}
-                style={{ minWidth: 148, fontSize: 12 }}
-                value={workloadFrequency}
-                disabled={workloadLoading}
-                onChange={(e) =>
-                  setWorkloadFrequency(e.target.value as "weekly" | "monthly")
-                }
-              >
-                <option value="weekly">Weekly subscribers</option>
-                <option value="monthly">Monthly subscribers</option>
-              </select>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Model</span>
-              <select
-                className={styles.select}
-                style={{ minWidth: 200, maxWidth: 280, fontSize: 12 }}
-                value={workloadEstimateModelKey}
-                disabled={workloadLoading}
-                onChange={(e) => setWorkloadEstimateModelKey(e.target.value)}
-                title="Cost estimate uses this model. Save applies it to the weekly newsletter scheduled job."
-              >
-                <option value="">Default (job saved or AGENT_MODEL)</option>
-                {workloadModelOptions.map((m) => (
-                  <option key={m.key} value={m.key}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              style={{ fontSize: 12, padding: "4px 10px" }}
-              disabled={
-                workloadLoading || saveNewsletterModelBusy || newsletterModelSaveMatchesServer
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleSaveWeeklyNewsletterModel();
-              }}
-            >
-              {saveNewsletterModelBusy ? "Saving…" : "Save model"}
-            </button>
-          </div>
-          {workload && !workloadLoading && (
-            <span
-              className={styles.tableCount}
-              style={{ marginLeft: "auto", fontWeight: 500, fontSize: 12, lineHeight: 1.4 }}
-            >
-              <strong style={{ fontWeight: 600 }}>{workload.personalized_llm_calls_planned}</strong>{" "}
-              personalized LLM
-              {workload.personalized_llm_calls_planned !== 1 ? "s" : ""}
-              {" + "}
-              <strong style={{ fontWeight: 600 }}>{workload.shared_llm_calls_planned}</strong>{" "}
-              shared LLM
-              {workload.shared_llm_calls_planned !== 1 ? "s" : ""}
-              {" = "}
-              <strong style={{ fontWeight: 600 }}>{workload.total_llm_calls_planned}</strong> total
-              {" · "}
-              {workload.total_pipeline_recipients ?? workload.total_weekly_recipients} recipient
-              {(workload.total_pipeline_recipients ?? workload.total_weekly_recipients) !== 1
-                ? "s"
-                : ""}
-              {workload.cost_estimate_usd ? (
-                <>
-                  {" · "}
-                  {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
-                </>
-              ) : null}
-            </span>
-          )}
-          {workloadLoading && (
-            <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-secondary)" }}>Loading…</span>
-          )}
-        </div>
-        {workloadOpen && (
-          <div style={{ padding: "12px 16px" }}>
-            {workloadLoading ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Loader size="sm" color="dark" />
-                <span style={{ fontSize: 13 }}>Loading workload…</span>
-              </div>
-            ) : workload ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {/* ── Token waterfall ───────────────────────────────────── */}
-                <WorkloadWaterfall workload={workload} />
-                {/* ── Cost estimate ─────────────────────────────────────── */}
-                {workload.cost_estimate_usd ? (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-secondary)",
-                      border: "1px solid var(--border-color, #e5e7eb)",
-                      borderRadius: 6,
-                      padding: "10px 12px",
-                      background: "var(--brand-primary-faint, rgba(173,53,250,0.04))",
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
-                      Cost estimate
-                    </div>
-                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.personalized_estimated_usd)} for{" "}
-                    {workload.cost_estimate_usd.personalized_seymour_sessions} personalized session
-                    {workload.cost_estimate_usd.personalized_seymour_sessions !== 1 ? "s" : ""}
-                    {" · "}
-                    {formatWorkloadMoneyUsd(workload.cost_estimate_usd.shared_estimated_usd)} for{" "}
-                    {workload.cost_estimate_usd.shared_seymour_sessions} shared session
-                    {workload.cost_estimate_usd.shared_seymour_sessions !== 1 ? "s" : ""}
-                    {" · "}
-                    <strong style={{ color: "var(--text-primary)" }}>
-                      Total {formatWorkloadMoneyUsd(workload.cost_estimate_usd.total_estimated_usd)}
-                    </strong>
-                    {". "}
-                    <span className={styles.muted}>{workload.cost_estimate_usd.methodology ?? "$2.00 flat per session."}</span>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                Could not load workload preview.
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
       <div className={styles.tableContainer}>
         <div
           className={styles.tableHeader}
@@ -1981,294 +1557,472 @@ function NewsletterDashboardQueue({
             {loading ? "(loading...)" : `(${pending.length})`}
           </span>
         </div>
-        {pendingOpen && (loading ? (
-          <div
-            style={{
-              padding: 24,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <Loader size="sm" color="dark" />
-            <span>Loading queue…</span>
-          </div>
-        ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.th} style={{ width: 36 }} aria-label="Select" />
-                  <th className={styles.th}>Recipient</th>
-                  <th className={styles.th}>Scope</th>
-                  <th
-                    className={styles.th}
-                    style={{ maxWidth: 88, fontSize: 11, lineHeight: 1.25, textAlign: "center" }}
-                    title="Whether the subscriber has custom newsletter instructions on file"
-                  >
-                    Custom instructions
-                  </th>
-                  <th className={styles.th}>Subject</th>
-                  <th className={styles.th}>Mode</th>
-                  <th className={styles.th}>Cost</th>
-                  <th className={styles.th} />
-                </tr>
-              </thead>
-              <tbody>
-                {pending.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className={styles.emptyState}>
-                      No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
-                    </td>
-                  </tr>
-                )}
-                {pending.map((row) => (
-                  <Fragment key={row.id}>
-                    <tr className={styles.rowClickable}>
-                      <td className={styles.td} onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(row.id)}
-                          onChange={(e) => toggleSelect(row.id, e.target.checked)}
-                          aria-label={`Select ${row.recipient_email}`}
-                        />
-                      </td>
-                      <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
-                      <td className={styles.td} style={{ fontSize: 12 }}>
-                        {newsletterScopeLabel(row)}
-                      </td>
-                      <NewsletterCustomInstructionsCell row={row} />
-                      <td className={styles.td}>
-                        <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                      </td>
-                      <td className={styles.td} style={{ fontSize: 12 }}>
-                        {row.generation_mode}
-                      </td>
-                      <td className={styles.td}>
-                        <LlmUsagePill usage={row.llm_usage} />
-                      </td>
-                      <td className={styles.td}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          {row.session_id?.trim() && (
-                            <JobSessionDebugLink sessionId={row.session_id} />
-                          )}
-                          <button
-                            type="button"
-                            className={styles.linkBtn}
-                            onClick={() => handlePreview(row.id)}
-                          >
-                            {expandedId === row.id ? "Hide" : "Preview"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
 
-      <div className={styles.tableContainer}>
-        <div
-          className={styles.tableHeader}
-          style={{ cursor: "pointer", userSelect: "none" }}
-          onClick={() => setArchiveOpen((o) => !o)}
-          aria-expanded={archiveOpen}
-        >
-          <span className={styles.tableTitle}>
-            {archiveOpen ? "\u25BC" : "\u25B6"} Archive
-          </span>
-          <span className={styles.tableCount}>
-            ({archive.length + directSends.length})
-          </span>
-        </div>
-        {archiveOpen && (
+        {pendingOpen && (
           <>
-            {archive.length === 0 && directSends.length === 0 && (
-              <div className={styles.emptyState} style={{ padding: "24px 16px" }}>
-                No items in archive yet.
-              </div>
-            )}
-            {archive.length > 0 && (
-              <>
-                <div
-                  className={styles.tableCount}
-                  style={{
-                    display: "block",
-                    padding: "10px 16px 6px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Admin queue archive
-                  <span style={{ fontWeight: 400 }}> ({archive.length})</span>
-                </div>
-                <div className={styles.tableWrapper}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th className={styles.th}>Status</th>
-                        <th className={styles.th}>Recipient</th>
-                        <th className={styles.th}>Scope</th>
-                        <th
-                          className={styles.th}
-                          style={{ maxWidth: 88, fontSize: 11, lineHeight: 1.25, textAlign: "center" }}
-                          title="Whether the subscriber has custom newsletter instructions on file"
-                        >
-                          Custom instructions
-                        </th>
-                        <th className={styles.th}>Subject</th>
-                        <th className={styles.th}>Cost</th>
-                        <th className={styles.th} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {archive.map((row) => {
-                        const aKey = `q-${row.id}`;
-                        const isExpanded = archiveExpandedKey === aKey;
-                        return (
-                          <Fragment key={`a-${row.id}`}>
-                            <tr>
-                              <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-                                {row.sent_at
-                                  ? `Sent ${formatDate(row.sent_at)}`
-                                  : `Unsent${row.archived_at ? `, archived ${formatDate(row.archived_at)}` : ""}`}
-                              </td>
-                              <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
-                              <td className={styles.td} style={{ fontSize: 12 }}>
-                                {newsletterScopeLabel(row)}
-                              </td>
-                              <NewsletterCustomInstructionsCell row={row} />
-                              <td className={styles.td}>
-                                <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                              </td>
-                              <td className={styles.td}>
-                                <LlmUsagePill usage={row.llm_usage} />
-                              </td>
-                              <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
-                                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                                  <button
-                                    type="button"
-                                    className={styles.linkBtn}
-                                    onClick={() => handleArchivePreview(aKey, row.id)}
-                                  >
-                                    {isExpanded ? "Hide" : "Preview"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={styles.linkBtn}
-                                    style={{ color: "var(--red-600, #dc2626)" }}
-                                    disabled={actionBusy}
-                                    onClick={() =>
-                                      handleDeleteArchivePending(row.id, row.subject || "")
-                                    }
-                                  >
-                                    Delete
-                                  </button>
-                                  {row.session_id?.trim() && (
-                                    <JobSessionDebugLink sessionId={row.session_id} />
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
+            <div
+              className={styles.filtersRow}
+              style={{
+                flexWrap: "wrap",
+                alignItems: "center",
+                flexDirection: "row",
+                gap: 10,
+                padding: "10px 16px 12px",
+                borderBottom: "1px solid var(--border-primary)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Actions</span>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={handleGenerateOnce}
+                disabled={runBusy}
+              >
+                {runBusy ? "Starting…" : "Generate newsletters (one-time)"}
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={handleSendSelected}
+                disabled={actionBusy || selected.size === 0}
+              >
+                {actionBusy ? "…" : "Send selected"}
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={handleArchiveSelected}
+                disabled={actionBusy || selected.size === 0}
+              >
+                Archive selected as unsent
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={handleDeleteSelected}
+                disabled={actionBusy || selected.size === 0}
+              >
+                Delete selected
+              </button>
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => setSelected(new Set(pending.map((p) => p.id)))}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => loadAll()}
+                disabled={loading}
+              >
+                Refresh
+              </button>
+            </div>
 
-            {directSends.length > 0 && (
-              <>
-                <div
-                  className={styles.tableCount}
-                  style={{
-                    display: "block",
-                    padding: archive.length > 0 ? "14px 16px 6px" : "10px 16px 6px",
-                    fontWeight: 600,
-                    borderTop:
-                      archive.length > 0 ? "1px solid var(--border-primary)" : undefined,
-                  }}
-                >
-                  Sent directly by system
-                  <span style={{ fontWeight: 400 }}> ({directSends.length})</span>
-                </div>
-                <div className={styles.tableWrapper}>
-                  <table className={styles.table}>
-                    <thead>
+            {loading ? (
+              <div
+                style={{
+                  padding: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <Loader size="sm" color="dark" />
+                <span>Loading queue…</span>
+              </div>
+            ) : (
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th className={styles.th} style={{ width: 36 }} aria-label="Select" />
+                      <th className={styles.th}>Recipient</th>
+                      <th className={styles.th}>Scope</th>
+                      <th className={styles.th}>Subject</th>
+                      <th className={styles.th}>Model</th>
+                      <th className={styles.th}>Cost</th>
+                      <th className={styles.th} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pending.length === 0 && (
                       <tr>
-                        <th className={styles.th}>Sent</th>
-                        <th className={styles.th}>Recipient</th>
-                        <th className={styles.th}>Source</th>
-                        <th className={styles.th}>Subject</th>
-                        <th className={styles.th}>Status</th>
-                        <th className={styles.th}>Cost</th>
-                        <th className={styles.th} />
+                        <td colSpan={7} className={styles.emptyState}>
+                          No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {directSends.map((row) => {
-                        const dKey = `d-${row.id}`;
-                        const isExpanded = archiveExpandedKey === dKey;
-                        return (
-                          <Fragment key={`ds-${row.id}`}>
-                            <tr>
-                              <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-                                {row.sent_at ? formatDate(row.sent_at) : "\u2014"}
-                              </td>
-                              <td className={styles.td}>{emailUsername(row.to_email)}</td>
-                              <td className={styles.td} style={{ fontSize: 12 }}>{row.source}</td>
-                              <td className={styles.td}>
-                                <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                              </td>
-                              <td className={styles.td} style={{ fontSize: 12 }}>
-                                <span style={{ color: row.status === "sent" ? "var(--green, #16a34a)" : "var(--text-secondary)" }}>
-                                  {row.status}
-                                </span>
-                              </td>
-                              <td className={styles.td}>
-                                <LlmUsagePill usage={row.llm_usage} />
-                              </td>
-                              <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
-                                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                                  {typeof row.pending_send_id === "number" && (
-                                    <button
-                                      type="button"
-                                      className={styles.linkBtn}
-                                      onClick={() => handleArchivePreview(dKey, row.pending_send_id as number)}
-                                    >
-                                      {isExpanded ? "Hide" : "Preview"}
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    className={styles.linkBtn}
-                                    style={{ color: "var(--red-600, #dc2626)" }}
-                                    disabled={actionBusy}
-                                    onClick={() => handleDeleteDirectSend(row.id, row.subject)}
-                                  >
-                                    Delete
-                                  </button>
-                                  {row.session_id?.trim() && (
-                                    <JobSessionDebugLink sessionId={row.session_id} />
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                    )}
+                    {pending.map((row) => (
+                      <Fragment key={row.id}>
+                        <tr className={styles.rowClickable}>
+                          <td className={styles.td} onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selected.has(row.id)}
+                              onChange={(e) => toggleSelect(row.id, e.target.checked)}
+                              aria-label={`Select ${row.recipient_email}`}
+                            />
+                          </td>
+                          <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
+                          <td className={styles.td} style={{ fontSize: 12 }}>
+                            {newsletterScopeLabel(row)}
+                          </td>
+                          <td className={styles.td}>
+                            <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                          </td>
+                          <td className={styles.td} style={{ fontSize: 12 }}>
+                            {modelLabel(row)}
+                          </td>
+                          <td className={styles.td}>
+                            <LlmUsagePill usage={row.llm_usage} />
+                          </td>
+                          <td className={styles.td}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              {row.session_id?.trim() && (
+                                <JobSessionDebugLink sessionId={row.session_id} />
+                              )}
+                              <button
+                                type="button"
+                                className={styles.linkBtn}
+                                onClick={() => handlePreview(row.id)}
+                              >
+                                {expandedId === row.id ? "Hide" : "Preview"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         )}
       </div>
+
+      <div
+        className={styles.tableContainer}
+        style={{ overflow: "visible", position: "relative", zIndex: 2 }}
+      >
+        <div className={styles.tableHeader}>
+          <span className={styles.tableTitle}>Find emails</span>
+          {searchSelection && (
+            <span className={styles.tableCount}>
+              {searchLoading
+                ? "(loading…)"
+                : `(${searchResults.length} for ${searchSelection.label})`}
+            </span>
+          )}
+        </div>
+          <div style={{ padding: "12px 16px 16px" }}>
+          <div className={styles.autocompleteWrapper} ref={searchWrapRef}>
+            <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 480 }}>
+              <input
+                className={styles.searchInput}
+                style={{ width: "100%", maxWidth: "none" }}
+                type="search"
+                placeholder="Search cities, user names, or emails…"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchSelection(null);
+                  setSearchResults([]);
+                  setSuggestionsOpen(true);
+                }}
+                onFocus={() => {
+                  if (suggestions.length > 0) setSuggestionsOpen(true);
+                }}
+                aria-autocomplete="list"
+                aria-expanded={suggestionsOpen}
+              />
+              {suggestionsOpen && (suggestionsLoading || suggestions.length > 0) && (
+                <ul className={styles.autocompleteDropdown} role="listbox">
+                  {suggestionsLoading && suggestions.length === 0 && (
+                    <li className={styles.autocompleteOption} style={{ opacity: 0.7 }}>
+                      Searching…
+                    </li>
+                  )}
+                  {suggestions.map((s) => (
+                    <li key={`${s.kind}-${s.kind === "city" ? s.cityId : s.email}`}>
+                      <button
+                        type="button"
+                        className={styles.autocompleteOption}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => handleSelectSuggestion(s)}
+                      >
+                        <div style={{ fontWeight: 600 }}>{s.label}</div>
+                        <div className={styles.muted} style={{ fontSize: 12 }}>
+                          {s.sublabel}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {searchSelection && (
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={clearSearch}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {searchSelection && (
+            <div
+              className={styles.infoBox}
+              style={{ marginTop: 14, marginBottom: 0, background: "var(--bg-secondary)" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 10,
+                    background:
+                      searchSelection.kind === "city"
+                        ? "rgba(59, 130, 246, 0.12)"
+                        : "rgba(173, 53, 250, 0.12)",
+                    color:
+                      searchSelection.kind === "city"
+                        ? "var(--blue-700, #1d4ed8)"
+                        : "var(--brand-primary, #ad35fa)",
+                  }}
+                >
+                  {searchSelection.kind === "city" ? "City" : "Individual user"}
+                </span>
+                <strong style={{ fontSize: 14 }}>{searchSelection.label}</strong>
+                {searchSelection.kind === "user" && (
+                  <span className={styles.muted} style={{ fontSize: 12 }}>
+                    {searchSelection.email}
+                  </span>
+                )}
+              </div>
+
+              <div className={styles.testPanelRow} style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+                {searchSelection.kind === "user" && (
+                  <div className={styles.testField}>
+                    <label className={styles.testLabel}>City</label>
+                    <select
+                      className={styles.select}
+                      value={searchGenCityId ?? ""}
+                      onChange={(e) =>
+                        setSearchGenCityId(e.target.value ? Number(e.target.value) : null)
+                      }
+                    >
+                      <option value="">Select…</option>
+                      {cities
+                        .slice()
+                        .sort((a, b) => a.city_name.localeCompare(b.city_name))
+                        .map((c) => (
+                          <option key={c.city_id} value={c.city_id}>
+                            {c.city_name}
+                            {c.state ? `, ${c.state}` : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+                <div className={styles.testField}>
+                  <label className={styles.testLabel}>District</label>
+                  <select
+                    className={styles.select}
+                    value={searchGenDistrict}
+                    onChange={(e) => setSearchGenDistrict(e.target.value)}
+                    disabled={searchSelection.kind === "city" && searchGenBusy}
+                    title={
+                      searchSelection.kind === "city"
+                        ? "Legacy shared generation only; unified drafts all districts in the city"
+                        : undefined
+                    }
+                  >
+                    <option value="0">City-wide</option>
+                    {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={String(d)}>
+                        District {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.testField}>
+                  <label className={styles.testLabel}>Frequency</label>
+                  <select
+                    className={styles.select}
+                    value={searchGenFrequency}
+                    onChange={(e) =>
+                      setSearchGenFrequency(e.target.value as "weekly" | "monthly")
+                    }
+                    disabled={searchSelection.kind === "city"}
+                    title={
+                      searchSelection.kind === "city"
+                        ? "City legacy shared uses weekly routing; unified uses pipeline frequency"
+                        : undefined
+                    }
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className={styles.testField}>
+                  <label className={styles.testLabel}>Seymour model</label>
+                  <select
+                    className={styles.select}
+                    value={searchGenModelKey}
+                    onChange={(e) => setSearchGenModelKey(e.target.value)}
+                  >
+                    <option value="">Default (server settings)</option>
+                    {searchGenModelOptions.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div
+                  className={styles.testField}
+                  style={{ alignSelf: "flex-end", display: "flex", gap: 8, flexWrap: "wrap" }}
+                >
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={
+                      searchGenBusy ||
+                      (searchSelection.kind === "user" && !searchGenCityId)
+                    }
+                    onClick={() => void handleSearchGenerateLegacy()}
+                    title={
+                      searchSelection.kind === "city"
+                        ? "Legacy: one shared Seymour run for this city/district group"
+                        : "Legacy: full Seymour research + HTML for this user"
+                    }
+                  >
+                    {searchGenBusy ? "Queuing…" : "Generate (legacy)"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={
+                      searchGenBusy ||
+                      (searchSelection.kind === "user" && !searchGenCityId)
+                    }
+                    onClick={() => void handleSearchGenerateUnified()}
+                    title={
+                      searchSelection.kind === "city"
+                        ? "Unified: story selector + wrapper for all pipeline recipients in this city"
+                        : "Unified: story selector + light LLM wrapper for this user"
+                    }
+                    style={{ background: "var(--brand-primary-alt, #6d28d9)" }}
+                  >
+                    {searchGenBusy ? "Queuing…" : "Draft (unified)"}
+                  </button>
+                </div>
+              </div>
+              <p className={styles.muted} style={{ margin: "10px 0 0", fontSize: 12 }}>
+                {searchSelection.kind === "city"
+                  ? "Legacy queues shared drafts for the selected district group. Unified runs draft assembly for all subscribers in this city’s pipeline."
+                  : "Pick the city and district for this subscriber, then queue a personalized draft."}
+              </p>
+            </div>
+          )}
+
+          {searchSelection && (
+            <div style={{ marginTop: 14 }}>
+              {searchLoading ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0" }}>
+                  <Loader size="sm" color="dark" />
+                  <span>Loading emails…</span>
+                </div>
+              ) : (
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th className={styles.th}>Status</th>
+                        <th className={styles.th}>Recipient</th>
+                        <th className={styles.th}>Subject</th>
+                        <th className={styles.th}>Model</th>
+                        <th className={styles.th}>Cost</th>
+                        <th className={styles.th} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {searchResults.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className={styles.emptyState}>
+                            No emails found for this selection.
+                          </td>
+                        </tr>
+                      )}
+                      {searchResults.map((row) => (
+                        <tr key={`search-${row.id}`}>
+                          <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                            {statusLabel(row)}
+                          </td>
+                          <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
+                          <td className={styles.td}>
+                            <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                          </td>
+                          <td className={styles.td} style={{ fontSize: 12 }}>
+                            {modelLabel(row)}
+                          </td>
+                          <td className={styles.td}>
+                            <LlmUsagePill usage={row.llm_usage} />
+                          </td>
+                          <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                              {row.session_id?.trim() && (
+                                <JobSessionDebugLink sessionId={row.session_id} />
+                              )}
+                              <button
+                                type="button"
+                                className={styles.linkBtn}
+                                onClick={() => handleSearchPreview(row.id)}
+                              >
+                                {searchExpandedId === row.id ? "Hide" : "Preview"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {previewModalOpen && (
         <div
           className={styles.emailPreviewOverlay}
@@ -2285,10 +2039,10 @@ function NewsletterDashboardQueue({
             <div className={styles.emailPreviewHeader}>
               <div className={styles.emailPreviewTitle}>Email preview</div>
               <div className={styles.emailPreviewActions}>
-                {(previewPublicUrl || archivePreviewPublicUrl) && (
+                {(previewPublicUrl || searchPreviewPublicUrl) && (
                   <>
                     <a
-                      href={previewPublicUrl || archivePreviewPublicUrl || "#"}
+                      href={previewPublicUrl || searchPreviewPublicUrl || "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={styles.secondaryBtn}
@@ -2299,7 +2053,7 @@ function NewsletterDashboardQueue({
                       type="button"
                       className={styles.secondaryBtn}
                       onClick={async () => {
-                        const url = previewPublicUrl || archivePreviewPublicUrl || "";
+                        const url = previewPublicUrl || searchPreviewPublicUrl || "";
                         if (!url) return;
                         try {
                           await navigator.clipboard.writeText(url);
@@ -2323,18 +2077,21 @@ function NewsletterDashboardQueue({
               </div>
             </div>
             <div className={styles.emailPreviewBody}>
-              {previewLoading || archivePreviewLoading ? (
+              {previewLoading || searchPreviewLoading ? (
                 <div className={styles.emailPreviewEmpty}>
                   <Loader size="sm" color="dark" />
                   <span>Loading body…</span>
                 </div>
               ) : (
                 <div className={styles.emailPreviewFrame}>
-                  {previewHtml || archivePreviewHtml ? (
+                  {previewSelection && (
+                    <NewsletterSelectionPanel selection={previewSelection} />
+                  )}
+                  {previewHtml || searchPreviewHtml ? (
                     <div className={styles.emailPreviewContent}>
                       <div
                         dangerouslySetInnerHTML={{
-                          __html: previewHtml || archivePreviewHtml || "",
+                          __html: previewHtml || searchPreviewHtml || "",
                         }}
                       />
                     </div>
@@ -2356,608 +2113,6 @@ function NewsletterDashboardQueue({
 // ===========================================================================
 // Dashboard Tab
 // ===========================================================================
-function DashboardTab({
-  stats,
-  cityStatuses,
-  editionsByCityId,
-  expandedCityId,
-  workloadEstimateModelKey,
-  setWorkloadEstimateModelKey,
-  workloadModelOptions,
-  setWorkloadModelOptions,
-  deletingReportIds,
-  deletingEditionIds,
-  onToggleExpand,
-  onGenerate,
-  onDeleteReport,
-  onDeleteEdition,
-}: {
-  stats: { totalNewsletters: number; citiesWithNewsletters: number; thisWeek: number; avgWords: number; totalCities: number };
-  cityStatuses: CityNewsletterStatus[];
-  editionsByCityId: Record<number, NewsletterEditionAdminItem[]>;
-  expandedCityId: number | null;
-  workloadEstimateModelKey: string;
-  setWorkloadEstimateModelKey: Dispatch<SetStateAction<string>>;
-  workloadModelOptions: Array<{ key: string; name: string }>;
-  setWorkloadModelOptions: Dispatch<SetStateAction<Array<{ key: string; name: string }>>>;
-  deletingReportIds: Set<number>;
-  deletingEditionIds: Set<number>;
-  onToggleExpand: (id: number) => void;
-  onGenerate: (cityId: number) => void;
-  onDeleteReport: (cityId: number, report: NewsletterReport) => void;
-  onDeleteEdition: (cityId: number, edition: NewsletterEditionAdminItem) => void;
-}) {
-  return (
-    <>
-      <NewsletterDashboardQueue
-        workloadEstimateModelKey={workloadEstimateModelKey}
-        setWorkloadEstimateModelKey={setWorkloadEstimateModelKey}
-        workloadModelOptions={workloadModelOptions}
-        setWorkloadModelOptions={setWorkloadModelOptions}
-      />
-      {/* Stats */}
-      <div className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>Total Newsletters</div>
-          <div className={styles.statValue}>{stats.totalNewsletters}</div>
-          <div className={styles.statSub}>across {stats.totalCities} launched cities</div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>Cities with Newsletters</div>
-          <div className={styles.statValue}>{stats.citiesWithNewsletters}</div>
-          <div className={styles.statSub}>of {stats.totalCities} launched</div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>This Week</div>
-          <div className={styles.statValue}>{stats.thisWeek}</div>
-          <div className={styles.statSub}>newsletters generated</div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>Avg Word Count</div>
-          <div className={styles.statValue}>{stats.avgWords.toLocaleString()}</div>
-          <div className={styles.statSub}>per newsletter</div>
-        </div>
-      </div>
-
-      {/* City Status Table */}
-      <div className={styles.tableContainer}>
-        <div className={styles.tableHeader}>
-          <div>
-            <span className={styles.tableTitle}>Launched Cities </span>
-            <span className={styles.tableCount}>({cityStatuses.length})</span>
-          </div>
-        </div>
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}></th>
-                <th className={styles.th}>City</th>
-                <th className={styles.th}>State</th>
-                <th className={styles.th}>Newsletters</th>
-                <th
-                  className={styles.th}
-                  title="Stored shared newsletter editions (public permalinks) for this city"
-                >
-                  Shared editions
-                </th>
-                <th
-                  className={styles.th}
-                  title="Most recent of newsletter research reports or stored shared Seymour editions (newsletter_editions)."
-                >
-                  Last Generated
-                </th>
-                <th className={styles.th}>Status</th>
-                <th className={styles.th}>Districts</th>
-                <th className={styles.th} style={{ width: 100 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cityStatuses.length === 0 && (
-                <tr>
-                  <td colSpan={9} className={styles.emptyState}>
-                    No launched cities found
-                  </td>
-                </tr>
-              )}
-              {cityStatuses.map((cs) => {
-                const fb = freshnessBadge(cs.latestDate);
-                const isExpanded = expandedCityId === cs.city.city_id;
-                return (
-                  <CityRow
-                    key={cs.city.city_id}
-                    cs={cs}
-                    editions={editionsByCityId[cs.city.city_id] ?? []}
-                    fb={fb}
-                    isExpanded={isExpanded}
-                    deletingReportIds={deletingReportIds}
-                    deletingEditionIds={deletingEditionIds}
-                    onToggle={() => onToggleExpand(cs.city.city_id)}
-                    onGenerate={() => onGenerate(cs.city.city_id)}
-                    onDeleteReport={(report) => onDeleteReport(cs.city.city_id, report)}
-                    onDeleteEdition={(edition) => onDeleteEdition(cs.city.city_id, edition)}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function CityRow({
-  cs,
-  editions,
-  fb,
-  isExpanded,
-  deletingReportIds,
-  deletingEditionIds,
-  onToggle,
-  onGenerate,
-  onDeleteReport,
-  onDeleteEdition,
-}: {
-  cs: CityNewsletterStatus;
-  editions: NewsletterEditionAdminItem[];
-  fb: { cls: string; label: string };
-  isExpanded: boolean;
-  deletingReportIds: Set<number>;
-  deletingEditionIds: Set<number>;
-  onToggle: () => void;
-  onGenerate: () => void;
-  onDeleteReport: (report: NewsletterReport) => void;
-  onDeleteEdition: (edition: NewsletterEditionAdminItem) => void;
-}) {
-  // Group reports by district
-  const byDistrict = useMemo(() => {
-    const map = new Map<string, NewsletterReport[]>();
-    for (const r of cs.reports) {
-      const key = r.district || "0";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
-    }
-    return map;
-  }, [cs.reports]);
-
-  return (
-    <>
-      <tr className={styles.rowClickable} onClick={onToggle}>
-        <td className={styles.td} style={{ width: 30, textAlign: "center" }}>
-          <span style={{ fontSize: 10 }}>{isExpanded ? "\u25BC" : "\u25B6"}</span>
-        </td>
-        <td className={styles.td} style={{ fontWeight: 500 }}>{cs.city.city_name}</td>
-        <td className={styles.td}>{cs.city.state || "\u2014"}</td>
-        <td className={styles.td}>{cs.totalCount}</td>
-        <td className={styles.td} title="Expand row for permalink details">
-          {editions.length > 0 ? (
-            <span style={{ fontWeight: 600 }}>{editions.length}</span>
-          ) : (
-            <span className={styles.muted}>0</span>
-          )}
-        </td>
-        <td className={styles.td}>{formatDate(cs.latestDate)}</td>
-        <td className={styles.td}>
-          <span className={`${styles.badge} ${fb.cls}`}>{fb.label}</span>
-        </td>
-        <td className={styles.td}>{cs.districts.size || "\u2014"}</td>
-        <td className={styles.td}>
-          <button
-            className={styles.secondaryBtn}
-            onClick={(e) => { e.stopPropagation(); onGenerate(); }}
-            style={{ fontSize: 12, padding: "4px 10px" }}
-            title="Generate one shared Seymour newsletter for this launched city/district and queue drafts for all current no-place recipients in that shared group."
-          >
-            Generate shared
-          </button>
-        </td>
-      </tr>
-      {isExpanded && (cs.reports.length > 0 || editions.length > 0) && (
-        <tr className={styles.expandedRow}>
-          <td colSpan={9} className={styles.td} style={{ padding: 0 }}>
-            <div className={styles.expandedContent}>
-              {cs.reports.length > 0 && (
-                <table className={styles.subTable}>
-                  <thead>
-                    <tr>
-                      <th>District</th>
-                      <th>Title</th>
-                      <th>Frequency</th>
-                      <th>Date</th>
-                      <th>Words</th>
-                      <th>Link</th>
-                      <th style={{ width: 90 }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from(byDistrict.entries())
-                      .sort(([a], [b]) => Number(a) - Number(b))
-                      .flatMap(([district, reports]) =>
-                        reports.map((r) => (
-                          <tr key={r.id}>
-                            <td>{district === "0" || !district ? "City-wide" : `District ${district}`}</td>
-                            <td style={{ maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {r.title || "\u2014"}
-                            </td>
-                            <td>{r.frequency || "\u2014"}</td>
-                            <td>{formatDate(r.created_at)}</td>
-                            <td>{countWords(r.final_report_html).toLocaleString()}</td>
-                            <td>
-                              <a href={r.public_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary)" }}>
-                                View
-                              </a>
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className={styles.secondaryBtn}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  onDeleteReport(r);
-                                }}
-                                disabled={deletingReportIds.has(r.id)}
-                                style={{
-                                  fontSize: 12,
-                                  padding: "4px 8px",
-                                  color: "var(--danger-700, #b91c1c)",
-                                  borderColor: "var(--danger-300, #fca5a5)",
-                                }}
-                              >
-                                {deletingReportIds.has(r.id) ? "Deleting..." : "Delete"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                  </tbody>
-                </table>
-              )}
-              {editions.length > 0 && (
-                <div style={{ marginTop: cs.reports.length > 0 ? 14 : 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                    Shared edition permalinks
-                  </div>
-                  <table className={styles.subTable}>
-                    <thead>
-                      <tr>
-                        <th>District</th>
-                        <th>Generated</th>
-                        <th>Edition Date</th>
-                        <th>Headline</th>
-                        <th>Link</th>
-                        <th style={{ width: 90 }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {editions.map((ed) => {
-                        const scope = ed.district > 0 ? `District ${ed.district}` : "City-wide";
-                        const href =
-                          ed.city_slug && ed.short_hash
-                            ? `/c/${ed.city_slug}/newsletter/${ed.short_hash}`
-                            : null;
-                        return (
-                          <tr key={`edition-${ed.id}`}>
-                            <td>{scope}</td>
-                            <td>{formatDate(ed.created_at)}</td>
-                            <td>{formatDate(ed.edition_date)}</td>
-                            <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {ed.summary_headline || "\u2014"}
-                            </td>
-                            <td>
-                              {href ? (
-                                <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary)" }}>
-                                  View
-                                </a>
-                              ) : (
-                                "\u2014"
-                              )}
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className={styles.secondaryBtn}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  onDeleteEdition(ed);
-                                }}
-                                disabled={deletingEditionIds.has(ed.id)}
-                                style={{
-                                  fontSize: 12,
-                                  padding: "4px 8px",
-                                  color: "var(--danger-700, #b91c1c)",
-                                  borderColor: "var(--danger-300, #fca5a5)",
-                                }}
-                              >
-                                {deletingEditionIds.has(ed.id) ? "Deleting..." : "Delete"}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
-      {isExpanded && cs.reports.length === 0 && editions.length === 0 && (
-        <tr className={styles.expandedRow}>
-          <td colSpan={9} className={styles.td}>
-            <div className={styles.expandedContent}>
-              <span className={styles.muted}>No newsletters generated yet for this city.</span>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-// ===========================================================================
-// Browse Tab
-// ===========================================================================
-function BrowseTab({
-  cities,
-  cityStatuses,
-  browseCity,
-  browseDistrict,
-  browseFrequency,
-  browseSearch,
-  browseLoading,
-  pagedReports,
-  filteredCount,
-  page,
-  totalPages,
-  expandedReportId,
-  onCityChange,
-  onDistrictChange,
-  onFrequencyChange,
-  onSearchChange,
-  onPageChange,
-  onToggleExpand,
-  onExport,
-}: {
-  cities: CityListItem[];
-  cityStatuses: CityNewsletterStatus[];
-  browseCity: number | null;
-  browseDistrict: string;
-  browseFrequency: string;
-  browseSearch: string;
-  browseLoading: boolean;
-  pagedReports: NewsletterReport[];
-  filteredCount: number;
-  page: number;
-  totalPages: number;
-  expandedReportId: number | null;
-  onCityChange: (id: number | null) => void;
-  onDistrictChange: (v: string) => void;
-  onFrequencyChange: (v: string) => void;
-  onSearchChange: (v: string) => void;
-  onPageChange: (p: number) => void;
-  onToggleExpand: (id: number) => void;
-  onExport: () => void;
-}) {
-  // Get launched city IDs for the dropdown
-  const launchedCities = useMemo(
-    () => cityStatuses.map((cs) => cs.city).sort((a, b) => a.city_name.localeCompare(b.city_name)),
-    [cityStatuses]
-  );
-
-  return (
-    <>
-      <div className={styles.filtersContainer}>
-        <div className={styles.filtersRow}>
-          <select
-            className={styles.select}
-            value={browseCity ?? ""}
-            onChange={(e) => onCityChange(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">Select City...</option>
-            {launchedCities.map((c) => (
-              <option key={c.city_id} value={c.city_id}>
-                {c.city_name}{c.state ? `, ${c.state}` : ""}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className={styles.select}
-            value={browseDistrict}
-            onChange={(e) => onDistrictChange(e.target.value)}
-          >
-            <option value="">All Districts</option>
-            <option value="0">City-wide</option>
-            {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d}>District {d}</option>
-            ))}
-          </select>
-
-          <select
-            className={styles.select}
-            value={browseFrequency}
-            onChange={(e) => onFrequencyChange(e.target.value)}
-          >
-            <option value="">All Frequencies</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-
-          <input
-            type="text"
-            className={styles.searchInput}
-            placeholder="Search titles..."
-            value={browseSearch}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-
-          {browseCity && filteredCount > 0 && (
-            <button className={styles.secondaryBtn} onClick={onExport}>
-              Export
-            </button>
-          )}
-        </div>
-      </div>
-
-      {!browseCity && (
-        <div className={styles.emptyState}>Select a city to browse newsletters</div>
-      )}
-
-      {browseLoading && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 0", gap: 10 }}>
-          <Loader size="sm" color="dark" />
-          <span>Loading...</span>
-        </div>
-      )}
-
-      {browseCity && !browseLoading && (
-        <div className={styles.tableContainer}>
-          <div className={styles.tableHeader}>
-            <div>
-              <span className={styles.tableTitle}>Newsletters </span>
-              <span className={styles.tableCount}>({filteredCount})</span>
-            </div>
-          </div>
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.th}>Date</th>
-                  <th className={styles.th}>Title</th>
-                  <th className={styles.th}>District</th>
-                  <th className={styles.th}>Frequency</th>
-                  <th className={styles.th} style={{ textAlign: "right" }}>Words</th>
-                  <th className={styles.th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedReports.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className={styles.emptyState}>
-                      No newsletters found
-                    </td>
-                  </tr>
-                )}
-                {pagedReports.map((r) => {
-                  const isExpanded = expandedReportId === r.id;
-                  const wc = countWords(r.final_report_html);
-                  return (
-                    <BrowseRow
-                      key={r.id}
-                      report={r}
-                      wordCount={wc}
-                      isExpanded={isExpanded}
-                      onToggle={() => onToggleExpand(r.id)}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className={styles.pagination}>
-              <button
-                className={styles.secondaryBtn}
-                disabled={page === 0}
-                onClick={() => onPageChange(page - 1)}
-                style={{ fontSize: 12, padding: "4px 10px" }}
-              >
-                Prev
-              </button>
-              <span className={styles.pageInfo}>
-                Page {page + 1} of {totalPages}
-              </span>
-              <button
-                className={styles.secondaryBtn}
-                disabled={page >= totalPages - 1}
-                onClick={() => onPageChange(page + 1)}
-                style={{ fontSize: 12, padding: "4px 10px" }}
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-function BrowseRow({
-  report,
-  wordCount,
-  isExpanded,
-  onToggle,
-}: {
-  report: NewsletterReport;
-  wordCount: number;
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <tr className={styles.rowClickable} onClick={onToggle}>
-        <td className={styles.td}>{formatDate(report.created_at)}</td>
-        <td className={styles.td}>
-          <div className={styles.headline}>{report.title || "\u2014"}</div>
-        </td>
-        <td className={styles.td}>
-          {!report.district || report.district === "0" ? "City-wide" : `District ${report.district}`}
-        </td>
-        <td className={styles.td}>
-          {report.frequency ? (
-            <span className={`${styles.badge} ${styles.badgeBlue}`}>{report.frequency}</span>
-          ) : "\u2014"}
-        </td>
-        <td className={styles.td} style={{ textAlign: "right" }}>
-          {wordCount > 0 ? wordCount.toLocaleString() : "\u2014"}
-        </td>
-        <td className={styles.td}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button className={styles.linkBtn} onClick={(e) => { e.stopPropagation(); onToggle(); }}>
-              {isExpanded ? "Hide" : "Preview"}
-            </button>
-            <a
-              href={report.public_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.linkBtn}
-              onClick={(e) => e.stopPropagation()}
-            >
-              Open
-            </a>
-          </div>
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr className={styles.expandedRow}>
-          <td colSpan={6} style={{ padding: 0 }}>
-            {report.session_id?.trim() ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px 0" }}>
-                <JobSessionDebugLink sessionId={report.session_id} />
-              </div>
-            ) : null}
-            {report.final_report_html ? (
-              <div
-                className={styles.previewPanel}
-                dangerouslySetInnerHTML={{ __html: report.final_report_html }}
-              />
-            ) : (
-              <div className={styles.previewPanel}>
-                <span className={styles.muted}>
-                  {report.social_summary || "No content available for preview."}
-                </span>
-              </div>
-            )}
-          </td>
-        </tr>
-      )}
-    </>
-  );
+function DashboardTab({ cities }: { cities: CityListItem[] }) {
+  return <NewsletterDashboardQueue cities={cities} />;
 }

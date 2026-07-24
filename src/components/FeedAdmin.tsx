@@ -16,6 +16,8 @@ import {
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import Loader from "@/components/Loader";
+import { VisualizationDeferredInteractiveContainer } from "@/components/VisualizationDeferredInteractiveContainer";
+import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import styles from "./FeedAdmin.module.css";
 
 type TimeRange = "day" | "week" | "month" | "all";
@@ -129,6 +131,18 @@ export default function FeedAdmin() {
 
   // Story preview popover
   const [previewStory, setPreviewStory] = useState<FeedStory | null>(null);
+
+  // Expand [chart:]/[map:]/[anomaly:] shortcodes into live embeds; keep the
+  // debug label so admins can still see which shortcode produced each embed.
+  const previewArticleHtml = useMemo(() => {
+    const html = previewStory?.article_html?.trim();
+    if (!html) return null;
+    return processVisualizationShortcodes(html, {
+      chartHeight: "480px",
+      mapHeight: "480px",
+      anomalyHeight: "380px",
+    });
+  }, [previewStory]);
 
   const loadData = useCallback(async () => {
     try {
@@ -799,10 +813,10 @@ export default function FeedAdmin() {
 
             {/* Article content */}
             <div className={styles.previewBody}>
-              {previewStory.article_html ? (
-                <div
+              {previewArticleHtml ? (
+                <VisualizationDeferredInteractiveContainer
                   className={styles.previewArticle}
-                  dangerouslySetInnerHTML={{ __html: previewStory.article_html }}
+                  html={previewArticleHtml}
                 />
               ) : (
                 <p className={styles.previewFallback}>

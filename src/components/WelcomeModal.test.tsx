@@ -269,17 +269,17 @@ describe("WelcomeModal", () => {
       ).toBeInTheDocument();
     });
 
-    it("reveals optional personalization textarea under advanced options", async () => {
+    it("reveals persona builder under advanced options", async () => {
       const user = userEvent.setup();
       await goToStep2(user);
 
-      expect(screen.queryByLabelText(/in your own words \(optional\)/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/pick up to 3/i)).not.toBeInTheDocument();
 
       await user.click(
         screen.getByRole("button", { name: /personalize your weekly update \(optional\)/i })
       );
 
-      expect(screen.getByLabelText(/in your own words \(optional\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/pick up to 3/i)).toBeInTheDocument();
     });
 
     it("weekly update checkbox is pre-checked", async () => {

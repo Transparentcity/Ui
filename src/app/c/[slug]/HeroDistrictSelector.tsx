@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { formatLeaderName } from "@/lib/utils";
+import {
+  formatSubdivisionLabel,
+  type PublicGeographicContext,
+} from "@/lib/publicGeographicUnit";
 
 interface Leader {
   name: string;
@@ -15,6 +19,7 @@ interface HeroDistrictSelectorProps {
   districts: number[];
   mayorName?: string;
   leaders?: Leader[];
+  geographicContext?: PublicGeographicContext;
 }
 
 export default function HeroDistrictSelector({
@@ -22,6 +27,7 @@ export default function HeroDistrictSelector({
   districts,
   mayorName,
   leaders = [],
+  geographicContext,
 }: HeroDistrictSelectorProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -114,6 +120,12 @@ export default function HeroDistrictSelector({
     [optionCount, focusedIndex, selectOption]
   );
 
+  const unitLabel = geographicContext?.unitLabel ?? "District";
+  const subdivisionLabel = (id: number) =>
+    geographicContext
+      ? formatSubdivisionLabel(geographicContext, id)
+      : `${unitLabel} ${id}`;
+
   const mayorLabel = mayorName ? `Mayor: ${formatLeaderName(mayorName)}` : "Citywide";
 
   // Build a map from district number to leader name
@@ -177,9 +189,8 @@ export default function HeroDistrictSelector({
           {districts.map((d, i) => {
             const leaderName = leaderByDistrict.get(d);
             const optIndex = i + 1;
-            const tooltip = leaderName
-              ? `District ${d} — ${leaderName}`
-              : `District ${d}`;
+            const label = subdivisionLabel(d);
+            const tooltip = leaderName ? `${label} — ${leaderName}` : label;
             return (
               <li
                 key={d}
@@ -191,7 +202,7 @@ export default function HeroDistrictSelector({
                 className="hero-district-selector-option"
                 onClick={() => selectOption(optIndex)}
               >
-                <span className="hero-district-selector-district">District {d}</span>
+                <span className="hero-district-selector-district">{label}</span>
                 {leaderName && (
                   <span className="hero-district-selector-leader">{leaderName}</span>
                 )}

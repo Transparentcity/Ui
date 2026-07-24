@@ -210,6 +210,9 @@ export type PublicCityDetail = {
   mayor_subscriber_count?: number;
   is_launched?: boolean;
   official_district_shape_layer_id?: number | null;
+  geographic_unit_label?: string | null;
+  geographic_unit_label_plural?: string | null;
+  navigation_mode?: string | null;
   geographic_structures?: Array<{
     min_value?: number | null;
     max_value?: number | null;
@@ -293,6 +296,29 @@ export function getPublicRepresentativeFollowerCounts(
 /** District numbers that have metric data for this city (for district links/dashboards). */
 export function getPublicCityDistricts(cityId: number): Promise<number[]> {
   return requestPublic<number[]>(`/api/public/cities/${cityId}/districts`);
+}
+
+export type PublicCitySubdivision = {
+  id: number;
+  name: string;
+};
+
+export type PublicCitySubdivisionsResponse = {
+  city_id: number;
+  unit_label: string;
+  unit_label_plural: string;
+  navigation_mode: "district" | "neighborhood" | string;
+  official_district_shape_layer_id?: number | null;
+  subdivisions: PublicCitySubdivision[];
+};
+
+/** Named subdivisions (districts, neighborhoods, wards) for public navigation. */
+export function getPublicCitySubdivisions(
+  cityId: number,
+): Promise<PublicCitySubdivisionsResponse> {
+  return requestPublic<PublicCitySubdivisionsResponse>(
+    `/api/public/cities/${cityId}/subdivisions`,
+  );
 }
 
 // ---------------------------------------------------------------------------

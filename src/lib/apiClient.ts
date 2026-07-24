@@ -2065,6 +2065,7 @@ export interface ModelInfo {
   input_price: number;
   output_price: number;
   is_available: boolean;
+  is_default?: boolean;
 }
 
 export interface ModelGroupInfo {
@@ -2396,6 +2397,59 @@ export interface CityScheduleSlot {
   is_overdue: boolean;
 }
 
+/** Actionable triage issue from city-health attention classifier */
+export type CityHealthAttentionCategory =
+  | "jobs"
+  | "data"
+  | "wiring"
+  | "mapping"
+  | "structure";
+
+export type CityHealthAttentionSeverity =
+  | "critical"
+  | "high"
+  | "medium"
+  | "low"
+  | "ok";
+
+export type CityHealthSuggestedAction =
+  | "re_run_schedule"
+  | "re_run_metric"
+  | "edit_metric"
+  | "restructure_city"
+  | "retry_shapes"
+  | "structure_metrics"
+  | "review";
+
+export interface CityHealthAttentionIssue {
+  kind: string;
+  category: CityHealthAttentionCategory;
+  severity: Exclude<CityHealthAttentionSeverity, "ok">;
+  title: string;
+  suggested_action: CityHealthSuggestedAction;
+  metric_id?: number | null;
+  metric_name?: string | null;
+  schedule_key?: string | null;
+  detail?: string | null;
+}
+
+export interface CityHealthAttention {
+  severity: CityHealthAttentionSeverity;
+  total_issues: number;
+  issue_counts: Record<CityHealthAttentionCategory, number>;
+  issues: CityHealthAttentionIssue[];
+  issues_truncated?: boolean;
+}
+
+export interface CityHealthAttentionSummary {
+  cities_total: number;
+  cities_needing_attention: number;
+  launched_needing_attention: number;
+  total_issues: number;
+  by_category: Record<CityHealthAttentionCategory, number>;
+  by_severity: Record<string, number>;
+}
+
 export interface CityScheduleHealth {
   city_id: number;
   city_name: string;
@@ -2404,11 +2458,13 @@ export interface CityScheduleHealth {
   freshness_metrics: CityFreshnessMetricRow[];
   schedules: Record<string, CityScheduleSlot>;
   structure?: CityScheduleStructureSummary;
+  attention?: CityHealthAttention;
 }
 
 export interface CityScheduleHealthResponse {
   status: string;
   cities: CityScheduleHealth[];
+  attention_summary?: CityHealthAttentionSummary;
 }
 
 export function getCityScheduleHealth(
@@ -5074,6 +5130,20 @@ export function adminQueueNewsletterPendingForUser(
   );
 }
 
+/** Admin: enqueue unified-pipeline newsletter draft for one user. */
+export function adminQueueUnifiedNewsletterForUser(
+  userId: number,
+  payload: GenerateSampleNewsletterRequest,
+  token: string
+): Promise<{ job_id: string; campaign: string; city_id: number }> {
+  return request<{ job_id: string; campaign: string; city_id: number }>(
+    `/api/admin/users/${userId}/queue-unified-newsletter`,
+    "POST",
+    payload,
+    token
+  );
+}
+
 /** Weekly job output queued for admin send (no body in list). */
 export interface NewsletterPendingListItem {
   id: number;
@@ -5104,6 +5174,12 @@ export interface NewsletterPendingListItem {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    cache_read_tokens?: number | null;
+    cache_creation_tokens?: number | null;
+    /** True input tokens billed (uncached + cache read/write). */
+    billed_input_tokens?: number | null;
+    /** USD saved by prompt caching versus the full input rate. */
+    cache_savings_usd?: number | null;
     cost_usd?: number | null;
     model_key?: string | null;
   } | null;
@@ -5111,12 +5187,21 @@ export interface NewsletterPendingListItem {
 
 export function listNewsletterPending(
   token: string,
-  options?: { unsent_only?: boolean; sent_only?: boolean; limit?: number }
+  options?: {
+    unsent_only?: boolean;
+    sent_only?: boolean;
+    limit?: number;
+    /** Recipient email substring (server ILIKE). */
+    q?: string;
+    city_id?: number;
+  }
 ): Promise<{ items: NewsletterPendingListItem[]; count: number }> {
   const params = new URLSearchParams();
   if (options?.unsent_only === false) params.append("unsent_only", "false");
   if (options?.sent_only) params.append("sent_only", "true");
   if (options?.limit != null) params.append("limit", String(options.limit));
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.city_id != null) params.append("city_id", String(options.city_id));
   const q = params.toString();
   return request<{ items: NewsletterPendingListItem[]; count: number }>(
     `/api/admin/newsletter-pending${q ? `?${q}` : ""}`,
@@ -5126,10 +5211,95 @@ export function listNewsletterPending(
   );
 }
 
+/** Admin typeahead: users by email or name prefix. */
+export interface AdminUserTypeaheadItem {
+  id: number;
+  auth0_id: string | null;
+  email: string;
+  full_name: string;
+  user_role_type?: string | null;
+}
+
+export function typeaheadAdminUsers(
+  q: string,
+  token: string
+): Promise<AdminUserTypeaheadItem[]> {
+  const params = new URLSearchParams({ q: q.trim() });
+  return request<AdminUserTypeaheadItem[]>(
+    `/api/admin/typeahead/users?${params.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** One slate story in the admin-only selection metadata (unified pipeline). */
+export interface NewsletterPendingSelectionSection {
+  story_id: number;
+  /** Selector slot: place_lead | anomaly_or_event | district | citywide. */
+  slot: string;
+  final_score: number;
+  personalization_score: number;
+  story_type?: string | null;
+  headline?: string | null;
+  short_hash?: string | null;
+  has_visual?: boolean;
+  district?: number | null;
+  /** True when the LLM used this slate story in the submitted plan. */
+  used: boolean;
+  used_as?: "lead" | "card" | null;
+}
+
+/** One ranked candidate from the full scored list (admin QA). */
+export interface NewsletterPendingScoredCandidate {
+  story_id: number;
+  headline?: string | null;
+  district: number;
+  story_type?: string | null;
+  final_score: number;
+  personalization_score: number;
+  /** Geo/interest multiplier applied to final_score. */
+  multiplier: number;
+  /** Which selector pools this story was eligible for. */
+  eligible_slots: string[];
+  /** Slot it was selected into, or null if not on the slate. */
+  selected_slot?: string | null;
+  short_hash?: string | null;
+  has_visual?: boolean;
+  /** Skipped because already sent to this recipient recently. */
+  deduped?: boolean;
+  /** True when the LLM used this story in the submitted plan. */
+  used?: boolean;
+  used_as?: "lead" | "card" | null;
+}
+
+/** Admin-only story-selection metadata from plan_json (unified pipeline drafts). */
+export interface NewsletterPendingSelection {
+  /** Ranker pool counts: candidates_total, deduped_recent, per-slot pools, selected. */
+  pool_stats: Record<string, number>;
+  sections: NewsletterPendingSelectionSection[];
+  /** Full ranked candidate list (up to ~60) with scores and eligibility. */
+  scored_candidates?: NewsletterPendingScoredCandidate[];
+  /** "stored" on the draft, or "live" when older drafts are re-scored for admin QA. */
+  scored_candidates_source?: "stored" | "live" | null;
+  used_story_ids: number[];
+  campaign?: string | null;
+  recipient_district?: number | null;
+  city_id?: number | null;
+}
+
 export function getNewsletterPendingDetail(
   pendingId: number,
   token: string
-): Promise<NewsletterPendingListItem & { body_html: string; email_html?: string; unsubscribe_url: string | null }> {
+): Promise<
+  NewsletterPendingListItem & {
+    body_html: string;
+    email_html?: string;
+    unsubscribe_url: string | null;
+    /** Null for legacy drafts without selector metadata. */
+    selection?: NewsletterPendingSelection | null;
+  }
+> {
   return request(
     `/api/admin/newsletter-pending/${pendingId}`,
     "GET",
@@ -5197,6 +5367,12 @@ export interface NewsletterSendItem {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    cache_read_tokens?: number | null;
+    cache_creation_tokens?: number | null;
+    /** True input tokens billed (uncached + cache read/write). */
+    billed_input_tokens?: number | null;
+    /** USD saved by prompt caching versus the full input rate. */
+    cache_savings_usd?: number | null;
     cost_usd?: number | null;
     model_key?: string | null;
   } | null;
@@ -5333,6 +5509,17 @@ export function adminGenerateSharedNewsletter(
   return request("/api/admin/newsletter-shared-generate", "POST", payload, token);
 }
 
+/** Admin: unified-pipeline draft assembly for all recipients in one city. */
+export function adminGenerateUnifiedNewsletterForCity(
+  payload: {
+    city_id: number;
+    model_key?: string | null;
+  },
+  token: string
+): Promise<{ job_id: string }> {
+  return request("/api/admin/newsletter-unified-generate", "POST", payload, token);
+}
+
 /** Stored shared (non-personalized) LLM newsletter editions — `newsletter_editions` table. */
 export interface NewsletterEditionAdminItem {
   id: number;
@@ -5386,10 +5573,13 @@ export function runScheduleJob(
 export interface NewsletterPromptsResponse {
   shared_newsletter_prompt: string;
   personalized_newsletter_prompt: string;
+  unified_newsletter_prompt: string;
   shared_is_default: boolean;
   personalized_is_default: boolean;
+  unified_is_default: boolean;
   default_shared_prompt: string;
   default_personalized_prompt: string;
+  default_unified_prompt: string;
   custom_job_id: number | null;
   /** Canonical model key stored on the weekly job for Seymour newsletter generation. */
   newsletter_seymour_model_key?: string | null;
@@ -5400,7 +5590,11 @@ export function getNewsletterPrompts(token: string): Promise<NewsletterPromptsRe
 }
 
 export function updateNewsletterPrompts(
-  payload: { shared_newsletter_prompt?: string; personalized_newsletter_prompt?: string },
+  payload: {
+    shared_newsletter_prompt?: string;
+    personalized_newsletter_prompt?: string;
+    unified_newsletter_prompt?: string;
+  },
   token: string
 ): Promise<{ status: string; custom_job_id: number | null }> {
   return request("/api/admin/newsletter-prompts", "PUT", payload, token);
@@ -7811,6 +8005,8 @@ export function getProductAnalyticsOverview(
 export interface TokenUsageDailyRow {
   date: string;
   tokens: number;
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
   cost_usd: number;
   calls: number;
 }
@@ -7830,6 +8026,8 @@ export interface TokenUsageSourceRow {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
   cost_usd: number;
   sub_rows?: TokenUsageSourceSubRow[];
 }
@@ -7839,9 +8037,25 @@ export interface TokenUsageDailySeries {
   date_to: string;
   days: number;
   total_tokens: number;
+  /** True input tokens processed by the provider (uncached + cache read/write). */
+  total_billed_input_tokens?: number;
+  total_cache_read_tokens?: number;
+  total_cache_creation_tokens?: number;
+  /** USD saved by prompt caching versus paying the full input rate. */
+  cache_savings_usd?: number;
   total_cost_usd: number;
   llm_call_count: number;
-  by_model: Record<string, { input_tokens: number; output_tokens: number; cost_usd: number; calls: number }>;
+  by_model: Record<
+    string,
+    {
+      input_tokens: number;
+      output_tokens: number;
+      cache_read_tokens?: number;
+      cache_creation_tokens?: number;
+      cost_usd: number;
+      calls: number;
+    }
+  >;
   by_source: TokenUsageSourceRow[];
   daily: TokenUsageDailyRow[];
 }

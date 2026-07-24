@@ -1,4 +1,4 @@
-import type { CityDetail, CityLeader } from "@/lib/apiClient";
+import type { CityDetail } from "@/lib/apiClient";
 
 export type GeographicStructureLike = NonNullable<
   NonNullable<CityDetail["geographic_structures"]>[number]
@@ -21,8 +21,24 @@ export type ShapeLayerInstanceLike = {
  * 2. leaders' district_shape_layer_id plurality
  * 3. Legacy: leaders' geographic_structure_id plurality → geographic structures
  */
+/** Minimal leader fields used for unit-label plurality (public + admin shapes). */
+export type GeographicUnitLeaderLike = {
+  name?: string;
+  geographic_structure_id?: number | null;
+  district_shape_layer_id?: number | null;
+};
+
+/**
+ * User-facing subdivision label (e.g. Ward vs District) from shape layers
+ * (shape-layer-first) with a fallback to geographic structures.
+ *
+ * Priority:
+ * 1. Shape layer flagged is_official_district_layer
+ * 2. leaders' district_shape_layer_id plurality
+ * 3. Legacy: leaders' geographic_structure_id plurality → geographic structures
+ */
 export function resolveGeographicUnitLabel(
-  leaders: CityLeader[],
+  leaders: GeographicUnitLeaderLike[],
   geographicStructures?: GeographicStructureLike[] | null | undefined,
   shapeLayers?: ShapeLayerInstanceLike[] | null | undefined,
   officialDistrictShapeLayerId?: number | null,
@@ -51,7 +67,7 @@ export function resolveGeographicUnitLabel(
   if (shapeLayers && leaders.length > 0) {
     const layerIdCounts = new Map<number, number>();
     for (const leader of leaders) {
-      const lid = (leader as any).district_shape_layer_id as number | null | undefined;
+      const lid = leader.district_shape_layer_id;
       if (lid == null) continue;
       layerIdCounts.set(lid, (layerIdCounts.get(lid) || 0) + 1);
     }
