@@ -17,6 +17,7 @@ import {
   listCities,
   generateSampleNewsletter,
   listNewsletterPending,
+  listNewsletterSends,
   getNewsletterPendingDetail,
   sendNewsletterPendingBatch,
   deleteNewsletterPendingBatch,
@@ -27,6 +28,7 @@ import {
   type CityListItem,
   type NewsletterPendingListItem,
   type NewsletterPendingSelection,
+  type NewsletterSendItem,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "@/components/Loader";
@@ -45,6 +47,10 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "prompts", label: "Prompts" },
   { id: "subscribers", label: "Subscribers" },
 ];
+
+const RECENT_SENDS_PAGE_SIZE = 20;
+
+type QueuePanelTab = "pending" | "recent";
 
 const DEFAULT_WEEKLY_PROMPT = `**This newsletter is for:** {city_name} ({district_label}). All data and comparisons must be for this city only.
 
@@ -1057,6 +1063,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const { getAccessTokenSilently } = useAuth0();
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
   const [pendingOpen, setPendingOpen] = useState(true);
+  const [queueTab, setQueueTab] = useState<QueuePanelTab>("pending");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [runBusy, setRunBusy] = useState(false);
@@ -1067,6 +1074,14 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSelection, setPreviewSelection] =
     useState<NewsletterPendingSelection | null>(null);
+
+  // Recent sends (paginated)
+  const [recentSends, setRecentSends] = useState<NewsletterSendItem[]>([]);
+  const [recentSendsPage, setRecentSendsPage] = useState(1);
+  const [recentSendsPages, setRecentSendsPages] = useState(1);
+  const [recentSendsTotal, setRecentSendsTotal] = useState(0);
+  const [recentSendsLoading, setRecentSendsLoading] = useState(false);
+  const [recentSendsLoaded, setRecentSendsLoaded] = useState(false);
 
   // Search (replaces archive)
   const [searchQuery, setSearchQuery] = useState("");
@@ -1108,9 +1123,35 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     }
   }, [getAccessTokenSilently]);
 
+  const loadRecentSends = useCallback(async (page: number) => {
+    try {
+      setRecentSendsLoading(true);
+      const token = await getAccessTokenSilently();
+      const res = await listNewsletterSends(token, {
+        page,
+        page_size: RECENT_SENDS_PAGE_SIZE,
+      });
+      setRecentSends(res.items);
+      setRecentSendsPage(res.page);
+      setRecentSendsPages(res.pages);
+      setRecentSendsTotal(res.total);
+      setRecentSendsLoaded(true);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to load recent sends");
+    } finally {
+      setRecentSendsLoading(false);
+    }
+  }, [getAccessTokenSilently]);
+
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    if (queueTab === "recent" && pendingOpen) {
+      void loadRecentSends(recentSendsPage);
+    }
+  }, [queueTab, pendingOpen, recentSendsPage, loadRecentSends]);
 
   useEffect(() => {
     getAccessTokenSilently()
@@ -1420,6 +1461,10 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       setExpandedId(null);
       setPreviewHtml(null);
       await loadAll();
+      if (recentSendsLoaded || queueTab === "recent") {
+        setRecentSendsPage(1);
+        await loadRecentSends(1);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Send failed");
     } finally {
@@ -1542,6 +1587,23 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     return "Unsent";
   };
 
+  const cityNameById = (cityId: number | null | undefined) => {
+    if (cityId == null) return "—";
+    const city = cities.find((c) => c.city_id === cityId);
+    return city?.city_name || `City ${cityId}`;
+  };
+
+  const panelTitle =
+    queueTab === "recent" ? "Recent sends" : "Pending review";
+  const panelCount =
+    queueTab === "recent"
+      ? recentSendsLoading && !recentSendsLoaded
+        ? "(loading...)"
+        : `(${recentSendsTotal})`
+      : loading
+        ? "(loading...)"
+        : `(${pending.length})`;
+
   return (
     <>
       <div className={styles.tableContainer}>
@@ -1551,162 +1613,346 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
           onClick={() => setPendingOpen((o) => !o)}
         >
           <span className={styles.tableTitle}>
-            {pendingOpen ? "\u25BC" : "\u25B6"} Pending review
+            {pendingOpen ? "\u25BC" : "\u25B6"} {panelTitle}
           </span>
-          <span className={styles.tableCount}>
-            {loading ? "(loading...)" : `(${pending.length})`}
-          </span>
+          <span className={styles.tableCount}>{panelCount}</span>
         </div>
 
         {pendingOpen && (
           <>
             <div
-              className={styles.filtersRow}
-              style={{
-                flexWrap: "wrap",
-                alignItems: "center",
-                flexDirection: "row",
-                gap: 10,
-                padding: "10px 16px 12px",
-                borderBottom: "1px solid var(--border-primary)",
-              }}
+              className={styles.tabs}
+              style={{ marginBottom: 0, padding: "0 12px" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <span style={{ fontWeight: 600, fontSize: 13 }}>Actions</span>
               <button
                 type="button"
-                className={styles.primaryBtn}
-                onClick={handleGenerateOnce}
-                disabled={runBusy}
+                className={`${styles.tab} ${queueTab === "pending" ? styles.tabActive : ""}`}
+                onClick={() => setQueueTab("pending")}
               >
-                {runBusy ? "Starting…" : "Generate newsletters (one-time)"}
+                Pending review
+                {!loading && (
+                  <span className={styles.muted} style={{ marginLeft: 6 }}>
+                    ({pending.length})
+                  </span>
+                )}
               </button>
               <button
                 type="button"
-                className={styles.secondaryBtn}
-                onClick={handleSendSelected}
-                disabled={actionBusy || selected.size === 0}
+                className={`${styles.tab} ${queueTab === "recent" ? styles.tabActive : ""}`}
+                onClick={() => setQueueTab("recent")}
               >
-                {actionBusy ? "…" : "Send selected"}
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                onClick={handleArchiveSelected}
-                disabled={actionBusy || selected.size === 0}
-              >
-                Archive selected as unsent
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                onClick={handleDeleteSelected}
-                disabled={actionBusy || selected.size === 0}
-              >
-                Delete selected
-              </button>
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => setSelected(new Set(pending.map((p) => p.id)))}
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => setSelected(new Set())}
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => loadAll()}
-                disabled={loading}
-              >
-                Refresh
+                Recent sends
+                {recentSendsLoaded && (
+                  <span className={styles.muted} style={{ marginLeft: 6 }}>
+                    ({recentSendsTotal})
+                  </span>
+                )}
               </button>
             </div>
 
-            {loading ? (
-              <div
-                style={{
-                  padding: 24,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <Loader size="sm" color="dark" />
-                <span>Loading queue…</span>
-              </div>
-            ) : (
-              <div className={styles.tableWrapper}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th className={styles.th} style={{ width: 36 }} aria-label="Select" />
-                      <th className={styles.th}>Recipient</th>
-                      <th className={styles.th}>Scope</th>
-                      <th className={styles.th}>Subject</th>
-                      <th className={styles.th}>Model</th>
-                      <th className={styles.th}>Cost</th>
-                      <th className={styles.th} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pending.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className={styles.emptyState}>
-                          No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
-                        </td>
-                      </tr>
-                    )}
-                    {pending.map((row) => (
-                      <Fragment key={row.id}>
-                        <tr className={styles.rowClickable}>
-                          <td className={styles.td} onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={selected.has(row.id)}
-                              onChange={(e) => toggleSelect(row.id, e.target.checked)}
-                              aria-label={`Select ${row.recipient_email}`}
-                            />
-                          </td>
-                          <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
-                          <td className={styles.td} style={{ fontSize: 12 }}>
-                            {newsletterScopeLabel(row)}
-                          </td>
-                          <td className={styles.td}>
-                            <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                          </td>
-                          <td className={styles.td} style={{ fontSize: 12 }}>
-                            {modelLabel(row)}
-                          </td>
-                          <td className={styles.td}>
-                            <LlmUsagePill usage={row.llm_usage} />
-                          </td>
-                          <td className={styles.td}>
-                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              {row.session_id?.trim() && (
-                                <JobSessionDebugLink sessionId={row.session_id} />
-                              )}
-                              <button
-                                type="button"
-                                className={styles.linkBtn}
-                                onClick={() => handlePreview(row.id)}
-                              >
-                                {expandedId === row.id ? "Hide" : "Preview"}
-                              </button>
-                            </div>
-                          </td>
+            {queueTab === "pending" && (
+              <>
+                <div
+                  className={styles.filtersRow}
+                  style={{
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    flexDirection: "row",
+                    gap: 10,
+                    padding: "10px 16px 12px",
+                    borderBottom: "1px solid var(--border-primary)",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>Actions</span>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    onClick={handleGenerateOnce}
+                    disabled={runBusy}
+                  >
+                    {runBusy ? "Starting…" : "Generate newsletters (one-time)"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={handleSendSelected}
+                    disabled={actionBusy || selected.size === 0}
+                  >
+                    {actionBusy ? "…" : "Send selected"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={handleArchiveSelected}
+                    disabled={actionBusy || selected.size === 0}
+                  >
+                    Archive selected as unsent
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={handleDeleteSelected}
+                    disabled={actionBusy || selected.size === 0}
+                  >
+                    Delete selected
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => setSelected(new Set(pending.map((p) => p.id)))}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => setSelected(new Set())}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => loadAll()}
+                    disabled={loading}
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div
+                    style={{
+                      padding: 24,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <Loader size="sm" color="dark" />
+                    <span>Loading queue…</span>
+                  </div>
+                ) : (
+                  <div className={styles.tableWrapper}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th className={styles.th} style={{ width: 36 }} aria-label="Select" />
+                          <th className={styles.th}>Recipient</th>
+                          <th className={styles.th}>Scope</th>
+                          <th className={styles.th}>Subject</th>
+                          <th className={styles.th}>Model</th>
+                          <th className={styles.th}>Cost</th>
+                          <th className={styles.th} />
                         </tr>
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {pending.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className={styles.emptyState}>
+                              No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
+                            </td>
+                          </tr>
+                        )}
+                        {pending.map((row) => (
+                          <Fragment key={row.id}>
+                            <tr className={styles.rowClickable}>
+                              <td className={styles.td} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={selected.has(row.id)}
+                                  onChange={(e) => toggleSelect(row.id, e.target.checked)}
+                                  aria-label={`Select ${row.recipient_email}`}
+                                />
+                              </td>
+                              <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
+                              <td className={styles.td} style={{ fontSize: 12 }}>
+                                {newsletterScopeLabel(row)}
+                              </td>
+                              <td className={styles.td}>
+                                <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                              </td>
+                              <td className={styles.td} style={{ fontSize: 12 }}>
+                                {modelLabel(row)}
+                              </td>
+                              <td className={styles.td}>
+                                <LlmUsagePill usage={row.llm_usage} />
+                              </td>
+                              <td className={styles.td}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  {row.session_id?.trim() && (
+                                    <JobSessionDebugLink sessionId={row.session_id} />
+                                  )}
+                                  <button
+                                    type="button"
+                                    className={styles.linkBtn}
+                                    onClick={() => handlePreview(row.id)}
+                                  >
+                                    {expandedId === row.id ? "Hide" : "Preview"}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+
+            {queueTab === "recent" && (
+              <>
+                <div
+                  className={styles.filtersRow}
+                  style={{
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    flexDirection: "row",
+                    gap: 10,
+                    padding: "10px 16px 12px",
+                    borderBottom: "1px solid var(--border-primary)",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>Recent sends</span>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => void loadRecentSends(recentSendsPage)}
+                    disabled={recentSendsLoading}
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {recentSendsLoading && !recentSendsLoaded ? (
+                  <div
+                    style={{
+                      padding: 24,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <Loader size="sm" color="dark" />
+                    <span>Loading recent sends…</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.tableWrapper}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th className={styles.th}>Sent</th>
+                            <th className={styles.th}>Recipient</th>
+                            <th className={styles.th}>City</th>
+                            <th className={styles.th}>Subject</th>
+                            <th className={styles.th}>Source</th>
+                            <th className={styles.th}>Cost</th>
+                            <th className={styles.th} />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentSends.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className={styles.emptyState}>
+                                No newsletter sends logged yet.
+                              </td>
+                            </tr>
+                          )}
+                          {recentSends.map((row) => {
+                            const previewId =
+                              typeof row.pending_send_id === "number"
+                                ? row.pending_send_id
+                                : null;
+                            return (
+                              <tr key={`send-${row.id}`}>
+                                <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+                                  {formatDate(row.sent_at)}
+                                </td>
+                                <td className={styles.td}>{emailUsername(row.to_email)}</td>
+                                <td className={styles.td} style={{ fontSize: 12 }}>
+                                  {cityNameById(row.city_id)}
+                                  {row.via_queue ? (
+                                    <span className={styles.muted} style={{ marginLeft: 6 }}>
+                                      via queue
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className={styles.td}>
+                                  <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                                </td>
+                                <td className={styles.td} style={{ fontSize: 12 }}>
+                                  {row.source || "—"}
+                                </td>
+                                <td className={styles.td}>
+                                  <LlmUsagePill usage={row.llm_usage} />
+                                </td>
+                                <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: 6,
+                                      alignItems: "center",
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
+                                    {row.session_id?.trim() && (
+                                      <JobSessionDebugLink sessionId={row.session_id} />
+                                    )}
+                                    {previewId != null ? (
+                                      <button
+                                        type="button"
+                                        className={styles.linkBtn}
+                                        onClick={() => handlePreview(previewId)}
+                                      >
+                                        {expandedId === previewId ? "Hide" : "Preview"}
+                                      </button>
+                                    ) : !row.session_id?.trim() ? (
+                                      <span className={styles.muted}>{"\u2014"}</span>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {recentSendsTotal > 0 && (
+                      <div className={styles.pagination}>
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          disabled={recentSendsPage <= 1 || recentSendsLoading}
+                          onClick={() => setRecentSendsPage((p) => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </button>
+                        <span className={styles.pageInfo}>
+                          Page {recentSendsPage} of {recentSendsPages} ({recentSendsTotal} sends)
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          disabled={
+                            recentSendsPage >= recentSendsPages || recentSendsLoading
+                          }
+                          onClick={() =>
+                            setRecentSendsPage((p) => Math.min(recentSendsPages, p + 1))
+                          }
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </>
         )}

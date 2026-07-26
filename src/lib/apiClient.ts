@@ -5380,18 +5380,35 @@ export interface NewsletterSendItem {
 
 export function listNewsletterSends(
   token: string,
-  options?: { limit?: number; city_id?: number }
-): Promise<{ items: NewsletterSendItem[]; count: number }> {
+  options?: {
+    page?: number;
+    page_size?: number;
+    /** @deprecated Prefer page_size; kept for older callers. */
+    limit?: number;
+    city_id?: number;
+  }
+): Promise<{
+  items: NewsletterSendItem[];
+  count: number;
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}> {
   const params = new URLSearchParams();
+  if (options?.page != null) params.append("page", String(options.page));
+  if (options?.page_size != null) params.append("page_size", String(options.page_size));
   if (options?.limit != null) params.append("limit", String(options.limit));
   if (options?.city_id != null) params.append("city_id", String(options.city_id));
   const q = params.toString();
-  return request<{ items: NewsletterSendItem[]; count: number }>(
-    `/api/admin/newsletter-sends${q ? `?${q}` : ""}`,
-    "GET",
-    undefined,
-    token
-  );
+  return request<{
+    items: NewsletterSendItem[];
+    count: number;
+    total: number;
+    page: number;
+    page_size: number;
+    pages: number;
+  }>(`/api/admin/newsletter-sends${q ? `?${q}` : ""}`, "GET", undefined, token);
 }
 
 export interface NewsletterGenerationPreviewLlmPlan {
