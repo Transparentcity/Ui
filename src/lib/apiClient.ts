@@ -8521,3 +8521,220 @@ export function deleteMetricRelationship(
     token
   );
 }
+
+// ---------------------------------------------------------------------------
+// Newsletter eval playground (admin Library tab)
+// ---------------------------------------------------------------------------
+
+export interface NewsletterEvalPersona {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+export interface NewsletterEvalJudgeDimension {
+  score: number | null;
+  rationale: string;
+  evidence: string[];
+  /** Only present on the accuracy dimension. */
+  errors?: string[];
+}
+
+export interface NewsletterEvalJudgeScores {
+  dimensions: Record<string, NewsletterEvalJudgeDimension>;
+  overall: { score: number | null; verdict: string };
+  top_issues: string[];
+  fabrication_capped: boolean;
+}
+
+export interface NewsletterEvalLlmUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cost_usd?: number;
+  model_key?: string;
+}
+
+export interface NewsletterEvalRunTelemetry {
+  llm_call_count?: number;
+  tool_call_count?: number;
+  tool_calls_by_name?: Record<string, number>;
+  failed_tool_calls?: number;
+  execution_time_ms?: number;
+  generation_ms?: number;
+}
+
+export interface NewsletterEvalStats {
+  sections_complete?: boolean;
+  missing_sections?: string[];
+  by_the_numbers_count?: number;
+  block_brief_count?: number;
+  story_ids_used?: number[];
+  unauthorized_story_ids?: number[];
+  subject_chars?: number;
+  word_count?: number;
+  unrendered_shortcodes?: number;
+}
+
+export interface NewsletterEvalCell {
+  id: number;
+  batch_id: number;
+  source: "generated" | "imported";
+  source_ref: string | null;
+  persona_id: string | null;
+  persona_label: string | null;
+  model_key: string | null;
+  prompt_variant_label: string | null;
+  has_prompt_override: boolean;
+  status: "pending" | "running" | "completed" | "failed";
+  error: string | null;
+  subject: string | null;
+  llm_usage: NewsletterEvalLlmUsage | null;
+  run_telemetry: NewsletterEvalRunTelemetry | null;
+  stats_json: NewsletterEvalStats | null;
+  judge_model_key: string | null;
+  judge_scores: NewsletterEvalJudgeScores | null;
+  judge_usage:
+    | (NewsletterEvalLlmUsage & { judge_ms?: number; error?: string })
+    | null;
+  session_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+  has_html: boolean;
+}
+
+export interface NewsletterEvalResultDetail extends NewsletterEvalCell {
+  persona_prompt: string | null;
+  prompt_override: string | null;
+  body_html: string | null;
+  stories_block: string | null;
+  plan_json: Record<string, unknown> | null;
+}
+
+export interface NewsletterEvalBatchListItem {
+  id: number;
+  name: string;
+  city_id: number | null;
+  city_name: string | null;
+  campaign: string | null;
+  config_json: Record<string, unknown>;
+  job_id: string | null;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  cell_count: number;
+  completed_cells: number;
+  failed_cells: number;
+  avg_overall_score: number | null;
+  total_cost_usd: number | null;
+}
+
+export interface NewsletterEvalRunRequest {
+  name?: string;
+  city_id: number;
+  district?: number;
+  personas: { id?: string; detail?: string; label?: string; prompt?: string }[];
+  model_keys: string[];
+  prompt_variants?: { label?: string; template?: string | null }[];
+  judge_enabled?: boolean;
+  judge_model_key?: string | null;
+}
+
+export function listNewsletterEvalPersonas(
+  token: string
+): Promise<NewsletterEvalPersona[]> {
+  return request<NewsletterEvalPersona[]>(
+    "/api/admin/newsletter/eval/personas",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function runNewsletterEvalBatch(
+  body: NewsletterEvalRunRequest,
+  token: string
+): Promise<{ batch_id: number; job_id: string; cell_count: number }> {
+  return request("/api/admin/newsletter/eval/run", "POST", body, token);
+}
+
+export function importNewsletterEvalSends(
+  body: {
+    pending_send_ids: number[];
+    batch_id?: number;
+    name?: string;
+    judge_enabled?: boolean;
+    judge_model_key?: string | null;
+  },
+  token: string
+): Promise<{ batch_id: number; job_id: string; imported: number }> {
+  return request("/api/admin/newsletter/eval/import", "POST", body, token);
+}
+
+export function listNewsletterEvalBatches(
+  token: string,
+  options?: { q?: string; page?: number; page_size?: number }
+): Promise<{
+  items: NewsletterEvalBatchListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}> {
+  const params = new URLSearchParams();
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.page != null) params.append("page", String(options.page));
+  if (options?.page_size != null)
+    params.append("page_size", String(options.page_size));
+  const qs = params.toString();
+  return request(
+    `/api/admin/newsletter/eval/batches${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getNewsletterEvalBatch(
+  batchId: number,
+  token: string
+): Promise<{
+  batch: NewsletterEvalBatchListItem;
+  results: NewsletterEvalCell[];
+}> {
+  return request(
+    `/api/admin/newsletter/eval/batches/${batchId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getNewsletterEvalResult(
+  resultId: number,
+  token: string
+): Promise<NewsletterEvalResultDetail> {
+  return request(
+    `/api/admin/newsletter/eval/results/${resultId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function rejudgeNewsletterEvalResult(
+  resultId: number,
+  body: { judge_model_key?: string | null },
+  token: string
+): Promise<{
+  result_id: number;
+  judge_scores: NewsletterEvalJudgeScores;
+  judge_usage: NewsletterEvalLlmUsage & { judge_ms?: number };
+}> {
+  return request(
+    `/api/admin/newsletter/eval/results/${resultId}/rejudge`,
+    "POST",
+    body,
+    token
+  );
+}

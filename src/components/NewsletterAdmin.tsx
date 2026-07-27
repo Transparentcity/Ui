@@ -35,17 +35,19 @@ import Loader from "@/components/Loader";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import NewsletterAdminSubscribersTab from "@/components/NewsletterAdminSubscribersTab";
 import NewsletterAdminPromptsTab from "@/components/NewsletterAdminPromptsTab";
+import NewsletterAdminLibraryTab from "@/components/NewsletterAdminLibraryTab";
 import styles from "./NewsletterAdmin.module.css";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-type TabId = "dashboard" | "prompts" | "subscribers";
+type TabId = "dashboard" | "prompts" | "subscribers" | "library";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "prompts", label: "Prompts" },
   { id: "subscribers", label: "Subscribers" },
+  { id: "library", label: "Library" },
 ];
 
 const RECENT_SENDS_PAGE_SIZE = 20;
@@ -465,6 +467,8 @@ export default function NewsletterAdmin() {
       {activeTab === "prompts" && <NewsletterAdminPromptsTab />}
 
       {activeTab === "subscribers" && <NewsletterAdminSubscribersTab />}
+
+      {activeTab === "library" && <NewsletterAdminLibraryTab cities={cities} />}
 
       {/* Generate Modal */}
       {genCityId !== null && (

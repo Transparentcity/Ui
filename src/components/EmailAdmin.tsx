@@ -399,7 +399,9 @@ export default function EmailAdmin() {
                           detail.body_html ||
                           (detail.body_plain
                             ? detail.body_plain.replace(/\n/g, "<br/>")
-                            : "(empty)"),
+                            : "<em>No body content was captured for this email. " +
+                              "(Emails received before the raw-MIME parsing fix " +
+                              "were stored without bodies.)</em>"),
                       }}
                     />
                   </div>
