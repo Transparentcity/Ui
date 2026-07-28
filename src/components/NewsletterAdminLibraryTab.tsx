@@ -26,6 +26,7 @@ import {
   importNewsletterEvalSends,
   listNewsletterEvalBatches,
   listNewsletterEvalPersonas,
+  listNewsletterEvalResults,
   listNewsletterPending,
   rejudgeNewsletterEvalResult,
   runNewsletterEvalBatch,
@@ -34,6 +35,7 @@ import {
   type NewsletterEvalBatchListItem,
   type NewsletterEvalCell,
   type NewsletterEvalJudgeScores,
+  type NewsletterEvalLeaderboardItem,
   type NewsletterEvalPersona,
   type NewsletterEvalResultDetail,
   type NewsletterPendingListItem,
@@ -43,6 +45,7 @@ import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import styles from "./NewsletterAdmin.module.css";
 
 const MAX_CELLS = 12;
+const LEADERBOARD_PAGE_SIZE = 5;
 // Rough per-cell token profile for the pre-run cost estimate (a full
 // newsletter Seymour session is tool-heavy on input tokens).
 const EST_INPUT_TOKENS = 130_000;
@@ -54,6 +57,7 @@ const JUDGE_DIMENSION_LABELS: Record<string, string> = {
   cogency: "Cogency",
   data_honesty: "Honest use of data",
   tone: "Tone & voice",
+  tool_use: "Tool use",
 };
 
 // ---------------------------------------------------------------------------
@@ -386,6 +390,14 @@ function ResultDetailPane({
                   {t?.failed_tool_calls ? ` (${t.failed_tool_calls} failed)` : ""}
                 </td>
               </tr>
+              <tr>
+                <td className={styles.muted}>Session trace</td>
+                <td style={{ textAlign: "right" }}>
+                  {t?.session_trace_available
+                    ? `${t.session_tool_call_count ?? t.tool_call_count ?? 0} calls loaded`
+                    : "not available"}
+                </td>
+              </tr>
               {detail.judge_usage && !detail.judge_usage.error && (
                 <tr>
                   <td className={styles.muted}>Judge cost / time</td>
@@ -571,9 +583,19 @@ export default function NewsletterAdminLibraryTab({
   const [importLoading, setImportLoading] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  // Batches / detail
+  // Global newsletter leaderboard (primary list)
+  const [leaderboardItems, setLeaderboardItems] = useState<NewsletterEvalLeaderboardItem[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardPage, setLeaderboardPage] = useState(1);
+  const [leaderboardPages, setLeaderboardPages] = useState(1);
+  const [leaderboardTotal, setLeaderboardTotal] = useState(0);
+  const [leaderboardQuery, setLeaderboardQuery] = useState("");
+  const [leaderboardJudgedOnly, setLeaderboardJudgedOnly] = useState(true);
+
+  // Batches / detail (secondary)
   const [batches, setBatches] = useState<NewsletterEvalBatchListItem[]>([]);
   const [batchesLoading, setBatchesLoading] = useState(true);
+  const [batchesOpen, setBatchesOpen] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [batchDetail, setBatchDetail] = useState<{
     batch: NewsletterEvalBatchListItem;
@@ -607,6 +629,30 @@ export default function NewsletterAdminLibraryTab({
     }
   }, [getAccessTokenSilently]);
 
+  const loadLeaderboard = useCallback(
+    async (page = leaderboardPage) => {
+      try {
+        setLeaderboardLoading(true);
+        const token = await getAccessTokenSilently();
+        const res = await listNewsletterEvalResults(token, {
+          q: leaderboardQuery.trim() || undefined,
+          judged_only: leaderboardJudgedOnly,
+          page,
+          page_size: LEADERBOARD_PAGE_SIZE,
+        });
+        setLeaderboardItems(res.items);
+        setLeaderboardPage(res.page);
+        setLeaderboardPages(res.pages);
+        setLeaderboardTotal(res.total);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Failed to load eval leaderboard");
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    },
+    [getAccessTokenSilently, leaderboardPage, leaderboardQuery, leaderboardJudgedOnly]
+  );
+
   const loadBatches = useCallback(async () => {
     try {
       setBatchesLoading(true);
@@ -633,10 +679,19 @@ export default function NewsletterAdminLibraryTab({
     [getAccessTokenSilently]
   );
 
+  const refreshLists = useCallback(async () => {
+    await Promise.all([loadLeaderboard(leaderboardPage), loadBatches()]);
+  }, [loadLeaderboard, loadBatches, leaderboardPage]);
+
   useEffect(() => {
     loadReferenceData();
     loadBatches();
   }, [loadReferenceData, loadBatches]);
+
+  useEffect(() => {
+    void loadLeaderboard(leaderboardPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when filters/page change
+  }, [leaderboardPage, leaderboardJudgedOnly]);
 
   useEffect(() => {
     if (selectedBatchId != null) {
@@ -656,13 +711,13 @@ export default function NewsletterAdminLibraryTab({
     if (selectedBatchId != null && (status === "running" || status === "pending")) {
       pollRef.current = setInterval(() => {
         loadBatchDetail(selectedBatchId);
-        loadBatches();
+        void refreshLists();
       }, 5000);
     }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [selectedBatchId, batchDetail?.batch?.status, loadBatchDetail, loadBatches]);
+  }, [selectedBatchId, batchDetail?.batch?.status, loadBatchDetail, refreshLists]);
 
   // -- Run builder derived state -------------------------------------------
 
@@ -718,7 +773,8 @@ export default function NewsletterAdminLibraryTab({
       );
       toast.success(`Eval batch started (${res.cell_count} cells)`);
       setBuilderOpen(false);
-      await loadBatches();
+      setBatchesOpen(true);
+      await refreshLists();
       setSelectedBatchId(res.batch_id);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to start eval batch");
@@ -766,7 +822,8 @@ export default function NewsletterAdminLibraryTab({
       toast.success(`Imported ${res.imported} email(s) for judging`);
       setImportOpen(false);
       setImportSelected(new Set());
-      await loadBatches();
+      setBatchesOpen(true);
+      await refreshLists();
       setSelectedBatchId(res.batch_id);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Import failed");
@@ -1200,11 +1257,190 @@ export default function NewsletterAdminLibraryTab({
         </div>
       )}
 
-      {/* Batch list */}
+      {/* Global newsletter leaderboard (primary) */}
       <div className={styles.tableContainer} style={{ marginBottom: 14 }}>
         <div className={styles.tableHeader}>
-          <span className={styles.tableTitle}>Eval batches</span>
+          <span className={styles.tableTitle}>Newsletter leaderboard</span>
+          <span className={styles.tableCount}>{leaderboardTotal}</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <label
+              className={styles.muted}
+              style={{ fontSize: 12, display: "flex", gap: 4, alignItems: "center" }}
+            >
+              <input
+                type="checkbox"
+                checked={leaderboardJudgedOnly}
+                onChange={(e) => {
+                  setLeaderboardPage(1);
+                  setLeaderboardJudgedOnly(e.target.checked);
+                }}
+              />
+              Judged only
+            </label>
+            <input
+              className={styles.searchInput}
+              style={{ width: 180 }}
+              value={leaderboardQuery}
+              onChange={(e) => setLeaderboardQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setLeaderboardPage(1);
+                  void loadLeaderboard(1);
+                }
+              }}
+              placeholder="Search subject, city…"
+            />
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={() => {
+                setLeaderboardPage(1);
+                void loadLeaderboard(1);
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+        {leaderboardLoading && leaderboardItems.length === 0 ? (
+          <Loader />
+        ) : leaderboardItems.length === 0 ? (
+          <div className={styles.emptyState}>
+            No scored newsletters yet — run an eval or import emails to judge.
+          </div>
+        ) : (
+          <>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th className={styles.th}>#</th>
+                    <th className={styles.th}>Newsletter</th>
+                    <th className={styles.th}>Overall</th>
+                    <th className={styles.th}>Acc</th>
+                    <th className={styles.th}>Rel</th>
+                    <th className={styles.th}>Cog</th>
+                    <th className={styles.th}>Data</th>
+                    <th className={styles.th}>Tone</th>
+                    <th className={styles.th}>Tools</th>
+                    <th className={styles.th}>Tokens in/out</th>
+                    <th className={styles.th}>Cost</th>
+                    <th className={styles.th}>Time</th>
+                    <th className={styles.th}>Calls</th>
+                    <th className={styles.th}>Batch / City</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboardItems.map((r, i) => {
+                    const dims = r.judge_scores?.dimensions || {};
+                    const t = r.run_telemetry;
+                    const rank = (leaderboardPage - 1) * LEADERBOARD_PAGE_SIZE + i + 1;
+                    return (
+                      <tr
+                        key={r.id}
+                        className={styles.rowClickable}
+                        onClick={() => openDetail([r.id])}
+                      >
+                        <td className={styles.td}>{rank}</td>
+                        <td className={styles.td}>
+                          <div style={{ fontWeight: 600 }}>
+                            {maskEmails(r.subject) || "(no subject)"}
+                          </div>
+                          <div className={styles.muted} style={{ fontSize: 11.5 }}>
+                            {maskEmails(r.persona_label) || "—"} · {cellComboLabel(r)}
+                            {r.source === "imported" ? " · imported" : ""}
+                          </div>
+                        </td>
+                        <td className={styles.td}>
+                          <ScoreBadge
+                            score={r.overall_score ?? overallScore(r)}
+                            size={20}
+                          />
+                        </td>
+                        <td className={styles.td}>{dims.accuracy?.score ?? "–"}</td>
+                        <td className={styles.td}>{dims.relevance?.score ?? "–"}</td>
+                        <td className={styles.td}>{dims.cogency?.score ?? "–"}</td>
+                        <td className={styles.td}>{dims.data_honesty?.score ?? "–"}</td>
+                        <td className={styles.td}>{dims.tone?.score ?? "–"}</td>
+                        <td className={styles.td}>{dims.tool_use?.score ?? "–"}</td>
+                        <td className={styles.td}>
+                          {fmtTokens(r.llm_usage?.prompt_tokens)}/
+                          {fmtTokens(r.llm_usage?.completion_tokens)}
+                        </td>
+                        <td className={styles.td}>{fmtCost(r.llm_usage?.cost_usd)}</td>
+                        <td className={styles.td}>
+                          {fmtMs(t?.generation_ms ?? t?.execution_time_ms)}
+                        </td>
+                        <td className={styles.td}>
+                          {t?.llm_call_count ?? "–"}/{t?.tool_call_count ?? "–"}
+                        </td>
+                        <td className={styles.td}>
+                          <button
+                            type="button"
+                            className={styles.linkBtn}
+                            style={{ fontSize: 12, padding: 0, textAlign: "left" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBatchesOpen(true);
+                              setSelectedBatchId(r.batch_id);
+                            }}
+                          >
+                            {r.batch_name || `Batch ${r.batch_id}`}
+                          </button>
+                          <div className={styles.muted} style={{ fontSize: 11 }}>
+                            {r.city_name || "—"}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {leaderboardTotal > 0 && (
+              <div className={styles.pagination}>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  disabled={leaderboardPage <= 1 || leaderboardLoading}
+                  onClick={() => setLeaderboardPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className={styles.pageInfo}>
+                  Page {leaderboardPage} of {leaderboardPages} ({leaderboardTotal} newsletters)
+                </span>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  disabled={leaderboardPage >= leaderboardPages || leaderboardLoading}
+                  onClick={() =>
+                    setLeaderboardPage((p) => Math.min(leaderboardPages, p + 1))
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Batch list (secondary) */}
+      <div className={styles.tableContainer} style={{ marginBottom: 14 }}>
+        <div className={styles.tableHeader}>
+          <button
+            type="button"
+            className={styles.linkBtn}
+            style={{ fontWeight: 700, fontSize: 14 }}
+            onClick={() => setBatchesOpen((o) => !o)}
+          >
+            {batchesOpen ? "▾" : "▸"} Eval batches
+          </button>
           <span className={styles.tableCount}>{batches.length}</span>
+          <span className={styles.muted} style={{ fontSize: 12 }}>
+            batch name, city, status — open a batch for matrix view
+          </span>
           <button
             type="button"
             className={styles.linkBtn}
@@ -1214,69 +1450,71 @@ export default function NewsletterAdminLibraryTab({
             Refresh
           </button>
         </div>
-        {batchesLoading ? (
-          <Loader />
-        ) : batches.length === 0 ? (
-          <div className={styles.emptyState}>
-            No eval batches yet — run one with “New eval run”.
-          </div>
-        ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.th}>Batch</th>
-                  <th className={styles.th}>City</th>
-                  <th className={styles.th}>Status</th>
-                  <th className={styles.th}>Cells</th>
-                  <th className={styles.th}>Avg score</th>
-                  <th className={styles.th}>Total cost</th>
-                  <th className={styles.th}>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batches.map((b) => (
-                  <tr
-                    key={b.id}
-                    className={styles.rowClickable}
-                    style={selectedBatchId === b.id ? { background: "var(--bg-secondary)" } : undefined}
-                    onClick={() => setSelectedBatchId(b.id)}
-                  >
-                    <td className={styles.td} style={{ fontWeight: 600 }}>{b.name || `Batch ${b.id}`}</td>
-                    <td className={styles.td}>{b.city_name || "—"}</td>
-                    <td className={styles.td}>
-                      <span
-                        className={`${styles.badge} ${
-                          b.status === "completed"
-                            ? styles.badgeGreen
-                            : b.status === "failed"
-                              ? styles.badgeYellow
-                              : b.status === "running"
-                                ? styles.badgeBlue
-                                : styles.badgeGray
-                        }`}
-                      >
-                        {b.status}
-                      </span>
-                    </td>
-                    <td className={styles.td}>
-                      {b.completed_cells}/{b.cell_count}
-                      {b.failed_cells > 0 ? ` (${b.failed_cells} failed)` : ""}
-                    </td>
-                    <td className={styles.td}>
-                      {b.avg_overall_score != null ? (
-                        <ScoreBadge score={Math.round(b.avg_overall_score * 10) / 10} title={`avg ${b.avg_overall_score.toFixed(2)}`} size={20} />
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className={styles.td}>{fmtCost(b.total_cost_usd)}</td>
-                    <td className={styles.td}>{new Date(b.created_at).toLocaleString()}</td>
+        {batchesOpen && (
+          batchesLoading ? (
+            <Loader />
+          ) : batches.length === 0 ? (
+            <div className={styles.emptyState}>
+              No eval batches yet — run one with “New eval run”.
+            </div>
+          ) : (
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th className={styles.th}>Batch</th>
+                    <th className={styles.th}>City</th>
+                    <th className={styles.th}>Status</th>
+                    <th className={styles.th}>Cells</th>
+                    <th className={styles.th}>Avg score</th>
+                    <th className={styles.th}>Total cost</th>
+                    <th className={styles.th}>Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {batches.map((b) => (
+                    <tr
+                      key={b.id}
+                      className={styles.rowClickable}
+                      style={selectedBatchId === b.id ? { background: "var(--bg-secondary)" } : undefined}
+                      onClick={() => setSelectedBatchId(b.id)}
+                    >
+                      <td className={styles.td} style={{ fontWeight: 600 }}>{b.name || `Batch ${b.id}`}</td>
+                      <td className={styles.td}>{b.city_name || "—"}</td>
+                      <td className={styles.td}>
+                        <span
+                          className={`${styles.badge} ${
+                            b.status === "completed"
+                              ? styles.badgeGreen
+                              : b.status === "failed"
+                                ? styles.badgeYellow
+                                : b.status === "running"
+                                  ? styles.badgeBlue
+                                  : styles.badgeGray
+                          }`}
+                        >
+                          {b.status}
+                        </span>
+                      </td>
+                      <td className={styles.td}>
+                        {b.completed_cells}/{b.cell_count}
+                        {b.failed_cells > 0 ? ` (${b.failed_cells} failed)` : ""}
+                      </td>
+                      <td className={styles.td}>
+                        {b.avg_overall_score != null ? (
+                          <ScoreBadge score={Math.round(b.avg_overall_score * 10) / 10} title={`avg ${b.avg_overall_score.toFixed(2)}`} size={20} />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className={styles.td}>{fmtCost(b.total_cost_usd)}</td>
+                      <td className={styles.td}>{new Date(b.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
 
@@ -1325,6 +1563,7 @@ export default function NewsletterAdminLibraryTab({
                           <th className={styles.th}>Cog</th>
                           <th className={styles.th}>Data</th>
                           <th className={styles.th}>Tone</th>
+                          <th className={styles.th}>Tools</th>
                           <th className={styles.th}>Tokens in/out</th>
                           <th className={styles.th}>Cost</th>
                           <th className={styles.th}>Time</th>
@@ -1347,6 +1586,7 @@ export default function NewsletterAdminLibraryTab({
                               <td className={styles.td}>{dims.cogency?.score ?? "–"}</td>
                               <td className={styles.td}>{dims.data_honesty?.score ?? "–"}</td>
                               <td className={styles.td}>{dims.tone?.score ?? "–"}</td>
+                              <td className={styles.td}>{dims.tool_use?.score ?? "–"}</td>
                               <td className={styles.td}>
                                 {fmtTokens(r.llm_usage?.prompt_tokens)}/{fmtTokens(r.llm_usage?.completion_tokens)}
                               </td>

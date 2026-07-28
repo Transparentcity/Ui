@@ -8562,6 +8562,14 @@ export interface NewsletterEvalRunTelemetry {
   failed_tool_calls?: number;
   execution_time_ms?: number;
   generation_ms?: number;
+  session_trace_available?: boolean;
+  session_id?: string;
+  session_model_key?: string;
+  session_execution_time_ms?: number;
+  session_llm_call_count?: number;
+  session_tool_call_count?: number;
+  session_tool_calls_by_name?: Record<string, number>;
+  session_failed_tool_calls?: number;
 }
 
 export interface NewsletterEvalStats {
@@ -8689,6 +8697,46 @@ export function listNewsletterEvalBatches(
   const qs = params.toString();
   return request(
     `/api/admin/newsletter/eval/batches${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface NewsletterEvalLeaderboardItem extends NewsletterEvalCell {
+  batch_name: string | null;
+  batch_campaign: string | null;
+  batch_status: string | null;
+  city_id: number | null;
+  city_name: string | null;
+  overall_score: number | null;
+}
+
+export function listNewsletterEvalResults(
+  token: string,
+  options?: {
+    q?: string;
+    judged_only?: boolean;
+    page?: number;
+    page_size?: number;
+  }
+): Promise<{
+  items: NewsletterEvalLeaderboardItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}> {
+  const params = new URLSearchParams();
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.judged_only != null)
+    params.append("judged_only", String(options.judged_only));
+  if (options?.page != null) params.append("page", String(options.page));
+  if (options?.page_size != null)
+    params.append("page_size", String(options.page_size));
+  const qs = params.toString();
+  return request(
+    `/api/admin/newsletter/eval/results${qs ? `?${qs}` : ""}`,
     "GET",
     undefined,
     token
