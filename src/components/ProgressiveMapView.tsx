@@ -12,8 +12,10 @@ import {
   getChoroplethBrandRamp,
   getInitialMapView,
   INITIAL_ZOOM_CITYWIDE,
+  MAP_BRAND_PURPLE,
   choroplethDistrictKeyAliases,
   normalizeChoroplethDistrictKey,
+  seriesMatchFallbackColor,
   type ChoroplethBasemapTheme,
 } from "@/lib/mapUtils";
 import { normalizePointData } from "@/lib/mapPointNormalize";
@@ -1486,12 +1488,18 @@ export default function ProgressiveMapView({
           if (seriesField && seriesColors && Object.keys(seriesColors).length > 0) {
             const matchExpr: any[] = ["match", ["to-string", ["get", seriesField]]];
             for (const [label, color] of Object.entries(seriesColors)) {
-              matchExpr.push(String(label), String(color));
+              // Prefer the dedicated Other swatch when legacy configs reused brand purple.
+              const swatch =
+                String(label) === "Other" &&
+                String(color).trim().toLowerCase() === MAP_BRAND_PURPLE
+                  ? seriesMatchFallbackColor(seriesColors)
+                  : String(color);
+              matchExpr.push(String(label), swatch);
             }
-            matchExpr.push("#ad35fa");
+            matchExpr.push(seriesMatchFallbackColor(seriesColors));
             return matchExpr;
           }
-          return "#ad35fa";
+          return MAP_BRAND_PURPLE;
         })();
 
         mapInstance.addLayer({

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   choroplethDistrictKeyAliases,
+  MAP_BRAND_PURPLE,
+  MAP_SERIES_OTHER_COLOR,
   normalizeChoroplethDistrictKey,
+  seriesMatchFallbackColor,
 } from "./mapUtils";
 
 describe("normalizeChoroplethDistrictKey", () => {
@@ -17,6 +20,23 @@ describe("normalizeChoroplethDistrictKey", () => {
   it("returns empty string for nullish values", () => {
     expect(normalizeChoroplethDistrictKey(null)).toBe("");
     expect(normalizeChoroplethDistrictKey("  ")).toBe("");
+  });
+});
+
+describe("seriesMatchFallbackColor", () => {
+  it("uses a neutral Other swatch when none is configured", () => {
+    expect(seriesMatchFallbackColor(undefined)).toBe(MAP_SERIES_OTHER_COLOR);
+    expect(seriesMatchFallbackColor({})).toBe(MAP_SERIES_OTHER_COLOR);
+  });
+
+  it("prefers a distinct configured Other color", () => {
+    expect(seriesMatchFallbackColor({ Other: "#64748b" })).toBe("#64748b");
+  });
+
+  it("replaces legacy purple Other with the neutral swatch", () => {
+    expect(seriesMatchFallbackColor({ Other: MAP_BRAND_PURPLE })).toBe(
+      MAP_SERIES_OTHER_COLOR
+    );
   });
 });
 

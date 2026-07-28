@@ -21,6 +21,7 @@ import {
   getPlaceRadiusBoundingBox,
   getPlaceRadiusBoundingBoxPolygon,
 } from "@/lib/placeBounds";
+import { seriesMatchFallbackColor } from "@/lib/mapUtils";
 import "./MetricMapEmbed.css";
 
 interface MetricMapEmbedProps {
@@ -995,15 +996,22 @@ export default function MetricMapEmbed({
             )}
             {hasSeriesLegend && seriesLabels.length > 0 && (
               <div className="map-legend map-legend-series">
-                {seriesLabels.map((label) => (
+                {seriesLabels.map((label) => {
+                  const raw = seriesColors![label];
+                  const backgroundColor =
+                    String(label) === "Other"
+                      ? seriesMatchFallbackColor(seriesColors)
+                      : (raw ?? seriesMatchFallbackColor(seriesColors));
+                  return (
                   <div key={String(label)} className="map-legend-item">
                     <span
                       className="map-legend-dot map-legend-dot-series"
-                      style={{ backgroundColor: seriesColors![label] ?? "#ad35fa" }}
+                      style={{ backgroundColor }}
                     />
                     <span className="map-legend-label">{label}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <span className="map-legend-chevron" aria-hidden="true">

@@ -8617,6 +8617,14 @@ export interface NewsletterEvalResultDetail extends NewsletterEvalCell {
   body_html: string | null;
   stories_block: string | null;
   plan_json: Record<string, unknown> | null;
+  /**
+   * Bounded generation session tool-call trace passed to the judge
+   * (names, arguments, results, success, timing). Conversation messages
+   * are intentionally omitted.
+   */
+  session_trace?: string | null;
+  /** Platform story-ranking / personalization scores passed to the judge. */
+  scoring_block?: string | null;
 }
 
 export interface NewsletterEvalBatchListItem {

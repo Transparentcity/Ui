@@ -280,6 +280,60 @@ function JudgeScoresPanel({
 // Detail modal (single cell, or two cells side by side)
 // ---------------------------------------------------------------------------
 
+function ContextBlock({
+  label,
+  open,
+  onToggle,
+  children,
+  emptyHint,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  children?: React.ReactNode;
+  emptyHint?: string;
+}) {
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button type="button" className={styles.linkBtn} onClick={onToggle}>
+        {open ? "Hide" : "Show"} {label}
+      </button>
+      {open && (
+        <div
+          style={{
+            fontSize: 11.5,
+            whiteSpace: "pre-wrap",
+            color: "var(--text-secondary)",
+            background: "var(--bg-secondary)",
+            borderRadius: 6,
+            padding: 8,
+            marginTop: 4,
+            maxHeight: 280,
+            overflow: "auto",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          }}
+        >
+          {children ?? emptyHint ?? "(empty)"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatPlanForDisplay(plan: Record<string, unknown> | null): string | null {
+  if (!plan) return null;
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(plan)) {
+    if (!k.startsWith("_")) cleaned[k] = v;
+  }
+  if (Object.keys(cleaned).length === 0) return null;
+  try {
+    return JSON.stringify(cleaned, null, 2);
+  } catch {
+    return String(cleaned);
+  }
+}
+
 function ResultDetailPane({
   detail,
   models,
@@ -292,10 +346,13 @@ function ResultDetailPane({
   const { getAccessTokenSilently } = useAuth0();
   const [rejudging, setRejudging] = useState(false);
   const [rejudgeModel, setRejudgeModel] = useState<string>(detail.judge_model_key || "");
-  const [showPersona, setShowPersona] = useState(false);
+  const [openContext, setOpenContext] = useState<Record<string, boolean>>({});
   const t = detail.run_telemetry;
   const u = detail.llm_usage;
   const stats = detail.stats_json;
+  const planText = formatPlanForDisplay(detail.plan_json);
+  const toggleContext = (key: string) =>
+    setOpenContext((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const handleRejudge = async () => {
     try {
@@ -320,12 +377,85 @@ function ResultDetailPane({
     }
   };
 
+  const slateText = detail.stories_block?.trim() || "";
+  const scoringText = detail.scoring_block?.trim() || "";
+  const hasSlateOrScoring = Boolean(slateText || scoringText);
+
   return (
     <div style={{ display: "flex", gap: 14, minHeight: 0, flex: 1 }}>
       {/* Email preview */}
-      <div className={styles.emailPreviewFrame} style={{ flex: "1 1 62%", overflow: "auto" }}>
+      <div
+        className={styles.emailPreviewFrame}
+        style={{ flex: "1 1 62%", overflow: "auto", display: "flex", flexDirection: "column" }}
+      >
+        {hasSlateOrScoring && (
+          <details
+            style={{
+              borderBottom: "1px solid rgba(148, 163, 184, 0.35)",
+              background: "var(--bg-secondary, #f8fafc)",
+              flex: "0 0 auto",
+            }}
+          >
+            <summary
+              style={{
+                cursor: "pointer",
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-secondary)",
+                userSelect: "none",
+                listStyle: "none",
+              }}
+            >
+              Story slate & scoring
+              {slateText ? ` · ${Math.max(1, (slateText.match(/^Story \d+/gm) || []).length)} stories` : ""}
+              {scoringText ? " · ranking scores" : ""}
+            </summary>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: scoringText && slateText ? "1fr 1fr" : "1fr",
+                gap: 8,
+                padding: "0 12px 10px",
+                maxHeight: 180,
+                overflow: "auto",
+              }}
+            >
+              {slateText && (
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: 10.5,
+                    lineHeight: 1.35,
+                    whiteSpace: "pre-wrap",
+                    color: "var(--text-secondary)",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  }}
+                >
+                  {slateText}
+                </pre>
+              )}
+              {scoringText && (
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: 10.5,
+                    lineHeight: 1.35,
+                    whiteSpace: "pre-wrap",
+                    color: "var(--text-secondary)",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    borderLeft: slateText ? "1px solid rgba(148, 163, 184, 0.3)" : undefined,
+                    paddingLeft: slateText ? 8 : undefined,
+                  }}
+                >
+                  {scoringText}
+                </pre>
+              )}
+            </div>
+          </details>
+        )}
         {detail.body_html ? (
-          <div className={styles.emailPreviewContent}>
+          <div className={styles.emailPreviewContent} style={{ flex: 1 }}>
             <div dangerouslySetInnerHTML={{ __html: detail.body_html }} />
           </div>
         ) : (
@@ -500,29 +630,63 @@ function ResultDetailPane({
           </div>
         )}
 
-        {/* Persona prompt */}
-        {detail.persona_prompt && (
-          <div style={{ marginTop: 10 }}>
-            <button type="button" className={styles.linkBtn} onClick={() => setShowPersona(!showPersona)}>
-              {showPersona ? "Hide" : "Show"} persona instructions
-            </button>
-            {showPersona && (
-              <div
-                style={{
-                  fontSize: 11.5,
-                  whiteSpace: "pre-wrap",
-                  color: "var(--text-secondary)",
-                  background: "var(--bg-secondary)",
-                  borderRadius: 6,
-                  padding: 8,
-                  marginTop: 4,
-                }}
-              >
-                {detail.persona_prompt}
-              </div>
-            )}
+        {/* Full judge context — everything the LLM judge received */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>Judge context</div>
+          <div className={styles.muted} style={{ fontSize: 11, marginBottom: 4 }}>
+            Inputs passed to the judge (tool call args/results included; LLM
+            conversation messages omitted).
           </div>
-        )}
+          <ContextBlock
+            label="persona instructions"
+            open={!!openContext.persona}
+            onToggle={() => toggleContext("persona")}
+            emptyHint="(none — shared edition)"
+          >
+            {detail.persona_prompt?.trim() || null}
+          </ContextBlock>
+          <ContextBlock
+            label="story slate"
+            open={!!openContext.slate}
+            onToggle={() => toggleContext("slate")}
+            emptyHint="(not available for this email)"
+          >
+            {detail.stories_block?.trim() || null}
+          </ContextBlock>
+          <ContextBlock
+            label="story ranking / scoring"
+            open={!!openContext.scoring}
+            onToggle={() => toggleContext("scoring")}
+            emptyHint="(not available — ranking scores were not stored for this email)"
+          >
+            {detail.scoring_block?.trim() || null}
+          </ContextBlock>
+          <ContextBlock
+            label="editorial plan"
+            open={!!openContext.plan}
+            onToggle={() => toggleContext("plan")}
+            emptyHint="(no structured plan — judge used rendered email text from the preview)"
+          >
+            {planText}
+          </ContextBlock>
+          {detail.prompt_override?.trim() && (
+            <ContextBlock
+              label="prompt override"
+              open={!!openContext.override}
+              onToggle={() => toggleContext("override")}
+            >
+              {detail.prompt_override}
+            </ContextBlock>
+          )}
+          <ContextBlock
+            label="generation session trace"
+            open={!!openContext.trace}
+            onToggle={() => toggleContext("trace")}
+            emptyHint="(not available)"
+          >
+            {detail.session_trace?.trim() || null}
+          </ContextBlock>
+        </div>
 
         {detail.session_id && (
           <div style={{ marginTop: 8 }}>

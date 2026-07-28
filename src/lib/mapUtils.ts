@@ -7,6 +7,30 @@ export const DEFAULT_PLACE_RADIUS_M = 300;
 export const MAX_PLACE_RADIUS_M = 700;
 export const DEFAULT_MAP_ZOOM = 13;
 
+/** Brand purple — used as the default monochrome point color, not for series overflow. */
+export const MAP_BRAND_PURPLE = "#ad35fa";
+/**
+ * Neutral swatch for series categories outside the top-N legend ("Other").
+ * Kept distinct from brand purple so overflow types don't look like the first category.
+ */
+export const MAP_SERIES_OTHER_COLOR = "#94a3b8";
+
+/**
+ * Mapbox `match` fallback color for categorical point series.
+ * Prefer a configured "Other" swatch unless it collides with brand purple
+ * (legacy maps reused purple after the 12-color palette ran out).
+ */
+export function seriesMatchFallbackColor(
+  seriesColors?: Record<string, string> | null
+): string {
+  const other = seriesColors?.Other ?? seriesColors?.other;
+  if (typeof other === "string" && other.trim()) {
+    const normalized = other.trim().toLowerCase();
+    if (normalized !== MAP_BRAND_PURPLE) return other.trim();
+  }
+  return MAP_SERIES_OTHER_COLOR;
+}
+
 /** Zoom levels for initial map view by scope (no data loaded yet). */
 export const INITIAL_ZOOM_CITYWIDE = 10;
 export const INITIAL_ZOOM_DISTRICT = 12;

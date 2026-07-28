@@ -32,10 +32,12 @@ import {
   getCaseInsensitiveProp,
   getChoroplethBrandRamp,
   getInitialMapView,
+  MAP_BRAND_PURPLE,
   choroplethDistrictKeyAliases,
   normalizeChoroplethDistrictKey,
   normalizeGeoJsonLngLatPair,
   normalizeLocationRowLatLng,
+  seriesMatchFallbackColor,
 } from "@/lib/mapUtils";
 
 // Types for the map data
@@ -1327,7 +1329,14 @@ export default function PublicMapPage() {
       : Object.keys(seriesColors).map(String);
     const items = values
       .filter((v) => !!seriesColors[v])
-      .map((v) => ({ label: v, color: String(seriesColors[v]) }));
+      .map((v) => {
+        const raw = String(seriesColors[v]);
+        const color =
+          v === "Other" && raw.trim().toLowerCase() === MAP_BRAND_PURPLE
+            ? seriesMatchFallbackColor(seriesColors)
+            : raw;
+        return { label: v, color };
+      });
     if (items.length === 0) return;
     setLegend({ title: seriesField, items });
   };
@@ -1450,13 +1459,18 @@ export default function PublicMapPage() {
     const seriesValues = mapData.map_config?.dot_series_values;
 
     // Build Mapbox 'match' expression for categorical coloring
-    const colorExpr: any[] = ["case", ["==", 1, 1], "#ad35fa"];
+    const colorExpr: any[] = ["case", ["==", 1, 1], MAP_BRAND_PURPLE];
     if (seriesField && seriesColors) {
       const matchExpr: any[] = ["match", ["to-string", ["get", seriesField]]];
       for (const [label, color] of Object.entries(seriesColors)) {
-        matchExpr.push(String(label), String(color));
+        const swatch =
+          String(label) === "Other" &&
+          String(color).trim().toLowerCase() === MAP_BRAND_PURPLE
+            ? seriesMatchFallbackColor(seriesColors)
+            : String(color);
+        matchExpr.push(String(label), swatch);
       }
-      matchExpr.push("#ad35fa");
+      matchExpr.push(seriesMatchFallbackColor(seriesColors));
       colorExpr.splice(0, colorExpr.length, ...matchExpr);
       setLegendFromSeries(seriesField, seriesValues, seriesColors);
     } else {
@@ -3033,19 +3047,26 @@ export default function PublicMapPage() {
             ],
             "circle-color": (() => {
               const seriesField = map.map_config?.series_field;
-              const seriesColors = map.map_config?.series_colors;
+              const seriesColors = map.map_config?.series_colors as
+                | Record<string, string>
+                | undefined;
               if (seriesField && seriesColors) {
                 const matchExpr: any[] = ["match", ["to-string", ["get", seriesField]]];
                 for (const [label, color] of Object.entries(seriesColors)) {
-                  matchExpr.push(String(label), String(color));
+                  const swatch =
+                    String(label) === "Other" &&
+                    String(color).trim().toLowerCase() === MAP_BRAND_PURPLE
+                      ? seriesMatchFallbackColor(seriesColors)
+                      : String(color);
+                  matchExpr.push(String(label), swatch);
                 }
-                matchExpr.push("#ad35fa");
+                matchExpr.push(seriesMatchFallbackColor(seriesColors));
                 // Update legend (best-effort)
                 setLegendFromSeries(seriesField, map.map_config?.series_values, seriesColors);
                 return matchExpr;
               }
               clearLegend();
-              return "#ad35fa";
+              return MAP_BRAND_PURPLE;
             })(),
             // Gold ring marks points with photos (opens the media gallery on click)
             "circle-stroke-color": [

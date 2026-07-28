@@ -586,7 +586,7 @@ function newsletterScopeLabel(item: NewsletterPendingListItem): string {
 }
 
 const SELECTION_SLOT_LABELS: Record<string, string> = {
-  place_lead: "Saved place",
+  place_lead: "Home place",
   anomaly_or_event: "Anomaly / event",
   district: "District",
   citywide: "Citywide",
