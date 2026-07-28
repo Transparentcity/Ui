@@ -47,7 +47,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "prompts", label: "Prompts" },
   { id: "subscribers", label: "Subscribers" },
-  { id: "library", label: "Library" },
+  { id: "library", label: "Workbench" },
 ];
 
 const RECENT_SENDS_PAGE_SIZE = 20;
