@@ -1362,7 +1362,20 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-07-23"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📋🏁 New Residential Construction Permits Completed",
+      "metricKey": "cincinnati_new_residential_construction_permits_completed",
+      "metricId": 584,
+      "cardUrl": "https://transparent.city/c//metrics/cincinnati_new_residential_construction_permits_completed",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-07-30"
     }
   ],
-  "lastRunDate": "2026-07-23"
+  "lastRunDate": "2026-07-30"
 }
