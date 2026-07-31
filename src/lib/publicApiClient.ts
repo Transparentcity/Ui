@@ -52,7 +52,10 @@ function getCachedOrFetch<T>(
   return promise;
 }
 
-async function requestPublic<T>(path: string): Promise<T> {
+async function requestPublic<T>(
+  path: string,
+  options?: { next?: { revalidate?: number | false; tags?: string[] } }
+): Promise<T> {
   const url = `${resolvePublicApiBaseUrl()}${path}`;
 
   try {
@@ -65,7 +68,8 @@ async function requestPublic<T>(path: string): Promise<T> {
         Accept: "application/json",
       },
       // Cache public API responses for 1 hour, matching page-level ISR revalidation.
-      next: { revalidate: 3600 },
+      // Callers may override (e.g. metric-ordering uses tags for on-demand bust).
+      next: options?.next ?? { revalidate: 3600 },
     });
 
     if (!res.ok) {
@@ -247,8 +251,15 @@ export type PublicMetricOrderingResponse = {
 export function getPublicCityMetricOrdering(
   cityId: number
 ): Promise<PublicMetricOrderingResponse> {
+  // Tagged so admin Display Settings save can revalidateTag immediately.
   return requestPublic<PublicMetricOrderingResponse>(
-    `/api/public/cities/${cityId}/metric-ordering`
+    `/api/public/cities/${cityId}/metric-ordering`,
+    {
+      next: {
+        revalidate: 3600,
+        tags: [`city-metric-ordering-${cityId}`],
+      },
+    }
   );
 }
 

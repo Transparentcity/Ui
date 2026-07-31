@@ -12,9 +12,13 @@ import {
   getPublicMetricDistrictComparisons,
   getPublicCityDistricts,
   listPublicMapsForCity,
+  getPublicCityMetricOrdering,
+  type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
 import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import { resolveDisplayCategory } from "@/lib/metricOrderingDisplay";
+import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import CitySignupCTA from "../../CitySignupCTA";
 import CityViewTracker from "../../CityViewTracker";
 import CustomizeMetricsTrigger from "../../CustomizeMetricsTrigger";
@@ -153,15 +157,18 @@ export default async function CityCategoryPage({
   > = {};
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
+  let cityOrdering: PublicMetricOrderingResponse | null = null;
 
   try {
-    const [detail, cityDistrictsRes, mapsRes] = await Promise.all([
+    const [detail, cityDistrictsRes, mapsRes, orderingRes] = await Promise.all([
       getPublicCityDetail(city.id),
       getPublicCityDistricts(city.id).catch((): number[] => []),
       listPublicMapsForCity(city.id).catch(() => []),
+      getPublicCityMetricOrdering(city.id).catch(() => null),
     ]);
     cityDetail = detail;
     maps = mapsRes;
+    cityOrdering = orderingRes;
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
       districts = filterDistrictsByGeographicStructure(
         cityDistrictsRes,
@@ -169,9 +176,17 @@ export default async function CityCategoryPage({
       );
     }
     const allMetrics = cityDetail?.metrics ?? [];
-    const categoryMetrics = allMetrics.filter(
-      (m) => (m.category || "Uncategorized") === categoryName
+    const orderingByMetricId = new Map(
+      (cityOrdering?.orderings ?? [])
+        .filter((o) => o.metric_id != null)
+        .map((o) => [o.metric_id!, o] as const)
     );
+    // Match Display Settings category rename (not only native metrics.category)
+    const categoryMetrics = allMetrics.filter((m) => {
+      const ord = orderingByMetricId.get(m.id);
+      const displayCat = resolveDisplayCategory(ord?.category_name, m.category);
+      return displayCat === categoryName;
+    });
 
     if (categoryMetrics.length === 0) {
       notFound();
@@ -200,9 +215,24 @@ export default async function CityCategoryPage({
     notFound();
   }
 
-  const categoryMetricsList = (cityDetail?.metrics ?? []).filter(
-    (m) => (m.category || "Uncategorized") === categoryName
+  const orderingByMetricId = new Map(
+    (cityOrdering?.orderings ?? [])
+      .filter((o) => o.metric_id != null)
+      .map((o) => [o.metric_id!, o] as const)
   );
+  const categoryMetricsList = (cityDetail?.metrics ?? []).filter((m) => {
+    const ord = orderingByMetricId.get(m.id);
+    return resolveDisplayCategory(ord?.category_name, m.category) === categoryName;
+  });
+  const orderings: MetricOrderingEntry[] | undefined = cityOrdering?.orderings
+    ?.filter((o) => o.metric_id != null)
+    .map((o) => ({
+      metric_id: o.metric_id!,
+      category_order: o.category_order,
+      metric_order: o.metric_order,
+      category_name: o.category_name,
+      subcategory_name: o.subcategory_name ?? null,
+    }));
 
   return (
     <SignupEmailProvider>
@@ -242,9 +272,10 @@ export default async function CityCategoryPage({
               {(() => {
                 const uniqueCategories = Array.from(
                   new Set(
-                    (cityDetail?.metrics ?? [])
-                      .map((m) => m.category)
-                      .filter((c): c is string => Boolean(c))
+                    (cityDetail?.metrics ?? []).map((m) => {
+                      const ord = orderingByMetricId.get(m.id);
+                      return resolveDisplayCategory(ord?.category_name, m.category);
+                    })
                   )
                 ).sort((a, b) => a.localeCompare(b));
                 const hasMetrics = (cityDetail?.metrics?.length ?? 0) > 0;
@@ -296,6 +327,7 @@ export default async function CityCategoryPage({
         comparisonsMap={comparisonsMap}
         districts={districts}
         maps={maps}
+        orderings={orderings}
       />
 
       <LoggedOutOnly>

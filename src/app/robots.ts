@@ -42,7 +42,6 @@ const HUMAN_DISALLOW = [
   // Internal tools & admin
   "/debug",
   "/signals",
-  "/applause",
   "/flags",
   "/analytics",
   "/anomalies",

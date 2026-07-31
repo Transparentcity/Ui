@@ -83,15 +83,28 @@ export async function GET(req: Request): Promise<Response> {
   upstreamUrl.searchParams.set("access_token", mapboxToken);
   upstreamUrl.searchParams.set("limit", "6");
 
+  // Optional types override (e.g. "poi,address" for City Hall lookups).
+  const typesParam = (url.searchParams.get("types") || "").trim();
+
   if (isZipcode) {
     upstreamUrl.searchParams.set("types", "postcode");
     upstreamUrl.searchParams.set("country", "US");
+  } else if (typesParam) {
+    upstreamUrl.searchParams.set("types", typesParam);
   } else {
+    // Include poi so landmarks like City Hall resolve as the building, not
+    // a nearby street / wrong place with a similar name.
     upstreamUrl.searchParams.set(
       "types",
-      "place,locality,neighborhood,address,postcode"
+      "poi,address,place,locality,neighborhood,postcode"
     );
   }
+
+  // Optional country / proximity bias from the caller.
+  const country = (url.searchParams.get("country") || "").trim();
+  if (country) upstreamUrl.searchParams.set("country", country);
+  const proximity = (url.searchParams.get("proximity") || "").trim();
+  if (proximity) upstreamUrl.searchParams.set("proximity", proximity);
 
   try {
     const upstreamRes = await fetch(upstreamUrl.toString(), {

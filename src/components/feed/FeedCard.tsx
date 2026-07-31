@@ -34,6 +34,7 @@ interface FeedCardProps {
   story: EnrichedFeedStory;
   isAdmin?: boolean;
   onHide: (storyId: number) => void;
+  onApplaud?: (storyId: number) => void;
   onDelete?: (storyId: number) => void;
   /**
    * When set, open the story in the in-app feed detail surface instead of
@@ -46,6 +47,7 @@ export default function FeedCard({
   story,
   isAdmin,
   onHide,
+  onApplaud,
   onDelete,
   onOpenFeedDetail,
 }: FeedCardProps) {
@@ -140,6 +142,10 @@ export default function FeedCard({
     });
   }, [story.id, onHide]);
 
+  const handleApplaud = isAdmin
+    ? () => onApplaud?.(story.id)
+    : undefined;
+
   const handleDelete = isAdmin
     ? () => onDelete?.(story.id)
     : undefined;
@@ -205,6 +211,7 @@ export default function FeedCard({
             onClose={() => setOverflowOpen(false)}
             onShare={handleShare}
             onHide={isAdmin ? handleHide : undefined}
+            onApplaud={handleApplaud}
             onDelete={handleDelete}
             onMakePrivate={showMakePrivate ? handleMakePrivate : undefined}
             makePrivatePending={makePrivateMutation.isPending}

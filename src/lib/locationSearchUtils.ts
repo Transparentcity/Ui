@@ -114,16 +114,26 @@ export function suggestionToGeocodeResult(s: AddressSuggestion): GeocodeResult {
  * Returns an empty array if query is too short, or on error.
  */
 export async function fetchAddressSuggestions(
-  query: string
+  query: string,
+  options?: {
+    types?: string;
+    country?: string;
+    /** Mapbox proximity bias as "lng,lat". */
+    proximity?: string;
+  }
 ): Promise<AddressSuggestion[]> {
   const q = query.trim();
   if (q.length < 2) return [];
 
   try {
-    const res = await fetch(
-      `/api/geocode/suggest?q=${encodeURIComponent(q)}`,
-      { method: "GET", headers: { Accept: "application/json" } }
-    );
+    const params = new URLSearchParams({ q });
+    if (options?.types) params.set("types", options.types);
+    if (options?.country) params.set("country", options.country);
+    if (options?.proximity) params.set("proximity", options.proximity);
+    const res = await fetch(`/api/geocode/suggest?${params.toString()}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
     if (!res.ok) return [];
     const data = (await res.json()) as { suggestions?: AddressSuggestion[] };
     return data.suggestions ?? [];

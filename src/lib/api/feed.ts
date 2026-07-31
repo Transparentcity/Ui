@@ -278,6 +278,26 @@ export function deleteFeedStory(storyId: number, token: string): Promise<DeleteF
   );
 }
 
+export interface AdminLikeFeedStoryResponse {
+  success: boolean;
+  message: string;
+  like_count: number;
+  priority_score: number;
+}
+
+/** Admin-only Like: boosts story newsletter ranking (priority_score floor 75). */
+export function likeFeedStoryAdmin(
+  storyId: number,
+  token: string
+): Promise<AdminLikeFeedStoryResponse> {
+  return request<AdminLikeFeedStoryResponse>(
+    `/api/feed/admin/story/${storyId}/like`,
+    "POST",
+    {},
+    token
+  );
+}
+
 export function deleteFeedStoriesByCity(
   cityId: number,
   token: string,

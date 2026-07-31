@@ -17,6 +17,135 @@
       "has": [{ "type": "host", "value": "www.transparent.city" }],
       "destination": "https://transparent.city/$1",
       "permanent": true
+    },
+
+    {
+      "source": "/citywide/:mayor/metric/:metric",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/metrics/:metric",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name/metric/:metric",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/metrics/:metric",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name/map",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/citywide/:path*",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco",
+      "permanent": true
+    },
+
+    {
+      "source": "/citywide/:mayor/metric/:metric",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/metrics/:metric",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name/metric/:metric",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/metrics/:metric",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name/map",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/citywide/:path*",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "platform.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco",
+      "permanent": true
+    },
+
+    {
+      "source": "/citywide/:mayor/metric/:metric",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/metrics/:metric",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name/metric/:metric",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/metrics/:metric",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name/map",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id/:name",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/district/:id",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco/district/:id",
+      "permanent": true
+    },
+    {
+      "source": "/citywide/:path*",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "dashboard.transparentsf.com" }],
+      "destination": "https://transparent.city/c/san-francisco",
+      "permanent": true
     }
   ]
 }

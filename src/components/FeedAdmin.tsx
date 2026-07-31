@@ -12,6 +12,7 @@ import {
   deleteFeedStoriesByCity,
   createFeedStory,
   updateFeedStory,
+  likeFeedStoryAdmin,
 } from "@/lib/api/feed";
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
@@ -106,6 +107,9 @@ export default function FeedAdmin() {
   // Delete state
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Like state
+  const [likingId, setLikingId] = useState<number | null>(null);
 
   // Editor modal state (create = editingStory null; edit = existing story)
   const [editorOpen, setEditorOpen] = useState(false);
@@ -264,6 +268,31 @@ export default function FeedAdmin() {
         alert(`Failed to delete story: ${err?.message || "Unknown error"}`);
       } finally {
         setDeletingId(null);
+      }
+    },
+    [getAccessTokenSilently],
+  );
+
+  const handleLikeStory = useCallback(
+    async (storyId: number) => {
+      try {
+        setLikingId(storyId);
+        const token = await getAccessTokenSilently();
+        const res = await likeFeedStoryAdmin(storyId, token);
+        setStories((prev) =>
+          prev.map((s) =>
+            s.id === storyId ? { ...s, applaud_count: res.like_count } : s,
+          ),
+        );
+        setPreviewStory((prev) =>
+          prev && prev.id === storyId
+            ? { ...prev, applaud_count: res.like_count }
+            : prev,
+        );
+      } catch (err: any) {
+        alert(`Failed to like story: ${err?.message || "Unknown error"}`);
+      } finally {
+        setLikingId(null);
       }
     },
     [getAccessTokenSilently],
@@ -586,9 +615,10 @@ export default function FeedAdmin() {
                   </th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Views</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Clicks</th>
+                  <th className={`${styles.th} ${styles.hideNarrow}`} title="Like count">Likes</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`}>Scheduled job</th>
                   <th className={styles.th}>Job session</th>
-                  <th className={styles.th} style={{ width: 120 }}>Actions</th>
+                  <th className={styles.th} style={{ width: 150 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -634,6 +664,9 @@ export default function FeedAdmin() {
                       {story.click_count.toLocaleString()}
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      {(story.applaud_count ?? story.like_count ?? 0).toLocaleString()}
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
                       {story.scheduled_job_name ? (
                         <span title="Custom scheduled job that created the source research report">
                           {story.scheduled_job_name}
@@ -665,6 +698,27 @@ export default function FeedAdmin() {
                           className={styles.jobSessionAction}
                         />
                       ) : null}
+                      <button
+                        className={`${styles.iconBtn} ${styles.iconBtnApplaud}`}
+                        title="Like story (boosts newsletter ranking)"
+                        aria-label="Like story"
+                        disabled={likingId === story.id}
+                        style={{ marginRight: 4 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleLikeStory(story.id);
+                        }}
+                      >
+                        {likingId === story.id ? (
+                          <Loader size="sm" color="dark" />
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M9 11V6a2 2 0 0 1 4 0v5" />
+                            <path d="M13 11V4a2 2 0 0 1 4 0v7" />
+                            <path d="M17 11V7a2 2 0 0 1 4 0v8a6 6 0 0 1-6 6h-2.5a4 4 0 0 1-3.2-1.6L5 14.5a1.5 1.5 0 0 1 2.1-2.1L9 14" />
+                          </svg>
+                        )}
+                      </button>
                       <button
                         className={styles.iconBtn}
                         title="Edit story"
@@ -831,6 +885,27 @@ export default function FeedAdmin() {
                 Close
               </button>
               <div className={styles.previewFooterActions}>
+                <button
+                  type="button"
+                  className={styles.applaudBtn}
+                  title="Like this story (boosts newsletter ranking)"
+                  disabled={likingId === previewStory.id}
+                  onClick={() => void handleLikeStory(previewStory.id)}
+                >
+                  {likingId === previewStory.id ? (
+                    <Loader size="sm" color="dark" />
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M9 11V6a2 2 0 0 1 4 0v5" />
+                      <path d="M13 11V4a2 2 0 0 1 4 0v7" />
+                      <path d="M17 11V7a2 2 0 0 1 4 0v8a6 6 0 0 1-6 6h-2.5a4 4 0 0 1-3.2-1.6L5 14.5a1.5 1.5 0 0 1 2.1-2.1L9 14" />
+                    </svg>
+                  )}
+                  Like
+                  <span className={styles.applaudCount}>
+                    {(previewStory.applaud_count ?? previewStory.like_count ?? 0).toLocaleString()}
+                  </span>
+                </button>
                 {previewStory.job_session_id ? (
                   <JobSessionDebugLink
                     sessionId={previewStory.job_session_id}

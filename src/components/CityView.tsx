@@ -43,6 +43,10 @@ import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import { resolveDistrictFromShapefiles } from "@/lib/findDistrictFromCoordinates";
 import { slugify } from "@/lib/utils";
 import { formatMetricValue } from "@/lib/formatters";
+import {
+  resolveDisplayCategory,
+  resolveDisplaySubcategory,
+} from "@/lib/metricOrderingDisplay";
 import "./CityView.css";
 
 export type CityViewSection = "briefing" | "full_dashboard" | "map" | "alerts";
@@ -845,7 +849,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
     
     metricsToShow.forEach((metric) => {
       const ordering = orderingMap.get(metric.id);
-      const category = ordering?.categoryName || metric.category || "Uncategorized";
+      const category = resolveDisplayCategory(ordering?.categoryName, metric.category);
       const categoryOrder = ordering?.categoryOrder ?? 1000;
       const metricOrder = ordering?.metricOrder ?? 1000;
       
@@ -859,12 +863,11 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
         id: metric.id,
         metric_name: metric.metric_name,
         category: metric.category,
-        subcategory: (() => {
-          const fromOrdering = ordering?.subcategoryName;
-          if (fromOrdering != null && String(fromOrdering).trim()) return fromOrdering.trim();
-          const fromMetric = metric.subcategory ?? (metric as MetricWithYTD).sub_category ?? null;
-          return (fromMetric != null && String(fromMetric).trim()) ? String(fromMetric).trim() : null;
-        })(),
+        subcategory: resolveDisplaySubcategory(
+          ordering?.subcategoryName,
+          metric.subcategory,
+          (metric as MetricWithYTD).sub_category
+        ),
         most_recent_data_date: metric.most_recent_data_date,
         freshness: (metric as any).freshness,
         ytdLastYear: ytdData[metric.id]?.lastYear ?? null,

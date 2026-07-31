@@ -603,9 +603,21 @@ export function useCityMetricOrdering(cityId: number | null) {
   });
 }
 
+/** Bust public ISR so logged-out /c/[slug] dashboards pick up Display Settings immediately. */
+function revalidatePublicCityDashboard(cityId: number, citySlug?: string | null) {
+  if (typeof window === "undefined") return;
+  void fetch("/api/revalidate/city-dashboard", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cityId, slug: citySlug ?? null }),
+  }).catch(() => {
+    // Best-effort; react-query invalidation still covers logged-in views.
+  });
+}
+
 /**
  * Hook to save metric ordering for a city.
- * Invalidates metric ordering cache on success.
+ * Invalidates metric ordering cache on success (admin + logged-in dashboard).
  */
 export function useSaveCityMetricOrdering() {
   const { getAccessTokenSilently } = useAuth0();
@@ -615,17 +627,24 @@ export function useSaveCityMetricOrdering() {
     mutationFn: async ({
       cityId,
       orderings,
+      citySlug,
     }: {
       cityId: number;
       orderings: MetricOrderingItem[];
+      /** Public URL slug for on-demand ISR revalidation */
+      citySlug?: string | null;
     }) => {
       const token = await getAccessTokenSilently();
-      return saveCityMetricOrdering(cityId, orderings, token);
+      const result = await saveCityMetricOrdering(cityId, orderings, token);
+      revalidatePublicCityDashboard(cityId, citySlug);
+      return result;
     },
     onSuccess: (_, variables) => {
-      // Invalidate metric ordering cache
       queryClient.invalidateQueries({ queryKey: cityAdminKeys.metricOrdering(variables.cityId) });
-      // Also invalidate city metrics queries to reflect new ordering
+      // CityView reads GET /me/metric-ordering (city fallback) — must invalidate too
+      queryClient.invalidateQueries({
+        queryKey: userMetricOrderingKeys.forCity(variables.cityId),
+      });
       queryClient.invalidateQueries({ queryKey: ["cities", "metrics", variables.cityId] });
     },
   });
@@ -640,15 +659,28 @@ export function useResetCityMetricOrdering() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (cityId: number) => {
+    mutationFn: async ({
+      cityId,
+      citySlug,
+    }: {
+      cityId: number;
+      citySlug?: string | null;
+    }) => {
       const token = await getAccessTokenSilently();
-      return resetCityMetricOrdering(cityId, token);
+      const result = await resetCityMetricOrdering(cityId, token);
+      revalidatePublicCityDashboard(cityId, citySlug);
+      return result;
     },
-    onSuccess: (_, cityId) => {
-      // Invalidate metric ordering cache
-      queryClient.invalidateQueries({ queryKey: cityAdminKeys.metricOrdering(cityId) });
-      // Also invalidate city metrics queries
-      queryClient.invalidateQueries({ queryKey: ["cities", "metrics", cityId] });
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: cityAdminKeys.metricOrdering(variables.cityId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: userMetricOrderingKeys.forCity(variables.cityId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["cities", "metrics", variables.cityId],
+      });
     },
   });
 }

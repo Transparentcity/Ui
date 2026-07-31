@@ -15,6 +15,7 @@ import {
   deleteFeedStoriesByCity,
   listPublicFeedStories,
 } from "@/lib/apiClient";
+import { likeFeedStoryAdmin } from "@/lib/api/feed";
 import { useSavedCities, useSaveCity, useUnsaveCity } from "@/lib/hooks/useCities";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
@@ -792,6 +793,17 @@ export default function FeedContainer({
       queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete story");
+    }
+  }, [getAccessTokenSilently, queryClient]);
+
+  const handleApplaud = useCallback(async (storyId: number) => {
+    try {
+      const token = await getAccessTokenSilently();
+      await likeFeedStoryAdmin(storyId, token);
+      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: feedKeys.detail(storyId) });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to like story");
     }
   }, [getAccessTokenSilently, queryClient]);
 
@@ -1923,6 +1935,7 @@ export default function FeedContainer({
                   story={story}
                   isAdmin={isAdmin}
                   onHide={handleHide}
+                  onApplaud={isAdmin ? handleApplaud : undefined}
                   onDelete={isAdmin ? handleDelete : undefined}
                   onOpenFeedDetail={openFeedDetail}
                 />

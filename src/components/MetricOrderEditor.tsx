@@ -38,6 +38,8 @@ interface MetricOrderEditorProps {
   onSaveWhenSignedOut?: () => void;
   /** When true (e.g. in a modal), start with content expanded */
   defaultExpanded?: boolean;
+  /** Public /c/[slug] path segment — used to bust ISR after admin save */
+  citySlug?: string | null;
 }
 
 interface SubcategoryGroup {
@@ -72,6 +74,7 @@ export default function MetricOrderEditor({
   isAuthenticated = false,
   onSaveWhenSignedOut,
   defaultExpanded = false,
+  citySlug = null,
 }: MetricOrderEditorProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
@@ -492,7 +495,7 @@ export default function MetricOrderEditor({
       return;
     }
     try {
-      await saveCityMutation.mutateAsync({ cityId, orderings });
+      await saveCityMutation.mutateAsync({ cityId, orderings, citySlug });
       setHasChanges(false);
       onOrderChange?.();
     } catch (err) {
@@ -500,6 +503,7 @@ export default function MetricOrderEditor({
     }
   }, [
     cityId,
+    citySlug,
     categoryGroups,
     visibleMetricIds,
     useUserOrdering,
@@ -539,7 +543,7 @@ export default function MetricOrderEditor({
       return;
     }
     try {
-      await resetCityMutation.mutateAsync(cityId);
+      await resetCityMutation.mutateAsync({ cityId, citySlug });
       setHasChanges(false);
       onOrderChange?.();
     } catch (err) {
@@ -547,6 +551,7 @@ export default function MetricOrderEditor({
     }
   }, [
     cityId,
+    citySlug,
     useUserOrdering,
     useLocalStorageOrdering,
     resetCityMutation,

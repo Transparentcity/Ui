@@ -545,6 +545,60 @@
   color: var(--error);
 }
 
+.iconBtnApplaud {
+  background: rgba(173, 53, 250, 0.08);
+  border-color: rgba(173, 53, 250, 0.25);
+  color: #8b22d4;
+}
+
+.iconBtnApplaud:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.16);
+  border-color: rgba(173, 53, 250, 0.4);
+  color: #7a1cbc;
+}
+
+.iconBtnApplaud:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.applaudBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(173, 53, 250, 0.3);
+  background: rgba(173, 53, 250, 0.08);
+  color: #8b22d4;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.applaudBtn:hover:not(:disabled) {
+  background: rgba(173, 53, 250, 0.16);
+  border-color: rgba(173, 53, 250, 0.45);
+}
+
+.applaudBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.applaudCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(173, 53, 250, 0.14);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .emptyState {
   padding: 32px 16px;
   text-align: center;

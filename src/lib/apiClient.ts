@@ -4629,13 +4629,14 @@ export function escalateStory(
   );
 }
 
-// Applaud a feed story (positive sentiment signal)
+// Applaud a feed story — RETIRED (endpoint now returns 410)
 export interface ApplaudStoryResponse {
   success: boolean;
   message: string;
   applaud_count: number;
 }
 
+/** @deprecated Public applaud has been retired. Use likeFeedStoryAdmin (admin only) from lib/api/feed. */
 export function applaudStory(
   storyId: number,
   token?: string,
@@ -8618,6 +8619,14 @@ export interface NewsletterEvalResultDetail extends NewsletterEvalCell {
   stories_block: string | null;
   plan_json: Record<string, unknown> | null;
   /**
+   * Filled SUBSCRIBER CONTEXT block from the resolved Seymour prompt
+   * (city/district + instructions). Same personalization the weekend
+   * draft-assembly path injects.
+   */
+  subscriber_context?: string | null;
+  /** Composed newsletter instructions Seymour received (persona + place focus). */
+  newsletter_instructions?: string | null;
+  /**
    * Bounded generation session tool-call trace passed to the judge
    * (names, arguments, results, success, timing). Conversation messages
    * are intentionally omitted.
@@ -8645,6 +8654,17 @@ export interface NewsletterEvalBatchListItem {
   total_cost_usd: number | null;
 }
 
+export interface NewsletterEvalLocation {
+  lat: number;
+  lng: number;
+  radius_m?: number;
+  label?: string;
+  /** Populated after the batch provisions the ephemeral place. */
+  district?: number;
+  place_id?: number;
+  auth0_id?: string;
+}
+
 export interface NewsletterEvalRunRequest {
   name?: string;
   city_id: number;
@@ -8654,6 +8674,10 @@ export interface NewsletterEvalRunRequest {
   prompt_variants?: { label?: string; template?: string | null }[];
   judge_enabled?: boolean;
   judge_model_key?: string | null;
+  /** Custom address for personalized eval (city hall, random block, etc.). */
+  location?: NewsletterEvalLocation;
+  /** When location is set, run place metrics before generating (default true). */
+  refresh_place_metrics?: boolean;
 }
 
 export function listNewsletterEvalPersonas(

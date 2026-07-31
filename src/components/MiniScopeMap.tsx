@@ -44,12 +44,12 @@ interface MiniScopeMapProps {
   className?: string;
 }
 
-const MAP_W = 800;
-const MAP_H = 320;
+export const MAP_W = 800;
+export const MAP_H = 320;
 const MAP_ASPECT = MAP_W / MAP_H;
 
 /** Project WGS84 → SVG px via Web Mercator (matches Mapbox rendering). */
-function project(
+export function project(
   lng: number,
   lat: number,
   bbox: MapBbox,
@@ -65,7 +65,7 @@ function project(
   return [x, y];
 }
 
-function ringToPath(
+export function ringToPath(
   ring: [number, number][],
   bbox: MapBbox,
   viewW: number,
@@ -81,7 +81,7 @@ function ringToPath(
   return parts.join(" ");
 }
 
-function placePointBbox(lat: number, lng: number, radiusM: number): MapBbox {
+export function placePointBbox(lat: number, lng: number, radiusM: number): MapBbox {
   const cosLat = Math.max(Math.cos((lat * Math.PI) / 180), 1e-6);
   const dLat = radiusM / 111320;
   const dLng = radiusM / (111320 * cosLat);
@@ -93,7 +93,47 @@ function placePointBbox(lat: number, lng: number, radiusM: number): MapBbox {
   };
 }
 
-function SketchOverlay({
+/**
+ * Aspect-fitted view bbox for the hero scope map (place radius, highlighted
+ * district, or full city). Shared so overlays project onto the same basemap crop.
+ */
+export function computeScopeViewBbox({
+  sketch,
+  highlightDistrict,
+  isPlaceScope,
+  placeLat,
+  placeLng,
+  placeRadiusM,
+  aspect = MAP_ASPECT,
+}: {
+  sketch: BoundarySketch | null | undefined;
+  highlightDistrict: number | null;
+  isPlaceScope: boolean;
+  placeLat?: number | null;
+  placeLng?: number | null;
+  placeRadiusM?: number | null;
+  /** Width/height ratio of the map frame (landscape default, portrait on narrow). */
+  aspect?: number;
+}): MapBbox | null {
+  let base: MapBbox | null = null;
+  if (isPlaceScope && placeLat != null && placeLng != null) {
+    base = padMapBbox(
+      placePointBbox(placeLat, placeLng, placeRadiusM ?? DEFAULT_PLACE_RADIUS_M),
+      0.3,
+    );
+  } else if (highlightDistrict != null && sketch?.districts.length) {
+    const hd = sketch.districts.find((d) => d.district_id === highlightDistrict);
+    if (hd?.rings.length) {
+      base = padMapBbox(bboxFromRings(hd.rings), 0.12);
+    }
+  }
+  if (!base && sketch?.bbox) {
+    base = padMapBbox(sketch.bbox, 0.05);
+  }
+  return base ? fitBboxToAspect(base, aspect) : null;
+}
+
+export function SketchOverlay({
   sketch,
   viewBbox,
   highlightDistrict,
@@ -103,6 +143,8 @@ function SketchOverlay({
   placeLng,
   placeRadiusM,
   fillDistricts = true,
+  mapW = MAP_W,
+  mapH = MAP_H,
 }: {
   sketch: BoundarySketch;
   viewBbox: MapBbox;
@@ -114,9 +156,11 @@ function SketchOverlay({
   placeRadiusM?: number | null;
   /** When false (token-less fallback), fill districts more strongly. */
   fillDistricts?: boolean;
+  mapW?: number;
+  mapH?: number;
 }) {
-  const viewW = MAP_W;
-  const viewH = MAP_H;
+  const viewW = mapW;
+  const viewH = mapH;
 
   let circleX: number | null = null;
   let circleY: number | null = null;
@@ -244,38 +288,22 @@ export default function MiniScopeMap({
       ? selectedDistrict
       : null;
 
-  const cityBbox = sketch?.bbox ?? null;
-
   /**
    * View bbox: zoom to highlighted district or place radius, else full city.
    * Aspect-fitted in Mercator space so it matches the static basemap exactly.
    */
-  const viewBbox = useMemo((): MapBbox | null => {
-    let base: MapBbox | null = null;
-    if (isPlaceScope && placeLat != null && placeLng != null) {
-      base = padMapBbox(
-        placePointBbox(placeLat, placeLng, placeRadiusM ?? DEFAULT_PLACE_RADIUS_M),
-        0.3,
-      );
-    } else if (highlightDistrict != null && sketch?.districts.length) {
-      const hd = sketch.districts.find((d) => d.district_id === highlightDistrict);
-      if (hd?.rings.length) {
-        base = padMapBbox(bboxFromRings(hd.rings), 0.12);
-      }
-    }
-    if (!base && cityBbox) {
-      base = padMapBbox(cityBbox, 0.05);
-    }
-    return base ? fitBboxToAspect(base, MAP_ASPECT) : null;
-  }, [
-    cityBbox,
-    highlightDistrict,
-    sketch?.districts,
-    isPlaceScope,
-    placeLat,
-    placeLng,
-    placeRadiusM,
-  ]);
+  const viewBbox = useMemo(
+    (): MapBbox | null =>
+      computeScopeViewBbox({
+        sketch,
+        highlightDistrict,
+        isPlaceScope,
+        placeLat,
+        placeLng,
+        placeRadiusM,
+      }),
+    [sketch, highlightDistrict, isPlaceScope, placeLat, placeLng, placeRadiusM],
+  );
 
   /** Place scope: full Mapbox static map with streets + purple radius circle. */
   const placeMapUrl = useMemo(() => {

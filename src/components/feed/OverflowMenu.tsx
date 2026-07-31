@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback } from "react";
-import { Share2, EyeOff, Trash2, Lock } from "lucide-react";
+import { Share2, EyeOff, Trash2, Lock, ThumbsUp } from "lucide-react";
 import { createPortal } from "react-dom";
 import styles from "./feed.module.css";
 
@@ -10,7 +10,7 @@ interface OverflowMenuProps {
   onClose: () => void;
   onShare: () => void;
   onHide?: () => void;
-  onDelete?: () => void;
+  onApplaud?: () => void;  onDelete?: () => void;
   /** Owner: move a shared saved-place story back to private place scope. */
   onMakePrivate?: () => void;
   makePrivatePending?: boolean;
@@ -28,6 +28,7 @@ export default function OverflowMenu({
   onClose,
   onShare,
   onHide,
+  onApplaud,
   onDelete,
   onMakePrivate,
   makePrivatePending = false,
@@ -69,6 +70,15 @@ export default function OverflowMenu({
       onClose();
     },
     [onMakePrivate, onClose],
+  );
+
+  const handleApplaud = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onApplaud?.();
+      onClose();
+    },
+    [onApplaud, onClose],
   );
 
   const handleDelete = useCallback(
@@ -117,6 +127,13 @@ export default function OverflowMenu({
             </button>
           )}
 
+          {onApplaud && (
+            <button type="button" className={styles.sheetItem} onClick={handleApplaud}>
+              <span className={styles.sheetItemIcon}><ThumbsUp size={18} /></span>
+              Admin: Like
+            </button>
+          )}
+
           {onDelete && (
             <button
               type="button"
@@ -159,6 +176,13 @@ export default function OverflowMenu({
         >
           <span className={styles.overflowItemIcon}><Lock size={16} /></span>
           {makePrivatePending ? "Making private…" : "Make private"}
+        </button>
+      )}
+
+      {onApplaud && (
+        <button type="button" className={styles.overflowItem} onClick={handleApplaud}>
+          <span className={styles.overflowItemIcon}><ThumbsUp size={16} /></span>
+          Admin: Like
         </button>
       )}
 

@@ -1276,7 +1276,11 @@ export default function CityMetricsTab({
             Changes here only affect how metrics are presented — they don&rsquo;t activate or deactivate any metric.
           </p>
           {dashboardMetrics.length > 0 ? (
-            <MetricOrderEditor cityId={cityId} metrics={dashboardMetrics as any} />
+            <MetricOrderEditor
+              cityId={cityId}
+              metrics={dashboardMetrics as any}
+              citySlug={citySlugFrom(cityName)}
+            />
           ) : (
             <div className={styles.emptyState}>
               <i className={`fas fa-sort-amount-down ${styles.emptyStateIcon}`} />

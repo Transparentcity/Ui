@@ -14,6 +14,10 @@ import {
   formatSubdivisionLabel,
   type PublicGeographicContext,
 } from "@/lib/publicGeographicUnit";
+import {
+  resolveDisplayCategory,
+  resolveDisplaySubcategory,
+} from "@/lib/metricOrderingDisplay";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
 export type MetricOrderingEntry = {
@@ -105,8 +109,9 @@ export default function CityDashboardSection({
     const comp = comparisonsMap[m.id];
     const ytd = comp?.comparisons?.ytd ?? null;
     const ord = orderingMap?.get(m.id);
-    const cat = ord?.categoryName ?? m.category ?? "Uncategorized";
-    const sub = ord?.subcategoryName ?? m.subcategory ?? null;
+    // Match CityView / MetricOrderEditor: ordering override only when non-empty
+    const cat = resolveDisplayCategory(ord?.categoryName, m.category);
+    const sub = resolveDisplaySubcategory(ord?.subcategoryName, m.subcategory);
     const categoryOrder = ord?.categoryOrder ?? 1000;
     const metricOrder = ord?.metricOrder ?? 1000;
     if (!grouped.has(cat)) {

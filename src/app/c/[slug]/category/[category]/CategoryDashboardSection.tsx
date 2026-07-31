@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import type {
   PublicCityMetricItem,
@@ -7,6 +8,8 @@ import type {
 import "@/components/CityView.css";
 import { formatMetricValue, formatPeriodDate, formatCategoryName } from "@/lib/formatters";
 import { changeGoodBadFromGreenDirection } from "@/lib/metricGreenDirection";
+import { resolveDisplaySubcategory } from "@/lib/metricOrderingDisplay";
+import type { MetricOrderingEntry } from "../../CityDashboardSection";
 
 type CategoryDashboardSectionProps = {
   cityDisplayName: string;
@@ -16,6 +19,8 @@ type CategoryDashboardSectionProps = {
   comparisonsMap: Record<number, PublicMetricComparisons>;
   districts: number[];
   maps: PublicMapListItem[];
+  /** City-level display settings (order + subcategory overrides). */
+  orderings?: MetricOrderingEntry[];
 };
 
 export default function CategoryDashboardSection({
@@ -26,9 +31,27 @@ export default function CategoryDashboardSection({
   comparisonsMap,
   districts,
   maps,
+  orderings,
 }: CategoryDashboardSectionProps) {
   const base = `/c/${slug}`;
   const displayCategoryName = formatCategoryName(categoryName);
+
+  const orderingMap = React.useMemo(() => {
+    if (!orderings?.length) return null;
+    const map = new Map<
+      number,
+      { metricOrder: number; subcategoryName: string | null }
+    >();
+    orderings.forEach((o) => {
+      if (o.metric_id != null) {
+        map.set(o.metric_id, {
+          metricOrder: o.metric_order,
+          subcategoryName: o.subcategory_name ?? null,
+        });
+      }
+    });
+    return map;
+  }, [orderings]);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -41,18 +64,34 @@ export default function CategoryDashboardSection({
   // Group metrics by subcategory only (single category page)
   const subMap = new Map<
     string | null,
-    { m: PublicCityMetricItem; ytd: NonNullable<PublicMetricComparisons["comparisons"]["ytd"]> | null }[]
+    {
+      m: PublicCityMetricItem;
+      ytd: NonNullable<PublicMetricComparisons["comparisons"]["ytd"]> | null;
+      metricOrder: number;
+    }[]
   >();
 
   metrics.forEach((m) => {
     const comp = comparisonsMap[m.id];
     const ytd = comp?.comparisons?.ytd ?? null;
-    const sub = m.subcategory || null;
+    const ord = orderingMap?.get(m.id);
+    const sub = resolveDisplaySubcategory(ord?.subcategoryName, m.subcategory);
+    const metricOrder = ord?.metricOrder ?? 1000;
     if (!subMap.has(sub)) subMap.set(sub, []);
-    subMap.get(sub)!.push({ m, ytd });
+    subMap.get(sub)!.push({ m, ytd, metricOrder });
   });
 
   const subKeys = Array.from(subMap.keys()).sort((a, b) => {
+    if (orderingMap) {
+      const minOrder = (sk: string | null) => {
+        const arr = subMap.get(sk) ?? [];
+        if (arr.length === 0) return 1000;
+        return Math.min(...arr.map((r) => r.metricOrder));
+      };
+      const oa = minOrder(a);
+      const ob = minOrder(b);
+      if (oa !== ob) return oa - ob;
+    }
     if (a === null && b === null) return 0;
     if (a === null) return -1;
     if (b === null) return 1;
@@ -168,7 +207,12 @@ export default function CategoryDashboardSection({
                     r.ytd?.current_period_value != null ||
                     r.ytd?.comparison_period_value != null
                 )
-                .sort((a, b) => a.m.metric_name.localeCompare(b.m.metric_name));
+                .sort((a, b) => {
+                  if (orderingMap && a.metricOrder !== b.metricOrder) {
+                    return a.metricOrder - b.metricOrder;
+                  }
+                  return a.m.metric_name.localeCompare(b.m.metric_name);
+                });
               if (rows.length === 0) return null;
               return (
                 <div key={subcategory ?? "uncategorized"} style={{ display: "contents" }}>

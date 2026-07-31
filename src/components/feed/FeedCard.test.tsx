@@ -342,12 +342,14 @@ describe("FeedCard", () => {
     const overflowBtn = screen.getByLabelText("More options");
     fireEvent.click(overflowBtn);
     expect(screen.getByText("Hide")).toBeInTheDocument();
+    expect(screen.getByText("Admin: Like")).toBeInTheDocument();
     expect(screen.getByText("Admin: Delete this card")).toBeInTheDocument();
   });
 
   it("does not render overflow menu for non-admin users", () => {
     renderCard();
     expect(screen.queryByText("Hide")).not.toBeInTheDocument();
+    expect(screen.queryByText("Admin: Like")).not.toBeInTheDocument();
     expect(screen.queryByText("Admin: Delete this card")).not.toBeInTheDocument();
   });
 });
