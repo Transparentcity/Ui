@@ -13,6 +13,7 @@ import {
   createFeedStory,
   updateFeedStory,
   likeFeedStoryAdmin,
+  unlikeFeedStoryAdmin,
 } from "@/lib/api/feed";
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
@@ -273,29 +274,44 @@ export default function FeedAdmin() {
     [getAccessTokenSilently],
   );
 
-  const handleLikeStory = useCallback(
-    async (storyId: number) => {
+  const applyLikeState = useCallback(
+    (storyId: number, liked: boolean, likeCount: number) => {
+      setStories((prev) =>
+        prev.map((s) =>
+          s.id === storyId
+            ? { ...s, liked_by_me: liked, applaud_count: likeCount }
+            : s,
+        ),
+      );
+      setPreviewStory((prev) =>
+        prev && prev.id === storyId
+          ? { ...prev, liked_by_me: liked, applaud_count: likeCount }
+          : prev,
+      );
+    },
+    [],
+  );
+
+  const handleToggleLikeStory = useCallback(
+    async (storyId: number, currentlyLiked: boolean) => {
       try {
         setLikingId(storyId);
         const token = await getAccessTokenSilently();
-        const res = await likeFeedStoryAdmin(storyId, token);
-        setStories((prev) =>
-          prev.map((s) =>
-            s.id === storyId ? { ...s, applaud_count: res.like_count } : s,
-          ),
-        );
-        setPreviewStory((prev) =>
-          prev && prev.id === storyId
-            ? { ...prev, applaud_count: res.like_count }
-            : prev,
-        );
+        const res = currentlyLiked
+          ? await unlikeFeedStoryAdmin(storyId, token)
+          : await likeFeedStoryAdmin(storyId, token);
+        applyLikeState(storyId, res.liked, res.like_count);
       } catch (err: any) {
-        alert(`Failed to like story: ${err?.message || "Unknown error"}`);
+        alert(
+          `Failed to ${currentlyLiked ? "unlike" : "like"} story: ${
+            err?.message || "Unknown error"
+          }`,
+        );
       } finally {
         setLikingId(null);
       }
     },
-    [getAccessTokenSilently],
+    [getAccessTokenSilently, applyLikeState],
   );
 
   // Bulk delete stories for a city
@@ -699,20 +715,37 @@ export default function FeedAdmin() {
                         />
                       ) : null}
                       <button
-                        className={`${styles.iconBtn} ${styles.iconBtnApplaud}`}
-                        title="Like story (boosts newsletter ranking)"
-                        aria-label="Like story"
+                        className={`${styles.iconBtn} ${styles.iconBtnApplaud}${
+                          story.liked_by_me ? ` ${styles.iconBtnApplaudActive}` : ""
+                        }`}
+                        title={
+                          story.liked_by_me
+                            ? "Unlike story (removes newsletter boost if no other admin likes remain)"
+                            : "Like story (boosts newsletter ranking)"
+                        }
+                        aria-label={story.liked_by_me ? "Unlike story" : "Like story"}
+                        aria-pressed={Boolean(story.liked_by_me)}
                         disabled={likingId === story.id}
                         style={{ marginRight: 4 }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          void handleLikeStory(story.id);
+                          void handleToggleLikeStory(story.id, Boolean(story.liked_by_me));
                         }}
                       >
                         {likingId === story.id ? (
                           <Loader size="sm" color="dark" />
                         ) : (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill={story.liked_by_me ? "currentColor" : "none"}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                          >
                             <path d="M9 11V6a2 2 0 0 1 4 0v5" />
                             <path d="M13 11V4a2 2 0 0 1 4 0v7" />
                             <path d="M17 11V7a2 2 0 0 1 4 0v8a6 6 0 0 1-6 6h-2.5a4 4 0 0 1-3.2-1.6L5 14.5a1.5 1.5 0 0 1 2.1-2.1L9 14" />
@@ -887,21 +920,43 @@ export default function FeedAdmin() {
               <div className={styles.previewFooterActions}>
                 <button
                   type="button"
-                  className={styles.applaudBtn}
-                  title="Like this story (boosts newsletter ranking)"
+                  className={`${styles.applaudBtn}${
+                    previewStory.liked_by_me ? ` ${styles.applaudBtnActive}` : ""
+                  }`}
+                  title={
+                    previewStory.liked_by_me
+                      ? "Unlike this story (removes newsletter boost if no other admin likes remain)"
+                      : "Like this story (boosts newsletter ranking)"
+                  }
+                  aria-pressed={Boolean(previewStory.liked_by_me)}
                   disabled={likingId === previewStory.id}
-                  onClick={() => void handleLikeStory(previewStory.id)}
+                  onClick={() =>
+                    void handleToggleLikeStory(
+                      previewStory.id,
+                      Boolean(previewStory.liked_by_me),
+                    )
+                  }
                 >
                   {likingId === previewStory.id ? (
                     <Loader size="sm" color="dark" />
                   ) : (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill={previewStory.liked_by_me ? "currentColor" : "none"}
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
                       <path d="M9 11V6a2 2 0 0 1 4 0v5" />
                       <path d="M13 11V4a2 2 0 0 1 4 0v7" />
                       <path d="M17 11V7a2 2 0 0 1 4 0v8a6 6 0 0 1-6 6h-2.5a4 4 0 0 1-3.2-1.6L5 14.5a1.5 1.5 0 0 1 2.1-2.1L9 14" />
                     </svg>
                   )}
-                  Like
+                  {previewStory.liked_by_me ? "Liked" : "Like"}
                   <span className={styles.applaudCount}>
                     {(previewStory.applaud_count ?? previewStory.like_count ?? 0).toLocaleString()}
                   </span>

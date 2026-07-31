@@ -15,7 +15,7 @@ import {
   deleteFeedStoriesByCity,
   listPublicFeedStories,
 } from "@/lib/apiClient";
-import { likeFeedStoryAdmin } from "@/lib/api/feed";
+import { likeFeedStoryAdmin, unlikeFeedStoryAdmin } from "@/lib/api/feed";
 import { useSavedCities, useSaveCity, useUnsaveCity } from "@/lib/hooks/useCities";
 import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { fetchNarratives } from "@/lib/feed/fetchReportNarratives";
@@ -797,13 +797,77 @@ export default function FeedContainer({
   }, [getAccessTokenSilently, queryClient]);
 
   const handleApplaud = useCallback(async (storyId: number) => {
+    type StoryLikeFields = {
+      id: number;
+      liked_by_me?: boolean | null;
+      applaud_count?: number;
+      like_count?: number;
+    };
+
+    const patchStory = (s: StoryLikeFields, liked: boolean, likeCount?: number) => ({
+      ...s,
+      liked_by_me: liked,
+      applaud_count:
+        likeCount ??
+        Math.max(0, (s.applaud_count ?? s.like_count ?? 0) + (liked ? 1 : -1)),
+    });
+
+    const readCurrentlyLiked = (): boolean => {
+      const detail = queryClient.getQueryData(feedKeys.detail(storyId)) as
+        | { story?: StoryLikeFields }
+        | undefined;
+      if (detail?.story?.liked_by_me != null) {
+        return Boolean(detail.story.liked_by_me);
+      }
+      // useFeedStories stores a flat { stories } response (not infinite-query pages)
+      const listEntries = queryClient.getQueriesData({ queryKey: feedKeys.lists() });
+      for (const [, data] of listEntries) {
+        const stories = (data as { stories?: StoryLikeFields[] } | undefined)?.stories;
+        const match = stories?.find((s) => s.id === storyId);
+        if (match) return Boolean(match.liked_by_me);
+      }
+      return false;
+    };
+
+    const currentlyLiked = readCurrentlyLiked();
+
+    // Optimistic UI so Liked/Unlike state is visible when the menu reopens
+    const patchLiked = (liked: boolean, likeCount?: number) => {
+      queryClient.setQueriesData({ queryKey: feedKeys.lists() }, (old: any) => {
+        if (!old?.stories) return old;
+        return {
+          ...old,
+          stories: old.stories.map((s: StoryLikeFields) =>
+            s.id === storyId ? patchStory(s, liked, likeCount) : s,
+          ),
+        };
+      });
+      queryClient.setQueryData(feedKeys.detail(storyId), (old: any) => {
+        if (!old?.story) return old;
+        return {
+          ...old,
+          story: patchStory(old.story, liked, likeCount),
+        };
+      });
+    };
+
+    patchLiked(!currentlyLiked);
     try {
       const token = await getAccessTokenSilently();
-      await likeFeedStoryAdmin(storyId, token);
-      queryClient.invalidateQueries({ queryKey: feedKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: feedKeys.detail(storyId) });
+      const res = currentlyLiked
+        ? await unlikeFeedStoryAdmin(storyId, token)
+        : await likeFeedStoryAdmin(storyId, token);
+      patchLiked(
+        typeof res.liked === "boolean" ? res.liked : !currentlyLiked,
+        res.like_count,
+      );
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to like story");
+      patchLiked(currentlyLiked); // revert
+      alert(
+        err instanceof Error
+          ? err.message
+          : `Failed to ${currentlyLiked ? "unlike" : "like"} story`,
+      );
     }
   }, [getAccessTokenSilently, queryClient]);
 

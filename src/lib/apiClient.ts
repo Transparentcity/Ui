@@ -4405,6 +4405,8 @@ export interface FeedStory {
   applaud_count: number;
   escalate_count: number;
   investigate_count: number;
+  /** True when the current user has liked this story (admin like). */
+  liked_by_me?: boolean | null;
   /** @deprecated Use applaud_count */
   like_count?: number;
   /** @deprecated Use escalate_count */

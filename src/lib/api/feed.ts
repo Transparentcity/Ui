@@ -37,6 +37,8 @@ export interface FeedStory {
   applaud_count?: number;
   escalate_count?: number;
   investigate_count?: number;
+  /** True when the current user has liked this story (admin like). */
+  liked_by_me?: boolean | null;
   /** @deprecated Use applaud_count. Kept for backward compat with pre-074 API responses. */
   like_count?: number;
   /** @deprecated Use escalate_count. Kept for backward compat with pre-074 API responses. */
@@ -281,6 +283,7 @@ export function deleteFeedStory(storyId: number, token: string): Promise<DeleteF
 export interface AdminLikeFeedStoryResponse {
   success: boolean;
   message: string;
+  liked: boolean;
   like_count: number;
   priority_score: number;
 }
@@ -294,6 +297,19 @@ export function likeFeedStoryAdmin(
     `/api/feed/admin/story/${storyId}/like`,
     "POST",
     {},
+    token
+  );
+}
+
+/** Admin-only Unlike: removes this admin's like and restores prior boost when none remain. */
+export function unlikeFeedStoryAdmin(
+  storyId: number,
+  token: string
+): Promise<AdminLikeFeedStoryResponse> {
+  return request<AdminLikeFeedStoryResponse>(
+    `/api/feed/admin/story/${storyId}/like`,
+    "DELETE",
+    undefined,
     token
   );
 }

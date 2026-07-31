@@ -346,6 +346,13 @@ describe("FeedCard", () => {
     expect(screen.getByText("Admin: Delete this card")).toBeInTheDocument();
   });
 
+  it("shows Unlike in overflow when story is already liked", () => {
+    renderCard({ liked_by_me: true }, { isAdmin: true });
+    fireEvent.click(screen.getByLabelText("More options"));
+    expect(screen.getByText("Admin: Unlike")).toBeInTheDocument();
+    expect(screen.queryByText("Admin: Like")).not.toBeInTheDocument();
+  });
+
   it("does not render overflow menu for non-admin users", () => {
     renderCard();
     expect(screen.queryByText("Hide")).not.toBeInTheDocument();

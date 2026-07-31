@@ -212,6 +212,7 @@ export default function FeedCard({
             onShare={handleShare}
             onHide={isAdmin ? handleHide : undefined}
             onApplaud={handleApplaud}
+            likedByMe={Boolean(story.liked_by_me)}
             onDelete={handleDelete}
             onMakePrivate={showMakePrivate ? handleMakePrivate : undefined}
             makePrivatePending={makePrivateMutation.isPending}

@@ -1035,6 +1035,15 @@
   color: var(--error, #ef4444);
 }
 
+.overflowItemLiked {
+  color: #6b16b8;
+  font-weight: 600;
+}
+
+.overflowItemLiked .overflowItemIcon {
+  color: #6b16b8;
+}
+
 /* ── Bottom sheet (mobile overflow + escalate) ─────────────────────────────── */
 
 .sheetBackdrop {
@@ -1115,6 +1124,15 @@
 
 .sheetItemDanger .sheetItemIcon {
   color: var(--error, #ef4444);
+}
+
+.sheetItemLiked {
+  color: #6b16b8;
+  font-weight: 600;
+}
+
+.sheetItemLiked .sheetItemIcon {
+  color: #6b16b8;
 }
 
 /* ── Escalate sheet ────────────────────────────────────────────────────────── */

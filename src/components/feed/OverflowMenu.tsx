@@ -10,7 +10,10 @@ interface OverflowMenuProps {
   onClose: () => void;
   onShare: () => void;
   onHide?: () => void;
-  onApplaud?: () => void;  onDelete?: () => void;
+  onApplaud?: () => void;
+  /** When true, show Unlike instead of Like (admin already liked this story). */
+  likedByMe?: boolean;
+  onDelete?: () => void;
   /** Owner: move a shared saved-place story back to private place scope. */
   onMakePrivate?: () => void;
   makePrivatePending?: boolean;
@@ -29,6 +32,7 @@ export default function OverflowMenu({
   onShare,
   onHide,
   onApplaud,
+  likedByMe = false,
   onDelete,
   onMakePrivate,
   makePrivatePending = false,
@@ -75,10 +79,10 @@ export default function OverflowMenu({
   const handleApplaud = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      // Keep menu open so Like ↔ Unlike label/icon can update in place.
       onApplaud?.();
-      onClose();
     },
-    [onApplaud, onClose],
+    [onApplaud],
   );
 
   const handleDelete = useCallback(
@@ -128,9 +132,16 @@ export default function OverflowMenu({
           )}
 
           {onApplaud && (
-            <button type="button" className={styles.sheetItem} onClick={handleApplaud}>
-              <span className={styles.sheetItemIcon}><ThumbsUp size={18} /></span>
-              Admin: Like
+            <button
+              type="button"
+              className={`${styles.sheetItem}${likedByMe ? ` ${styles.sheetItemLiked}` : ""}`}
+              onClick={handleApplaud}
+              aria-pressed={likedByMe}
+            >
+              <span className={styles.sheetItemIcon}>
+                <ThumbsUp size={18} fill={likedByMe ? "currentColor" : "none"} />
+              </span>
+              {likedByMe ? "Admin: Unlike" : "Admin: Like"}
             </button>
           )}
 
@@ -180,9 +191,16 @@ export default function OverflowMenu({
       )}
 
       {onApplaud && (
-        <button type="button" className={styles.overflowItem} onClick={handleApplaud}>
-          <span className={styles.overflowItemIcon}><ThumbsUp size={16} /></span>
-          Admin: Like
+        <button
+          type="button"
+          className={`${styles.overflowItem}${likedByMe ? ` ${styles.overflowItemLiked}` : ""}`}
+          onClick={handleApplaud}
+          aria-pressed={likedByMe}
+        >
+          <span className={styles.overflowItemIcon}>
+            <ThumbsUp size={16} fill={likedByMe ? "currentColor" : "none"} />
+          </span>
+          {likedByMe ? "Admin: Unlike" : "Admin: Like"}
         </button>
       )}
 
