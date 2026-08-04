@@ -53,6 +53,7 @@ import { recordProductEvent, useProductEvent } from "@/lib/productAnalytics";
 import { trackMetaOnboardingStep } from "@/lib/metaPixel";
 import {
   type GiftOnboardingContext,
+  emailLocalPartFirstName,
   giftMetaToOnboardingContext,
   persistGiftOnboardingContext,
   splitGiftRecipientName,
@@ -307,28 +308,34 @@ export default function WelcomeModal({
     let cancelled = false;
 
     if (isOpen) {
-      const isGiftFlow = !!giftContext;
-      const { firstName, lastName } = splitGiftRecipientName(giftContext?.recipientName);
+      // Substack-migration claims run the standard onboarding steps (no
+      // pre-filled place); only true gifts get the pre-personalized
+      // gift_confirm fast path.
+      const isMigrationFlow = giftContext?.kind === "substack_migration";
+      const isGiftFlow = !!giftContext && !isMigrationFlow;
+      const { firstName, lastName } = isMigrationFlow
+        ? { firstName: emailLocalPartFirstName(giftContext?.recipientEmail), lastName: "" }
+        : splitGiftRecipientName(giftContext?.recipientName);
 
       setStep(isGiftFlow ? "gift_confirm" : initialStep);
       setLoading(false);
       setLoadingAction(null);
-      setLocationInput(giftContext?.placeLabel || "");
+      setLocationInput(isGiftFlow ? giftContext?.placeLabel || "" : "");
       setLocationResult(null);
       setError(null);
 
       setHomeCoordinates(
-        giftContext?.lat != null && giftContext?.lng != null
+        isGiftFlow && giftContext?.lat != null && giftContext?.lng != null
           ? { lat: giftContext.lat, lng: giftContext.lng }
           : null
       );
       setHasPreciseLocation(
-        giftContext?.lat != null && giftContext?.lng != null
+        isGiftFlow && giftContext?.lat != null && giftContext?.lng != null
       );
       setPlaceLabel(
-        giftContext?.placeName?.trim() ||
-          giftContext?.placeLabel ||
-          ONBOARDING_PLACE_LABEL_DEFAULT
+        (isGiftFlow
+          ? giftContext?.placeName?.trim() || giftContext?.placeLabel
+          : null) || ONBOARDING_PLACE_LABEL_DEFAULT
       );
       setPlaceRadius(DEFAULT_PLACE_RADIUS_M);
       setMayorFollowed(true);
@@ -987,9 +994,10 @@ export default function WelcomeModal({
 
   // Render step indicator
   const renderStepIndicator = () => {
-    const steps: Step[] = giftContext
-      ? ["gift_confirm"]
-      : ["profile", "welcome", "place", "preferences"];
+    const steps: Step[] =
+      giftContext && giftContext.kind !== "substack_migration"
+        ? ["gift_confirm"]
+        : ["profile", "welcome", "place", "preferences"];
     const currentIndex = steps.indexOf(step);
 
     return (
@@ -1016,6 +1024,7 @@ export default function WelcomeModal({
   );
 
   // Gift recipient: branded confirm with map, radius, and place name (matches onboarding).
+  // Substack-migration claims never reach this step — they use the standard flow.
   const renderGiftConfirmStep = () => {
     const gifter = giftContext?.gifterDisplay || "Someone";
     const cityDisplayName = locationResult

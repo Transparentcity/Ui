@@ -1625,6 +1625,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                   ? "Refreshing place metrics, please wait"
                   : "Refresh metrics for this place"
               }
+              title="Refresh metrics for this place"
             >
               {placeRunLoading ? (
                 <span className="dashboard-header-refresh-place-btn-inner">
@@ -1632,7 +1633,7 @@ function DashboardMetricsSection({ metrics, cityId, cityName, selectedDistrict =
                   <span>Refreshing…</span>
                 </span>
               ) : (
-                "Refresh metrics for this place"
+                "Refresh"
               )}
             </button>
           </div>

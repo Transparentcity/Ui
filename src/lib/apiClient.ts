@@ -3915,6 +3915,12 @@ export interface User {
   government_city_id?: number | null;
   government_district?: number | null;
   custom_email_prompt?: string | null;
+  /** Row provenance: 'auth0'/null (organic), 'gift', 'substack_import', 'manual', … */
+  source?: string | null;
+  /** Lifecycle type: 'citizen' | 'official' | 'prospect' */
+  user_role_type?: string | null;
+  /** False while the pre-provisioned account has not been claimed yet. */
+  is_claimed?: boolean;
   is_gift_recipient?: boolean;
   gift_info?: {
     from_name?: string | null;
@@ -3966,6 +3972,8 @@ export function listUsers(
     role?: string;
     is_active?: boolean;
     is_city_lead?: boolean;
+    source?: string;
+    user_role_type?: string;
     skip?: number;
     limit?: number;
   }
@@ -3974,6 +3982,8 @@ export function listUsers(
   if (options?.role) params.append("role", options.role);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
   if (options?.is_city_lead !== undefined) params.append("is_city_lead", options.is_city_lead.toString());
+  if (options?.source) params.append("source", options.source);
+  if (options?.user_role_type) params.append("user_role_type", options.user_role_type);
   if (options?.skip) params.append("skip", options.skip.toString());
   if (options?.limit) params.append("limit", options.limit.toString());
   
@@ -5573,6 +5583,71 @@ export function deleteNewsletterEditionsBatch(
   token: string
 ): Promise<{ deleted: number }> {
   return request(`/api/admin/newsletter-editions/delete`, "POST", { ids }, token);
+}
+
+// ---------------------------------------------------------------------------
+// Newsletter metrics (per-campaign engagement: sends, clicks, visits, opt-outs)
+// ---------------------------------------------------------------------------
+
+export interface NewsletterMetricsItem {
+  campaign: string;
+  source: string | null;
+  first_sent_at: string | null;
+  last_sent_at: string | null;
+  sends: number;
+  unique_recipients: number;
+  city_ids: number[] | null;
+  edition_hashes: string[] | null;
+  clicks: number;
+  unique_clickers: number;
+  opens: number;
+  page_views: number;
+  unsubscribes: number;
+  click_through_rate: number | null;
+}
+
+export interface NewsletterMetricsResponse {
+  items: NewsletterMetricsItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export function getNewsletterMetrics(
+  token: string,
+  options?: { page?: number; page_size?: number }
+): Promise<NewsletterMetricsResponse> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.page_size != null) params.set("page_size", String(options.page_size));
+  const q = params.toString();
+  return request<NewsletterMetricsResponse>(
+    `/api/admin/newsletter/metrics${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface NewsletterMetricsLink {
+  destination_url: string;
+  slot: string;
+  clicks: number;
+  unique_clickers: number;
+}
+
+export function getNewsletterMetricsTopLinks(
+  token: string,
+  campaign: string,
+  limit = 25
+): Promise<NewsletterMetricsLink[]> {
+  return request<NewsletterMetricsLink[]>(
+    `/api/admin/newsletter/metrics/${encodeURIComponent(campaign)}/links?limit=${limit}`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 /** Manual run of a system schedule (e.g. weekly_newsletter). */
@@ -8338,10 +8413,14 @@ export function getMyGifts(token: string): Promise<MyGiftsResponse> {
   return request<MyGiftsResponse>("/api/gift/my-gifts", "GET", undefined, token);
 }
 
+export type GiftClaimKind = "gift" | "substack_migration";
+
 export interface GiftMetaResponse {
   recipient_email: string;
   recipient_name: string | null;
   gifter_display: string;
+  /** 'gift' (default) or 'substack_migration' — drives claim-flow copy. */
+  kind?: GiftClaimKind;
   place_label: string | null;
   place_name: string | null;
   city_id: number | null;
@@ -8815,6 +8894,146 @@ export function rejudgeNewsletterEvalResult(
 }> {
   return request(
     `/api/admin/newsletter/eval/results/${resultId}/rejudge`,
+    "POST",
+    body,
+    token
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Story-level evals (Workbench Stories tab)
+// ---------------------------------------------------------------------------
+
+export interface StoryEvalRow {
+  id: number;
+  story_id: number;
+  source: string;
+  judge_model_key: string | null;
+  status: string;
+  error: string | null;
+  scores_json: NewsletterEvalJudgeScores | null;
+  judge_usage:
+    | (NewsletterEvalLlmUsage & { judge_ms?: number })
+    | null;
+  session_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+  overall_score: number | null;
+  accuracy_score: number | null;
+  headline: string | null;
+  story_type: string | null;
+  district: number | null;
+  city_id: number | null;
+  city_name: string | null;
+  story_date: string | null;
+  short_hash: string | null;
+  story_status: string | null;
+  latest_accuracy: string | null;
+}
+
+export interface StoryEvalCandidate {
+  id: number;
+  headline: string | null;
+  story_type: string | null;
+  district: number | null;
+  city_id: number | null;
+  city_name: string | null;
+  story_date: string | null;
+  short_hash: string | null;
+  published_at: string | null;
+  latest_accuracy: string | null;
+  eval_count: number;
+}
+
+interface PaginatedStoryEvals<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export function listStoryEvals(
+  token: string,
+  options?: {
+    q?: string;
+    status?: string;
+    verdict?: "passing" | "failing";
+    city_id?: number;
+    page?: number;
+    page_size?: number;
+  }
+): Promise<PaginatedStoryEvals<StoryEvalRow>> {
+  const params = new URLSearchParams();
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.status) params.append("status", options.status);
+  if (options?.verdict) params.append("verdict", options.verdict);
+  if (options?.city_id != null)
+    params.append("city_id", String(options.city_id));
+  if (options?.page != null) params.append("page", String(options.page));
+  if (options?.page_size != null)
+    params.append("page_size", String(options.page_size));
+  const qs = params.toString();
+  return request(
+    `/api/admin/newsletter/stories/eval${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function listStoryEvalCandidates(
+  token: string,
+  options?: {
+    q?: string;
+    city_id?: number;
+    district?: number;
+    story_type?: string;
+    unjudged_only?: boolean;
+    page?: number;
+    page_size?: number;
+  }
+): Promise<PaginatedStoryEvals<StoryEvalCandidate>> {
+  const params = new URLSearchParams();
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.city_id != null)
+    params.append("city_id", String(options.city_id));
+  if (options?.district != null)
+    params.append("district", String(options.district));
+  if (options?.story_type) params.append("story_type", options.story_type);
+  if (options?.unjudged_only)
+    params.append("unjudged_only", String(options.unjudged_only));
+  if (options?.page != null) params.append("page", String(options.page));
+  if (options?.page_size != null)
+    params.append("page_size", String(options.page_size));
+  const qs = params.toString();
+  return request(
+    `/api/admin/newsletter/stories/eval/candidates${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function importStoryEvals(
+  body: { story_ids: number[]; judge_model_key?: string | null },
+  token: string
+): Promise<{ row_ids: number[]; job_id: string; imported: number }> {
+  return request(
+    "/api/admin/newsletter/stories/eval/import",
+    "POST",
+    body,
+    token
+  );
+}
+
+export function rejudgeStoryEval(
+  rowId: number,
+  body: { judge_model_key?: string | null },
+  token: string
+): Promise<{ completed: number; failed: number }> {
+  return request(
+    `/api/admin/newsletter/stories/eval/${rowId}/rejudge`,
     "POST",
     body,
     token

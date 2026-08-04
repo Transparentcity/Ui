@@ -464,6 +464,13 @@
   background: var(--bg-primary, #111827);
 }
 
+/* Inline "All metrics" (briefing header toggle) sits on the briefing page
+   background; keep it transparent in dark mode too so it matches the page. */
+[data-theme="dark"] .city-view-dashboard-section--inline,
+.dark .city-view-dashboard-section--inline {
+  background: transparent;
+}
+
 [data-theme="dark"] .city-view-admin-drawer-panel,
 .dark .city-view-admin-drawer-panel {
   background: var(--bg-primary, #111827);
@@ -1249,7 +1256,7 @@
 .dashboard-header-refresh-place-btn-inner {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 [data-theme="dark"] .place-refresh-job-banner:not(.place-refresh-job-banner--stacked),
@@ -1408,6 +1415,16 @@
 
 .dashboard-header-customize-btn:hover {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
+}
+
+/* Place refresh: compact so it sits inline with the YTD/MTD toggle and
+   category filter instead of wrapping to its own row. */
+.dashboard-header-customize-btn.dashboard-header-refresh-place-btn {
+  margin-left: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 [data-theme="dark"] .dashboard-header-single-row,
@@ -3347,9 +3364,12 @@ button.metrics-table-row {
    The admin "All metrics" tab keeps the legacy full-bleed look. */
 
 /* Re-assert the inline reset here (end of file) so the mobile
-   .city-view-dashboard-section padding override doesn't win by order. */
+   .city-view-dashboard-section padding override doesn't win by order.
+   Transparent so the section inherits the briefing page background in
+   both light and dark mode (the legacy tab keeps its own --bg-primary). */
 .city-view-dashboard-section--inline {
   padding: 0;
+  background: transparent;
 }
 
 .city-view-dashboard-section--inline .dashboard-section {
