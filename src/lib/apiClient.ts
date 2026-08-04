@@ -3915,6 +3915,12 @@ export interface User {
   government_city_id?: number | null;
   government_district?: number | null;
   custom_email_prompt?: string | null;
+  /** Row provenance: 'auth0'/null (organic), 'gift', 'substack_import', 'manual', … */
+  source?: string | null;
+  /** Lifecycle type: 'citizen' | 'official' | 'prospect' */
+  user_role_type?: string | null;
+  /** False while the pre-provisioned account has not been claimed yet. */
+  is_claimed?: boolean;
   is_gift_recipient?: boolean;
   gift_info?: {
     from_name?: string | null;
@@ -3966,6 +3972,8 @@ export function listUsers(
     role?: string;
     is_active?: boolean;
     is_city_lead?: boolean;
+    source?: string;
+    user_role_type?: string;
     skip?: number;
     limit?: number;
   }
@@ -3974,6 +3982,8 @@ export function listUsers(
   if (options?.role) params.append("role", options.role);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
   if (options?.is_city_lead !== undefined) params.append("is_city_lead", options.is_city_lead.toString());
+  if (options?.source) params.append("source", options.source);
+  if (options?.user_role_type) params.append("user_role_type", options.user_role_type);
   if (options?.skip) params.append("skip", options.skip.toString());
   if (options?.limit) params.append("limit", options.limit.toString());
   
@@ -5573,6 +5583,71 @@ export function deleteNewsletterEditionsBatch(
   token: string
 ): Promise<{ deleted: number }> {
   return request(`/api/admin/newsletter-editions/delete`, "POST", { ids }, token);
+}
+
+// ---------------------------------------------------------------------------
+// Newsletter metrics (per-campaign engagement: sends, clicks, visits, opt-outs)
+// ---------------------------------------------------------------------------
+
+export interface NewsletterMetricsItem {
+  campaign: string;
+  source: string | null;
+  first_sent_at: string | null;
+  last_sent_at: string | null;
+  sends: number;
+  unique_recipients: number;
+  city_ids: number[] | null;
+  edition_hashes: string[] | null;
+  clicks: number;
+  unique_clickers: number;
+  opens: number;
+  page_views: number;
+  unsubscribes: number;
+  click_through_rate: number | null;
+}
+
+export interface NewsletterMetricsResponse {
+  items: NewsletterMetricsItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export function getNewsletterMetrics(
+  token: string,
+  options?: { page?: number; page_size?: number }
+): Promise<NewsletterMetricsResponse> {
+  const params = new URLSearchParams();
+  if (options?.page != null) params.set("page", String(options.page));
+  if (options?.page_size != null) params.set("page_size", String(options.page_size));
+  const q = params.toString();
+  return request<NewsletterMetricsResponse>(
+    `/api/admin/newsletter/metrics${q ? `?${q}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface NewsletterMetricsLink {
+  destination_url: string;
+  slot: string;
+  clicks: number;
+  unique_clickers: number;
+}
+
+export function getNewsletterMetricsTopLinks(
+  token: string,
+  campaign: string,
+  limit = 25
+): Promise<NewsletterMetricsLink[]> {
+  return request<NewsletterMetricsLink[]>(
+    `/api/admin/newsletter/metrics/${encodeURIComponent(campaign)}/links?limit=${limit}`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 /** Manual run of a system schedule (e.g. weekly_newsletter). */
@@ -8338,10 +8413,14 @@ export function getMyGifts(token: string): Promise<MyGiftsResponse> {
   return request<MyGiftsResponse>("/api/gift/my-gifts", "GET", undefined, token);
 }
 
+export type GiftClaimKind = "gift" | "substack_migration";
+
 export interface GiftMetaResponse {
   recipient_email: string;
   recipient_name: string | null;
   gifter_display: string;
+  /** 'gift' (default) or 'substack_migration' — drives claim-flow copy. */
+  kind?: GiftClaimKind;
   place_label: string | null;
   place_name: string | null;
   city_id: number | null;

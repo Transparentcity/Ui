@@ -46,6 +46,7 @@ import { PENDING_ORDER_STORAGE_KEY_PREFIX } from "@/components/MetricOrderEditor
 import Loader from "@/components/Loader";
 import WelcomeModal from "@/components/WelcomeModal";
 import CityNotFoundModal from "@/components/CityNotFoundModal";
+import FeedCityPicker from "@/components/FeedCityPicker";
 import {
   clearGiftOnboardingContext,
   giftMetaToOnboardingContext,
@@ -2477,24 +2478,22 @@ export default function DashboardPage() {
 
           {/* Feed: admin-only content-review surface. Regular users get the
               briefing home instead; if they land here without a resolved
-              scope, show a lightweight prompt to pick a city. */}
+              scope (e.g. after onboarding with an unsupported city), show an
+              inline city picker plus recent stories from across the service. */}
           {currentView === "feed" && !isAdmin && !isCheckingAdmin && (
             <div id="feed-empty-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "80px 24px", textAlign: "center" }}>
-                <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
-                  Pick your city to get started
-                </p>
-                <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)" }}>
-                  Search for a city in the sidebar to open its briefing.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(true)}
-                  style={{ marginTop: 8, padding: "8px 20px", borderRadius: 999, border: "1px solid var(--brand-primary)", background: "transparent", color: "var(--brand-primary)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                >
-                  Search cities
-                </button>
-              </div>
+              <FeedCityPicker
+                onCitySelect={(cityId) => {
+                  setActiveCityId(cityId);
+                  setInitialPlaceId(null);
+                  setInitialPlaceLabel(null);
+                  setInitialPlaceGps(null);
+                  setInitialDistrict(null);
+                  setCitySelection({ district: null, placeId: null });
+                  setInitialSection(null);
+                  setCurrentView("city");
+                }}
+              />
             </div>
           )}
 
