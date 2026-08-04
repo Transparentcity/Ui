@@ -6,8 +6,11 @@ import type { GiftMetaResponse } from "@/lib/apiClient";
 
 export const GIFT_ONBOARDING_STORAGE_KEY = "transparentcity.gift_onboard";
 
+export type GiftOnboardingKind = "gift" | "substack_migration";
+
 export interface GiftOnboardingContext {
   token: string;
+  kind: GiftOnboardingKind;
   recipientEmail: string;
   recipientName: string | null;
   gifterDisplay: string;
@@ -27,6 +30,7 @@ export function giftMetaToOnboardingContext(
 ): GiftOnboardingContext {
   return {
     token,
+    kind: meta.kind === "substack_migration" ? "substack_migration" : "gift",
     recipientEmail: meta.recipient_email,
     recipientName: meta.recipient_name,
     gifterDisplay: meta.gifter_display,
@@ -60,6 +64,16 @@ export function readGiftOnboardingContext(): GiftOnboardingContext | null {
 export function clearGiftOnboardingContext(): void {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(GIFT_ONBOARDING_STORAGE_KEY);
+}
+
+/**
+ * Default first name from the email local-part (before the @), dropping any
+ * plus-alias suffix. Used for Substack-migration claims where the imported
+ * name is unreliable.
+ */
+export function emailLocalPartFirstName(email: string | null | undefined): string {
+  const local = (email || "").split("@")[0].split("+")[0].trim();
+  return local;
 }
 
 /** Split "First Last" gift recipient name into profile fields. */

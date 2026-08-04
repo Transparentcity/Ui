@@ -19,6 +19,7 @@ import {
   persistGiftOnboardingContext,
 } from "@/lib/giftOnboarding";
 import BrandWordmark from "@/components/BrandWordmark";
+import Loader from "@/components/Loader";
 import styles from "./activate.module.css";
 
 /* ─── inner page ─── */
@@ -42,6 +43,8 @@ function GiftActivateInner() {
   const [errorMsg, setErrorMsg] = useState("");
   const [otp, setOtp] = useState("");
   const activationStarted = useRef(false);
+
+  const isMigration = meta?.kind === "substack_migration";
 
   const goToGiftOnboarding = useCallback((giftMeta: GiftMetaResponse) => {
     if (!token) return;
@@ -94,7 +97,7 @@ function GiftActivateInner() {
         goToGiftOnboarding(giftMeta);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Could not activate your trial.";
+          err instanceof Error ? err.message : "Could not finish setup.";
         const needsOtp =
           message.toLowerCase().includes("otp") ||
           message.toLowerCase().includes("not configured") ||
@@ -155,7 +158,7 @@ function GiftActivateInner() {
         setErrorMsg(
           is404
             ? "This activation link is invalid or has already expired."
-            : "Something went wrong loading your trial. Please try the link again."
+            : "Something went wrong loading your invitation. Please try the link again."
         );
         setPageState("error");
       });
@@ -202,14 +205,18 @@ function GiftActivateInner() {
         <BrandWordmark className={styles.brandHeader} />
 
         {pageState === "error" && <ErrorView message={errorMsg} />}
-        {pageState === "activated" && <AlreadyActivatedView />}
+        {pageState === "activated" && (
+          <AlreadyActivatedView isMigration={isMigration} />
+        )}
 
         {(pageState === "loading" || pageState === "activating") && (
           <ActivatingView
             headline={
               pageState === "activating"
-                ? "Starting your trial…"
-                : "Loading your gift…"
+                ? isMigration
+                  ? "Setting up your newsletter…"
+                  : "Starting your trial…"
+                : "Getting things ready…"
             }
             body={
               meta?.email_trusted_by_click
@@ -230,6 +237,7 @@ function GiftActivateInner() {
             onResend={() => handleSendCode(meta)}
             verifying={pageState === "verifying"}
             errorMsg={errorMsg}
+            isMigration={isMigration}
           />
         )}
       </div>
@@ -248,7 +256,7 @@ function ActivatingView({
 }) {
   return (
     <div className={styles.center} style={{ gap: 14 }}>
-      <div className={styles.spinner} aria-label="Loading…" />
+      <Loader size="lg" color="purple" />
       <h1 className={styles.headline} style={{ fontSize: 20 }}>
         {headline}
       </h1>
@@ -265,6 +273,7 @@ function CodeEntryView({
   onResend,
   verifying,
   errorMsg,
+  isMigration,
 }: {
   email: string;
   otp: string;
@@ -273,6 +282,7 @@ function CodeEntryView({
   onResend: () => void;
   verifying: boolean;
   errorMsg: string;
+  isMigration?: boolean;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -293,8 +303,8 @@ function CodeEntryView({
       </div>
       <h1 className={styles.headline}>Enter your code</h1>
       <p className={styles.body}>
-        We emailed a 6-digit code to <strong>{email}</strong>. Enter it below to
-        start your trial.
+        We emailed a 6-digit code to <strong>{email}</strong>. Enter it below to{" "}
+        {isMigration ? "finish setting up your newsletter" : "start your trial"}.
       </p>
 
       <form
@@ -331,18 +341,11 @@ function CodeEntryView({
         >
           {verifying ? (
             <>
-              <div
-                className={styles.spinner}
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderWidth: 2,
-                  borderTopColor: "#fff",
-                  borderColor: "rgba(255,255,255,0.3)",
-                }}
-              />
+              <Loader size="sm" color="white" />
               Verifying…
             </>
+          ) : isMigration ? (
+            "Verify & continue →"
           ) : (
             "Verify & start my trial →"
           )}
@@ -383,7 +386,7 @@ function ErrorView({ message }: { message: string }) {
   );
 }
 
-function AlreadyActivatedView() {
+function AlreadyActivatedView({ isMigration }: { isMigration?: boolean }) {
   return (
     <div className={styles.center}>
       <div className={styles.iconWrap} aria-hidden="true">
@@ -400,10 +403,13 @@ function AlreadyActivatedView() {
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </div>
-      <h1 className={styles.headline}>Your trial is already active</h1>
+      <h1 className={styles.headline}>
+        {isMigration ? "You're already set up" : "Your trial is already active"}
+      </h1>
       <p className={styles.body}>
-        You&rsquo;ve already activated this gift. Sign in to access your
-        dashboard.
+        {isMigration
+          ? "Your subscription is already active. Sign in to access your dashboard."
+          : "You've already activated this gift. Sign in to access your dashboard."}
       </p>
       <Link href="/home" className={styles.primaryBtn}>
         Go to my dashboard &rarr;
@@ -421,7 +427,7 @@ export default function GiftActivatePage() {
         <div className={styles.page}>
           <div className={styles.card}>
             <div className={styles.center}>
-              <div className={styles.spinner} />
+              <Loader size="lg" color="purple" />
             </div>
           </div>
         </div>

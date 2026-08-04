@@ -53,6 +53,8 @@ export default function UserManagement({
   const [selectedStatus, setSelectedStatus] = useState<boolean | null>(null);
   const [selectedCityLead, setSelectedCityLead] = useState<boolean | null>(null);
   const [selectedGovStatus, setSelectedGovStatus] = useState<string>("");
+  const [selectedSource, setSelectedSource] = useState<string>("");
+  const [selectedUserType, setSelectedUserType] = useState<string>("");
 
   // Edit modal state
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -137,6 +139,8 @@ export default function UserManagement({
         role: selectedRole || undefined,
         is_active: selectedStatus !== null ? selectedStatus : undefined,
         is_city_lead: selectedCityLead !== null ? selectedCityLead : undefined,
+        source: selectedSource || undefined,
+        user_role_type: selectedUserType || undefined,
       });
 
       // Apply search filter client-side
@@ -172,7 +176,7 @@ export default function UserManagement({
     } finally {
       setLoading(false);
     }
-  }, [getAccessTokenSilently, selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, searchQuery]);
+  }, [getAccessTokenSilently, selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, selectedSource, selectedUserType, searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -180,7 +184,7 @@ export default function UserManagement({
 
   useEffect(() => {
     loadUsers();
-  }, [selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, loadUsers]);
+  }, [selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, selectedSource, selectedUserType, loadUsers]);
 
   // Debounced search
   useEffect(() => {
@@ -809,10 +813,37 @@ export default function UserManagement({
             <option value="verified">Verified</option>
             <option value="not_gov">Not Government</option>
           </select>
+          <select
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value)}
+            className={styles.select}
+          >
+            <option value="">Source (Any)</option>
+            <option value="substack_import">Substack import</option>
+            <option value="gift">Gift</option>
+            <option value="auth0">Organic signup</option>
+            <option value="manual">Manual</option>
+          </select>
+          <select
+            value={selectedUserType}
+            onChange={(e) => setSelectedUserType(e.target.value)}
+            className={styles.select}
+          >
+            <option value="">Type (Any)</option>
+            <option value="citizen">Citizen</option>
+            <option value="official">Official</option>
+            <option value="prospect">Prospect</option>
+          </select>
           <button onClick={() => loadData()} className={styles.refreshBtn}>
             <i className="fas fa-sync-alt"></i> Refresh
           </button>
         </div>
+        {selectedSource === "substack_import" && !loading && (
+          <div className={styles.filtersRow} style={{ fontSize: 13, color: "var(--text-secondary)", paddingTop: 8 }}>
+            Substack migration: {users.filter((u) => u.is_claimed).length} claimed ·{" "}
+            {users.filter((u) => !u.is_claimed).length} unclaimed of {users.length}
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
@@ -887,6 +918,25 @@ export default function UserManagement({
                             🎁 Gift
                           </span>
                         )}
+                        {user.source === "substack_import" && (
+                          <span
+                            className={styles.roleBadge}
+                            style={{
+                              background: user.is_claimed
+                                ? "rgba(5, 150, 105, 0.1)"
+                                : "rgba(217, 119, 6, 0.12)",
+                              color: user.is_claimed ? "#059669" : "#d97706",
+                              cursor: "default",
+                            }}
+                            title={
+                              user.is_claimed
+                                ? "Imported from Substack — account claimed"
+                                : "Imported from Substack — not claimed yet"
+                            }
+                          >
+                            Substack {user.is_claimed ? "✓" : "· unclaimed"}
+                          </span>
+                        )}
                       </div>
                       <div className={styles.tableCellSubtext}>ID: {user.id}</div>
                     </td>
@@ -901,6 +951,18 @@ export default function UserManagement({
                         {user.is_city_lead && (
                           <span className={`${styles.roleBadge} ${styles.roleCityLead}`}>
                             City Lead
+                          </span>
+                        )}
+                        {user.user_role_type === "prospect" && (
+                          <span
+                            className={styles.roleBadge}
+                            style={{
+                              background: "var(--bg-secondary)",
+                              color: "var(--text-secondary)",
+                            }}
+                            title="Imported lead — has not signed in yet"
+                          >
+                            Prospect
                           </span>
                         )}
                       </div>
