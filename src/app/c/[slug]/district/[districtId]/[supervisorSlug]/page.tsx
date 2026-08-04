@@ -19,6 +19,8 @@ import {
 } from "@/lib/publicApiClient";
 import { slugify, formatLeaderName } from "@/lib/utils";
 import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import { loadPublicGeographicContext } from "@/lib/loadPublicGeographicContext";
+import { resolvePublicGeographicContext } from "@/lib/publicGeographicUnit";
 import type { MetricOrderingEntry } from "../../../CityDashboardSection";
 import DistrictPageContent from "../DistrictPageContent";
 import { supervisorToSlug } from "../page";
@@ -134,9 +136,10 @@ export default async function DistrictSlugPage({ params }: PageProps) {
   let districts: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let orderings: MetricOrderingEntry[] | undefined = undefined;
+  let geographicContext = resolvePublicGeographicContext({});
 
   try {
-    const [detail, leadersRes, feedRes, mapsRes, cityDistrictsRes, orderingRes] = await Promise.all([
+    const [detail, leadersRes, feedRes, mapsRes, cityDistrictsRes, orderingRes, geoContext] = await Promise.all([
       getPublicCityDetail(city.id),
       getPublicLeadersForCity(city.id).catch(() => []),
       listPublicFeedStories({
@@ -148,6 +151,7 @@ export default async function DistrictSlugPage({ params }: PageProps) {
       listPublicMapsForCity(city.id).catch(() => []),
       getPublicCityDistricts(city.id).catch((): number[] => []),
       getPublicCityMetricOrdering(city.id).catch(() => null),
+      loadPublicGeographicContext(city.id),
     ]);
     if (orderingRes?.orderings?.length) {
       orderings = orderingRes.orderings
@@ -162,6 +166,7 @@ export default async function DistrictSlugPage({ params }: PageProps) {
     }
     cityDetail = detail;
     leaders = leadersRes;
+    geographicContext = geoContext;
     feedStories = feedRes.stories ?? [];
     maps = mapsRes;
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
@@ -197,7 +202,16 @@ export default async function DistrictSlugPage({ params }: PageProps) {
     // leave districtValid false, comparisonsMap empty
   }
 
-  if (!districtValid && (cityDetail?.metrics?.length ?? 0) > 0) notFound();
+  // Known official subdivisions render an empty state instead of 404
+  // (see the matching comment in ../page.tsx).
+  const isKnownSubdivision = geographicContext.subdivisionNames.has(d);
+  if (
+    !districtValid &&
+    !isKnownSubdivision &&
+    (cityDetail?.metrics?.length ?? 0) > 0
+  ) {
+    notFound();
+  }
 
   const primaryLeader = leaders.find((l) => l.district === d);
   const supervisorName = primaryLeader?.name?.trim()
@@ -232,6 +246,7 @@ export default async function DistrictSlugPage({ params }: PageProps) {
       districts={districts}
       maps={maps}
       orderings={orderings}
+      geographicContext={geographicContext}
     />
   );
 }

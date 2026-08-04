@@ -70,13 +70,26 @@ function resolveNeighborhoodNameFromProps(
   return "";
 }
 
-function resolveNeighborhoodIdFromProps(
+/**
+ * Canonical numeric subdivision id from feature properties. Mirrors the
+ * backend's id derivation in extract_subdivisions_from_geometry, so
+ * frontend point lookups and backend comparison rows agree on ids.
+ */
+export function resolveNeighborhoodIdFromProps(
   props: Record<string, unknown>,
   numericField: string | null,
 ): number | null {
   const candidates: unknown[] = [];
   if (numericField) candidates.push(props[numericField]);
-  candidates.push(props.SNA_NUMBER, props.sna_number, props.OBJECTID, props.FID, props.id);
+  candidates.push(
+    props.SNA_NUMBER,
+    props.sna_number,
+    props.district_num,
+    props.districtnum,
+    props.OBJECTID,
+    props.FID,
+    props.id,
+  );
 
   for (const raw of candidates) {
     if (raw == null || raw === "") continue;

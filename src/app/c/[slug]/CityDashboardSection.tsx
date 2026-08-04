@@ -172,8 +172,21 @@ export default function CityDashboardSection({
           </div>
         </div>
         <div className="ytd-placeholder">
-          <p>No dashboard metrics for {cityDisplayName} yet.</p>
-          <a href="/add-your-city">Help us get your city set up</a>
+          {isDistrictView ? (
+            // Known subdivision with no comparison rows yet (e.g. a neighborhood
+            // whose metrics lack a per-neighborhood breakdown). The city itself
+            // is set up, so no "add your city" CTA.
+            <p>
+              No {subdivisionLabel(districtFilter!)}-level metrics for{" "}
+              {cityDisplayName} yet. Citywide numbers are on the{" "}
+              <Link href={base}>{cityDisplayName} dashboard</Link>.
+            </p>
+          ) : (
+            <>
+              <p>No dashboard metrics for {cityDisplayName} yet.</p>
+              <a href="/add-your-city">Help us get your city set up</a>
+            </>
+          )}
         </div>
         {storiesSlot}
         {/* District and maps links even when no metrics */}

@@ -9,6 +9,7 @@ import {
   getCityLeaders,
   type CityShapefile,
 } from "@/lib/apiClient";
+import { resolveNeighborhoodIdFromProps } from "@/lib/atLargeCouncilNav";
 
 function pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
   const [x, y] = point;
@@ -72,7 +73,8 @@ export function resolveDistrictFromShapefiles(
       }
       for (const ring of rings) {
         if (pointInPolygon(point, ring)) {
-          const identifier = feature.properties?.[shapefile.identifier_field || ""];
+          const props = feature.properties ?? {};
+          const identifier = props[shapefile.identifier_field || ""];
           if (identifier !== undefined && identifier !== null) {
             const districtNum =
               typeof identifier === "number"
@@ -80,6 +82,14 @@ export function resolveDistrictFromShapefiles(
                 : parseInt(String(identifier).replace(/\D/g, ""), 10);
             if (!isNaN(districtNum)) return districtNum;
           }
+          // Name-identified layers (e.g. Cincinnati SNA_NAME="North Avondale")
+          // yield no digits above; fall back to the canonical numeric id the
+          // backend derives (SNA_NUMBER etc.), shared with neighborhood nav.
+          const fallbackId = resolveNeighborhoodIdFromProps(
+            props as Record<string, unknown>,
+            null,
+          );
+          if (fallbackId != null) return fallbackId;
         }
       }
     }

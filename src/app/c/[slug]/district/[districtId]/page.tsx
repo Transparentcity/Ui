@@ -232,7 +232,17 @@ export default async function DistrictPage({ params }: PageProps) {
     // leave districtValid false, comparisonsMap empty
   }
 
-  if (!districtValid && (cityDetail?.metrics?.length ?? 0) > 0) notFound();
+  // A subdivision listed in the city's official layer (e.g. a Cincinnati SNA
+  // neighborhood) is a real page even when no metric has comparison rows for
+  // it yet — render the subdivision-aware empty state instead of a 404.
+  const isKnownSubdivision = geographicContext.subdivisionNames.has(d);
+  if (
+    !districtValid &&
+    !isKnownSubdivision &&
+    (cityDetail?.metrics?.length ?? 0) > 0
+  ) {
+    notFound();
+  }
 
   const primaryLeader = leaders.find((l) => l.district === d);
   const supervisorName = primaryLeader?.name?.trim()
