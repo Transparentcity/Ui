@@ -36,8 +36,6 @@ import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import NewsletterAdminSubscribersTab from "@/components/NewsletterAdminSubscribersTab";
 import NewsletterAdminPromptsTab from "@/components/NewsletterAdminPromptsTab";
 import NewsletterAdminLibraryTab from "@/components/NewsletterAdminLibraryTab";
-import NewsletterAdminMetricsTab from "@/components/NewsletterAdminMetricsTab";
-import NewsletterAdminStoriesTab from "@/components/NewsletterAdminStoriesTab";
 import styles from "./NewsletterAdmin.module.css";
 
 // ---------------------------------------------------------------------------
@@ -47,17 +45,13 @@ type TabId =
   | "dashboard"
   | "prompts"
   | "subscribers"
-  | "library"
-  | "stories"
-  | "metrics";
+  | "library";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "prompts", label: "Prompts" },
   { id: "subscribers", label: "Subscribers" },
   { id: "library", label: "Workbench" },
-  { id: "stories", label: "Stories" },
-  { id: "metrics", label: "Metrics" },
 ];
 
 const RECENT_SENDS_PAGE_SIZE = 20;
@@ -479,10 +473,6 @@ export default function NewsletterAdmin() {
       {activeTab === "subscribers" && <NewsletterAdminSubscribersTab />}
 
       {activeTab === "library" && <NewsletterAdminLibraryTab cities={cities} />}
-
-      {activeTab === "stories" && <NewsletterAdminStoriesTab cities={cities} />}
-
-      {activeTab === "metrics" && <NewsletterAdminMetricsTab />}
 
       {/* Generate Modal */}
       {genCityId !== null && (

@@ -2,6 +2,7 @@
 
 import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   type FeedStory,
   type CityWithFeedStories,
@@ -15,15 +16,25 @@ import {
   likeFeedStoryAdmin,
   unlikeFeedStoryAdmin,
 } from "@/lib/api/feed";
+import {
+  importStoryEvals,
+  listStoryEvals,
+  rejudgeStoryEval,
+  type StoryEvalRow,
+} from "@/lib/apiClient";
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import Loader from "@/components/Loader";
+import { JudgeScoresPanel, ScoreBadge } from "@/components/eval/JudgeScoresPanel";
 import { VisualizationDeferredInteractiveContainer } from "@/components/VisualizationDeferredInteractiveContainer";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import styles from "./FeedAdmin.module.css";
 
 type TimeRange = "day" | "week" | "month" | "all";
 type ExportTimeRange = "today" | "week" | "month" | "year" | "all";
+type EvalFilter = "" | "passing" | "failing" | "unjudged";
+
+const PASSING_ACCURACY = 4;
 
 const TIME_RANGE_MS: Record<Exclude<TimeRange, "all">, number> = {
   day: 24 * 60 * 60 * 1000,
@@ -43,6 +54,31 @@ function formatDate(value?: string | null): string {
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return value;
   return dt.toLocaleDateString();
+}
+
+function storyAccuracy(story: FeedStory): number | null {
+  const raw = story.metadata?.eval_accuracy;
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function GatingBadge({ accuracy }: { accuracy: number | null }) {
+  if (accuracy == null) {
+    return <span className={styles.badge}>unjudged</span>;
+  }
+  if (accuracy >= PASSING_ACCURACY) {
+    return (
+      <span className={`${styles.badge} ${styles.badgeGreen}`}>
+        newsletter-eligible
+      </span>
+    );
+  }
+  return (
+    <span className={`${styles.badge} ${styles.badgeRed}`}>
+      blocked: accuracy {accuracy}
+    </span>
+  );
 }
 
 function extractVisualizationUrl(viz: Record<string, any> | null | undefined): string {
@@ -96,6 +132,9 @@ export default function FeedAdmin() {
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [evalFilter, setEvalFilter] = useState<EvalFilter>("");
+  const [selectedStoryIds, setSelectedStoryIds] = useState<Set<number>>(new Set());
+  const [judgingSelected, setJudgingSelected] = useState(false);
 
   // Table pagination
   const [page, setPage] = useState(0);
@@ -134,8 +173,12 @@ export default function FeedAdmin() {
     story_date: new Date().toISOString().slice(0, 10),
   });
 
-  // Story preview popover
+  // Story preview popover + eval sidebar
   const [previewStory, setPreviewStory] = useState<FeedStory | null>(null);
+  const [previewEvals, setPreviewEvals] = useState<StoryEvalRow[]>([]);
+  const [previewEvalsLoading, setPreviewEvalsLoading] = useState(false);
+  const [previewJudging, setPreviewJudging] = useState(false);
+  const [rejudgingId, setRejudgingId] = useState<number | null>(null);
 
   // Expand [chart:]/[map:]/[anomaly:] shortcodes into live embeds; keep the
   // debug label so admins can still see which shortcode produced each embed.
@@ -233,6 +276,8 @@ export default function FeedAdmin() {
           s.description,
           s.summary,
           s.article_html,
+          s.short_hash,
+          String(s.id),
         ]
           .filter(Boolean)
           .join(" ")
@@ -240,13 +285,25 @@ export default function FeedAdmin() {
         return haystack.includes(q);
       });
     }
+    if (evalFilter) {
+      result = result.filter((s) => {
+        const accuracy = storyAccuracy(s);
+        if (evalFilter === "unjudged") return accuracy == null;
+        if (evalFilter === "passing")
+          return accuracy != null && accuracy >= PASSING_ACCURACY;
+        if (evalFilter === "failing")
+          return accuracy != null && accuracy < PASSING_ACCURACY;
+        return true;
+      });
+    }
     return result;
-  }, [stories, timeRange, selectedCityId, searchQuery]);
+  }, [stories, timeRange, selectedCityId, searchQuery, evalFilter]);
 
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
-  }, [timeRange, selectedCityId, searchQuery]);
+    setSelectedStoryIds(new Set());
+  }, [timeRange, selectedCityId, searchQuery, evalFilter]);
 
   // Paginated slice for table display
   const totalPages = Math.max(1, Math.ceil(filteredStories.length / PAGE_SIZE));
@@ -464,6 +521,142 @@ export default function FeedAdmin() {
     setPreviewStory(story);
   }, []);
 
+  const loadPreviewEvals = useCallback(
+    async (storyId: number) => {
+      try {
+        setPreviewEvalsLoading(true);
+        const token = await getAccessTokenSilently();
+        const res = await listStoryEvals(token, {
+          story_id: storyId,
+          page: 1,
+          page_size: 10,
+        });
+        setPreviewEvals(res.items);
+        const latest = res.items.find((r) => r.accuracy_score != null);
+        if (latest?.accuracy_score != null) {
+          const accuracy = latest.accuracy_score;
+          setStories((prev) =>
+            prev.map((s) => {
+              if (s.id !== storyId) return s;
+              if (Number(s.metadata?.eval_accuracy) === accuracy) return s;
+              return {
+                ...s,
+                metadata: {
+                  ...(s.metadata || {}),
+                  eval_accuracy: accuracy,
+                },
+              };
+            }),
+          );
+          setPreviewStory((prev) => {
+            if (!prev || prev.id !== storyId) return prev;
+            if (Number(prev.metadata?.eval_accuracy) === accuracy) return prev;
+            return {
+              ...prev,
+              metadata: {
+                ...(prev.metadata || {}),
+                eval_accuracy: accuracy,
+              },
+            };
+          });
+        }
+      } catch (err) {
+        console.error("Error loading story evals:", err);
+        setPreviewEvals([]);
+      } finally {
+        setPreviewEvalsLoading(false);
+      }
+    },
+    [getAccessTokenSilently],
+  );
+
+  const previewStoryId = previewStory?.id ?? null;
+  useEffect(() => {
+    if (previewStoryId == null) {
+      setPreviewEvals([]);
+      return;
+    }
+    void loadPreviewEvals(previewStoryId);
+  }, [previewStoryId, loadPreviewEvals]);
+
+  const toggleSelected = useCallback((id: number) => {
+    setSelectedStoryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectPage = useCallback(() => {
+    setSelectedStoryIds((prev) => {
+      const pageIds = pagedStories.map((s) => s.id);
+      const allSelected = pageIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const id of pageIds) next.delete(id);
+      } else {
+        for (const id of pageIds) next.add(id);
+      }
+      return next;
+    });
+  }, [pagedStories]);
+
+  const handleJudgeStories = useCallback(
+    async (storyIds: number[]) => {
+      if (storyIds.length === 0) return;
+      try {
+        setJudgingSelected(true);
+        const token = await getAccessTokenSilently();
+        const res = await importStoryEvals({ story_ids: storyIds }, token);
+        toast.success(
+          `Judging ${res.imported} stor${res.imported === 1 ? "y" : "ies"} in the background`,
+        );
+        setSelectedStoryIds(new Set());
+        if (previewStory && storyIds.includes(previewStory.id)) {
+          setTimeout(() => void loadPreviewEvals(previewStory.id), 1200);
+        }
+      } catch (err) {
+        console.error("Error importing stories for eval:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to judge stories",
+        );
+      } finally {
+        setJudgingSelected(false);
+      }
+    },
+    [getAccessTokenSilently, previewStory, loadPreviewEvals],
+  );
+
+  const handleRejudge = useCallback(
+    async (rowId: number) => {
+      if (!previewStory) return;
+      try {
+        setRejudgingId(rowId);
+        const token = await getAccessTokenSilently();
+        await rejudgeStoryEval(rowId, {}, token);
+        toast.success("Story re-judged");
+        await loadPreviewEvals(previewStory.id);
+      } catch (err) {
+        console.error("Error re-judging story:", err);
+        toast.error(err instanceof Error ? err.message : "Re-judge failed");
+      } finally {
+        setRejudgingId(null);
+      }
+    },
+    [getAccessTokenSilently, previewStory, loadPreviewEvals],
+  );
+
+  const handleJudgePreview = useCallback(async () => {
+    if (!previewStory) return;
+    try {
+      setPreviewJudging(true);
+      await handleJudgeStories([previewStory.id]);
+    } finally {
+      setPreviewJudging(false);
+    }
+  }, [previewStory, handleJudgeStories]);
+
   if (loading) {
     return (
       <div className={styles.feedAdmin} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200, gap: 8 }}>
@@ -557,11 +750,36 @@ export default function FeedAdmin() {
           <input
             type="search"
             className={styles.select}
-            placeholder="Search headline or body..."
+            placeholder="Search headline, body, or hash..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ minWidth: 220, flex: "1 1 220px" }}
           />
+
+          <select
+            className={styles.select}
+            value={evalFilter}
+            onChange={(e) => setEvalFilter(e.target.value as EvalFilter)}
+            title="Filter by story eval accuracy (newsletter gating)"
+          >
+            <option value="">All evals</option>
+            <option value="unjudged">Unjudged</option>
+            <option value="passing">Passing (accuracy ≥ 4)</option>
+            <option value="failing">Failing (accuracy &lt; 4)</option>
+          </select>
+
+          <button
+            className={styles.secondaryBtn}
+            disabled={selectedStoryIds.size === 0 || judgingSelected}
+            onClick={() => void handleJudgeStories(Array.from(selectedStoryIds))}
+            title="Judge selected stories against their creation session trace"
+          >
+            {judgingSelected ? (
+              <Loader size="sm" color="dark" />
+            ) : (
+              `Judge ${selectedStoryIds.size || ""} selected`.trim()
+            )}
+          </button>
 
           <button className={styles.primaryBtn} onClick={handleOpenCreate}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -621,11 +839,26 @@ export default function FeedAdmin() {
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th className={styles.th} style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      checked={
+                        pagedStories.length > 0 &&
+                        pagedStories.every((s) => selectedStoryIds.has(s.id))
+                      }
+                      onChange={toggleSelectPage}
+                      aria-label="Select page"
+                    />
+                  </th>
                   <th className={styles.th}>ID</th>
                   <th className={styles.th}>Date</th>
                   <th className={styles.th}>City</th>
                   <th className={styles.th}>Headline</th>
                   <th className={styles.th}>Type</th>
+                  <th className={styles.th} title="Accuracy score from story eval (≥4 = newsletter-eligible)">
+                    Accuracy
+                  </th>
+                  <th className={`${styles.th} ${styles.hideNarrow}`}>Gating</th>
                   <th className={`${styles.th} ${styles.hideNarrow}`} title="user_places.id when the story is saved-place scoped">
                     Saved place
                   </th>
@@ -638,7 +871,9 @@ export default function FeedAdmin() {
                 </tr>
               </thead>
               <tbody>
-                {pagedStories.map((story) => (
+                {pagedStories.map((story) => {
+                  const accuracy = storyAccuracy(story);
+                  return (
                   <tr
                     key={story.id}
                     className={styles.rowClickable}
@@ -649,6 +884,15 @@ export default function FeedAdmin() {
                       if (e.key === "Enter") handleStoryClick(story);
                     }}
                   >
+                    <td className={styles.td}>
+                      <input
+                        type="checkbox"
+                        checked={selectedStoryIds.has(story.id)}
+                        onChange={() => toggleSelected(story.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select story ${story.id}`}
+                      />
+                    </td>
                     <td className={styles.td}>
                       <span className={styles.muted}>#{story.id}</span>
                     </td>
@@ -663,6 +907,16 @@ export default function FeedAdmin() {
                     </td>
                     <td className={styles.td}>
                       <span className={styles.badge}>{story.story_type}</span>
+                    </td>
+                    <td className={styles.td}>
+                      {accuracy != null ? (
+                        <ScoreBadge score={accuracy} title={`Accuracy ${accuracy}`} size={22} />
+                      ) : (
+                        <span className={styles.muted}>—</span>
+                      )}
+                    </td>
+                    <td className={`${styles.td} ${styles.hideNarrow}`}>
+                      <GatingBadge accuracy={accuracy} />
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
                       {story.user_place_id != null ? (
@@ -786,7 +1040,8 @@ export default function FeedAdmin() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -815,10 +1070,13 @@ export default function FeedAdmin() {
         )}
       </div>
 
-      {/* Story Preview Popover */}
+      {/* Story Preview + Eval (workbench-style split) */}
       {previewStory && (
         <div className={styles.previewOverlay} onClick={() => setPreviewStory(null)}>
-          <div className={styles.previewPanel} onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`${styles.previewPanel} ${styles.previewPanelWide}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className={styles.previewHeader}>
               <div className={styles.previewMeta}>
@@ -826,6 +1084,7 @@ export default function FeedAdmin() {
                 <span className={styles.muted}>{formatDate(previewStory.story_date)}</span>
                 {previewStory.city_emoji && <span>{previewStory.city_emoji}</span>}
                 <span className={styles.muted}>{previewStory.city_name}</span>
+                <GatingBadge accuracy={storyAccuracy(previewStory)} />
               </div>
               <button
                 className={styles.previewClose}
@@ -841,75 +1100,203 @@ export default function FeedAdmin() {
 
             <h2 className={styles.previewHeadline}>{previewStory.headline}</h2>
 
-            {/* Personalization info — shown when the story is saved-place scoped */}
-            {(previewStory.user_place_id != null || previewStory.metadata?.category === "personal_newsletter") && (
-              <div className={styles.previewPersonalization}>
-                <div className={styles.previewPersonalizationTitle}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  Personalized story
-                </div>
-                <div className={styles.previewPersonalizationGrid}>
-                  {previewStory.user_place_id != null && (
-                    <div className={styles.previewInfoRow}>
-                      <span className={styles.previewInfoLabel}>Saved place ID</span>
-                      <span className={styles.previewInfoValue}>{previewStory.user_place_id}</span>
+            <div className={styles.previewSplit}>
+              {/* Left: story content */}
+              <div className={styles.previewMain}>
+                {(previewStory.user_place_id != null || previewStory.metadata?.category === "personal_newsletter") && (
+                  <div className={styles.previewPersonalization}>
+                    <div className={styles.previewPersonalizationTitle}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      Personalized story
                     </div>
-                  )}
-                  {previewStory.metadata?.category && (
-                    <div className={styles.previewInfoRow}>
-                      <span className={styles.previewInfoLabel}>Category</span>
-                      <span className={styles.previewInfoValue}>{previewStory.metadata.category}</span>
+                    <div className={styles.previewPersonalizationGrid}>
+                      {previewStory.user_place_id != null && (
+                        <div className={styles.previewInfoRow}>
+                          <span className={styles.previewInfoLabel}>Saved place ID</span>
+                          <span className={styles.previewInfoValue}>{previewStory.user_place_id}</span>
+                        </div>
+                      )}
+                      {previewStory.metadata?.category && (
+                        <div className={styles.previewInfoRow}>
+                          <span className={styles.previewInfoLabel}>Category</span>
+                          <span className={styles.previewInfoValue}>{previewStory.metadata.category}</span>
+                        </div>
+                      )}
+                      {previewStory.metadata?.user_place_ids && Array.isArray(previewStory.metadata.user_place_ids) && previewStory.metadata.user_place_ids.length > 0 && (
+                        <div className={styles.previewInfoRow}>
+                          <span className={styles.previewInfoLabel}>Place IDs</span>
+                          <span className={styles.previewInfoValue}>{(previewStory.metadata.user_place_ids as number[]).join(", ")}</span>
+                        </div>
+                      )}
+                      {previewStory.metadata?.user_id && (
+                        <div className={styles.previewInfoRow}>
+                          <span className={styles.previewInfoLabel}>User ID</span>
+                          <span className={styles.previewInfoValue}>{String(previewStory.metadata.user_id)}</span>
+                        </div>
+                      )}
+                      {previewStory.metadata?.user_email && (
+                        <div className={styles.previewInfoRow}>
+                          <span className={styles.previewInfoLabel}>User email</span>
+                          <span className={styles.previewInfoValue}>{String(previewStory.metadata.user_email)}</span>
+                        </div>
+                      )}
+                      <div className={styles.previewInfoRow}>
+                        <span className={styles.previewInfoLabel}>Privacy</span>
+                        <span className={styles.previewInfoValue}>
+                          <span className={styles.previewPrivacyBadge}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            Private (saved place)
+                          </span>
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  {previewStory.metadata?.user_place_ids && Array.isArray(previewStory.metadata.user_place_ids) && previewStory.metadata.user_place_ids.length > 0 && (
-                    <div className={styles.previewInfoRow}>
-                      <span className={styles.previewInfoLabel}>Place IDs</span>
-                      <span className={styles.previewInfoValue}>{(previewStory.metadata.user_place_ids as number[]).join(", ")}</span>
-                    </div>
-                  )}
-                  {previewStory.metadata?.user_id && (
-                    <div className={styles.previewInfoRow}>
-                      <span className={styles.previewInfoLabel}>User ID</span>
-                      <span className={styles.previewInfoValue}>{String(previewStory.metadata.user_id)}</span>
-                    </div>
-                  )}
-                  {previewStory.metadata?.user_email && (
-                    <div className={styles.previewInfoRow}>
-                      <span className={styles.previewInfoLabel}>User email</span>
-                      <span className={styles.previewInfoValue}>{String(previewStory.metadata.user_email)}</span>
-                    </div>
-                  )}
-                  <div className={styles.previewInfoRow}>
-                    <span className={styles.previewInfoLabel}>Privacy</span>
-                    <span className={styles.previewInfoValue}>
-                      <span className={styles.previewPrivacyBadge}>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </svg>
-                        Private (saved place)
-                      </span>
-                    </span>
                   </div>
+                )}
+
+                <div className={styles.previewBody}>
+                  {previewArticleHtml ? (
+                    <VisualizationDeferredInteractiveContainer
+                      className={styles.previewArticle}
+                      html={previewArticleHtml}
+                    />
+                  ) : (
+                    <p className={styles.previewFallback}>
+                      {previewStory.summary || previewStory.description || "No content available."}
+                    </p>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* Article content */}
-            <div className={styles.previewBody}>
-              {previewArticleHtml ? (
-                <VisualizationDeferredInteractiveContainer
-                  className={styles.previewArticle}
-                  html={previewArticleHtml}
-                />
-              ) : (
-                <p className={styles.previewFallback}>
-                  {previewStory.summary || previewStory.description || "No content available."}
-                </p>
-              )}
+              {/* Right: eval sidebar (mirrors newsletter workbench) */}
+              <aside className={styles.previewEvalSidebar}>
+                <div className={styles.previewEvalTitle}>Story eval</div>
+                <div className={styles.muted} style={{ fontSize: 12, marginBottom: 10 }}>
+                  Judged against the Seymour session tool-call trace. Accuracy ≥ 4
+                  keeps the story newsletter-eligible; failing accuracy blocks it
+                  from source pools.
+                </div>
+
+                {previewEvalsLoading ? (
+                  <div className={styles.muted} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <Loader size="sm" color="dark" /> Loading eval…
+                  </div>
+                ) : previewEvals[0]?.scores_json ? (
+                  <>
+                    <JudgeScoresPanel
+                      scores={previewEvals[0].scores_json}
+                      judgeModelKey={previewEvals[0].judge_model_key}
+                    />
+                    <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <button
+                        type="button"
+                        className={styles.secondaryBtn}
+                        disabled={rejudgingId === previewEvals[0].id}
+                        onClick={() => void handleRejudge(previewEvals[0].id)}
+                      >
+                        {rejudgingId === previewEvals[0].id ? (
+                          <Loader size="sm" color="dark" />
+                        ) : (
+                          "Re-judge"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.secondaryBtn}
+                        disabled={previewJudging || judgingSelected}
+                        onClick={() => void handleJudgePreview()}
+                      >
+                        {previewJudging ? <Loader size="sm" color="dark" /> : "Judge again"}
+                      </button>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 11 }} className={styles.muted}>
+                      Status: {previewEvals[0].status}
+                      {previewEvals[0].source ? ` · ${previewEvals[0].source}` : ""}
+                      {previewEvals[0].completed_at
+                        ? ` · ${formatDate(previewEvals[0].completed_at)}`
+                        : ""}
+                    </div>
+                  </>
+                ) : previewEvals[0]?.status === "pending" ? (
+                  <div className={styles.muted}>
+                    Judging in progress…{" "}
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      style={{ marginLeft: 6 }}
+                      onClick={() => void loadPreviewEvals(previewStory.id)}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                ) : previewEvals[0]?.error ? (
+                  <div>
+                    <div className={styles.errorMessage}>{previewEvals[0].error}</div>
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      style={{ marginTop: 8 }}
+                      disabled={rejudgingId === previewEvals[0].id}
+                      onClick={() => void handleRejudge(previewEvals[0].id)}
+                    >
+                      {rejudgingId === previewEvals[0].id ? (
+                        <Loader size="sm" color="dark" />
+                      ) : (
+                        "Re-judge"
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className={styles.muted} style={{ marginBottom: 10 }}>
+                      Not judged yet. New stories are judged automatically when
+                      producer jobs run; you can also judge this story now.
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.primaryBtn}
+                      disabled={previewJudging || judgingSelected}
+                      onClick={() => void handleJudgePreview()}
+                    >
+                      {previewJudging ? <Loader size="sm" color="dark" /> : "Judge story"}
+                    </button>
+                  </div>
+                )}
+
+                {(previewStory.job_session_id || previewEvals[0]?.session_id) && (
+                  <div style={{ marginTop: 14 }}>
+                    <JobSessionDebugLink
+                      sessionId={
+                        previewEvals[0]?.session_id || previewStory.job_session_id
+                      }
+                      label="Creation session"
+                      className={styles.jobSessionLink}
+                    />
+                  </div>
+                )}
+
+                {previewEvals.length > 1 && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
+                      Prior evals ({previewEvals.length - 1})
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }} className={styles.muted}>
+                      {previewEvals.slice(1).map((row) => (
+                        <li key={row.id}>
+                          #{row.id} · accuracy {row.accuracy_score ?? "—"} ·{" "}
+                          {row.status}
+                          {row.completed_at ? ` · ${formatDate(row.completed_at)}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </aside>
             </div>
 
             {/* Footer */}
@@ -961,13 +1348,6 @@ export default function FeedAdmin() {
                     {(previewStory.applaud_count ?? previewStory.like_count ?? 0).toLocaleString()}
                   </span>
                 </button>
-                {previewStory.job_session_id ? (
-                  <JobSessionDebugLink
-                    sessionId={previewStory.job_session_id}
-                    label="View job session"
-                    className={styles.jobSessionLink}
-                  />
-                ) : null}
                 <a
                   className={styles.primaryBtn}
                   href={(() => {

@@ -60,8 +60,11 @@ export default function NewsletterAdminPromptsTab() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to save prompts";
       if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
+        // Prefer the API detail when present (it names which job type is missing).
+        const detailMatch = msg.match(/"detail"\s*:\s*"([^"]+)"/);
         toast.error(
-          "No active weekly_newsletter scheduled job found. Create one first in the Scheduled Jobs panel."
+          detailMatch?.[1] ??
+            "Newsletter scheduled jobs not found. Create the unified newsletter jobs (and legacy weekly_newsletter for shared/personalized) in Scheduled Jobs first."
         );
       } else {
         toast.error(msg);
@@ -134,9 +137,26 @@ export default function NewsletterAdminPromptsTab() {
           {"{subs_text}"} {"{instructions_block}"} {"{city_id}"} {"{district_int}"}{" "}
           {"{city_name}"}
         </code>
+        {data?.unified_custom_job_ids && data.unified_custom_job_ids.length > 0 && (
+          <span style={{ marginLeft: 12, color: "var(--text-secondary)", fontSize: 12 }}>
+            (Unified jobs #{data.unified_custom_job_ids.join(", ")})
+          </span>
+        )}
         {data?.custom_job_id && (
           <span style={{ marginLeft: 12, color: "var(--text-secondary)", fontSize: 12 }}>
-            (Job #{data.custom_job_id})
+            (Legacy job #{data.custom_job_id})
+          </span>
+        )}
+        {!(data?.unified_custom_job_ids && data.unified_custom_job_ids.length > 0) && (
+          <span
+            style={{
+              marginLeft: 12,
+              color: "var(--text-warning, #f59e0b)",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            Warning: no unified newsletter jobs found — saving the unified prompt will fail.
           </span>
         )}
         {!data?.custom_job_id && (
@@ -148,7 +168,7 @@ export default function NewsletterAdminPromptsTab() {
               fontWeight: 600,
             }}
           >
-            Warning: no active weekly_newsletter job found — saving will fail.
+            Warning: no weekly_newsletter job found — saving shared/personalized prompts will fail.
           </span>
         )}
       </div>

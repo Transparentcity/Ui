@@ -5675,7 +5675,10 @@ export interface NewsletterPromptsResponse {
   default_shared_prompt: string;
   default_personalized_prompt: string;
   default_unified_prompt: string;
+  /** Legacy ``weekly_newsletter`` job id (shared/personalized storage). */
   custom_job_id: number | null;
+  /** Unified pipeline job ids that store ``unified_newsletter_prompt``. */
+  unified_custom_job_ids?: number[];
   /** Canonical model key stored on the weekly job for Seymour newsletter generation. */
   newsletter_seymour_model_key?: string | null;
 }
@@ -5691,7 +5694,11 @@ export function updateNewsletterPrompts(
     unified_newsletter_prompt?: string;
   },
   token: string
-): Promise<{ status: string; custom_job_id: number | null }> {
+): Promise<{
+  status: string;
+  custom_job_id: number | null;
+  unified_custom_job_ids?: number[];
+}> {
   return request("/api/admin/newsletter-prompts", "PUT", payload, token);
 }
 
@@ -8708,6 +8715,12 @@ export interface NewsletterEvalResultDetail extends NewsletterEvalCell {
   /** Composed newsletter instructions Seymour received (persona + place focus). */
   newsletter_instructions?: string | null;
   /**
+   * First user message of the generation session — the fully resolved prompt
+   * Seymour received. Present for imported cells too, which never stored
+   * prompt inputs on plan_json.
+   */
+  generation_prompt?: string | null;
+  /**
    * Bounded generation session tool-call trace passed to the judge
    * (names, arguments, results, success, timing). Conversation messages
    * are intentionally omitted.
@@ -8901,7 +8914,7 @@ export function rejudgeNewsletterEvalResult(
 }
 
 // ---------------------------------------------------------------------------
-// Story-level evals (Workbench Stories tab)
+// Story-level evals (Feed Admin story judge)
 // ---------------------------------------------------------------------------
 
 export interface StoryEvalRow {
@@ -8960,6 +8973,7 @@ export function listStoryEvals(
     status?: string;
     verdict?: "passing" | "failing";
     city_id?: number;
+    story_id?: number;
     page?: number;
     page_size?: number;
   }
@@ -8970,6 +8984,8 @@ export function listStoryEvals(
   if (options?.verdict) params.append("verdict", options.verdict);
   if (options?.city_id != null)
     params.append("city_id", String(options.city_id));
+  if (options?.story_id != null)
+    params.append("story_id", String(options.story_id));
   if (options?.page != null) params.append("page", String(options.page));
   if (options?.page_size != null)
     params.append("page_size", String(options.page_size));

@@ -3,7 +3,7 @@
 /**
  * ProductAnalyticsDashboard — modular admin analytics hub.
  *
- * Tabs: Overview · Marketing · LLM costs · Integrations
+ * Tabs: Overview · Needs attention · Marketing · Newsletters · LLM costs · Integrations
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -24,6 +24,7 @@ import LandingSourcesMatrix from "@/components/LandingSourcesMatrix";
 import RetentionLagTable from "@/components/RetentionLagTable";
 import RetentionTriangle from "@/components/RetentionTriangle";
 import NeedsAttentionPanel from "@/components/NeedsAttentionPanel";
+import NewsletterAdminMetricsTab from "@/components/NewsletterAdminMetricsTab";
 import SignupFunnelDashboard from "@/components/SignupFunnelDashboard";
 import {
   getProductAnalyticsOverview,
@@ -40,6 +41,7 @@ type TabId =
   | "overview"
   | "needs-attention"
   | "marketing"
+  | "newsletters"
   | "llm-costs"
   | "integrations";
 
@@ -51,6 +53,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "needs-attention", label: "Needs attention" },
   { id: "marketing", label: "Marketing" },
+  { id: "newsletters", label: "Newsletters" },
   { id: "llm-costs", label: "LLM costs" },
   { id: "integrations", label: "Integrations QA" },
 ];
@@ -372,18 +375,21 @@ export default function ProductAnalyticsDashboard() {
 
   const health = overview?.integration_health;
 
+  // Tabs that load their own data and don't use the shared date-range toolbar.
+  const isSelfContainedTab = tab === "needs-attention" || tab === "newsletters";
+
   return (
     <div className={styles.root}>
       <div className={styles.header}>
         <div>
           <h2 className={styles.title}>Dashboards</h2>
-          {tab !== "needs-attention" && overview && (
+          {!isSelfContainedTab && overview && (
             <div className={styles.subtitle}>
               {overview.active_users.date_from} → {overview.active_users.date_to}
             </div>
           )}
         </div>
-        {tab !== "needs-attention" && (
+        {!isSelfContainedTab && (
           <div className={styles.toolbar}>
             {PRESETS.map((p) => (
               <button
@@ -423,16 +429,19 @@ export default function ProductAnalyticsDashboard() {
         ))}
       </div>
 
-      {tab !== "needs-attention" && error && (
+      {!isSelfContainedTab && error && (
         <div className={styles.errorBanner}>{error}</div>
       )}
 
-      {tab !== "needs-attention" && loading && !overview && (
+      {!isSelfContainedTab && loading && !overview && (
         <div className={styles.loading}>Loading analytics…</div>
       )}
 
       {/* Needs attention tab */}
       {tab === "needs-attention" && <NeedsAttentionPanel />}
+
+      {/* Newsletters tab — per-campaign edition metrics */}
+      {tab === "newsletters" && <NewsletterAdminMetricsTab />}
 
       {/* Overview tab */}
       {tab === "overview" && overview && (
