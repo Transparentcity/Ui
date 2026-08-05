@@ -8928,6 +8928,8 @@ export interface StoryEvalRow {
   judge_usage:
     | (NewsletterEvalLlmUsage & { judge_ms?: number })
     | null;
+  /** Creation-session tool-call summary that grounded the judge. */
+  run_telemetry: NewsletterEvalRunTelemetry | null;
   session_id: string | null;
   created_at: string;
   completed_at: string | null;

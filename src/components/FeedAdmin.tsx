@@ -81,6 +81,100 @@ function GatingBadge({ accuracy }: { accuracy: number | null }) {
   );
 }
 
+function fmtTokens(n?: number | null): string {
+  if (n == null) return "—";
+  return n.toLocaleString();
+}
+
+function fmtCost(n?: number | null): string {
+  if (n == null) return "—";
+  if (n < 0.001) return "<$0.001";
+  return `$${n.toFixed(3)}`;
+}
+
+function fmtMs(ms?: number | null): string {
+  if (ms == null) return "—";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+/** Creation-session tool-call summary for the story-eval sidebar. */
+function StoryEvalTelemetry({ row }: { row: StoryEvalRow }) {
+  const t = row.run_telemetry;
+  const u = row.judge_usage;
+  const byName =
+    t?.tool_calls_by_name || t?.session_tool_calls_by_name || null;
+  const toolCount = t?.tool_call_count ?? t?.session_tool_call_count;
+  const llmCount = t?.llm_call_count ?? t?.session_llm_call_count;
+  const failed = t?.failed_tool_calls ?? t?.session_failed_tool_calls;
+  const execMs = t?.execution_time_ms ?? t?.session_execution_time_ms;
+
+  if (!t && !u) return null;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>
+        Creation session
+      </div>
+      <table style={{ fontSize: 12, borderCollapse: "collapse", width: "100%" }}>
+        <tbody>
+          <tr>
+            <td className={styles.muted}>Session trace</td>
+            <td style={{ textAlign: "right" }}>
+              {t?.session_trace_available
+                ? `${toolCount ?? 0} calls loaded`
+                : "not available"}
+            </td>
+          </tr>
+          <tr>
+            <td className={styles.muted}>LLM calls</td>
+            <td style={{ textAlign: "right" }}>{llmCount ?? "n/a"}</td>
+          </tr>
+          <tr>
+            <td className={styles.muted}>Tool calls</td>
+            <td style={{ textAlign: "right" }}>
+              {toolCount ?? "n/a"}
+              {failed ? ` (${failed} failed)` : ""}
+            </td>
+          </tr>
+          {execMs != null && (
+            <tr>
+              <td className={styles.muted}>Session time</td>
+              <td style={{ textAlign: "right" }}>{fmtMs(execMs)}</td>
+            </tr>
+          )}
+          {u && (
+            <tr>
+              <td className={styles.muted}>Judge cost / time</td>
+              <td style={{ textAlign: "right" }}>
+                {fmtCost(u.cost_usd)} / {fmtMs(u.judge_ms)}
+                {u.prompt_tokens != null || u.completion_tokens != null
+                  ? ` · ${fmtTokens(u.prompt_tokens)}→${fmtTokens(u.completion_tokens)}`
+                  : ""}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {byName && Object.keys(byName).length > 0 && (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 11,
+            color: "var(--text-secondary)",
+            lineHeight: 1.45,
+          }}
+        >
+          {Object.entries(byName)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => `${count}× ${name}`)
+            .join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function extractVisualizationUrl(viz: Record<string, any> | null | undefined): string {
   if (!viz) return "";
   return viz.url || viz.image_url || viz.src || viz.chart_url || viz.embed_url || "";
@@ -1221,6 +1315,7 @@ export default function FeedAdmin() {
                         ? ` · ${formatDate(previewEvals[0].completed_at)}`
                         : ""}
                     </div>
+                    <StoryEvalTelemetry row={previewEvals[0]} />
                   </>
                 ) : previewEvals[0]?.status === "pending" ? (
                   <div className={styles.muted}>
@@ -1250,6 +1345,7 @@ export default function FeedAdmin() {
                         "Re-judge"
                       )}
                     </button>
+                    <StoryEvalTelemetry row={previewEvals[0]} />
                   </div>
                 ) : (
                   <div>
