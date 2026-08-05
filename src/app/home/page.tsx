@@ -195,6 +195,8 @@ export default function DashboardPage() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [isAdmin, setIsAdmin] = useState(false);
+  /** Platform role is analyst (New Chat / session list; not full admin). */
+  const [isAnalyst, setIsAnalyst] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [cityLeadCityIds, setCityLeadCityIds] = useState<number[]>([]);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
@@ -361,6 +363,7 @@ export default function DashboardPage() {
     setAllUserPlacesLoaded(false);
     // Hide admin chrome until permissions reload for the new identity.
     setIsAdmin(false);
+    setIsAnalyst(false);
     setIsCheckingAdmin(true);
     setCityLeadCityIds([]);
     setCurrentView("feed");
@@ -902,6 +905,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isAuthenticated || !user) {
       setIsAdmin(false);
+      setIsAnalyst(false);
       setCityLeadCityIds([]);
       setCurrentUserId(null);
       setGovVerificationStatus(null);
@@ -924,6 +928,7 @@ export default function DashboardPage() {
         if (cancelled) return;
         setCurrentUserId(permissions.session_user_id || permissions.user_id || null);
         setIsAdmin(permissions.is_admin || false);
+        setIsAnalyst(permissions.role === "analyst");
         setCityLeadCityIds(permissions.city_lead_city_ids || []);
         setGovVerificationStatus(govStatus ?? null);
 
@@ -2143,7 +2148,7 @@ export default function DashboardPage() {
         governmentEmail={govVerificationStatus?.government_email ?? null}
         onNewChat={handleNewChat}
         onSearchCities={handleSearchCities}
-        chatEnabled={isAdmin}
+        chatEnabled={isAdmin || isAnalyst}
         activeCityName={activeCityName}
         inboxUnreadCount={inboxUnreadCount}
         homePlaceId={homePlaceId}
