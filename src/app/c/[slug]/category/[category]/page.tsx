@@ -11,12 +11,13 @@ import {
   getPublicMetricComparisonsBatch,
   getPublicMetricDistrictComparisons,
   getPublicCityDistricts,
+  getPublicCitySubdivisions,
   listPublicMapsForCity,
   getPublicCityMetricOrdering,
   type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
-import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import { filterNavigableDistricts } from "@/lib/filterDistrictsByGeographicStructure";
 import { resolveDisplayCategory } from "@/lib/metricOrderingDisplay";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import CitySignupCTA from "../../CitySignupCTA";
@@ -156,22 +157,27 @@ export default async function CityCategoryPage({
     ReturnType<typeof getPublicMetricComparisonsBatch>
   > = {};
   let districts: number[] = [];
+  let subdivisionIds: number[] = [];
   let maps: Awaited<ReturnType<typeof listPublicMapsForCity>> = [];
   let cityOrdering: PublicMetricOrderingResponse | null = null;
 
   try {
-    const [detail, cityDistrictsRes, mapsRes, orderingRes] = await Promise.all([
-      getPublicCityDetail(city.id),
-      getPublicCityDistricts(city.id).catch((): number[] => []),
-      listPublicMapsForCity(city.id).catch(() => []),
-      getPublicCityMetricOrdering(city.id).catch(() => null),
-    ]);
+    const [detail, cityDistrictsRes, subdivisionsRes, mapsRes, orderingRes] =
+      await Promise.all([
+        getPublicCityDetail(city.id),
+        getPublicCityDistricts(city.id).catch((): number[] => []),
+        getPublicCitySubdivisions(city.id).catch(() => null),
+        listPublicMapsForCity(city.id).catch(() => []),
+        getPublicCityMetricOrdering(city.id).catch(() => null),
+      ]);
     cityDetail = detail;
     maps = mapsRes;
     cityOrdering = orderingRes;
+    subdivisionIds = (subdivisionsRes?.subdivisions ?? []).map((s) => s.id);
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
-      districts = filterDistrictsByGeographicStructure(
+      districts = filterNavigableDistricts(
         cityDistrictsRes,
+        subdivisionIds,
         cityDetail?.geographic_structures,
       );
     }
@@ -204,10 +210,11 @@ export default async function CityCategoryPage({
         "ytd"
       ).catch(() => null);
       if (dc?.districts)
-        districts = filterDistrictsByGeographicStructure(
+        districts = filterNavigableDistricts(
           dc.districts
             .map((d) => d.district)
             .filter((n): n is number => typeof n === "number" && n > 0),
+          subdivisionIds,
           cityDetail?.geographic_structures,
         );
     }

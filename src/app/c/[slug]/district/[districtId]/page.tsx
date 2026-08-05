@@ -19,7 +19,7 @@ import {
   getPublicCityMetricOrdering,
 } from "@/lib/publicApiClient";
 import { slugify, formatLeaderName } from "@/lib/utils";
-import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import { filterNavigableDistricts } from "@/lib/filterDistrictsByGeographicStructure";
 import {
   loadPublicGeographicContext,
   subdivisionLabelFor,
@@ -200,8 +200,9 @@ export default async function DistrictPage({ params }: PageProps) {
     feedStories = feedRes.stories ?? [];
     maps = mapsRes;
     if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
-      districts = filterDistrictsByGeographicStructure(
+      districts = filterNavigableDistricts(
         cityDistrictsRes,
+        geographicContext.subdivisionNames.keys(),
         cityDetail?.geographic_structures,
       );
       districtValid = districts.includes(d);
@@ -213,10 +214,11 @@ export default async function DistrictPage({ params }: PageProps) {
         if (dc?.districts) {
           districtValid = dc.districts.some((x) => x.district === d);
           if (districts.length === 0)
-            districts = filterDistrictsByGeographicStructure(
+            districts = filterNavigableDistricts(
               dc.districts
                 .map((x) => x.district)
                 .filter((n): n is number => typeof n === "number" && n > 0),
+              geographicContext.subdivisionNames.keys(),
               cityDetail?.geographic_structures,
             );
         }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 export interface ImpersonationState {
   userId: number;
   email: string;
@@ -46,6 +48,28 @@ export function getImpersonationUserId(): number | null {
 export function getImpersonationCacheKey(): string {
   const impersonation = getImpersonationState();
   return impersonation ? `impersonated:${impersonation.userId}` : "self";
+}
+
+/** Reactive identity key for React Query caches that must not leak across proxy sessions. */
+export function useImpersonationCacheKey(): string {
+  const [key, setKey] = useState(getImpersonationCacheKey);
+
+  useEffect(() => {
+    const sync = () => setKey(getImpersonationCacheKey());
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === IMPERSONATION_STORAGE_KEY) {
+        sync();
+      }
+    };
+    window.addEventListener(IMPERSONATION_CHANGED_EVENT, sync);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(IMPERSONATION_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  return key;
 }
 
 function emitImpersonationChanged(): void {

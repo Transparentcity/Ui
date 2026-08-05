@@ -4,6 +4,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useQuery } from "@tanstack/react-query";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import { getMyPermissions, type UserPermissions } from "@/lib/apiClient";
+import { useImpersonationCacheKey } from "@/lib/impersonation";
 
 type PromptSource = {
   type?: string | null;
@@ -32,10 +33,11 @@ export default function AdminStoryProvenance({
   className,
 }: AdminStoryProvenanceProps) {
   const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
+  const identityKey = useImpersonationCacheKey();
 
   const permissionsQuery = useQuery<UserPermissions>({
     // Same key as AdminGuard so concurrent checks share one cached request.
-    queryKey: ["admin", "me", "permissions"],
+    queryKey: ["admin", "me", "permissions", identityKey],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
       return getMyPermissions(token);

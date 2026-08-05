@@ -27,6 +27,7 @@ import {
   type AdminTimeSeriesSummary,
   type CityListItem,
 } from "@/lib/apiClient";
+import { useImpersonationCacheKey } from "@/lib/impersonation";
 import { useTheme } from "@/contexts/ThemeContext";
 import Loader from "./Loader";
 import "./CrossCityComparisonChart.css";
@@ -408,9 +409,10 @@ export default function CrossCityComparisonChart({
   const isDark = theme === "dark";
   const axisTextColor = isDark ? "#94a3b8" : "#64748b";
   const gridColor = isDark ? "rgba(148, 163, 184, 0.18)" : "rgba(148, 163, 184, 0.25)";
+  const identityKey = useImpersonationCacheKey();
 
   const permissionsQuery = useQuery({
-    queryKey: ["cross-city-comparison", "permissions"],
+    queryKey: ["admin", "me", "permissions", identityKey],
     queryFn: () => getMyPermissions(token),
     enabled: Boolean(token),
     staleTime: 5 * 60 * 1000,

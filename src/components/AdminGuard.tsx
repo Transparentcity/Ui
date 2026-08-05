@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { getMyPermissions, type UserPermissions } from "@/lib/apiClient";
 import { setFoiaAuthToken } from "@/lib/foiaApiClient";
+import { useImpersonationCacheKey } from "@/lib/impersonation";
 import Loader from "@/components/Loader";
 
 interface AdminGuardProps {
@@ -22,13 +23,17 @@ interface AdminGuardProps {
  * useEffect whose dependencies (Auth0's getAccessTokenSilently /
  * loginWithRedirect) change identity on every render, which refired the
  * /api/admin/me/permissions call several times per page load.
+ *
+ * While proxying, ``is_admin`` reflects the *target* user — so admin-only
+ * routes are blocked unless you are proxying as another admin.
  */
 export function AdminGuard({ children, fallbackUrl = "/home" }: AdminGuardProps) {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently, loginWithRedirect } = useAuth0();
   const router = useRouter();
+  const identityKey = useImpersonationCacheKey();
 
   const permissionsQuery = useQuery<UserPermissions>({
-    queryKey: ["admin", "me", "permissions"],
+    queryKey: ["admin", "me", "permissions", identityKey],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
       setFoiaAuthToken(token);

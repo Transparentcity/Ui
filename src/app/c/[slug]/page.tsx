@@ -31,7 +31,7 @@ import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
 import { slugify, formatLeaderName } from "@/lib/utils";
 import { pickMayorFromPublicLeaders } from "@/lib/publicLeadersPick";
-import { filterDistrictsByGeographicStructure } from "@/lib/filterDistrictsByGeographicStructure";
+import { filterNavigableDistricts } from "@/lib/filterDistrictsByGeographicStructure";
 import { loadPublicGeographicContext } from "@/lib/loadPublicGeographicContext";
 import { resolvePublicGeographicContext } from "@/lib/publicGeographicUnit";
 
@@ -241,8 +241,9 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       geographicContext = geoContext;
       // Use city-level districts (any metric with district data); fallback to first metric
       if (Array.isArray(cityDistrictsRes) && cityDistrictsRes.length > 0) {
-        districts = filterDistrictsByGeographicStructure(
+        districts = filterNavigableDistricts(
           cityDistrictsRes,
+          geographicContext.subdivisionNames.keys(),
           cityDetail?.geographic_structures,
         );
       }
@@ -262,10 +263,11 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
         ]);
         comparisonsMap = batchComparisons;
         if (districts.length === 0 && fallbackDc?.districts) {
-          districts = filterDistrictsByGeographicStructure(
+          districts = filterNavigableDistricts(
             fallbackDc.districts
               .map((d) => d.district)
               .filter((n): n is number => typeof n === "number" && n > 0),
+            geographicContext.subdivisionNames.keys(),
             cityDetail?.geographic_structures,
           );
         }

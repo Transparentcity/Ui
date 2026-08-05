@@ -452,40 +452,9 @@ export default function CityDashboardSection({
 
       {storiesSlot}
 
-      {/* District links and maps below (compact, secondary); when viewing a district, show Back to citywide */}
-      {isDistrictView ? (
-        <div className="metrics-category-section" style={{ marginTop: 24 }}>
-          <div
-            className="metrics-category-title"
-            style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}
-          >
-            All {unitLabelPlural.toLowerCase()}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 6,
-              padding: "0 0 8px 0",
-            }}
-          >
-            <Link href={base} className="district-pill" style={{ fontSize: 13 }}>
-              ← Back to citywide
-            </Link>
-            {districts.map((d) => (
-              <Link
-                key={d}
-                href={`${base}/district/${d}`}
-                className="district-pill"
-                style={{ fontSize: 13 }}
-              >
-                District {d}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : (
+      {/* District links below metrics (citywide only). District pages already
+          have hero pills + a named subdivision list further down the page. */}
+      {!isDistrictView &&
         districts.length > 0 &&
         (cityId != null ? (
           <DistrictListWithFollow
@@ -502,7 +471,7 @@ export default function CityDashboardSection({
               className="metrics-category-title"
               style={{ borderBottom: "none", paddingLeft: 0, marginBottom: 8 }}
             >
-              By district
+              By {unitLabelPlural.toLowerCase()}
             </div>
             <div
               style={{
@@ -519,13 +488,14 @@ export default function CityDashboardSection({
                   className="nav-link"
                   style={{ fontSize: 14 }}
                 >
-                  District {d}
+                  {geographicContext
+                    ? formatSubdivisionLabel(geographicContext, d)
+                    : `${unitLabel} ${d}`}
                 </Link>
               ))}
             </div>
           </div>
-        ))
-      )}
+        ))}
 
       {maps.length > 0 && (
         <div className="metrics-category-section" style={{ marginTop: 16 }}>

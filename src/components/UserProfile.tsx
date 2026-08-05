@@ -2,7 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { getDbUserProfile } from "@/lib/apiClient";
+import { getDbUserProfile, type DbUserProfile } from "@/lib/apiClient";
+import {
+  getImpersonationState,
+  useImpersonationCacheKey,
+} from "@/lib/impersonation";
 import ContextMenu from "./ContextMenu";
 import styles from "./UserProfile.module.css";
 
@@ -15,33 +19,38 @@ interface UserProfileProps {
 export default function UserProfile({ isAdmin = false, onViewChange, onOpenSettings }: UserProfileProps) {
   const { user, getAccessTokenSilently } = useAuth0();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [dbPicture, setDbPicture] = useState<string | null>(null);
+  const [dbProfile, setDbProfile] = useState<DbUserProfile | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const identityKey = useImpersonationCacheKey();
+  const impersonation = getImpersonationState();
 
-  // Fetch DB profile to get uploaded picture (may differ from Auth0 picture)
+  // Fetch DB profile (target user while proxying via X-Impersonate-User-Id).
   useEffect(() => {
     let cancelled = false;
+    setDbProfile(null);
     (async () => {
       try {
         const token = await getAccessTokenSilently();
         const profile = await getDbUserProfile(token);
-        if (!cancelled && profile.picture) {
-          setDbPicture(profile.picture);
+        if (!cancelled) {
+          setDbProfile(profile);
         }
       } catch {
-        // Non-fatal — fall back to Auth0 picture
+        // Non-fatal — fall back to Auth0 / impersonation email
       }
     })();
     return () => { cancelled = true; };
-  }, [getAccessTokenSilently]);
+  }, [getAccessTokenSilently, identityKey]);
 
   // Listen for instant avatar update from WelcomeModal after upload
   useEffect(() => {
     const handler = (e: Event) => {
       const url = (e as CustomEvent<{ picture_url: string }>).detail?.picture_url;
-      if (url) setDbPicture(url);
+      if (url) {
+        setDbProfile((prev) => ({ ...(prev ?? {}), picture: url }));
+      }
     };
     window.addEventListener("tc:avatar-updated", handler);
     return () => window.removeEventListener("tc:avatar-updated", handler);
@@ -66,6 +75,16 @@ export default function UserProfile({ isAdmin = false, onViewChange, onOpenSetti
   }, [isMenuOpen]);
 
   const getInitial = (): string => {
+    if (dbProfile?.first_name) {
+      return dbProfile.first_name[0].toUpperCase();
+    }
+    if (dbProfile?.last_name) {
+      return dbProfile.last_name[0].toUpperCase();
+    }
+    // While proxying, never fall back to the admin's Auth0 identity.
+    if (impersonation?.email) {
+      return impersonation.email[0].toUpperCase();
+    }
     if (user?.name) {
       return user.name[0].toUpperCase();
     }
@@ -79,7 +98,10 @@ export default function UserProfile({ isAdmin = false, onViewChange, onOpenSetti
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const pictureUrl = dbPicture || user?.picture || null;
+  const pictureUrl =
+    dbProfile?.picture ||
+    (impersonation ? null : user?.picture) ||
+    null;
 
   return (
     <div ref={wrapperRef} style={{ position: "relative", overflow: "visible" }}>
@@ -112,5 +134,3 @@ export default function UserProfile({ isAdmin = false, onViewChange, onOpenSetti
     </div>
   );
 }
-
-

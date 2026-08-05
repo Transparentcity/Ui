@@ -359,6 +359,10 @@ export default function DashboardPage() {
     hasAutoSelectedCity.current = false;
     hasAutoLandedOnHomePlace.current = false;
     setAllUserPlacesLoaded(false);
+    // Hide admin chrome until permissions reload for the new identity.
+    setIsAdmin(false);
+    setIsCheckingAdmin(true);
+    setCityLeadCityIds([]);
     setCurrentView("feed");
     setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
@@ -387,7 +391,8 @@ export default function DashboardPage() {
     queryClient.removeQueries({ queryKey: ["inbox-list"] });
     queryClient.removeQueries({ queryKey: ["user-profile-recency"] });
     queryClient.removeQueries({ queryKey: ["feed"] });
-  }, [identityScopeKey, isImpersonating, queryClient]);
+    queryClient.removeQueries({ queryKey: ["admin", "me", "permissions"] });
+  }, [identityScopeKey, queryClient]);
 
   // Resolve a display name for the active (or best-available) city.
   // Priority: active city > home city > first saved city > null.
@@ -1041,7 +1046,7 @@ export default function DashboardPage() {
       !canAccessResearch &&
       (currentView === "research" || currentView === "research-new")
     ) {
-      setCurrentView("chat");
+      setCurrentView("feed");
       setCurrentResearchId(null);
     }
   }, [isCheckingAdmin, canAccessResearch, currentView]);
@@ -2293,7 +2298,7 @@ export default function DashboardPage() {
             </div>
           )}
         <div className={styles.viewsContainer}>
-          {currentView === "chat" && (
+          {currentView === "chat" && isAdmin && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
               <ChatView
                 sessionId={currentSessionId}
@@ -2316,8 +2321,9 @@ export default function DashboardPage() {
             </div>
           )}
           
-          {/* Admin Views */}
-          {currentView === "city-data" && (
+          {/* Admin Views — only reachable via admin menus; gated so proxy mode
+              cannot leave an admin surface mounted after identity switch. */}
+          {currentView === "city-data" && isAdmin && (
             <div id="city-data-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               {selectedCityId ? (
                 <div className={styles.adminContainer}>
@@ -2333,7 +2339,7 @@ export default function DashboardPage() {
           )}
 
           {/* Settings will be rendered as overlay below */}
-          {currentView === "user-management" && (
+          {currentView === "user-management" && isAdmin && (
             <div id="user-management-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
                 <UserManagement
@@ -2345,24 +2351,18 @@ export default function DashboardPage() {
           )}
 
 
-          {currentView === "metrics-admin" && (
+          {currentView === "metrics-admin" && isAdmin && (
             <div id="metrics-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
                 <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
                   Metrics Administration
                 </h2>
-                {isAdmin ? (
-                  <MetricsAdmin />
-                ) : (
-                  <p style={{ color: "var(--text-secondary)" }}>
-                    You don&apos;t have access to metrics administration.
-                  </p>
-                )}
+                <MetricsAdmin />
               </div>
             </div>
           )}
 
-          {currentView === "datasets-admin" && (
+          {currentView === "datasets-admin" && isAdmin && (
             <div id="datasets-admin-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
                 <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
@@ -2973,11 +2973,15 @@ export default function DashboardPage() {
           setInitialSection(null);
           setSidebarOpen((open) => !open);
         }}
-        profilePictureUrl={user?.picture ?? null}
+        profilePictureUrl={isImpersonating ? null : (user?.picture ?? null)}
         profileInitial={
-          user?.name?.[0]?.toUpperCase() ??
-          user?.email?.[0]?.toUpperCase() ??
-          "U"
+          isImpersonating
+            ? (impersonationState?.email?.[0]?.toUpperCase() ?? "U")
+            : (
+                user?.name?.[0]?.toUpperCase() ??
+                user?.email?.[0]?.toUpperCase() ??
+                "U"
+              )
         }
         isAdmin={isAdmin}
         onViewChange={handleViewChange}

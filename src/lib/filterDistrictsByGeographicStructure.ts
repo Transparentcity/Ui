@@ -54,3 +54,24 @@ export function filterDistrictsByGeographicStructure(
     .filter((d) => geoRanges.some((r) => d >= r.min && d <= r.max))
     .sort((a, b) => a - b);
 }
+
+/**
+ * Keep only district numbers a city can actually navigate to.
+ *
+ * Prefers the subdivision catalog from `/subdivisions`, which is derived from
+ * the city's official district shape layer. Legacy `geographic_structures` rows
+ * may describe an unrelated numeric geography — Cincinnati navigates 50
+ * neighborhoods but its only structure row is Police District 1–5 — so range
+ * filtering must not be applied when the authoritative catalog is available.
+ */
+export function filterNavigableDistricts(
+  districts: number[],
+  subdivisionIds?: Iterable<number> | null,
+  geographicStructures?: GeographicStructureRange[] | null,
+): number[] {
+  const catalog = new Set(subdivisionIds ?? []);
+  if (catalog.size === 0) {
+    return filterDistrictsByGeographicStructure(districts, geographicStructures);
+  }
+  return districts.filter((d) => catalog.has(d)).sort((a, b) => a - b);
+}

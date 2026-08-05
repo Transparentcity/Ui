@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQuery } from "@tanstack/react-query";
 import { getMyPermissions } from "@/lib/apiClient";
+import { useImpersonationCacheKey } from "@/lib/impersonation";
 import { formatDateRangeFromStrings, yearFromDateString } from "@/lib/formatters";
 import { usePublicMetricComparisons, usePublicMetricTimeSeriesSummary } from "@/lib/hooks/usePublicMetric";
 import type { PublicMetricDetail, PublicMetricComparisons, PublicTimeSeriesSummary } from "@/lib/publicApiClient";
@@ -52,8 +53,9 @@ export default function MetricDetailContent({
   initialTimeSeriesSummary,
 }: MetricDetailContentProps) {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently } = useAuth0();
+  const identityKey = useImpersonationCacheKey();
   const permissionsQuery = useQuery({
-    queryKey: ["admin", "me", "permissions"],
+    queryKey: ["admin", "me", "permissions", identityKey],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
       return getMyPermissions(token);

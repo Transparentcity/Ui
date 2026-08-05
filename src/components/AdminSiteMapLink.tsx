@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth0 } from "@auth0/auth0-react";
-import { getMyPermissions } from "@/lib/apiClient";
+import { useQuery } from "@tanstack/react-query";
+import { getMyPermissions, type UserPermissions } from "@/lib/apiClient";
+import { useImpersonationCacheKey } from "@/lib/impersonation";
 
 interface AdminSiteMapLinkProps {
   className?: string;
@@ -12,32 +13,23 @@ interface AdminSiteMapLinkProps {
 
 /** Sitemap is an admin-only destination in the logged-in product. */
 export default function AdminSiteMapLink({ className, children }: AdminSiteMapLinkProps) {
-  const { isAuthenticated, getAccessTokenSilently } = useAuth0();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
+  const identityKey = useImpersonationCacheKey();
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setIsAdmin(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await getAccessTokenSilently();
-        const permissions = await getMyPermissions(token);
-        if (!cancelled) {
-          setIsAdmin(Boolean(permissions.is_admin));
-        }
-      } catch {
-        if (!cancelled) setIsAdmin(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, getAccessTokenSilently]);
+  const permissionsQuery = useQuery<UserPermissions>({
+    queryKey: ["admin", "me", "permissions", identityKey],
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return getMyPermissions(token);
+    },
+    enabled: !isLoading && isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 
-  if (!isAdmin) return null;
+  if (!permissionsQuery.data?.is_admin) return null;
 
   return (
     <Link href="/sitemap" className={className}>
