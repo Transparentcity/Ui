@@ -51,18 +51,17 @@ const CITY_DATA_CACHE_TTL = 30000; // 30 seconds cache
 const CITY_STRUCTURE_CACHE_TTL = 120000; // 2 minutes cache (structure changes less frequently)
 const CITY_ADMIN_CACHE_TTL = 60000; // 1 minute cache
 
-async function request<T>(
-  path: string,
-  method: HttpMethod = "GET",
-  body?: any,
-  token?: string
-): Promise<T> {
-  const url = `${getApiBaseUrl()}${path}`;
+/**
+ * Auth headers for hand-rolled fetches that bypass `request()`.
+ *
+ * Carries the impersonation header alongside the bearer token. Any call that
+ * omits it resolves on the backend as the *admin* rather than the proxied
+ * user, so during a proxy session an identity-scoped request will act on, or
+ * fail to find, the wrong user's rows.
+ */
+function authHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
   const impersonationUserId = getImpersonationUserId();
-
-  const headers: HeadersInit = {
-    "Accept": "application/json",
-  };
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -71,6 +70,22 @@ async function request<T>(
   if (impersonationUserId != null) {
     headers["X-Impersonate-User-Id"] = String(impersonationUserId);
   }
+
+  return headers;
+}
+
+async function request<T>(
+  path: string,
+  method: HttpMethod = "GET",
+  body?: any,
+  token?: string
+): Promise<T> {
+  const url = `${getApiBaseUrl()}${path}`;
+
+  const headers: HeadersInit = {
+    "Accept": "application/json",
+    ...authHeaders(token),
+  };
 
   if (body && method !== "GET") {
     headers["Content-Type"] = "application/json";
@@ -2619,8 +2634,8 @@ async function _executeChatStream(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
       Accept: "text/event-stream",
+      ...authHeaders(token),
     },
     body: JSON.stringify(request),
     signal: abortSignal,
