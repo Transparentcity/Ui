@@ -17,6 +17,10 @@ const url = args.url;
 const output = args.output;
 const width = Math.max(300, Number.parseInt(args.width || "800", 10) || 800);
 const height = Math.max(200, Number.parseInt(args.height || "450", 10) || 450);
+const isDark = (() => {
+  try { return new URL(url).searchParams.get("theme") === "dark"; } catch { return false; }
+})();
+const bgColor = isDark ? "#0f172a" : "white";
 
 if (!url || !output) {
   console.error("Usage: node screenshot-public-map.mjs --url <url> --output <file> [--width 800] [--height 450]");
@@ -145,7 +149,7 @@ try {
       }
       body {
         margin: 0 !important;
-        background: white !important;
+        background: ${bgColor} !important;
       }
     `,
   });

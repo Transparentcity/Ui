@@ -1,0 +1,1107 @@
+/* WeekReplayMap — animated "Your Week Replay" hero unit.
+   Stacked rows at every width: the map is a full-width banner on top, the
+   control panel (clock, ticker, bar chart, scrubber) is the row below. */
+
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  line-height: normal;
+  background: var(--bg-primary, #fff);
+}
+
+/* Empty state: no panel — the map alone fills the tile. */
+.root[data-empty="true"] .mapPanel {
+  border-bottom: none;
+}
+
+.placeholder {
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  background: var(--bg-tertiary, #f3f4f6);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 640px) {
+  .placeholder {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+/* ── Map panel ─────────────────────────────────────────────────────────── */
+
+/* Full-width banner above the panel. The max-height keeps very wide cards
+   from turning the map into a letterbox; the basemap crop is refetched to
+   the measured aspect, so nothing distorts. */
+.mapPanel {
+  position: relative;
+  aspect-ratio: 2.5 / 1;
+  max-height: 440px;
+  overflow: hidden;
+  background: var(--bg-tertiary, #f3f4f6);
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+@media (max-width: 640px) {
+  .mapPanel {
+    aspect-ratio: 4 / 3;
+    max-height: none;
+  }
+}
+
+.root[data-phase="idle"] .mapPanel {
+  cursor: pointer;
+}
+
+/* Inner frame for geo-registered layers (basemap, boundary overlay, event
+   dots). Locked to the fetched crop's aspect via inline aspect-ratio, and
+   sized to COVER the cell at uniform scale — the classic min-width/min-height
+   + aspect-ratio cover trick — so nothing ever stretches (circles stay
+   circles even while the cell aspect drifts between remeasures). */
+.mapFrame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.basemap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Time-of-day washes ────────────────────────────────────────────────── */
+
+/* Both sit between the basemap and the dots, so events keep full contrast
+   while the map itself reads as night or weekend. Opacity is driven from JS
+   (a continuous function of the clock), so no transition here — it would
+   lag the ~30fps updates. */
+.nightScrim,
+.weekendWash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.nightScrim {
+  background: linear-gradient(180deg, #0b1120 0%, #17163e 60%, #1e1b4b 100%);
+}
+
+/* Weekends warm the map in the same brand purple the scrubber ribbon uses,
+   so the two read as one signal. */
+.weekendWash {
+  background: linear-gradient(160deg, #ad35fa 0%, #f0abfc 100%);
+}
+
+.eventLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dot {
+  transition: opacity 0.35s ease, r 0.2s ease;
+}
+
+.hitTarget {
+  cursor: pointer;
+}
+
+@keyframes pulseRing {
+  0% {
+    r: 4;
+    stroke-opacity: 0.9;
+  }
+  100% {
+    r: 18;
+    stroke-opacity: 0;
+  }
+}
+
+.pulseRing {
+  animation: pulseRing 0.9s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulseRing {
+    animation: none;
+    display: none;
+  }
+}
+
+/* ── Key-event moment: halo on the dot + callout under the date slug ───── */
+
+@keyframes keyHalo {
+  0% {
+    r: 8;
+    stroke-opacity: 0.85;
+  }
+  70% {
+    r: 19;
+    stroke-opacity: 0;
+  }
+  100% {
+    r: 19;
+    stroke-opacity: 0;
+  }
+}
+
+.keyHalo {
+  animation: keyHalo 1.6s ease-out infinite;
+}
+
+/* Drops down from behind the date slug (clock sits above it in the stack). */
+.keyCallout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-self: flex-start;
+  max-width: min(280px, 100%);
+  margin-top: 6px;
+  padding: 7px 11px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid color-mix(in srgb, #ad35fa 45%, transparent);
+  background: color-mix(in srgb, var(--bg-primary, #fff) 90%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  line-height: 1.3;
+  text-align: left;
+  pointer-events: none;
+  animation: keyCalloutDrop 0.34s ease-out;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.keyCallout[data-leaving="true"] {
+  opacity: 0;
+  transform: translateY(-14px);
+}
+
+@keyframes keyCalloutDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.keyCalloutLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+}
+
+.keyCalloutMeta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+
+.keyCalloutPhoto {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.keyCallout[data-photo="true"],
+.selectionCallout[data-photo="true"] {
+  max-width: min(300px, 100%);
+  padding-top: 8px;
+}
+
+/* Clicked datapoint card — same left column, interactive (close / view). */
+.selectionCallout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: flex-start;
+  max-width: min(280px, 100%);
+  margin-top: 6px;
+  padding: 8px 28px 8px 11px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid color-mix(in srgb, #ad35fa 45%, transparent);
+  background: color-mix(in srgb, var(--bg-primary, #fff) 92%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  line-height: 1.3;
+  text-align: left;
+  pointer-events: auto;
+  animation: keyCalloutDrop 0.28s ease-out;
+}
+
+.selectionCallout .popoverClose {
+  top: 4px;
+  right: 6px;
+}
+
+.selectionCallout .popoverLink {
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .keyCallout {
+    padding: 6px 9px;
+  }
+
+  .keyCalloutLabel {
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keyHalo,
+  .keyCallout {
+    animation: none;
+  }
+}
+
+/* ── Idle overlay: centered play button (only chrome over the map) ────── */
+
+.idleOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.playButton {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(173, 53, 250, 0.92);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(173, 53, 250, 0.45);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.playButton svg {
+  margin-left: 3px;
+}
+
+.playButton:hover {
+  transform: scale(1.08);
+  background: #ad35fa;
+}
+
+/* Branded bracket loader in the play button's spot while sources load
+   (soft backdrop chip keeps it legible over the basemap). */
+.mapLoaderChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--bg-primary, #fff) 62%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* Small bottom note on the full-width empty-state map. */
+.emptyNote {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-primary, #fff) 85%, transparent);
+  backdrop-filter: blur(4px);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* ── Selected event details ────────────────────────────────────────────── */
+
+/* Desktop: fixed-position popover portaled to <body>, anchored over the dot
+   (escapes the hero card's overflow clipping so it renders on top). */
+.popoverFixed {
+  position: fixed;
+  z-index: 1300;
+  transform: translate(-50%, calc(-100% - 14px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-primary, #fff);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  line-height: 1.3;
+}
+
+/* Dot too close to the viewport top: open beneath it instead. */
+.popoverFixed[data-below="true"] {
+  transform: translate(-50%, 14px);
+}
+
+/* Place scope (wide): sit beside the capture box so dots stay visible. */
+.popoverFixed[data-side="right"] {
+  transform: translate(12px, -50%);
+}
+
+.popoverFixed[data-side="left"] {
+  transform: translate(calc(-100% - 12px), -50%);
+}
+
+/* Mobile: bottom sheet (same pattern as the 311 photo gallery). */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-radius: 14px 14px 0 0;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: none;
+  background: var(--bg-primary, #fff);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.3);
+  line-height: 1.35;
+  animation: sheetUp 0.22s ease-out;
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+
+.sheetDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-bottom: 2px;
+}
+
+.sheetIcon {
+  font-size: 18px;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.sheetPhoto {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.sheet .popoverLabel {
+  font-size: 14px;
+}
+
+.sheet .popoverMeta {
+  font-size: 12px;
+}
+
+.popoverClose {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 1;
+}
+
+.popoverLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  padding-right: 14px;
+}
+
+.popoverMeta {
+  font-size: 11px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.popoverLink {
+  align-self: flex-start;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ad35fa;
+  cursor: pointer;
+}
+
+/* ── Control panel ─────────────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 14px 8px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.panelHeaderSpacer {
+  flex: 1;
+}
+
+.panelTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary, #111827);
+}
+
+.panelTitleRange {
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+
+.headerShareButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: transparent;
+  color: var(--text-primary, #111827);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.headerShareButton:hover:not(:disabled) {
+  border-color: #ad35fa;
+  color: #ad35fa;
+}
+
+.headerShareButton:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.idleRetry {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ad35fa;
+  cursor: pointer;
+}
+
+.idleRetry:hover {
+  border-color: #ad35fa;
+}
+
+/* Top-left stack: date slug on top, key-event callout drops out beneath.
+   Clock sizes to its content so the weekday/date/time never truncates;
+   callout cards below can still wrap within the column. */
+.mapChromeLeft {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(440px, calc(100% - 96px));
+  min-width: 0;
+  pointer-events: none;
+}
+
+/* Clock chip — sits above the callout so the drop reads as “from behind”. */
+.clock {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-primary, #fff) 88%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12);
+  line-height: 1.2;
+}
+
+.clockDaypart {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #eab308;
+}
+
+.clockDaypart[data-night="true"] {
+  color: #4b5563;
+}
+
+.clockDay {
+  flex: none;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+}
+
+/* Weekends read in brand purple, matching the scrubber ribbon and the map. */
+.clockDay[data-weekend="true"] {
+  color: #ad35fa;
+}
+
+.clockTime {
+  flex: none;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #ad35fa;
+  white-space: nowrap;
+}
+
+/* Share chip — top-right overlay after playback ends. */
+.mapShare {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-primary, #fff) 82%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Ticker: the single current-event line ─────────────────────────────── */
+
+.ticker {
+  min-height: 40px;
+}
+
+.tickerHint {
+  display: block;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+/* Quiet running tally shown between key moments. */
+.tickerCount {
+  display: block;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+/* ── Loading: copy + source-progress bar ──────────────────────────────── */
+
+.loadingBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressTrack {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, #f3f4f6);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #ad35fa;
+  transition: width 0.4s ease-out;
+}
+
+/* First response hasn't arrived yet: sweep instead of a real fraction. */
+.progressFill[data-indeterminate="true"] {
+  width: 35%;
+  animation: progressSweep 1.2s ease-in-out infinite;
+}
+
+@keyframes progressSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill[data-indeterminate="true"] {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+.progressLabel {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary, #6b7280);
+}
+
+.eventCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.3;
+  animation: eventCardIn 0.2s ease-out;
+  transition: opacity 0.3s ease;
+}
+
+/* Fades out with the map callout when the key moment's hold ends. */
+.eventCard[data-leaving="true"] {
+  opacity: 0;
+}
+
+@keyframes eventCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.eventCardDot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+
+/* Metric emoji shown as the ticker's leading icon (preferred over the dot). */
+.eventCardEmoji {
+  flex: none;
+  font-size: 15px;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+.eventCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.eventCardLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eventCardMeta {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Bar chart: events per subcategory ─────────────────────────────────── */
+
+/* Its own full-width row under the map. Capped so expanding a source into
+   its child metrics scrolls instead of stretching the whole card. */
+.chart {
+  flex: none;
+  min-height: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chartGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Rows are buttons: clicking highlights that category's dots on the map. */
+.chartRow {
+  display: grid;
+  grid-template-columns: minmax(64px, 120px) minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  margin: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.chartRow:hover {
+  background: rgba(173, 53, 250, 0.08);
+}
+
+.chartRowActive {
+  background: rgba(173, 53, 250, 0.12);
+}
+
+.chartRowActive .chartLabel {
+  color: var(--text-primary, #111827);
+  font-weight: 700;
+}
+
+.chartRowMuted {
+  opacity: 0.45;
+}
+
+.chartLabel {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chartCaret {
+  flex: none;
+  width: 9px;
+  font-size: 8px;
+  color: var(--text-secondary, #6b7280);
+}
+
+/* Child metric rows shown when a source is disaggregated. */
+.chartChildRow {
+  display: grid;
+  grid-template-columns: minmax(64px, 120px) minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 1px 4px 1px 16px;
+  margin: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background 0.15s ease;
+}
+
+.chartChildRow:hover {
+  background: rgba(173, 53, 250, 0.08);
+}
+
+.chartChildLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chartChildIcon {
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.chartChildBar {
+  opacity: 0.55;
+}
+
+.chartChildRow .chartTrack {
+  height: 5px;
+}
+
+.chartTrack {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, #f3f4f6);
+  overflow: hidden;
+}
+
+.chartBar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease-out;
+}
+
+.chartCount {
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #111827);
+  text-align: right;
+}
+
+/* Wide view: the chart spans the card, so give labels and counts more room. */
+@media (min-width: 641px) {
+  .chartRow,
+  .chartChildRow {
+    grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) 34px;
+  }
+
+  .chartLabel {
+    font-size: 11px;
+  }
+
+  .chartChildLabel,
+  .chartChildIcon {
+    font-size: 10px;
+  }
+
+  .chartCount {
+    font-size: 11px;
+  }
+}
+
+/* ── Controls: play/pause + scrubber ──────────────────────────────────── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.controlButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+}
+
+.controlButton:hover {
+  border-color: #ad35fa;
+  color: #ad35fa;
+}
+
+/* Skipped-ahead state: they haven't watched the replay yet, so the button
+   reads as a purple play invitation rather than a neutral replay. */
+.controlButtonAccent {
+  border-color: #ad35fa;
+  background: rgba(173, 53, 250, 0.1);
+  color: #ad35fa;
+}
+
+.scrubber {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0 14px;
+  cursor: pointer;
+  touch-action: none;
+  position: relative;
+}
+
+.scrubberTrack {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, #f3f4f6);
+  overflow: visible;
+}
+
+.scrubberFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: #ad35fa;
+}
+
+/* Day/night/weekend ribbon under the progress track. Colors are fixed rather
+   than themed: the contrast that matters is between the bands themselves,
+   and the strip's own background keeps them legible on either theme. */
+.scrubberRibbon {
+  position: relative;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.scrubberBand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(148, 163, 184, 0.34);
+}
+
+.scrubberBand[data-night="true"] {
+  background: rgba(51, 65, 85, 0.9);
+}
+
+.scrubberBand[data-weekend="true"] {
+  background: rgba(173, 53, 250, 0.3);
+}
+
+.scrubberBand[data-weekend="true"][data-night="true"] {
+  background: rgba(126, 34, 206, 0.9);
+}
+
+.scrubberDays {
+  position: relative;
+  height: 10px;
+  margin-top: 3px;
+}
+
+.scrubberDayLabel {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.scrubberDayLabel[data-weekend="true"] {
+  color: #ad35fa;
+  font-weight: 700;
+}
+
+/* ── Mobile panel tweaks ───────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 10px 12px 8px;
+  }
+
+  .mapChromeLeft {
+    top: 6px;
+    left: 6px;
+    max-width: calc(100% - 72px);
+  }
+
+  .clock {
+    padding: 5px 10px 5px 8px;
+    gap: 6px;
+  }
+
+  .mapShare {
+    top: 6px;
+    right: 6px;
+  }
+
+  .clockDay {
+    font-size: 13px;
+  }
+
+  .clockTime {
+    font-size: 13px;
+  }
+
+  .clockDaypart svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .eventCardLabel {
+    font-size: 12px;
+  }
+
+  .eventCardMeta {
+    font-size: 11px;
+  }
+
+  .chart {
+    max-height: 170px;
+  }
+}

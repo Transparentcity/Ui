@@ -28,9 +28,9 @@ export const feedKeys = {
   lists: () => [...feedKeys.all, "list"] as const,
   // Scope list/city/places caches by identity so an admin proxying as another
   // user never reuses their own cached feed for the proxied user's places.
-  list: (filters?: Record<string, any>) =>
+  list: (filters?: unknown) =>
     [...feedKeys.lists(), getImpersonationCacheKey(), filters] as const,
-  city: (cityId: number | null, filters?: Record<string, any>) =>
+  city: (cityId: number | null, filters?: unknown) =>
     [...feedKeys.all, "city", getImpersonationCacheKey(), cityId, filters] as const,
   details: () => [...feedKeys.all, "detail"] as const,
   detail: (storyId: number | null) => [...feedKeys.details(), storyId] as const,

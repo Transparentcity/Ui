@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { appendImageTheme } from "@/lib/feed/mockFeedData";
+import { useTheme } from "@/contexts/ThemeContext";
 import CardHeader from "../CardHeader";
 import styles from "../feed.module.css";
 
@@ -13,6 +15,7 @@ interface PhotoCardProps {
 }
 
 export default function PhotoCard({ story, children, variant }: PhotoCardProps) {
+  const { theme } = useTheme();
   // Generic variant: simple header + headline + description + photo
   if (variant === "generic") {
     return (
@@ -34,7 +37,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
         <div className={`${styles.vizArea} ${styles.vizAreaPhoto}`}>
           {story.image_url_resolved ? (
             <img
-              src={story.image_url_resolved}
+              src={appendImageTheme(story.image_url_resolved, theme)!}
               alt={story.headline}
               className={`${styles.vizImage} ${styles.vizImagePhoto}`}
               loading="lazy"
@@ -49,6 +52,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
   }
 
   const [imgFailed, setImgFailed] = useState(false);
+  const themedImageUrl = appendImageTheme(story.image_url_resolved, theme);
   const meta = story.metadata ?? {};
 
   // Derive category from headline or metadata
@@ -89,7 +93,7 @@ export default function PhotoCard({ story, children, variant }: PhotoCardProps) 
       <div className={styles.photoHero}>
         {showImage ? (
           <img
-            src={story.image_url_resolved!}
+            src={themedImageUrl!}
             alt={story.headline}
             loading="lazy"
             onError={() => setImgFailed(true)}

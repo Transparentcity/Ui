@@ -1032,7 +1032,13 @@ export default function PublicMapPage() {
   const hash = params.hash as string;
   const isEmbedded = searchParams.get("embedded") === "true";
   const isThumbnail = searchParams.get("thumbnail") === "true";
-  const { theme } = useTheme();
+  const forcedTheme =
+    searchParams.get("theme") === "dark"
+      ? "dark"
+      : searchParams.get("theme") === "light"
+      ? "light"
+      : null;
+  const { theme, setTheme } = useTheme();
   const { loginWithRedirect, isAuthenticated, getAccessTokenSilently } = useAuth0();
   
   const [map, setMap] = useState<SavedMap | null>(null);
@@ -1091,6 +1097,13 @@ export default function PublicMapPage() {
     [map]
   );
   const mapBasemapTheme = theme === "dark" ? "dark" : "light";
+
+  // Apply forced theme from ?theme= query param (used by Playwright screenshot worker).
+  useEffect(() => {
+    if (!forcedTheme) return;
+    setTheme(forcedTheme as "light" | "dark");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forcedTheme]);
 
   useEffect(() => {
     dotsDistrictIdRef.current = dotsDistrictId;

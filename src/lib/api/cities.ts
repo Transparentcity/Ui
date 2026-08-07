@@ -59,6 +59,8 @@ export interface CityAdminData {
   /** e.g. socrata, arcgis, ckan — from extra_metadata or URL inference */
   portal_type?: string | null;
   is_active: boolean;
+  /** Gates public metric visibility; editable from the city admin form. */
+  is_launched?: boolean;
   datasets_count?: number;
   vector_db_points?: number;
   vector_db_size_mb?: number;
@@ -71,7 +73,7 @@ export interface CityAdminData {
   governance_structures?: any[];
 }
 
-export interface CityShapeLayerInstance {
+export interface CityShapeLayerInstance extends CityShapefile {
   id: number;
   template_layer_id?: number | null;
   shapefile_name: string;
@@ -1068,10 +1070,6 @@ export function updateShapeLayerTemplate(
     updates,
     token
   );
-}
-
-export interface CityShapeLayerInstance extends CityShapefile {
-  // Reuse CityShapefile fields (city_shapefiles row)
 }
 
 export interface CityShapeLayerListItem {

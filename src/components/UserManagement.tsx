@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   listUsers,
@@ -16,6 +16,7 @@ import {
   setUserNewsletterSubscriptions,
   listLeadersForClaim,
   adminSetGiftQuota,
+  typeaheadAdminUsers,
   type User,
   type UserUpdateRequest,
   type UpdateUserGovernmentStatusRequest,
@@ -24,9 +25,12 @@ import {
   type DatabaseSizeResponse,
   type NewsletterSubscription,
   type LeaderForClaim,
+  type AdminUserTypeaheadItem,
 } from "@/lib/apiClient";
 import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
+
+const PAGE_SIZE = 25;
 
 interface UserManagementProps {
   currentUserId?: number | null;
@@ -43,12 +47,20 @@ export default function UserManagement({
   const [dbSizeLoading, setDbSizeLoading] = useState(false);
   const [showDbSize, setShowDbSize] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [page, setPage] = useState(1);
   const [cities, setCities] = useState<CityListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [suggestions, setSuggestions] = useState<AdminUserTypeaheadItem[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<boolean | null>(null);
   const [selectedCityLead, setSelectedCityLead] = useState<boolean | null>(null);
@@ -88,28 +100,70 @@ export default function UserManagement({
   const [leadersForElectedLoading, setLeadersForElectedLoading] = useState(false);
   const [editGovernmentDirty, setEditGovernmentDirty] = useState(false);
 
-  // Load initial data
-  const loadData = useCallback(async () => {
+  // Debounce search input → server query + reset to page 1
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Typeahead suggestions while typing
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSuggestionsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSuggestionsLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const hits = await typeaheadAdminUsers(q, token);
+        if (!cancelled) {
+          setSuggestions(hits);
+          setSuggestionsOpen(true);
+        }
+      } catch {
+        if (!cancelled) setSuggestions([]);
+      } finally {
+        if (!cancelled) setSuggestionsLoading(false);
+      }
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery, getAccessTokenSilently]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (!searchWrapRef.current?.contains(e.target as Node)) {
+        setSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
+  // Load stats + cities once; users come from loadUsers
+  const loadMeta = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
-
-      // Load stats, users, and cities in parallel
-      const [statsData, usersData, citiesData] = await Promise.all([
+      const [statsData, citiesData] = await Promise.all([
         getUserStats(token),
-        listUsers(token, { limit: 1000 }),
         listCities(token),
       ]);
-
       setStats(statsData);
-      setUsers(usersData);
       setCities(citiesData);
     } catch (err) {
-      console.error("Error loading user management data:", err);
+      console.error("Error loading user management meta:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
-    } finally {
-      setLoading(false);
     }
   }, [getAccessTokenSilently]);
 
@@ -127,72 +181,71 @@ export default function UserManagement({
     }
   }, [getAccessTokenSilently]);
 
-  // Load users with filters
+  // Load users with server-side filters + pagination
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const token = await getAccessTokenSilently();
 
-      const usersData = await listUsers(token, {
-        limit: 1000,
+      const result = await listUsers(token, {
+        page,
+        page_size: PAGE_SIZE,
         role: selectedRole || undefined,
         is_active: selectedStatus !== null ? selectedStatus : undefined,
         is_city_lead: selectedCityLead !== null ? selectedCityLead : undefined,
         source: selectedSource || undefined,
         user_role_type: selectedUserType || undefined,
+        government_status: selectedGovStatus || undefined,
+        q: debouncedSearch || undefined,
       });
 
-      // Apply search filter client-side
-      let filteredUsers = usersData;
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        filteredUsers = usersData.filter(
-          (user) =>
-            user.email.toLowerCase().includes(query) ||
-            (user.name && user.name.toLowerCase().includes(query)) ||
-            user.role.toLowerCase().includes(query) ||
-            (query.includes("city lead") && !!user.is_city_lead)
-        );
-      }
-
-      // Apply government status filter client-side
-      if (selectedGovStatus === "pending") {
-        filteredUsers = filteredUsers.filter(
-          (user) => user.government_pending_verification && !user.government_verified
-        );
-      } else if (selectedGovStatus === "verified") {
-        filteredUsers = filteredUsers.filter((user) => !!user.government_verified);
-      } else if (selectedGovStatus === "not_gov") {
-        filteredUsers = filteredUsers.filter(
-          (user) => !user.government_verified && !user.government_pending_verification
-        );
-      }
-
-      setUsers(filteredUsers);
+      setUsers(result.items);
+      setTotalUsers(result.total);
+      setTotalPages(result.pages);
     } catch (err) {
       console.error("Error loading users:", err);
       setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
       setLoading(false);
     }
-  }, [getAccessTokenSilently, selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, selectedSource, selectedUserType, searchQuery]);
+  }, [
+    getAccessTokenSilently,
+    page,
+    selectedRole,
+    selectedStatus,
+    selectedCityLead,
+    selectedGovStatus,
+    selectedSource,
+    selectedUserType,
+    debouncedSearch,
+  ]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    void loadMeta();
+  }, [loadMeta]);
 
   useEffect(() => {
-    loadUsers();
-  }, [selectedRole, selectedStatus, selectedCityLead, selectedGovStatus, selectedSource, selectedUserType, loadUsers]);
+    void loadUsers();
+  }, [loadUsers]);
 
-  // Debounced search
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      loadUsers();
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, loadUsers]);
+  const handleSelectSuggestion = (item: AdminUserTypeaheadItem) => {
+    setSearchQuery(item.email);
+    setDebouncedSearch(item.email);
+    setPage(1);
+    setSuggestionsOpen(false);
+    setSuggestions([]);
+  };
+
+  const handleRefresh = () => {
+    void loadMeta();
+    void loadUsers();
+  };
+
+  const setFilterAndResetPage = <T,>(setter: (value: T) => void, value: T) => {
+    setter(value);
+    setPage(1);
+  };
 
   const handleEditUser = (user: User) => {
     setEditingUser(user);
@@ -353,7 +406,7 @@ export default function UserManagement({
       }
 
       await loadUsers();
-      await loadData(); // Refresh stats
+      await loadMeta(); // Refresh stats
       handleCloseEdit();
     } catch (err) {
       console.error("Error updating user:", err);
@@ -371,7 +424,7 @@ export default function UserManagement({
       const token = await getAccessTokenSilently();
       await makeUserAdmin(userId, token);
       await loadUsers();
-      await loadData(); // Refresh stats
+      await loadMeta(); // Refresh stats
     } catch (err) {
       console.error("Error making user admin:", err);
       setError(err instanceof Error ? err.message : "Failed to make user admin");
@@ -762,16 +815,69 @@ export default function UserManagement({
       {/* Filters and Search */}
       <div className={styles.filtersContainer}>
         <div className={styles.filtersRow}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by email, name, or role..."
-            className={styles.searchInput}
-          />
+          <div
+            className={styles.autocompleteWrapper}
+            ref={searchWrapRef}
+            style={{ flex: 1, minWidth: 256 }}
+          >
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSuggestionsOpen(true);
+              }}
+              onFocus={() => {
+                if (suggestions.length > 0 || suggestionsLoading) {
+                  setSuggestionsOpen(true);
+                }
+              }}
+              placeholder="Search by email or name…"
+              className={styles.searchInput}
+              style={{ width: "100%", minWidth: 0 }}
+              aria-autocomplete="list"
+              aria-expanded={suggestionsOpen}
+            />
+            {suggestionsOpen &&
+              searchQuery.trim().length >= 2 &&
+              (suggestionsLoading || suggestions.length > 0) && (
+                <ul className={styles.autocompleteDropdown} role="listbox">
+                  {suggestionsLoading && suggestions.length === 0 && (
+                    <li className={styles.autocompleteOption} style={{ opacity: 0.7 }}>
+                      Searching…
+                    </li>
+                  )}
+                  {suggestions.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className={styles.autocompleteOption}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => handleSelectSuggestion(s)}
+                      >
+                        <div style={{ fontWeight: 600 }}>
+                          {s.full_name?.trim() || s.email}
+                        </div>
+                        {s.full_name?.trim() ? (
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                            {s.email}
+                          </div>
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </div>
           <select
             value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
+            onChange={(e) => setFilterAndResetPage(setSelectedRole, e.target.value)}
             className={styles.select}
           >
             <option value="">All Roles</option>
@@ -783,7 +889,10 @@ export default function UserManagement({
             value={selectedCityLead === null ? "" : selectedCityLead.toString()}
             onChange={(e) => {
               const value = e.target.value;
-              setSelectedCityLead(value === "" ? null : value === "true");
+              setFilterAndResetPage(
+                setSelectedCityLead,
+                value === "" ? null : value === "true"
+              );
             }}
             className={styles.select}
           >
@@ -795,7 +904,10 @@ export default function UserManagement({
             value={selectedStatus === null ? "" : selectedStatus.toString()}
             onChange={(e) => {
               const value = e.target.value;
-              setSelectedStatus(value === "" ? null : value === "true");
+              setFilterAndResetPage(
+                setSelectedStatus,
+                value === "" ? null : value === "true"
+              );
             }}
             className={styles.select}
           >
@@ -805,7 +917,7 @@ export default function UserManagement({
           </select>
           <select
             value={selectedGovStatus}
-            onChange={(e) => setSelectedGovStatus(e.target.value)}
+            onChange={(e) => setFilterAndResetPage(setSelectedGovStatus, e.target.value)}
             className={styles.select}
           >
             <option value="">Gov (Any)</option>
@@ -815,7 +927,7 @@ export default function UserManagement({
           </select>
           <select
             value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
+            onChange={(e) => setFilterAndResetPage(setSelectedSource, e.target.value)}
             className={styles.select}
           >
             <option value="">Source (Any)</option>
@@ -826,7 +938,7 @@ export default function UserManagement({
           </select>
           <select
             value={selectedUserType}
-            onChange={(e) => setSelectedUserType(e.target.value)}
+            onChange={(e) => setFilterAndResetPage(setSelectedUserType, e.target.value)}
             className={styles.select}
           >
             <option value="">Type (Any)</option>
@@ -834,16 +946,24 @@ export default function UserManagement({
             <option value="official">Official</option>
             <option value="prospect">Prospect</option>
           </select>
-          <button onClick={() => loadData()} className={styles.refreshBtn}>
+          <button onClick={handleRefresh} className={styles.refreshBtn}>
             <i className="fas fa-sync-alt"></i> Refresh
           </button>
         </div>
-        {selectedSource === "substack_import" && !loading && (
-          <div className={styles.filtersRow} style={{ fontSize: 13, color: "var(--text-secondary)", paddingTop: 8 }}>
-            Substack migration: {users.filter((u) => u.is_claimed).length} claimed ·{" "}
-            {users.filter((u) => !u.is_claimed).length} unclaimed of {users.length}
-          </div>
-        )}
+        <div
+          className={styles.filtersRow}
+          style={{ fontSize: 13, color: "var(--text-secondary)", paddingTop: 8 }}
+        >
+          {loading
+            ? "Loading…"
+            : `${totalUsers.toLocaleString()} user${totalUsers !== 1 ? "s" : ""} matching filters`}
+          {selectedSource === "substack_import" && !loading ? (
+            <span>
+              {" "}
+              · page {page} of {totalPages}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {/* Error Message */}
@@ -857,6 +977,9 @@ export default function UserManagement({
       <div className={styles.tableContainer}>
         <div className={styles.tableHeader}>
           <h2 className={styles.tableTitle}>Users List</h2>
+          <span className={styles.tableCount}>
+            Page {page} of {totalPages}
+          </span>
         </div>
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
@@ -1048,6 +1171,29 @@ export default function UserManagement({
               )}
             </tbody>
           </table>
+        </div>
+        <div className={styles.pagination}>
+          <button
+            type="button"
+            className={styles.paginationBtn}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1 || loading}
+          >
+            ← Prev
+          </button>
+          <span className={styles.paginationInfo}>
+            {totalUsers === 0
+              ? "No results"
+              : `${((page - 1) * PAGE_SIZE + 1).toLocaleString()}–${Math.min(page * PAGE_SIZE, totalUsers).toLocaleString()} of ${totalUsers.toLocaleString()}`}
+          </span>
+          <button
+            type="button"
+            className={styles.paginationBtn}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages || loading}
+          >
+            Next →
+          </button>
         </div>
       </div>
 

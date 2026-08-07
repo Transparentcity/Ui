@@ -199,11 +199,11 @@ export default function NewsletterAdminSubscribersTab() {
       setError(null);
       const token = await getAccessTokenSilently();
       const [u, c, modelGroups] = await Promise.all([
-        listUsers(token, { limit: 500 }),
+        listUsers(token, { page: 1, page_size: 200 }),
         listCities(token),
         getAvailableModels(token).catch(() => []),
       ]);
-      setUsers(u);
+      setUsers(u.items);
       setCities(c.filter((x) => x.is_active !== false));
       const flat = modelGroups
         .flatMap((g) =>

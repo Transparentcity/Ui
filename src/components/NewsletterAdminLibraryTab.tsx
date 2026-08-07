@@ -820,6 +820,16 @@ function ResultDetailPane({
                 </td>
               </tr>
               <tr>
+                <td className={styles.muted}>Judge model</td>
+                <td style={{ textAlign: "right", fontWeight: 600 }}>
+                  {detail.judge_model_key
+                    ? formatWorkbenchModelLabel(detail.judge_model_key)
+                    : detail.judge_scores || detail.judge_usage
+                      ? "default"
+                      : "n/a"}
+                </td>
+              </tr>
+              <tr>
                 <td className={styles.muted}>Tokens in / out</td>
                 <td style={{ textAlign: "right" }}>
                   {fmtTokens(u?.prompt_tokens)} / {fmtTokens(u?.completion_tokens)}

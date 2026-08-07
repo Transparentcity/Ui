@@ -3,9 +3,13 @@ import { renderHook } from "@testing-library/react";
 import { MetricKeyProvider, useMetricKey } from "./MetricKeyContext";
 
 function wrapper(metrics: Array<{ metric_name: string; metric_key: string }>) {
-  return ({ children }: { children: React.ReactNode }) => (
-    <MetricKeyProvider metrics={metrics}>{children}</MetricKeyProvider>
-  );
+  return function MetricKeyTestWrapper({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) {
+    return <MetricKeyProvider metrics={metrics}>{children}</MetricKeyProvider>;
+  };
 }
 
 describe("MetricKeyContext", () => {

@@ -52,6 +52,8 @@ interface CityMetric {
   subcategory?: string | null;
   is_active?: boolean;
   show_on_dash?: boolean;
+  /** Week Replay inclusion: true = always, false = never, null = auto. */
+  show_on_week_replay?: boolean | null;
   last_execution_status?: string | null;
   last_execution_at?: string | null;
   most_recent_data_date?: string | null;
@@ -483,6 +485,8 @@ interface DrawerProps {
   onExecute: () => void;
   onDeactivate: () => void;
   onDelete: () => void;
+  onWeekReplayChange: (choice: "always" | "never" | "auto") => void;
+  weekReplayUpdating?: boolean;
   deactivating?: boolean;
   deleting?: boolean;
 }
@@ -498,6 +502,8 @@ function MetricDetailDrawer({
   onExecute,
   onDeactivate,
   onDelete,
+  onWeekReplayChange,
+  weekReplayUpdating,
   deactivating,
   deleting,
 }: DrawerProps) {
@@ -573,6 +579,37 @@ function MetricDetailDrawer({
                 <span className={styles.drawerFactLabel}>Status</span>
                 <span className={styles.drawerFactValue}>
                   {metric.last_execution_status ?? "—"}
+                </span>
+              </div>
+              <div className={styles.drawerFact}>
+                <span
+                  className={styles.drawerFactLabel}
+                  title="Whether this metric's events are fetched for the weekly replay map. Always = fetched even off-dash; Never = excluded; Auto = follows the dashboard flag."
+                >
+                  Week replay
+                </span>
+                <span className={styles.drawerFactValue}>
+                  <select
+                    value={
+                      metric.show_on_week_replay === true
+                        ? "always"
+                        : metric.show_on_week_replay === false
+                          ? "never"
+                          : "auto"
+                    }
+                    disabled={weekReplayUpdating}
+                    onChange={(e) =>
+                      onWeekReplayChange(
+                        e.target.value as "always" | "never" | "auto",
+                      )
+                    }
+                    style={{ fontSize: 12, padding: "2px 6px" }}
+                    aria-label="Week replay inclusion"
+                  >
+                    <option value="auto">Auto (follows dashboard)</option>
+                    <option value="always">Always</option>
+                    <option value="never">Never</option>
+                  </select>
                 </span>
               </div>
             </div>
@@ -1484,6 +1521,13 @@ export default function CityMetricsTab({
           onExecute={() => openExecute(drawerMetric.id)}
           onDeactivate={() => handleDeactivate(drawerMetric)}
           onDelete={() => handleDelete(drawerMetric.id)}
+          onWeekReplayChange={(choice) =>
+            updateMetricMutation.mutate(
+              { metricId: drawerMetric.id, payload: { show_on_week_replay: choice } },
+              { onSuccess: refreshMetrics },
+            )
+          }
+          weekReplayUpdating={updateMetricMutation.isPending}
           deactivating={updateMetricMutation.isPending}
           deleting={deleteMetricMutation.isPending}
         />

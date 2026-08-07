@@ -56,7 +56,7 @@ export interface ResearchReport {
   max_subquestions?: number;
   current_iteration?: number;
   scoping_questions?: { narrative?: string; questions?: string[]; options_if_helpful?: Record<string, string[]> } | null;
-  scope_answers?: Record<string, any> | null;
+  scope_answers?: Record<string, unknown> | null;
   scoped_focus?: string | null;
   agenda?: Record<string, any> | null;
   final_report_html?: string | null;
@@ -124,7 +124,7 @@ export interface CreateResearchResponse {
   report_id: number;
   short_hash: string;
   public_url: string;
-  estimated_cost: Record<string, any>;
+  estimated_cost: Record<string, unknown>;
   status: string;
   message: string;
   job_id?: string;
@@ -230,9 +230,11 @@ export function getResearchByHash(hash: string): Promise<ResearchReport> {
   }).then(async (res) => {
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      const error = new Error(`Failed to fetch research: ${res.status} ${text}`);
-      (error as any).status = res.status;
-      (error as any).statusText = res.statusText;
+      const error: Error & { status?: number; statusText?: string } = new Error(
+        `Failed to fetch research: ${res.status} ${text}`
+      );
+      error.status = res.status;
+      error.statusText = res.statusText;
       throw error;
     }
     return res.json() as Promise<ResearchReport>;

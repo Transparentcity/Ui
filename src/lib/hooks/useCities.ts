@@ -46,7 +46,7 @@ import { listLeadersForClaim, type LeaderForClaim } from "@/lib/apiClient";
 export const cityKeys = {
   all: ["cities"] as const,
   lists: () => [...cityKeys.all, "list"] as const,
-  list: (filters?: Record<string, any>) => [...cityKeys.lists(), filters] as const,
+  list: (filters?: unknown) => [...cityKeys.lists(), filters] as const,
   details: () => [...cityKeys.all, "detail"] as const,
   detail: (id: number) => [...cityKeys.details(), id] as const,
   saved: () => [...cityKeys.all, "saved", getImpersonationCacheKey()] as const,

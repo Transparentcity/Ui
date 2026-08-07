@@ -79,7 +79,10 @@ export const userMetricOrderingKeys = {
  * @param cityId - City ID to fetch
  * @param initialData - Optional initial data to use (avoids unnecessary fetch)
  */
-export function useCityAdmin(cityId: number | null, initialData?: any) {
+export function useCityAdmin(
+  cityId: number | null,
+  initialData?: Awaited<ReturnType<typeof getCityAdmin>>
+) {
   const { getAccessTokenSilently } = useAuth0();
 
   return useQuery({
@@ -122,7 +125,10 @@ export function useCityStats(cityId: number | null) {
  * @param cityId - City ID to fetch
  * @param initialData - Optional initial data to use (avoids unnecessary fetch)
  */
-export function useCityAdminStructure(cityId: number | null, initialData?: any) {
+export function useCityAdminStructure(
+  cityId: number | null,
+  initialData?: Awaited<ReturnType<typeof getCityStructure>>
+) {
   const { getAccessTokenSilently } = useAuth0();
 
   return useQuery({

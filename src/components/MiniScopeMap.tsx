@@ -95,7 +95,8 @@ export function placePointBbox(lat: number, lng: number, radiusM: number): MapBb
 
 /**
  * Aspect-fitted view bbox for the hero scope map (place radius, highlighted
- * district, or full city). Shared so overlays project onto the same basemap crop.
+ * district, or full city). Shared by MiniScopeMap and WeekReplayMap so their
+ * overlays project onto the exact same basemap crop.
  */
 export function computeScopeViewBbox({
   sketch,
@@ -145,6 +146,9 @@ export function SketchOverlay({
   fillDistricts = true,
   mapW = MAP_W,
   mapH = MAP_H,
+  muted = false,
+  mutedDark = false,
+  placeName = null,
 }: {
   sketch: BoundarySketch;
   viewBbox: MapBbox;
@@ -158,20 +162,50 @@ export function SketchOverlay({
   fillDistricts?: boolean;
   mapW?: number;
   mapH?: number;
+  /**
+   * Week Replay styling: district outlines only (no fill) and a light dotted
+   * purple square at the place's bbox capture area (most metrics filter by
+   * lat/lon bounding box, so dots can land outside the nominal circle).
+   */
+  muted?: boolean;
+  /** Grey shading tuned for the dark basemap (used with `muted`). */
+  mutedDark?: boolean;
+  /** Label drawn above the place marker (muted mode only). */
+  placeName?: string | null;
 }) {
   const viewW = mapW;
   const viewH = mapH;
 
+  const mutedFill = mutedDark
+    ? "rgba(255, 255, 255, 0.06)"
+    : "rgba(17, 24, 39, 0.05)";
+  const mutedStroke = mutedDark
+    ? "rgba(255, 255, 255, 0.3)"
+    : "rgba(71, 85, 105, 0.35)";
+
   let circleX: number | null = null;
   let circleY: number | null = null;
   let circleR: number | null = null;
+  let squareBox: { x: number; y: number; w: number; h: number } | null = null;
   if (isPlaceScope && placeLat != null && placeLng != null) {
     [circleX, circleY] = project(placeLng, placeLat, viewBbox, viewW, viewH);
+    // Radius in px via projection (project a point radiusM due north), so it
+    // matches the Mercator scale at this latitude exactly and stays a true
+    // circle whenever the frame matches the bbox aspect.
     const radiusM = placeRadiusM ?? DEFAULT_PLACE_RADIUS_M;
-    const latSpanDeg = viewBbox.max_lat - viewBbox.min_lat || 1e-9;
-    const radiusDeg = radiusM / 111320;
-    const pxPerDeg = viewH / latSpanDeg;
-    circleR = Math.max(10, radiusDeg * pxPerDeg);
+    const [, northY] = project(
+      placeLng,
+      placeLat + radiusM / 111320,
+      viewBbox,
+      viewW,
+      viewH,
+    );
+    circleR = Math.max(10, Math.abs(circleY - northY));
+    // The actual capture area: the same lat/lon bbox the place filter uses.
+    const b = placePointBbox(placeLat, placeLng, radiusM);
+    const [x0, y0] = project(b.min_lng, b.max_lat, viewBbox, viewW, viewH);
+    const [x1, y1] = project(b.max_lng, b.min_lat, viewBbox, viewW, viewH);
+    squareBox = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
 
   const outlineRings = sketch.outline ?? [];
@@ -196,7 +230,7 @@ export function SketchOverlay({
             <path
               key={`city-fill-${i}`}
               d={pathD}
-              fill="rgba(173, 53, 250, 0.28)"
+              fill={muted ? mutedFill : "rgba(173, 53, 250, 0.28)"}
               stroke="none"
             />
           );
@@ -213,20 +247,31 @@ export function SketchOverlay({
             key={`${d.district_id}-${idx}`}
             d={pathD}
             fill={
-              isHighlighted
-                ? isPlaceScope
-                  ? "rgba(173, 53, 250, 0.12)"
-                  : "rgba(173, 53, 250, 0.28)"
-                : hasCityFill
-                  ? "none"
-                  : showCityOutline
-                    ? "rgba(173, 53, 250, 0.28)"
-                    : fillDistricts
-                      ? "rgba(246, 237, 255, 0.35)"
-                      : "rgba(246, 237, 255, 0.12)"
+              muted
+                ? "none"
+                : isHighlighted
+                  ? isPlaceScope
+                    ? "rgba(173, 53, 250, 0.12)"
+                    : "rgba(173, 53, 250, 0.28)"
+                  : hasCityFill
+                    ? "none"
+                    : showCityOutline
+                      ? "rgba(173, 53, 250, 0.28)"
+                      : fillDistricts
+                        ? "rgba(246, 237, 255, 0.35)"
+                        : "rgba(246, 237, 255, 0.12)"
             }
-            stroke={isHighlighted ? "#ad35fa" : "rgba(148, 163, 184, 0.65)"}
-            strokeWidth={isHighlighted ? 2.5 : 1}
+            stroke={
+              muted
+                ? isHighlighted
+                  ? "#ad35fa"
+                  : mutedStroke
+                : isHighlighted
+                  ? "#ad35fa"
+                  : "rgba(148, 163, 184, 0.65)"
+            }
+            strokeWidth={muted ? (isHighlighted ? 2 : 1) : isHighlighted ? 2.5 : 1}
+            strokeOpacity={muted && isHighlighted ? 0.85 : undefined}
             strokeLinejoin="round"
           />
         );
@@ -250,20 +295,59 @@ export function SketchOverlay({
           );
         })}
 
-      {isPlaceScope && circleX != null && circleY != null && circleR != null && (
-        <>
-          <circle
-            cx={circleX}
-            cy={circleY}
-            r={circleR}
-            fill="#ad35fa"
-            fillOpacity={0.25}
-            stroke="#ad35fa"
-            strokeWidth={2}
-          />
-          <circle cx={circleX} cy={circleY} r={6} fill="#ad35fa" />
-        </>
-      )}
+      {isPlaceScope &&
+        circleX != null &&
+        circleY != null &&
+        circleR != null &&
+        (muted ? (
+          <>
+            {/* Dotted purple square = the bbox capture area (unfilled so the
+                dots landing inside stay visible). */}
+            {squareBox && (
+              <rect
+                x={squareBox.x}
+                y={squareBox.y}
+                width={squareBox.w}
+                height={squareBox.h}
+                fill="none"
+                stroke="#ad35fa"
+                strokeWidth={2}
+                strokeDasharray="6 5"
+                strokeOpacity={0.85}
+              />
+            )}
+            <circle cx={circleX} cy={circleY} r={4} fill="#ad35fa" opacity={0.9} />
+            {placeName && (
+              <text
+                x={circleX}
+                y={circleY - 10}
+                textAnchor="middle"
+                fontSize="13"
+                fontWeight="700"
+                fill="#ad35fa"
+                stroke={mutedDark ? "rgba(0, 0, 0, 0.75)" : "rgba(255, 255, 255, 0.9)"}
+                strokeWidth="3"
+                paintOrder="stroke"
+                style={{ letterSpacing: "0.01em" }}
+              >
+                {placeName}
+              </text>
+            )}
+          </>
+        ) : (
+          <>
+            <circle
+              cx={circleX}
+              cy={circleY}
+              r={circleR}
+              fill="#ad35fa"
+              fillOpacity={0.25}
+              stroke="#ad35fa"
+              strokeWidth={2}
+            />
+            <circle cx={circleX} cy={circleY} r={6} fill="#ad35fa" />
+          </>
+        ))}
     </svg>
   );
 }

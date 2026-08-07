@@ -4,7 +4,7 @@
  * Shared LLM-as-judge score display (newsletter workbench + feed story eval).
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { NewsletterEvalJudgeScores } from "@/lib/apiClient";
 
 export const JUDGE_DIMENSION_LABELS: Record<string, string> = {
@@ -14,6 +14,7 @@ export const JUDGE_DIMENSION_LABELS: Record<string, string> = {
   data_honesty: "Honest use of data",
   tone: "Tone & voice",
   tool_use: "Tool use",
+  charter_compliance: "Charter compliance",
 };
 
 export function scoreColor(score: number | null | undefined): string {
@@ -56,6 +57,32 @@ export function ScoreBadge({
   );
 }
 
+/** Split `"wrong claim" — why` so the incorrect fact can be bolded. */
+export function formatFactualError(error: string): ReactNode {
+  // [\s\S] instead of /s (dotAll) — tsconfig target is ES2017.
+  const match = error.match(/^[\s]*["“]([\s\S]+?)["”]\s*[—–-]\s*([\s\S]+)$/);
+  if (match) {
+    return (
+      <>
+        <strong style={{ fontWeight: 700 }}>&ldquo;{match[1]}&rdquo;</strong>
+        {" — "}
+        {match[2].trim()}
+      </>
+    );
+  }
+  const dash = error.match(/^([\s\S]+?)\s+[—–]\s+([\s\S]+)$/);
+  if (dash) {
+    return (
+      <>
+        <strong style={{ fontWeight: 700 }}>{dash[1].trim()}</strong>
+        {" — "}
+        {dash[2].trim()}
+      </>
+    );
+  }
+  return error;
+}
+
 export function JudgeScoresPanel({
   scores,
   judgeModelKey,
@@ -63,7 +90,10 @@ export function JudgeScoresPanel({
   scores: NewsletterEvalJudgeScores;
   judgeModelKey?: string | null;
 }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const accuracyErrors = scores.dimensions?.accuracy?.errors ?? [];
+  const [expanded, setExpanded] = useState<string | null>(
+    accuracyErrors.length > 0 ? "accuracy" : null
+  );
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -72,9 +102,13 @@ export function JudgeScoresPanel({
           <div style={{ fontSize: 13, fontWeight: 600 }}>
             Overall{scores.fabrication_capped ? " (capped: fabrication found)" : ""}
           </div>
+          {judgeModelKey && (
+            <div style={{ fontSize: 11, color: "var(--text-tertiary, #999)" }}>
+              Judge: {judgeModelKey}
+            </div>
+          )}
           <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
             {scores.overall?.verdict || ""}
-            {judgeModelKey ? ` — judged by ${judgeModelKey}` : ""}
           </div>
         </div>
       </div>
@@ -83,6 +117,7 @@ export function JudgeScoresPanel({
         const dim = scores.dimensions?.[key];
         if (!dim) return null;
         const isOpen = expanded === key;
+        const errorCount = key === "accuracy" ? (dim.errors?.length ?? 0) : 0;
         return (
           <div
             key={key}
@@ -113,7 +148,7 @@ export function JudgeScoresPanel({
               >
                 {label}
               </span>
-              {key === "accuracy" && (dim.errors?.length ?? 0) > 0 && (
+              {errorCount > 0 && (
                 <span
                   style={{
                     display: "inline-flex",
@@ -122,12 +157,12 @@ export function JudgeScoresPanel({
                     fontSize: 10,
                     fontWeight: 600,
                     borderRadius: 999,
-                    background: "rgba(245, 158, 11, 0.1)",
-                    color: "#d97706",
-                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    background: "rgba(193, 52, 27, 0.1)",
+                    color: "#c1341b",
+                    border: "1px solid rgba(193, 52, 27, 0.3)",
                   }}
                 >
-                  {dim.errors!.length} error{dim.errors!.length > 1 ? "s" : ""}
+                  {errorCount} error{errorCount > 1 ? "s" : ""}
                 </span>
               )}
               <span
@@ -148,6 +183,33 @@ export function JudgeScoresPanel({
                   padding: "4px 0 2px 26px",
                 }}
               >
+                {key === "accuracy" && errorCount > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        color: "#c1341b",
+                        marginBottom: 4,
+                        fontSize: 12,
+                      }}
+                    >
+                      Factual errors
+                    </div>
+                    <ol
+                      style={{
+                        margin: 0,
+                        paddingLeft: 18,
+                        color: "#c1341b",
+                      }}
+                    >
+                      {dim.errors!.map((e, i) => (
+                        <li key={i} style={{ marginBottom: 4 }}>
+                          {formatFactualError(e)}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 <div>{dim.rationale}</div>
                 {(dim.evidence?.length ?? 0) > 0 && (
                   <ul style={{ margin: "4px 0 0", paddingLeft: 16 }}>
@@ -157,20 +219,6 @@ export function JudgeScoresPanel({
                       </li>
                     ))}
                   </ul>
-                )}
-                {key === "accuracy" && (dim.errors?.length ?? 0) > 0 && (
-                  <div style={{ marginTop: 4 }}>
-                    <div style={{ fontWeight: 600, color: "#c1341b" }}>
-                      Factual errors:
-                    </div>
-                    <ul style={{ margin: "2px 0 0", paddingLeft: 16 }}>
-                      {dim.errors!.map((e, i) => (
-                        <li key={i} style={{ color: "#c1341b" }}>
-                          {e}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
                 )}
               </div>
             )}

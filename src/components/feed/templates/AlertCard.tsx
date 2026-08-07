@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { appendImageTheme } from "@/lib/feed/mockFeedData";
+import { useTheme } from "@/contexts/ThemeContext";
 import CardHeader from "../CardHeader";
 import LazyVizEmbed from "../LazyVizEmbed";
 import styles from "../feed.module.css";
@@ -39,6 +41,7 @@ function extractPctFromHeadline(headline: string): number | null {
 
 export default function AlertCard({ story, children }: AlertCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const { theme } = useTheme();
   const meta = story.metadata ?? {};
 
   // Support both legacy (anomaly_*) and current backend field names
@@ -111,7 +114,7 @@ export default function AlertCard({ story, children }: AlertCardProps) {
       {story.image_url_resolved && !imgFailed ? (
         <div className={styles.vizArea}>
           <img
-            src={story.image_url_resolved}
+            src={appendImageTheme(story.image_url_resolved, theme)!}
             alt={story.image_alt_resolved}
             className={styles.vizImage}
             loading="lazy"
@@ -124,7 +127,7 @@ export default function AlertCard({ story, children }: AlertCardProps) {
       ) : story.embed_url_resolved ? (
         <div className={styles.vizArea}>
           <LazyVizEmbed
-            src={story.embed_url_resolved}
+            src={appendImageTheme(story.embed_url_resolved, theme) ?? story.embed_url_resolved}
             title={story.image_alt_resolved}
           />
         </div>

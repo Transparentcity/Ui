@@ -522,6 +522,48 @@ export function fitBboxToAspect(bbox: MapBbox, aspect: number): MapBbox {
   };
 }
 
+/**
+ * Bias a place-scope view so labels can live on the left: zoom in slightly,
+ * then shift the crop so the place sits in the right portion of the frame.
+ *
+ * ``leftGutter`` is the fraction of frame width kept mostly clear (0.36 ≈
+ * left third). ``zoom`` &lt; 1 tightens the crop before the shift.
+ */
+export function biasViewForLeftLabels(
+  bbox: MapBbox,
+  aspect: number,
+  opts?: { leftGutter?: number; zoom?: number },
+): MapBbox {
+  const leftGutter = Math.min(0.5, Math.max(0, opts?.leftGutter ?? 0.36));
+  const zoom = Math.min(1, Math.max(0.5, opts?.zoom ?? 0.78));
+
+  const x0 = lngToMercX(bbox.min_lng);
+  const x1 = lngToMercX(bbox.max_lng);
+  const yTop = latToMercY(bbox.max_lat);
+  const yBottom = latToMercY(bbox.min_lat);
+  const cx = (x0 + x1) / 2;
+  const cy = (yTop + yBottom) / 2;
+
+  let xSpan = (x1 - x0 || 1e-9) * zoom;
+  let ySpan = (yBottom - yTop || 1e-9) * zoom;
+  if (xSpan / ySpan > aspect) ySpan = xSpan / aspect;
+  else xSpan = ySpan * aspect;
+
+  // Keep the zoomed content flush to the right; expand west for the gutter.
+  const contentRight = cx + xSpan / 2;
+  const newXSpan = xSpan / (1 - leftGutter);
+  const newYSpan = newXSpan / aspect;
+  const newX0 = contentRight - newXSpan;
+  const newX1 = contentRight;
+
+  return {
+    min_lng: mercXToLng(newX0),
+    max_lng: mercXToLng(newX1),
+    max_lat: mercYToLat(cy - newYSpan / 2),
+    min_lat: mercYToLat(cy + newYSpan / 2),
+  };
+}
+
 /** Compute bbox from an array of GeoJSON outer rings [[lng, lat], …]. */
 export function bboxFromRings(rings: [number, number][][]): MapBbox {
   let minLng = Infinity;

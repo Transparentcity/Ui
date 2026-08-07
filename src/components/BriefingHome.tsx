@@ -418,6 +418,7 @@ export default function BriefingHome({
   const isPlaceScope = selectedPlaceId != null;
   const district = selectedDistrict ?? 0;
   const isCitywideScope = !isPlaceScope && district === 0;
+
   const { data: storiesData, isLoading: storiesLoading } = useFeedStories(
     isPlaceScope
       ? {
@@ -736,22 +737,22 @@ export default function BriefingHome({
           </button>
         )}
 
-        {/* Full-width scope map — streets basemap + district/place overlay */}
+        {/* Full-width scope map — streets basemap + district/place overlay. */}
         {(isPlaceScope
           ? placeLat != null && placeLng != null
           : sketch && sketch.districts.length > 0) && (
-          <MiniScopeMap
-            sketch={sketch}
-            selectedDistrict={district}
-            isPlaceScope={isPlaceScope}
-            placeDistrict={placeDistrict}
-            placeLat={placeLat}
-            placeLng={placeLng}
-            placeRadiusM={placeRadiusM}
-            onClick={onOpenScopeSelector}
-            className={styles.heroMapBanner}
-          />
-        )}
+            <MiniScopeMap
+              sketch={sketch}
+              selectedDistrict={district}
+              isPlaceScope={isPlaceScope}
+              placeDistrict={placeDistrict}
+              placeLat={placeLat}
+              placeLng={placeLng}
+              placeRadiusM={placeRadiusM}
+              onClick={onOpenScopeSelector}
+              className={styles.heroMapBanner}
+            />
+          )}
 
         <div className={styles.heroChips}>
           {newStoriesCount > 0 && (

@@ -143,6 +143,14 @@ function StoryEvalTelemetry({ row }: { row: StoryEvalRow }) {
               <td style={{ textAlign: "right" }}>{fmtMs(execMs)}</td>
             </tr>
           )}
+          {(row.judge_model_key || u) && (
+            <tr>
+              <td className={styles.muted}>Judge model</td>
+              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                {row.judge_model_key || "default"}
+              </td>
+            </tr>
+          )}
           {u && (
             <tr>
               <td className={styles.muted}>Judge cost / time</td>

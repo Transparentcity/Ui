@@ -360,6 +360,40 @@ export function getCityBoundarySketch(cityId: number): Promise<BoundarySketch> {
   return requestPublic<BoundarySketch>(`/api/public/cities/${cityId}/boundary-sketch`);
 }
 
+// ---------------------------------------------------------------------------
+// Shared Week Replay permalinks (/w/{hash})
+// ---------------------------------------------------------------------------
+
+export interface PublicWeekReplay {
+  status: string;
+  short_hash: string;
+  title: string;
+  city_id: number;
+  city_name: string;
+  city_slug: string;
+  scope_district: number | null;
+  scope_place: { lat: number; lng: number; radius_m: number } | null;
+  created_at: string | null;
+  events: import("./weekReplay").WeekEvent[];
+  key_events: import("./weekReplay").WeekKeyEvent[];
+  group_counts: Record<string, number>;
+  total_before_cap: number;
+  window: { start: string; end: string };
+}
+
+export function getPublicWeekReplay(shortHash: string): Promise<PublicWeekReplay> {
+  return requestPublic<PublicWeekReplay>(
+    `/api/public/week-replay/${encodeURIComponent(shortHash)}`,
+    // Snapshots are immutable; cache aggressively.
+    { next: { revalidate: 3600 } }
+  );
+}
+
+/** Absolute URL of a shared replay's poster image (OG unfurls / downloads). */
+export function publicWeekReplayPosterUrl(shortHash: string): string {
+  return `${resolvePublicApiBaseUrl()}/api/public/week-replay/${encodeURIComponent(shortHash)}/poster.png`;
+}
+
 // Public feed stories (e.g. for district elected-official pages)
 export type PublicFeedStory = {
   id: number;

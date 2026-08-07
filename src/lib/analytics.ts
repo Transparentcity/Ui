@@ -97,12 +97,10 @@ export function initializeAnalytics(): void {
 
     // Initialize gtag function
     window.gtag = function (
-      command: string,
-      targetId: string | Date,
-      config?: Record<string, unknown>
+      ...args: [string, string | Date, Record<string, unknown>?]
     ) {
       window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push(arguments);
+      window.dataLayer.push(args);
     };
 
     // Configure GA

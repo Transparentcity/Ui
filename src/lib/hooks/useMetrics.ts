@@ -61,7 +61,7 @@ import {
 export const metricKeys = {
   all: ["metrics"] as const,
   lists: () => [...metricKeys.all, "list"] as const,
-  list: (filters?: Record<string, any>) => [...metricKeys.lists(), filters] as const,
+  list: (filters?: unknown) => [...metricKeys.lists(), filters] as const,
   details: () => [...metricKeys.all, "detail"] as const,
   detail: (id: number) => [...metricKeys.details(), id] as const,
   summary: () => [...metricKeys.all, "summary"] as const,

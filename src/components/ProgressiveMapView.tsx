@@ -1218,7 +1218,7 @@ export default function ProgressiveMapView({
           "";
 
         const districtId = normalizeChoroplethDistrictKey(districtIdRaw);
-        let districtData =
+        const districtData =
           lookupDistrictData(districtIdRaw) ?? lookupDistrictData(districtId);
 
         const value = districtData ? rowNumericValue(districtData) : null;

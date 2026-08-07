@@ -176,6 +176,8 @@ export interface UpdateAdminMetricRequest {
   definition?: string | null;
   is_active?: boolean | null;
   show_on_dash?: boolean | null;
+  /** Week Replay inclusion: "always" (cap-exempt), "never", or "auto". */
+  show_on_week_replay?: "always" | "never" | "auto" | null;
   greendirection?: string | null;
   item_noun?: string | null;
   template_id?: number | null;

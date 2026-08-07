@@ -88,7 +88,7 @@ const HIDE_CHROME_CSS = (width, height) => `
     border: none !important;
     border-radius: 0 !important;
   }
-  body { margin: 0 !important; background: white !important; }
+  body { margin: 0 !important; background: var(--screenshot-bg, white) !important; }
 `;
 
 // Hosts whose requests add latency but contribute nothing to the screenshot.
@@ -203,7 +203,17 @@ async function capture(params) {
       await page.waitForTimeout(2500);
     }
 
-    await page.addStyleTag({ content: HIDE_CHROME_CSS(width, height) });
+    // Detect theme from URL query param and set CSS variable before injecting styles.
+    const isDark = (() => {
+      try { return new URL(url).searchParams.get("theme") === "dark"; } catch { return false; }
+    })();
+    const bgColor = isDark ? "#0f172a" : "white";
+    await page.addStyleTag({
+      content: HIDE_CHROME_CSS(width, height).replace(
+        "var(--screenshot-bg, white)",
+        bgColor,
+      ),
+    });
     await page.evaluate(() => {
       window.scrollTo(0, 0);
       window.dispatchEvent(new Event("resize"));

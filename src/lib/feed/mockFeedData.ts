@@ -668,3 +668,30 @@ export function enrichStories(
 
   return result;
 }
+
+/**
+ * Append ``?theme=dark`` (or ``&theme=dark``) to feed viz image URLs when
+ * the UI is in dark mode.  Only applies to paths that support the theme param:
+ * - /api/feed/public/story-image/…
+ * - /api/maps/public/…/image
+ * - /api/time-series/public/…/image
+ * - /api/anomalies/public/result/…/image
+ *
+ * External URLs (e.g. Cloudinary 311 photos) are returned unchanged.
+ */
+export function appendImageTheme(
+  url: string | null | undefined,
+  theme: "light" | "dark",
+): string | null {
+  if (!url || theme !== "dark") return url ?? null;
+  const themeablePatterns = [
+    "/api/feed/public/story-image/",
+    "/api/maps/public/",
+    "/api/time-series/public/",
+    "/api/anomalies/public/result/",
+  ];
+  const isThemeable = themeablePatterns.some((p) => url.includes(p));
+  if (!isThemeable) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}theme=dark`;
+}

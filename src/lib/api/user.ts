@@ -265,20 +265,44 @@ export function listUsers(
     role?: string;
     is_active?: boolean;
     is_city_lead?: boolean;
+    source?: string;
+    user_role_type?: string;
+    government_status?: string;
+    q?: string;
+    page?: number;
+    page_size?: number;
     skip?: number;
     limit?: number;
   }
-): Promise<User[]> {
+): Promise<{
+  items: User[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}> {
   const params = new URLSearchParams();
   if (options?.role) params.append("role", options.role);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
   if (options?.is_city_lead !== undefined) params.append("is_city_lead", options.is_city_lead.toString());
-  if (options?.skip) params.append("skip", options.skip.toString());
-  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.source) params.append("source", options.source);
+  if (options?.user_role_type) params.append("user_role_type", options.user_role_type);
+  if (options?.government_status) params.append("government_status", options.government_status);
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.page !== undefined) params.append("page", options.page.toString());
+  if (options?.page_size !== undefined) params.append("page_size", options.page_size.toString());
+  if (options?.skip !== undefined) params.append("skip", options.skip.toString());
+  if (options?.limit !== undefined) params.append("limit", options.limit.toString());
   
   const query = params.toString();
   const path = `/api/admin/users${query ? `?${query}` : ""}`;
-  return request<User[]>(path, "GET", undefined, token);
+  return request<{
+    items: User[];
+    total: number;
+    page: number;
+    page_size: number;
+    pages: number;
+  }>(path, "GET", undefined, token);
 }
 
 export function getUserCityLeads(

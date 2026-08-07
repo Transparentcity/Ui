@@ -137,6 +137,8 @@ export interface CityAdminData {
   /** e.g. socrata, arcgis, ckan — from extra_metadata or URL inference */
   portal_type?: string | null;
   is_active: boolean;
+  /** Gates public metric visibility; editable from the city admin form. */
+  is_launched?: boolean;
   datasets_count?: number;
   vector_db_points?: number;
   vector_db_size_mb?: number;
@@ -1228,6 +1230,8 @@ export interface UpdateAdminMetricRequest {
   definition?: string | null;
   is_active?: boolean | null;
   show_on_dash?: boolean | null;
+  /** Week Replay inclusion: "always" (cap-exempt), "never", or "auto". */
+  show_on_week_replay?: "always" | "never" | "auto" | null;
   greendirection?: string | null;
   item_noun?: string | null;
   template_id?: number | null;
@@ -3966,6 +3970,14 @@ export interface UserStats {
   gift_accounts_onboarded?: number;
 }
 
+export interface UserListResponse {
+  items: User[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
 export function listUsers(
   token: string,
   options?: {
@@ -3974,22 +3986,30 @@ export function listUsers(
     is_city_lead?: boolean;
     source?: string;
     user_role_type?: string;
+    government_status?: string;
+    q?: string;
+    page?: number;
+    page_size?: number;
     skip?: number;
     limit?: number;
   }
-): Promise<User[]> {
+): Promise<UserListResponse> {
   const params = new URLSearchParams();
   if (options?.role) params.append("role", options.role);
   if (options?.is_active !== undefined) params.append("is_active", options.is_active.toString());
   if (options?.is_city_lead !== undefined) params.append("is_city_lead", options.is_city_lead.toString());
   if (options?.source) params.append("source", options.source);
   if (options?.user_role_type) params.append("user_role_type", options.user_role_type);
-  if (options?.skip) params.append("skip", options.skip.toString());
-  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.government_status) params.append("government_status", options.government_status);
+  if (options?.q?.trim()) params.append("q", options.q.trim());
+  if (options?.page !== undefined) params.append("page", options.page.toString());
+  if (options?.page_size !== undefined) params.append("page_size", options.page_size.toString());
+  if (options?.skip !== undefined) params.append("skip", options.skip.toString());
+  if (options?.limit !== undefined) params.append("limit", options.limit.toString());
   
   const query = params.toString();
   const path = `/api/admin/users${query ? `?${query}` : ""}`;
-  return request<User[]>(path, "GET", undefined, token);
+  return request<UserListResponse>(path, "GET", undefined, token);
 }
 
 export function getUserCityLeads(
@@ -8319,6 +8339,51 @@ export interface InboxDetailResponse {
   public_url: string | null;
   place_id: number | null;
   place_name: string | null;
+}
+
+// ── Week Replay events (animated hero unit) ───────────────────────────────
+
+export function getWeekEvents(
+  token: string,
+  opts: { cityId: number; district?: number | null; placeId?: number | null }
+): Promise<import("./weekReplay").WeekEventsResponse> {
+  const params = new URLSearchParams();
+  params.append("city_id", String(opts.cityId));
+  if (opts.placeId != null) {
+    params.append("place_id", String(opts.placeId));
+  } else if (opts.district != null && opts.district > 0) {
+    params.append("district", String(opts.district));
+  }
+  return request<import("./weekReplay").WeekEventsResponse>(
+    `/api/user/week-events?${params.toString()}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface ShareWeekReplayResponse {
+  status: string;
+  short_hash: string;
+  url_path: string;
+  title: string;
+}
+
+/** Freeze the current Week Replay into a public /w/{hash} permalink. */
+export function shareWeekReplay(
+  token: string,
+  opts: { cityId: number; district?: number | null; placeId?: number | null }
+): Promise<ShareWeekReplayResponse> {
+  return request<ShareWeekReplayResponse>(
+    "/api/user/week-events/share",
+    "POST",
+    {
+      city_id: opts.cityId,
+      district: opts.placeId != null ? null : (opts.district ?? null),
+      place_id: opts.placeId ?? null,
+    },
+    token
+  );
 }
 
 export function listInbox(

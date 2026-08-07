@@ -7,7 +7,8 @@
  * Supported shortcodes:
  *   [eyebrow text="…"]
  *   [card stat="…" sublabel="…" headline="…" body="…" url="…"
- *         direction="up|down|flat" greendirection="up|down"]
+ *         direction="up|down|flat" greendirection="up|down"
+ *         photo_url="…" photo_caption="…"]
  *   [stat value="…" direction="up|down|flat" greendirection="up|down"]
  *   [scorecard city="…" year_compare="…" dashboard_url="…"]
  *     [metric name="…" key="…" date_range="…" source_url="…"
@@ -77,11 +78,17 @@ function expandCard(a: Attrs): string {
   const url = attr(a, "url", "#");
   const direction = attr(a, "direction", "");
   const greendirection = attr(a, "greendirection", "");
+  const photoUrl = attr(a, "photo_url", "");
+  const photoCaption = attr(a, "photo_caption", "");
   const statSize = stat.length > 9 ? "28px" : "32px";
   const color = statColor(direction, greendirection);
+  const photoHtml = photoUrl
+    ? `<div style="border-radius:12px 12px 0 0;overflow:hidden;"><img src="${photoUrl}" alt="${photoCaption || "Photo"}" style="width:100%;max-height:180px;object-fit:cover;display:block;"></div>${photoCaption ? `<div style="font-size:11px;color:${COLOR.muted};padding:4px 24px 0;">${photoCaption}</div>` : ""}`
+    : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLOR.panel};border:1px solid ${COLOR.hairline};border-radius:12px;border-collapse:separate;border-spacing:0;margin:0 0 16px;">
   <tr>
     <td style="padding:0;">
+      ${photoHtml}
       <a href="${url}" style="display:block;text-decoration:none;padding:24px;color:${COLOR.secondary};cursor:pointer;">
       <div style="font-size:${statSize};font-weight:800;color:${color};line-height:1.1;">${stat}</div>
       ${sublabel ? `<div style="font-size:11px;font-weight:600;color:${COLOR.muted};letter-spacing:0.6px;text-transform:uppercase;margin-top:6px;">${sublabel}</div>` : ""}

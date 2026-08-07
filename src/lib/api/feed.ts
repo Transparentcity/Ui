@@ -30,7 +30,7 @@ export interface FeedStory {
   detail_url: string;
   /** Call-to-action label, e.g. "Read full report", "View metric", "View anomaly details". Defaults to "Read full report". */
   cta_label?: string | null;
-  related_urls?: Array<Record<string, any>>;
+  related_urls?: Array<Record<string, unknown>>;
   view_count: number;
   click_count: number;
   share_count: number;
@@ -230,7 +230,7 @@ export interface CreateFeedStoryPayload {
   priority_score?: number;
   /** ISO date string, e.g. "2026-04-20". Defaults to today on the server. */
   story_date?: string | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface CreateFeedStoryResponse {

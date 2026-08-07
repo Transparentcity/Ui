@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import { appendImageTheme } from "@/lib/feed/mockFeedData";
+import { useTheme } from "@/contexts/ThemeContext";
 import CardHeader from "../CardHeader";
 import LazyVizEmbed from "../LazyVizEmbed";
 import styles from "../feed.module.css";
@@ -13,6 +15,7 @@ interface TextChartCardProps {
 
 export default function TextChartCard({ story, children }: TextChartCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const { theme } = useTheme();
   const meta = story.metadata ?? {};
   const isMapFocus = meta.map_focus === true;
   const hotspots = (meta.hotspot_neighborhoods as string[] | undefined) ?? [];
@@ -21,6 +24,10 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
   // iframe only when the backend didn't generate an image URL.
   const hasImage = !!story.image_url_resolved && !imgFailed;
   const hasEmbed = !hasImage && !!story.embed_url_resolved;
+  const themedImageUrl = appendImageTheme(story.image_url_resolved, theme);
+  const themedEmbedUrl = story.embed_url_resolved
+    ? appendImageTheme(story.embed_url_resolved, theme) ?? story.embed_url_resolved
+    : story.embed_url_resolved;
 
   return (
     <>
@@ -43,7 +50,7 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
         {hasImage ? (
           <>
             <img
-              src={story.image_url_resolved!}
+              src={themedImageUrl!}
               alt={story.image_alt_resolved}
               className={`${styles.vizImage} ${isMapFocus ? styles.vizImageMapFocus : ""}`}
               loading="lazy"
@@ -55,7 +62,7 @@ export default function TextChartCard({ story, children }: TextChartCardProps) {
           </>
         ) : hasEmbed ? (
           <LazyVizEmbed
-            src={story.embed_url_resolved!}
+            src={themedEmbedUrl!}
             title={story.image_alt_resolved}
             className={isMapFocus ? styles.vizIframeMapFocus : undefined}
           />

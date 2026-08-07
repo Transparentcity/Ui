@@ -651,9 +651,6 @@ export default function ProductAnalyticsDashboard() {
       {tab === "marketing" && overview && (
         <>
           <div className={styles.statGrid}>
-            <StatCard label="Landings" value={fmt(overview.total_page_views)} />
-            <StatCard label="Signup starts" value={fmt(overview.total_signup_starts)} />
-            <StatCard label="Completes" value={fmt(overview.total_signup_completes)} highlight />
             <StatCard
               label="GA4 sessions (7d)"
               value={health?.ga4_available ? fmt(health.ga4_sessions_7d) : "—"}
@@ -661,8 +658,8 @@ export default function ProductAnalyticsDashboard() {
             />
           </div>
           <p className={styles.note}>
-            First-party landings and signup funnel from <code>product_events</code>.
-            Column buckets: daily (L7), weekly (L28 / 12w).
+            Landing sources from <code>product_events</code>.
+            Column buckets: daily (L7), weekly (L28 / 12w). Signup totals are in the funnel below.
           </p>
           {overview.landing_matrix && overview.landing_matrix.rows.length > 0 && (
             <div className={styles.section}>

@@ -134,8 +134,8 @@ export function getAvailablePeriods(
   return request<AvailablePeriodsResponse>(path, "GET", undefined, token);
 }
 
-export function getAnomalyRun(runId: number, token: string): Promise<Record<string, any>> {
-  return request<Record<string, any>>(`/api/anomalies/run/${runId}`, "GET", undefined, token);
+export function getAnomalyRun(runId: number, token: string): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/api/anomalies/run/${runId}`, "GET", undefined, token);
 }
 
 export function getAnomalyResult(resultId: number, token?: string): Promise<AnomalyResult> {

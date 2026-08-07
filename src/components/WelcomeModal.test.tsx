@@ -12,13 +12,18 @@ import WelcomeModal from "./WelcomeModal";
 
 const mockGetAccessTokenSilently = vi.fn().mockResolvedValue("test-token");
 
+// Auth0 keeps `user` referentially stable across renders. The reset effect in
+// WelcomeModal lists `user` as a dependency, so a mock that rebuilt this object
+// on every call would re-run the effect forever and exhaust the worker heap.
+const mockAuth0State = {
+  isAuthenticated: true,
+  isLoading: false,
+  getAccessTokenSilently: mockGetAccessTokenSilently,
+  user: { email: "test@example.com" },
+};
+
 vi.mock("@auth0/auth0-react", () => ({
-  useAuth0: () => ({
-    isAuthenticated: true,
-    isLoading: false,
-    getAccessTokenSilently: mockGetAccessTokenSilently,
-    user: { email: "test@example.com" },
-  }),
+  useAuth0: () => mockAuth0State,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -37,23 +42,25 @@ vi.mock("@/components/LocationMapSave", () => ({
 const mockStartJob = vi.fn();
 const mockStartCityLoading = vi.fn();
 const mockCompleteCityLoading = vi.fn();
+// Stable object for the same reason as mockAuth0State above.
+const mockPlaceOnboarding = {
+  status: "idle",
+  mode: "idle",
+  message: "",
+  cityName: null,
+  repName: null,
+  repTitle: null,
+  dismissed: false,
+  dismiss: vi.fn(),
+  startJob: mockStartJob,
+  startCityLoading: mockStartCityLoading,
+  completeCityLoading: mockCompleteCityLoading,
+  notifyRepFound: vi.fn(),
+  startBackgroundWork: vi.fn(),
+  completeBackgroundWork: vi.fn(),
+};
 vi.mock("@/contexts/PlaceOnboardingContext", () => ({
-  usePlaceOnboarding: () => ({
-    status: "idle",
-    mode: "idle",
-    message: "",
-    cityName: null,
-    repName: null,
-    repTitle: null,
-    dismissed: false,
-    dismiss: vi.fn(),
-    startJob: mockStartJob,
-    startCityLoading: mockStartCityLoading,
-    completeCityLoading: mockCompleteCityLoading,
-    notifyRepFound: vi.fn(),
-    startBackgroundWork: vi.fn(),
-    completeBackgroundWork: vi.fn(),
-  }),
+  usePlaceOnboarding: () => mockPlaceOnboarding,
 }));
 
 const mockSearchPublicCities = vi.fn().mockResolvedValue([]);
@@ -75,6 +82,12 @@ const mockCreatePlace = vi.fn().mockResolvedValue({ id: 42 });
 const mockRunPlaceMetricsAndAnomaliesAsJob = vi.fn().mockResolvedValue({ job_id: "job-123" });
 const mockFollowRepresentative = vi.fn().mockResolvedValue({ followed: true, city_id: 1, district: "0" });
 const mockUnfollowRepresentative = vi.fn().mockResolvedValue({ followed: false, city_id: 1, district: "0" });
+const mockUpdateUserProfile = vi.fn().mockResolvedValue(undefined);
+const mockUploadAvatar = vi.fn().mockResolvedValue({ picture_url: "https://cdn.example.com/a.png" });
+const mockSendOnboardingWelcomeEmail = vi.fn().mockResolvedValue(undefined);
+const mockSubscribeNewsletter = vi.fn().mockResolvedValue(undefined);
+const mockUnsubscribeNewsletter = vi.fn().mockResolvedValue(undefined);
+const mockGetGiftMeta = vi.fn().mockResolvedValue(null);
 const mockGetCurrentPosition = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
@@ -87,6 +100,12 @@ vi.mock("@/lib/apiClient", () => ({
   runPlaceMetricsAndAnomaliesAsJob: (...args: unknown[]) => mockRunPlaceMetricsAndAnomaliesAsJob(...args),
   followRepresentative: (...args: unknown[]) => mockFollowRepresentative(...args),
   unfollowRepresentative: (...args: unknown[]) => mockUnfollowRepresentative(...args),
+  updateUserProfile: (...args: unknown[]) => mockUpdateUserProfile(...args),
+  uploadAvatar: (...args: unknown[]) => mockUploadAvatar(...args),
+  sendOnboardingWelcomeEmail: (...args: unknown[]) => mockSendOnboardingWelcomeEmail(...args),
+  subscribeNewsletter: (...args: unknown[]) => mockSubscribeNewsletter(...args),
+  unsubscribeNewsletter: (...args: unknown[]) => mockUnsubscribeNewsletter(...args),
+  getGiftMeta: (...args: unknown[]) => mockGetGiftMeta(...args),
 }));
 
 vi.mock("@/lib/findDistrictFromCoordinates", () => ({
@@ -107,6 +126,9 @@ vi.mock("@/lib/newsletterPreferences", () => ({
   readNewsletterPreferenceFields: vi.fn(() => ({
     newsletterDescription: "",
     newsletterFrequency: "weekly",
+    // The real helper always returns an array; omitting it fed `undefined`
+    // into NewsletterPromptBuilder and crashed the persona picker.
+    newsletterPersonaSelections: [],
   })),
 }));
 
@@ -151,13 +173,17 @@ const mockFetch = vi.fn().mockImplementation(defaultFetchImpl);
 vi.stubGlobal("fetch", mockFetch);
 
 describe("WelcomeModal", () => {
-  const defaultProps = {
+  const baseProps = {
     isOpen: true,
     onClose: vi.fn(),
     onCitySelected: vi.fn(),
     onComplete: vi.fn(),
     onCityNotFound: vi.fn(),
   };
+
+  // Onboarding opens on the profile step; the address and preferences suites
+  // below enter at the address step directly so each step is covered in isolation.
+  const defaultProps = { ...baseProps, initialStep: "welcome" as const };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -172,7 +198,47 @@ describe("WelcomeModal", () => {
     });
   });
 
-  // ── Step 1: Welcome (address entry) ──────────────────────────────────
+  // ── Step 1: Profile (name + avatar) ──────────────────────────────────
+
+  describe("Profile step", () => {
+    it("is the default entry step", () => {
+      render(<WelcomeModal {...baseProps} />);
+
+      expect(screen.getByText(/welcome to transparent\.city/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/first name/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/last name/i)).toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/enter city, zip or address/i)).not.toBeInTheDocument();
+    });
+
+    it("advances to the address step without saving when skipped", async () => {
+      const user = userEvent.setup();
+      render(<WelcomeModal {...baseProps} />);
+
+      await user.click(screen.getByRole("button", { name: /skip for now/i }));
+
+      expect(screen.getByPlaceholderText(/enter city, zip or address/i)).toBeInTheDocument();
+      expect(mockUpdateUserProfile).not.toHaveBeenCalled();
+    });
+
+    it("saves the entered name before advancing to the address step", async () => {
+      const user = userEvent.setup();
+      render(<WelcomeModal {...baseProps} />);
+
+      await user.type(screen.getByPlaceholderText(/first name/i), "Ada");
+      await user.type(screen.getByPlaceholderText(/last name/i), "Lovelace");
+      await user.click(screen.getByRole("button", { name: /^Continue$/i }));
+
+      await waitFor(() => {
+        expect(mockUpdateUserProfile).toHaveBeenCalledWith("test-token", {
+          first_name: "Ada",
+          last_name: "Lovelace",
+        });
+      });
+      expect(screen.getByPlaceholderText(/enter city, zip or address/i)).toBeInTheDocument();
+    });
+  });
+
+  // ── Step 2: Welcome (address entry) ──────────────────────────────────
 
   describe("Welcome step", () => {
     it("renders instantly with address input and no spinner", () => {
@@ -382,7 +448,7 @@ describe("WelcomeModal", () => {
       expect(mockFollowRepresentative).not.toHaveBeenCalled();
     });
 
-    it("shows place naming on Almost there when geocode is a precise address", async () => {
+    it("routes a precise address to the coverage step", async () => {
       mockSearchPublicCities.mockResolvedValue([
         { id: 1, name: "San Francisco", state: "CA", country: "US", display_name: "San Francisco, CA" },
       ]);
@@ -426,12 +492,13 @@ describe("WelcomeModal", () => {
       await user.type(screen.getByPlaceholderText(/enter city, zip or address/i), "123 Main St");
       await user.click(screen.getByText(/^Continue$/i));
 
+      // The place label/radius inputs belong to LocationMapSave, which is
+      // stubbed out here, so assert on the step chrome WelcomeModal owns.
       await waitFor(() => {
-        expect(screen.getByText(/name your place/i)).toBeInTheDocument();
+        expect(screen.getByText(/drag the map to move the pin/i)).toBeInTheDocument();
       });
-
-      const placeLabelInput = screen.getByRole("textbox", { name: /name your place/i });
-      expect(placeLabelInput).toHaveValue("My place");
+      expect(screen.getByText(/good news/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Next$/i })).toBeInTheDocument();
     });
 
     it("saves city and navigates immediately on 'Let's go' (prefs save in background)", async () => {
