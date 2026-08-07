@@ -52,24 +52,26 @@ const CITY_STRUCTURE_CACHE_TTL = 120000; // 2 minutes cache (structure changes l
 const CITY_ADMIN_CACHE_TTL = 60000; // 1 minute cache
 
 /**
- * Identity headers for calls that cannot go through `request()` — FormData
- * bodies, blob responses, and SSE streams all need a hand-rolled `fetch`.
+ * Auth headers for hand-rolled fetches that bypass `request()`.
  *
- * Carries `X-Impersonate-User-Id` alongside the bearer token so the backend
- * resolves the proxied user during an admin impersonation session. Spread this
- * into any user-scoped hand-rolled call ("me" endpoints, user-owned rows);
- * omitting it silently acts as the admin instead of the proxied user.
+ * Carries the impersonation header alongside the bearer token. Any call that
+ * omits it resolves on the backend as the *admin* rather than the proxied
+ * user, so during a proxy session an identity-scoped request will act on, or
+ * fail to find, the wrong user's rows.
  *
- * Admin-only endpoints deliberately do NOT use this — see `exportAdminMetrics`.
+ * Spread this into every user-scoped hand-rolled call ("me" endpoints,
+ * user-owned rows). Admin-only endpoints deliberately do not use it, since
+ * they are admin-gated and act on platform-scoped rows: see the note above
+ * `exportAdminMetrics`.
  */
 function authHeaders(token?: string): Record<string, string> {
   const headers: Record<string, string> = {};
+  const impersonationUserId = getImpersonationUserId();
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const impersonationUserId = getImpersonationUserId();
   if (impersonationUserId != null) {
     headers["X-Impersonate-User-Id"] = String(impersonationUserId);
   }
@@ -2644,8 +2646,8 @@ async function _executeChatStream(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(token),
       Accept: "text/event-stream",
+      ...authHeaders(token),
     },
     body: JSON.stringify(request),
     signal: abortSignal,
