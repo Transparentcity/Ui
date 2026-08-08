@@ -31,6 +31,13 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   // Forward only the headers the backend needs.
+  //
+  // X-Impersonate-User-Id is part of the caller's identity, not an optional
+  // extra: `/api/chat/new` reaches the backend through the next.config rewrite,
+  // which forwards every header, so the session is created owned by the proxied
+  // user. This handler takes filesystem priority over that rewrite, so dropping
+  // the header here makes the backend resolve the stream as the admin, fail to
+  // find the proxied user's session, and return "Session not found".
   const forwardedHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "text/event-stream",
@@ -38,6 +45,10 @@ export async function POST(req: NextRequest): Promise<Response> {
   const authorization = req.headers.get("authorization");
   if (authorization) {
     forwardedHeaders["Authorization"] = authorization;
+  }
+  const impersonateUserId = req.headers.get("x-impersonate-user-id");
+  if (impersonateUserId) {
+    forwardedHeaders["X-Impersonate-User-Id"] = impersonateUserId;
   }
 
   let backendResponse: globalThis.Response;

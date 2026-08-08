@@ -23,12 +23,22 @@ export async function GET(
   const publicUrl = `${BACKEND_API_URL}/api/public/cities/${cityId}/structure`;
   const authHeader = req.headers.get("authorization");
 
+  // Carried with Authorization so a proxy session reaches the backend as the
+  // proxied user rather than the admin. The structure endpoint authenticates
+  // but does not read the caller, so this does not change the response today;
+  // it keeps the identity intact across the proxy boundary for logging, and
+  // for whenever that endpoint does start varying by user.
+  const impersonateUserId = req.headers.get("x-impersonate-user-id");
+
   const tryFetch = async (url: string, withAuth: boolean) => {
     const headers: Record<string, string> = {
       Accept: "application/json",
     };
     if (withAuth && authHeader) {
       headers.Authorization = authHeader;
+      if (impersonateUserId) {
+        headers["X-Impersonate-User-Id"] = impersonateUserId;
+      }
     }
     return fetch(url, { method: "GET", headers, cache: "no-store" });
   };

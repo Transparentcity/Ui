@@ -51,18 +51,22 @@ const CITY_DATA_CACHE_TTL = 30000; // 30 seconds cache
 const CITY_STRUCTURE_CACHE_TTL = 120000; // 2 minutes cache (structure changes less frequently)
 const CITY_ADMIN_CACHE_TTL = 60000; // 1 minute cache
 
-async function request<T>(
-  path: string,
-  method: HttpMethod = "GET",
-  body?: any,
-  token?: string
-): Promise<T> {
-  const url = `${getApiBaseUrl()}${path}`;
+/**
+ * Auth headers for hand-rolled fetches that bypass `request()`.
+ *
+ * Carries the impersonation header alongside the bearer token. Any call that
+ * omits it resolves on the backend as the *admin* rather than the proxied
+ * user, so during a proxy session an identity-scoped request will act on, or
+ * fail to find, the wrong user's rows.
+ *
+ * Spread this into every user-scoped hand-rolled call ("me" endpoints,
+ * user-owned rows). Admin-only endpoints deliberately do not use it, since
+ * they are admin-gated and act on platform-scoped rows: see the note above
+ * `exportAdminMetrics`.
+ */
+function authHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
   const impersonationUserId = getImpersonationUserId();
-
-  const headers: HeadersInit = {
-    "Accept": "application/json",
-  };
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -71,6 +75,22 @@ async function request<T>(
   if (impersonationUserId != null) {
     headers["X-Impersonate-User-Id"] = String(impersonationUserId);
   }
+
+  return headers;
+}
+
+async function request<T>(
+  path: string,
+  method: HttpMethod = "GET",
+  body?: any,
+  token?: string
+): Promise<T> {
+  const url = `${getApiBaseUrl()}${path}`;
+
+  const headers: HeadersInit = {
+    "Accept": "application/json",
+    ...authHeaders(token),
+  };
 
   if (body && method !== "GET") {
     headers["Content-Type"] = "application/json";
@@ -1321,6 +1341,13 @@ export interface AdminMetricsImportResponse {
   metrics_imported: number;
   orderings_imported: number;
 }
+
+// The admin metrics / metadata-bundle transfers below deliberately send only
+// the bearer token, never `authHeaders()`. They act on platform-wide rows
+// rather than on anything the proxied user owns, and the endpoints are
+// admin-gated: attaching `X-Impersonate-User-Id` would resolve the caller as
+// the (non-admin) proxied user and 403 the whole import/export. An admin
+// running an export mid-proxy-session wants it to run as the admin.
 
 /**
  * Export metrics (and city ordering) as JSON; returns blob for download.
@@ -2619,8 +2646,8 @@ async function _executeChatStream(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
       Accept: "text/event-stream",
+      ...authHeaders(token),
     },
     body: JSON.stringify(request),
     signal: abortSignal,
@@ -3596,7 +3623,7 @@ export async function uploadAvatar(
   form.append("file", file);
   const res = await fetch(`${API_BASE}/api/user/me/avatar`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders(token),
     body: form,
   });
   if (!res.ok) {
@@ -5881,7 +5908,7 @@ export function deleteResearch(
   return fetch(`${getApiBaseUrl()}/api/research/${reportId}`, {
     method: "DELETE",
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...authHeaders(token),
       Accept: "application/json",
     },
   }).then((res) => {
@@ -6136,7 +6163,7 @@ export function deleteMap(mapId: number, token: string): Promise<void> {
   return fetch(`${getApiBaseUrl()}/api/maps/${mapId}`, {
     method: "DELETE",
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...authHeaders(token),
       Accept: "application/json",
     },
   }).then((res) => {
@@ -7108,6 +7135,10 @@ export function syncWasteReviewQueue(
   );
 }
 
+// Waste exports are admin-only and city-scoped, not user-scoped: no
+// `authHeaders()` here, for the same reason as the admin metrics transfers
+// above. Impersonating into them would 403 rather than change whose data
+// comes back.
 export async function exportWasteFindings(
   token: string,
   category: string,
@@ -7422,6 +7453,8 @@ export function closeInvestigation(
   );
 }
 
+// Admin-only waste surface: bearer token only, no `authHeaders()`. See the
+// note above `exportWasteFindings`.
 export function exportInvestigationEvidence(
   token: string,
   investigationId: string

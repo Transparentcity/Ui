@@ -1042,6 +1042,17 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // Seymour chat: platform admins and analysts. Gates both the left-nav
+  // entry points and the chat view itself so they can never disagree.
+  const chatEnabled = isAdmin || isAnalyst;
+  useEffect(() => {
+    if (!isCheckingAdmin && !chatEnabled && currentView === "chat") {
+      setCurrentView("feed");
+      setCurrentSessionId(null);
+      setIsCurrentSessionJobSession(false);
+    }
+  }, [isCheckingAdmin, chatEnabled, currentView]);
+
   // Research UI: government-verified users and platform admins
   const canAccessResearch =
     !!govVerificationStatus?.government_verified || isAdmin;
@@ -2148,7 +2159,7 @@ export default function DashboardPage() {
         governmentEmail={govVerificationStatus?.government_email ?? null}
         onNewChat={handleNewChat}
         onSearchCities={handleSearchCities}
-        chatEnabled={isAdmin || isAnalyst}
+        chatEnabled={chatEnabled}
         activeCityName={activeCityName}
         inboxUnreadCount={inboxUnreadCount}
         homePlaceId={homePlaceId}
@@ -2303,7 +2314,7 @@ export default function DashboardPage() {
             </div>
           )}
         <div className={styles.viewsContainer}>
-          {currentView === "chat" && isAdmin && (
+          {currentView === "chat" && chatEnabled && (
             <div className={`${styles.contentView} ${styles.contentViewActive}`}>
               <ChatView
                 sessionId={currentSessionId}
