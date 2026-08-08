@@ -27,7 +27,6 @@ import {
   updateGovernmentVerification,
   listMyPlaces,
   getPlace,
-  runPlaceMetricsAndAnomaliesAsJob,
   getCityLeaders,
   followRepresentative,
   getDbUserProfile,
@@ -139,7 +138,6 @@ const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: fal
 
 import MobileBottomNav from "@/components/MobileBottomNav";
 import { listInbox, getPlaceMetrics } from "@/lib/apiClient";
-import { recordProductEvent } from "@/lib/productAnalytics";
 
 type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "research" | "research-new" | "feed";
 
@@ -237,7 +235,7 @@ export default function DashboardPage() {
   /** After saving a new block, run metrics job once before showing place dashboard (see CityView). */
   const [placeIdPendingPlaceMetricsBootstrap, setPlaceIdPendingPlaceMetricsBootstrap] = useState<number | null>(null);
   const [allUserPlaces, setAllUserPlaces] = useState<UserPlace[]>([]);
-  const [onboardingJob, setOnboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
+  const [onboardingJob] = useState<{ placeId: number; jobId: string } | null>(null);
   /** Unread newsletter editions — shown as a dot on Home (bottom nav + home place in sidebar). */
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
   /** Place created during onboarding whose metrics job is still running.
@@ -295,7 +293,7 @@ export default function DashboardPage() {
   const [profileInitialFirstName, setProfileInitialFirstName] = useState("");
   const [profileInitialLastName, setProfileInitialLastName] = useState("");
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
+  const [, setProfileAvatarFile] = useState<File | null>(null);
   const [profileAvatarPreview, setProfileAvatarPreview] = useState<string | null>(null);
   const [savingProfileName, setSavingProfileName] = useState(false);
   const [uploadingProfileAvatar, setUploadingProfileAvatar] = useState(false);
@@ -1814,7 +1812,7 @@ export default function DashboardPage() {
       }
       
       // Save preferences
-      const saved = await updateUserPreferences(updateRequest, token);
+      await updateUserPreferences(updateRequest, token);
       
       // Reload preferences from server to ensure we have the latest data
       const refreshed = await getUserPreferences(token);
