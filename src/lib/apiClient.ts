@@ -9009,6 +9009,15 @@ export interface StoryEvalRow {
   short_hash: string | null;
   story_status: string | null;
   latest_accuracy: string | null;
+  /** Auto-correction metadata — present when a correction was attempted. */
+  correction_attempted_at: string | null;
+  correction_session_id: string | null;
+  correction_fields: string[] | null;
+  correction_errors: string[] | null;
+  /** Original text for each changed field, keyed by field name. */
+  correction_before: Record<string, string> | null;
+  /** Current (post-correction) text for each changed field. */
+  correction_after: Record<string, string> | null;
 }
 
 export interface StoryEvalCandidate {
@@ -9119,6 +9128,50 @@ export function rejudgeStoryEval(
     `/api/admin/newsletter/stories/eval/${rowId}/rejudge`,
     "POST",
     body,
+    token
+  );
+}
+
+export function autocorrectStoryEval(
+  rowId: number,
+  token: string
+): Promise<
+  | { job_id: string; story_id: number; eval_row_id: number }
+  | { corrected: false; skipped: true; reason: string; job_id: null }
+> {
+  return request(
+    `/api/admin/newsletter/stories/eval/${rowId}/correct`,
+    "POST",
+    {},
+    token
+  );
+}
+
+export function overrideStoryEligible(
+  storyId: number,
+  token: string
+): Promise<{
+  story_id: number;
+  eval_manual_eligible: true;
+  eval_manual_eligible_at: string;
+  eval_manual_eligible_by: string;
+}> {
+  return request(
+    `/api/admin/newsletter/stories/${storyId}/override-eligible`,
+    "POST",
+    {},
+    token
+  );
+}
+
+export function revokeStoryEligibleOverride(
+  storyId: number,
+  token: string
+): Promise<{ story_id: number; eval_manual_eligible: false }> {
+  return request(
+    `/api/admin/newsletter/stories/${storyId}/override-eligible`,
+    "DELETE",
+    undefined,
     token
   );
 }

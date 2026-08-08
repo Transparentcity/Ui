@@ -17,9 +17,13 @@ import {
   unlikeFeedStoryAdmin,
 } from "@/lib/api/feed";
 import {
+  autocorrectStoryEval,
+  getJob,
   importStoryEvals,
   listStoryEvals,
+  overrideStoryEligible,
   rejudgeStoryEval,
+  revokeStoryEligibleOverride,
   type StoryEvalRow,
 } from "@/lib/apiClient";
 import { slugify } from "@/lib/utils";
@@ -63,7 +67,20 @@ function storyAccuracy(story: FeedStory): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function GatingBadge({ accuracy }: { accuracy: number | null }) {
+function GatingBadge({
+  accuracy,
+  manualOverride,
+}: {
+  accuracy: number | null;
+  manualOverride?: boolean;
+}) {
+  if (manualOverride) {
+    return (
+      <span className={`${styles.badge} ${styles.badgeYellow}`} title="Admin override: eligible regardless of eval score">
+        override: eligible
+      </span>
+    );
+  }
   if (accuracy == null) {
     return <span className={styles.badge}>unjudged</span>;
   }
@@ -195,6 +212,139 @@ function escapeCSV(value: string): string {
   return value;
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  headline: "Headline",
+  description: "Description",
+  article_html: "Article",
+};
+
+function DiffBlock({ label, before, after }: { label: string; before: string; after: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const previewLen = 200;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>
+        {label}
+      </div>
+      <div
+        style={{
+          background: "#fef2f2",
+          borderLeft: "3px solid #dc2626",
+          padding: "6px 10px",
+          borderRadius: "0 4px 4px 0",
+          fontSize: 12,
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          marginBottom: 4,
+        }}
+      >
+        {expanded || before.length <= previewLen
+          ? before
+          : before.slice(0, previewLen) + "…"}
+      </div>
+      <div
+        style={{
+          background: "#f0fdf4",
+          borderLeft: "3px solid #16a34a",
+          padding: "6px 10px",
+          borderRadius: "0 4px 4px 0",
+          fontSize: 12,
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {expanded || after.length <= previewLen
+          ? after
+          : after.slice(0, previewLen) + "…"}
+      </div>
+      {(before.length > previewLen || after.length > previewLen) && (
+        <button
+          type="button"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 11,
+            color: "var(--accent)",
+            padding: "2px 0",
+          }}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Show less" : "Show full text"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Auto-correction history panel for the eval sidebar. */
+function CorrectionHistoryPanel({ row }: { row: StoryEvalRow }) {
+  if (!row.correction_attempted_at) return null;
+
+  const fields: string[] = Array.isArray(row.correction_fields) ? row.correction_fields : [];
+  const errors: string[] = Array.isArray(row.correction_errors) ? row.correction_errors : [];
+  const before = row.correction_before ?? {};
+  const after = row.correction_after ?? {};
+  const attempted = new Date(row.correction_attempted_at).toLocaleString();
+  const corrected = fields.length > 0;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+        ✦ Auto-correction
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            padding: "2px 6px",
+            borderRadius: 10,
+            background: corrected ? "#f0fdf4" : "#f1f5f9",
+            color: corrected ? "#16a34a" : "#64748b",
+          }}
+        >
+          {corrected ? `${fields.length} field${fields.length > 1 ? "s" : ""} changed` : "no changes"}
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 8 }}>
+        {attempted}
+        {row.correction_session_id && (
+          <> · session <code style={{ fontSize: 10 }}>{row.correction_session_id.slice(0, 8)}</code></>
+        )}
+      </div>
+
+      {errors.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: "var(--text-secondary)" }}>
+            Errors fixed
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }}>
+            {errors.map((e, i) => (
+              <li key={i} style={{ marginBottom: 2 }}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {corrected ? (
+        fields.map((field) => (
+          <DiffBlock
+            key={field}
+            label={FIELD_LABELS[field] ?? field}
+            before={before[field] ?? "(not captured)"}
+            after={after[field] ?? "(current text unavailable)"}
+          />
+        ))
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+          Seymour reviewed the story but made no changes.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function filterByTime(stories: FeedStory[], range: TimeRange | ExportTimeRange, rangeMap: Record<string, number>): FeedStory[] {
   if (range === "all") return stories;
   const ms = rangeMap[range];
@@ -281,6 +431,13 @@ export default function FeedAdmin() {
   const [previewEvalsLoading, setPreviewEvalsLoading] = useState(false);
   const [previewJudging, setPreviewJudging] = useState(false);
   const [rejudgingId, setRejudgingId] = useState<number | null>(null);
+  const [correctingId, setCorrectingId] = useState<number | null>(null);
+  const [lastCorrectionResult, setLastCorrectionResult] = useState<{
+    corrected: boolean;
+    changed_fields?: string[];
+    reason?: string;
+  } | null>(null);
+  const [overridingEligibility, setOverridingEligibility] = useState(false);
 
   // Expand [chart:]/[map:]/[anomaly:] shortcodes into live embeds; keep the
   // debug label so admins can still see which shortcode produced each embed.
@@ -749,6 +906,121 @@ export default function FeedAdmin() {
     [getAccessTokenSilently, previewStory, loadPreviewEvals],
   );
 
+  const handleAutoCorrect = useCallback(
+    async (rowId: number) => {
+      if (!previewStory) return;
+      try {
+        setCorrectingId(rowId);
+        setLastCorrectionResult(null);
+        const token = await getAccessTokenSilently();
+        const resp = await autocorrectStoryEval(rowId, token);
+
+        // Already-passing fast path — no job created.
+        if ("skipped" in resp && resp.skipped) {
+          toast.info(resp.reason ?? "Nothing to correct");
+          setLastCorrectionResult({ corrected: false, reason: resp.reason });
+          return;
+        }
+
+        // Poll the background job until it completes or fails.
+        const { job_id } = resp as { job_id: string };
+        const POLL_MS = 3000;
+        const TIMEOUT_MS = 120_000;
+        const deadline = Date.now() + TIMEOUT_MS;
+
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, POLL_MS));
+          const job = await getJob(job_id, token);
+
+          if (job.status === "completed") {
+            const result = job.result as {
+              corrected?: boolean;
+              changed_fields?: string[];
+              reason?: string;
+            } | null;
+            setLastCorrectionResult({
+              corrected: result?.corrected ?? false,
+              changed_fields: result?.changed_fields,
+              reason: result?.reason,
+            });
+            if (result?.corrected) {
+              toast.success(
+                `Corrected: ${(result.changed_fields ?? []).join(", ")} updated`
+              );
+            } else {
+              toast.info(result?.reason ?? "Seymour made no changes");
+            }
+            await loadPreviewEvals(previewStory.id);
+            return;
+          }
+
+          if (job.status === "failed") {
+            throw new Error(job.error ?? "Correction job failed");
+          }
+          // still running — keep polling
+        }
+        throw new Error("Auto-correct timed out after 2 minutes");
+      } catch (err) {
+        console.error("Auto-correct failed:", err);
+        toast.error(err instanceof Error ? err.message : "Auto-correct failed");
+      } finally {
+        setCorrectingId(null);
+      }
+    },
+    [getAccessTokenSilently, previewStory, loadPreviewEvals],
+  );
+
+  const handleOverrideEligible = useCallback(
+    async (revoke = false) => {
+      if (!previewStory) return;
+      try {
+        setOverridingEligibility(true);
+        const token = await getAccessTokenSilently();
+        if (revoke) {
+          await revokeStoryEligibleOverride(previewStory.id, token);
+          toast.success("Override revoked — normal eval gating restored");
+        } else {
+          await overrideStoryEligible(previewStory.id, token);
+          toast.success("Story marked eligible — bypass eval gate");
+        }
+        // Optimistically patch the local story metadata so the badge updates
+        // without a full list reload.
+        setPreviewStory((prev) =>
+          prev
+            ? {
+                ...prev,
+                metadata: {
+                  ...(prev.metadata || {}),
+                  eval_manual_eligible: revoke ? undefined : "true",
+                },
+              }
+            : prev
+        );
+        setStories((prev) =>
+          prev.map((s) =>
+            s.id === previewStory.id
+              ? {
+                  ...s,
+                  metadata: {
+                    ...(s.metadata || {}),
+                    eval_manual_eligible: revoke ? undefined : "true",
+                  },
+                }
+              : s
+          )
+        );
+      } catch (err) {
+        console.error("Override eligibility failed:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update override"
+        );
+      } finally {
+        setOverridingEligibility(false);
+      }
+    },
+    [getAccessTokenSilently, previewStory, setStories]
+  );
+
   const handleJudgePreview = useCallback(async () => {
     if (!previewStory) return;
     try {
@@ -1186,7 +1458,10 @@ export default function FeedAdmin() {
                 <span className={styles.muted}>{formatDate(previewStory.story_date)}</span>
                 {previewStory.city_emoji && <span>{previewStory.city_emoji}</span>}
                 <span className={styles.muted}>{previewStory.city_name}</span>
-                <GatingBadge accuracy={storyAccuracy(previewStory)} />
+                <GatingBadge
+                  accuracy={storyAccuracy(previewStory)}
+                  manualOverride={!!previewStory.metadata?.eval_manual_eligible}
+                />
               </div>
               <button
                 className={styles.previewClose}
@@ -1315,7 +1590,61 @@ export default function FeedAdmin() {
                       >
                         {previewJudging ? <Loader size="sm" color="dark" /> : "Judge again"}
                       </button>
+                      {storyAccuracy(previewStory) !== null &&
+                        (storyAccuracy(previewStory) ?? PASSING_ACCURACY) < PASSING_ACCURACY && (
+                          <button
+                            type="button"
+                            className={styles.primaryBtn}
+                            disabled={correctingId === previewEvals[0].id}
+                            title="Ask Seymour to make a minimal factual fix based on the judge's accuracy errors"
+                            onClick={() => void handleAutoCorrect(previewEvals[0].id)}
+                          >
+                            {correctingId === previewEvals[0].id ? (
+                              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <Loader size="sm" color="white" /> Correcting…
+                              </span>
+                            ) : (
+                              "✦ Auto-correct"
+                            )}
+                          </button>
+                        )}
+                      {previewStory.metadata?.eval_manual_eligible ? (
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          disabled={overridingEligibility}
+                          title="Remove admin override — story returns to normal eval gating"
+                          onClick={() => void handleOverrideEligible(true)}
+                        >
+                          {overridingEligibility ? (
+                            <Loader size="sm" color="dark" />
+                          ) : (
+                            "Revoke override"
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          disabled={overridingEligibility}
+                          title="Force this story into the newsletter pool regardless of eval score"
+                          onClick={() => void handleOverrideEligible(false)}
+                        >
+                          {overridingEligibility ? (
+                            <Loader size="sm" color="dark" />
+                          ) : (
+                            "Override eligible"
+                          )}
+                        </button>
+                      )}
                     </div>
+                    {lastCorrectionResult && (
+                      <div style={{ marginTop: 8, fontSize: 12 }} className={styles.muted}>
+                        {lastCorrectionResult.corrected
+                          ? `Corrected: ${(lastCorrectionResult.changed_fields ?? []).join(", ")} — re-judged`
+                          : lastCorrectionResult.reason ?? "No changes made"}
+                      </div>
+                    )}
                     <div style={{ marginTop: 10, fontSize: 11 }} className={styles.muted}>
                       Status: {previewEvals[0].status}
                       {previewEvals[0].source ? ` · ${previewEvals[0].source}` : ""}
@@ -1324,6 +1653,7 @@ export default function FeedAdmin() {
                         : ""}
                     </div>
                     <StoryEvalTelemetry row={previewEvals[0]} />
+                    <CorrectionHistoryPanel row={previewEvals[0]} />
                   </>
                 ) : previewEvals[0]?.status === "pending" ? (
                   <div className={styles.muted}>
@@ -1354,6 +1684,7 @@ export default function FeedAdmin() {
                       )}
                     </button>
                     <StoryEvalTelemetry row={previewEvals[0]} />
+                    <CorrectionHistoryPanel row={previewEvals[0]} />
                   </div>
                 ) : (
                   <div>
