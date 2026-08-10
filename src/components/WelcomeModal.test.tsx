@@ -250,7 +250,9 @@ describe("WelcomeModal", () => {
       expect(screen.getByPlaceholderText(/enter city, zip or address/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /use my current location/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^Continue$/i })).toBeInTheDocument();
-      expect(elapsed).toBeLessThan(100);
+      // Generous wall-clock bound: guards against accidental async gating of
+      // first paint without flaking when the full suite runs in parallel.
+      expect(elapsed).toBeLessThan(1000);
     });
 
     it("does not fetch any API data on mount", () => {

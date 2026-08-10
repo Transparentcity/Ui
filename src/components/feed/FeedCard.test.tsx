@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { requiresPublishForPublicShare } from "@/lib/feed/canonicalUrl";
 
@@ -144,14 +145,16 @@ describe("FeedCard", () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     return render(
-      <QueryClientProvider client={qc}>
-        <FeedCard
-          story={makeEnrichedStory(storyOverrides)}
-          isAdmin={isAdmin}
-          onHide={onHide}
-          onDelete={onDelete}
-        />
-      </QueryClientProvider>,
+      <ThemeProvider>
+        <QueryClientProvider client={qc}>
+          <FeedCard
+            story={makeEnrichedStory(storyOverrides)}
+            isAdmin={isAdmin}
+            onHide={onHide}
+            onDelete={onDelete}
+          />
+        </QueryClientProvider>
+      </ThemeProvider>,
     );
   }
 
@@ -224,18 +227,20 @@ describe("FeedCard", () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     render(
-      <QueryClientProvider client={qc}>
-        <FeedCard
-          story={makeEnrichedStory({
-            canonical_url: "/c/san-francisco/metrics/crime-incidents",
-            card_type: "alert",
-            metadata: { metric_key: "crime-incidents" },
-          })}
-          onHide={onHide}
-          onDelete={onDelete}
-          onOpenFeedDetail={onOpenFeedDetail}
-        />
-      </QueryClientProvider>,
+      <ThemeProvider>
+        <QueryClientProvider client={qc}>
+          <FeedCard
+            story={makeEnrichedStory({
+              canonical_url: "/c/san-francisco/metrics/crime-incidents",
+              card_type: "alert",
+              metadata: { metric_key: "crime-incidents" },
+            })}
+            onHide={onHide}
+            onDelete={onDelete}
+            onOpenFeedDetail={onOpenFeedDetail}
+          />
+        </QueryClientProvider>
+      </ThemeProvider>,
     );
     fireEvent.click(screen.getByRole("article"));
     expect(onOpenFeedDetail).toHaveBeenCalledWith(

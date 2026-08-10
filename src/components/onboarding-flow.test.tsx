@@ -266,10 +266,12 @@ describe("Onboarding flow: WelcomeModal -> handleWelcomeComplete", () => {
       await runOnboardingDiscovery(ctx, deps1);
       expect(deps1.notifyRepFound).toHaveBeenCalledWith("London Breed", "Mayor");
 
-      // Mayor with empty title falls back
+      // Explicit citywide row (district 0) with empty title falls back to "Mayor".
+      // (A null-district row with no mayor/executive title is deliberately not
+      // treated as citywide — see pickCitywideLeader.)
       const deps2 = makeDeps({
         getCityLeaders: vi.fn().mockResolvedValue([
-          { id: 1, city_id: 100, name: "John Smith", title: "", district: null },
+          { id: 1, city_id: 100, name: "John Smith", title: "", district: 0 },
         ]),
       });
       await runOnboardingDiscovery(ctx, deps2);

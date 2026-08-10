@@ -35,19 +35,20 @@ function story(opts: {
 }
 
 describe("pickFeaturedStories", () => {
-  it("excludes stories older than 36 hours", () => {
+  it("excludes stories older than 72 hours", () => {
     const pool = [
       story({ hoursAgo: 1, city_id: 1 }),
       story({ hoursAgo: 12, city_id: 2 }),
       story({ hoursAgo: 35, city_id: 3 }),
-      story({ hoursAgo: 37, city_id: 4 }),
-      story({ hoursAgo: 72, city_id: 5 }),
+      story({ hoursAgo: 71, city_id: 4 }),
+      story({ hoursAgo: 80, city_id: 5 }),
+      story({ hoursAgo: 100, city_id: 6 }),
     ];
     const picked = pickFeaturedStories(pool, 10);
-    expect(picked.length).toBe(3);
+    expect(picked.length).toBe(4);
     for (const s of picked) {
       const ageHrs = (Date.now() - new Date(s.published_at!).getTime()) / 3600000;
-      expect(ageHrs).toBeLessThanOrEqual(36);
+      expect(ageHrs).toBeLessThanOrEqual(72);
     }
   });
 

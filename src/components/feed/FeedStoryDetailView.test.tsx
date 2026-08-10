@@ -1,7 +1,43 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import type { EnrichedFeedStory } from "@/lib/feed/mockFeedData";
 import { FeedStoryDetailView } from "./FeedStoryDetailView";
+
+// jsdom does not implement matchMedia; ThemeProvider reads it on mount.
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+/**
+ * FeedStoryDetailView needs ThemeProvider (useTheme) and a QueryClient
+ * (AdminStoryProvenance runs a permissions query).
+ */
+function Providers({ children }: { children: ReactNode }) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return (
+    <ThemeProvider>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </ThemeProvider>
+  );
+}
+
+const render = (ui: Parameters<typeof rtlRender>[0]) =>
+  rtlRender(ui, { wrapper: Providers });
 
 vi.mock("./EscalateSheet", () => ({
   default: () => null,
