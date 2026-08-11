@@ -7,10 +7,13 @@ import {
   getInboundEmail,
   listOutboundEmails,
   getOutboundEmail,
+  draftInboundEmailReply,
+  sendInboundEmailReply,
   type InboundEmailListItem,
   type InboundEmailDetail,
   type OutboundEmailListItem,
   type OutboundEmailDetail,
+  type DraftEmailReplyResponse,
 } from "@/lib/apiClient";
 import styles from "./EmailAdmin.module.css";
 
@@ -29,6 +32,16 @@ export default function EmailAdmin() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InboundEmailDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Reply composer state
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyBody, setReplyBody] = useState("");
+  const [replyInstruction, setReplyInstruction] = useState("");
+  const [drafting, setDrafting] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftUsage, setDraftUsage] = useState<DraftEmailReplyResponse | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const [outboundEmails, setOutboundEmails] = useState<OutboundEmailListItem[]>([]);
   const [outboundTotal, setOutboundTotal] = useState(0);
@@ -81,6 +94,16 @@ export default function EmailAdmin() {
     if (tab === "inbox") loadList();
     else loadOutboundList();
   }, [tab, loadList, loadOutboundList]);
+
+  // Reset reply state whenever a different message is opened
+  useEffect(() => {
+    setReplyOpen(false);
+    setReplyBody("");
+    setReplyInstruction("");
+    setDraftError(null);
+    setDraftUsage(null);
+    setSendError(null);
+  }, [selectedId]);
 
   useEffect(() => {
     if (selectedId == null) {
@@ -137,6 +160,54 @@ export default function EmailAdmin() {
       cancelled = true;
     };
   }, [selectedOutboundId, outboundEmails, getAccessTokenSilently]);
+
+  const handleDraftWithSeymour = async () => {
+    if (!selectedId) return;
+    setDrafting(true);
+    setDraftError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await draftInboundEmailReply(
+        selectedId,
+        {
+          instruction: replyInstruction || undefined,
+          previous_draft: replyBody || undefined,
+        },
+        token
+      );
+      setReplyBody(res.draft);
+      setDraftUsage(res);
+    } catch (e) {
+      setDraftError(e instanceof Error ? e.message : "Failed to draft reply");
+    } finally {
+      setDrafting(false);
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!selectedId || !replyBody.trim()) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const token = await getAccessTokenSilently();
+      await sendInboundEmailReply(selectedId, { body: replyBody }, token);
+      // Refresh the email detail and list to reflect replied status
+      const [updatedDetail] = await Promise.all([
+        getInboundEmail(selectedId, token),
+        loadList(),
+        loadOutboundList(),
+      ]);
+      setDetail(updatedDetail);
+      setReplyOpen(false);
+      setReplyBody("");
+      setReplyInstruction("");
+      setDraftUsage(null);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Failed to send reply");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const formatDate = (s: string | null) => {
     if (!s) return "—";
@@ -417,6 +488,106 @@ export default function EmailAdmin() {
                           __html: detail.response_text,
                         }}
                       />
+                    </div>
+                  )}
+
+                  {/* Reply composer — hidden for already-replied emails */}
+                  {detail.status !== "replied" && !replyOpen && (
+                    <div className={styles.section}>
+                      <button
+                        type="button"
+                        className={styles.replyBtn}
+                        onClick={() => setReplyOpen(true)}
+                      >
+                        ↩ Reply
+                      </button>
+                    </div>
+                  )}
+
+                  {detail.status !== "replied" && replyOpen && (
+                    <div className={styles.section}>
+                      <h3 className={styles.sectionTitle}>Reply</h3>
+
+                      {/* Seymour draft row */}
+                      <div className={styles.draftRow}>
+                        <input
+                          type="text"
+                          className={styles.instructionInput}
+                          placeholder="Tell Seymour what to write (optional)…"
+                          value={replyInstruction}
+                          onChange={(e) => setReplyInstruction(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !drafting) void handleDraftWithSeymour();
+                          }}
+                          disabled={drafting}
+                          aria-label="Drafting instruction for Seymour"
+                        />
+                        <button
+                          type="button"
+                          className={styles.draftBtn}
+                          onClick={() => void handleDraftWithSeymour()}
+                          disabled={drafting}
+                        >
+                          {drafting ? "Drafting…" : replyBody ? "Revise" : "Draft with Seymour"}
+                        </button>
+                      </div>
+
+                      {/* Token/cost pill */}
+                      {draftUsage && (
+                        <div className={styles.costPill}>
+                          <span>
+                            {draftUsage.input_tokens + draftUsage.output_tokens} tok
+                            &nbsp;·&nbsp;
+                            ${draftUsage.cost_usd.toFixed(4)}
+                          </span>
+                          {draftUsage.cumulative_cost_usd > draftUsage.cost_usd && (
+                            <span className={styles.costPillCumulative}>
+                              &nbsp;(total {draftUsage.cumulative_input_tokens + draftUsage.cumulative_output_tokens} tok
+                              &nbsp;·&nbsp;${draftUsage.cumulative_cost_usd.toFixed(4)})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {draftError && (
+                        <p className={styles.replyError}>{draftError}</p>
+                      )}
+
+                      {/* Editable reply body */}
+                      <textarea
+                        className={styles.replyTextarea}
+                        value={replyBody}
+                        onChange={(e) => setReplyBody(e.target.value)}
+                        placeholder="Write your reply here, or use Draft with Seymour above…"
+                        rows={8}
+                      />
+
+                      {sendError && (
+                        <p className={styles.replyError}>{sendError}</p>
+                      )}
+
+                      <div className={styles.replyActions}>
+                        <button
+                          type="button"
+                          className={styles.sendBtn}
+                          onClick={() => void handleSendReply()}
+                          disabled={sending || !replyBody.trim()}
+                        >
+                          {sending ? "Sending…" : "Send reply"}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.cancelBtn}
+                          onClick={() => {
+                            setReplyOpen(false);
+                            setDraftError(null);
+                            setSendError(null);
+                          }}
+                          disabled={sending}
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

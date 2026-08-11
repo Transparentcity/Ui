@@ -261,3 +261,173 @@
 .bodyBlock :global(a) {
   color: var(--link-color, #6366f1);
 }
+
+/* Reply composer */
+.replyBtn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.replyBtn:hover {
+  background: var(--bg-tertiary);
+}
+
+.draftRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.instructionInput {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  /* Tell the browser to honour our explicit colours in every colour-scheme */
+  color-scheme: light;
+}
+
+[data-theme="dark"] .instructionInput,
+.dark .instructionInput {
+  color-scheme: dark;
+}
+
+.instructionInput::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+
+.instructionInput:focus {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -1px;
+}
+
+.instructionInput:disabled {
+  opacity: 0.6;
+}
+
+.draftBtn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.draftBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.draftBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.costPill {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  padding: 3px 8px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.costPillCumulative {
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+.replyError {
+  font-size: 13px;
+  color: var(--error, #dc2626);
+  margin: 4px 0 8px;
+}
+
+.replyTextarea {
+  width: 100%;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+  /* Suppress browser-native dark-mode override of our explicit colours */
+  color-scheme: light;
+}
+
+[data-theme="dark"] .replyTextarea,
+.dark .replyTextarea {
+  color-scheme: dark;
+}
+
+.replyTextarea::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+
+.replyTextarea:focus {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -1px;
+}
+
+.replyActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sendBtn {
+  padding: 8px 18px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: none;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sendBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.cancelBtn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.cancelBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

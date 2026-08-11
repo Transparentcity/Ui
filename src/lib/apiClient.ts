@@ -3925,6 +3925,65 @@ export function getOutboundEmail(emailId: number, token: string): Promise<Outbou
   return request<OutboundEmailDetail>(`/api/admin/outbound-email/${emailId}`, "GET", undefined, token);
 }
 
+// Admin inbox reply — draft and send
+
+export interface DraftEmailReplyRequest {
+  instruction?: string;
+  previous_draft?: string;
+}
+
+export interface DraftEmailReplyResponse {
+  draft: string;
+  model_key: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  cumulative_input_tokens: number;
+  cumulative_output_tokens: number;
+  cumulative_cost_usd: number;
+}
+
+export function draftInboundEmailReply(
+  emailId: number,
+  body: DraftEmailReplyRequest,
+  token: string
+): Promise<DraftEmailReplyResponse> {
+  return request<DraftEmailReplyResponse>(
+    `/api/admin/inbound-email/${emailId}/draft`,
+    "POST",
+    body,
+    token
+  );
+}
+
+export interface SendEmailReplyRequest {
+  body: string;
+  subject?: string;
+  force?: boolean;
+}
+
+export interface SendEmailReplyResponse {
+  status: string;
+  email_id: number;
+  outbound_id: number;
+  to_email: string;
+  subject: string;
+  sendgrid_message_id: string;
+}
+
+export function sendInboundEmailReply(
+  emailId: number,
+  body: SendEmailReplyRequest,
+  token: string
+): Promise<SendEmailReplyResponse> {
+  return request<SendEmailReplyResponse>(
+    `/api/admin/inbound-email/${emailId}/reply`,
+    "POST",
+    body,
+    token
+  );
+}
+
 // User Management API
 export interface User {
   id: number;
