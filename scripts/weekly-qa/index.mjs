@@ -237,7 +237,11 @@ async function main() {
       resolvedCities.push({
         ...target,
         cityId:   found.id,
-        slug:     found.slug || "",
+        // The sitemap API stopped returning a `slug` field (regression, seen
+        // since the 2026-07-23 run — cardUrls from that run on read
+        // "/c//metrics/..."). Fall back to this city's canonical slug so
+        // dashboard/card URLs stay correct even if the API keeps omitting it.
+        slug:     found.slug || target.slugPatterns[0],
         cityName: found.name,
       });
     }
