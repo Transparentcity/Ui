@@ -2366,10 +2366,14 @@ export default function CityView({
   const saveCityMutation = useSaveCity();
   const unsaveCityMutation = useUnsaveCity();
 
-  // Auth for user places (My places)
+  // Auth for user places (My places). Fast lane, like leanLeaders/boundarySketch
+  // below: fires as soon as we have a cityId, in parallel with the city fetch,
+  // not gated behind cityLoaded. This is what supplies placeLat/placeLng to the
+  // Week Replay hero marker, so waiting on the full city record first delayed
+  // the marker for no reason — it only ever needed cityId, never cityData.
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   useEffect(() => {
-    if (!cityId || !cityLoaded || !isAuthenticated) {
+    if (!cityId || !isAuthenticated) {
       setUserPlaces([]);
       return;
     }
@@ -2399,7 +2403,7 @@ export default function CityView({
         }
       });
     return () => { cancelled = true; };
-  }, [cityId, cityLoaded, isAuthenticated, getAccessTokenSilently, placesRefreshKey]);
+  }, [cityId, isAuthenticated, getAccessTokenSilently, placesRefreshKey]);
 
   // Determine if current city is saved (still used for sidebar/onboarding, not header)
   const isCitySaved = useMemo(() => {
@@ -3048,6 +3052,7 @@ export default function CityView({
               setSelectedPlaceId(null);
             }}
             fullDashboardSlot={isBriefingActive ? fullDashboardEl : null}
+            isAdmin={isGlobalAdmin}
           />
           {/* Selector modal (bar-less) — the hero card above triggers it */}
           {isBriefingActive && renderDistrictNavigation(true)}

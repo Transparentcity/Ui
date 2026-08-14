@@ -6391,6 +6391,8 @@ export interface GovernmentVerificationStatus {
   government_pending_verification?: boolean;
   government_email?: string | null;
   claim_context?: ClaimContext | null;
+  government_user_type?: string | null;
+  government_district?: number | null;
 }
 
 export function getGovernmentVerificationStatus(
@@ -6438,6 +6440,68 @@ export function updateGovernmentVerification(
     "/api/admin/me/government-verification",
     "PATCH",
     { government_verified, government_email: government_email || undefined },
+    token
+  );
+}
+
+// Government officials coverage (admin only)
+export interface OfficialCoverageRow {
+  leader_id: number;
+  name: string;
+  title: string;
+  district: number | null;
+  email_known: boolean;
+  email: string | null;
+  claimed_user_id: number | null;
+  claimed_user_email: string | null;
+  claimed_user_type: string | null;
+  staff_count: number;
+}
+
+export interface GovernmentCoverageResponse {
+  city_id: number;
+  total_leaders: number;
+  leaders_with_email: number;
+  leaders_claimed: number;
+  officials: OfficialCoverageRow[];
+}
+
+export function getGovernmentOfficialsCoverage(
+  cityId: number,
+  token: string
+): Promise<GovernmentCoverageResponse> {
+  return request<GovernmentCoverageResponse>(
+    `/api/admin/government/officials-coverage?city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface GovernmentCoverageCityRow {
+  city_id: number;
+  city_name: string;
+  total_leaders: number;
+  leaders_with_email: number;
+  leaders_claimed: number;
+  total_staff: number;
+}
+
+export interface GovernmentCoverageSummaryResponse {
+  total_leaders: number;
+  leaders_with_email: number;
+  leaders_claimed: number;
+  total_staff: number;
+  by_city: GovernmentCoverageCityRow[];
+}
+
+export function getGovernmentOfficialsCoverageSummary(
+  token: string
+): Promise<GovernmentCoverageSummaryResponse> {
+  return request<GovernmentCoverageSummaryResponse>(
+    "/api/admin/government/officials-coverage-summary",
+    "GET",
+    undefined,
     token
   );
 }
@@ -8577,13 +8641,16 @@ export function getMyGifts(token: string): Promise<MyGiftsResponse> {
   return request<MyGiftsResponse>("/api/gift/my-gifts", "GET", undefined, token);
 }
 
-export type GiftClaimKind = "gift" | "substack_migration";
+export type GiftClaimKind = "gift" | "substack_migration" | "government";
 
 export interface GiftMetaResponse {
   recipient_email: string;
   recipient_name: string | null;
   gifter_display: string;
-  /** 'gift' (default) or 'substack_migration' — drives claim-flow copy. */
+  /**
+   * 'gift' (default), 'substack_migration', or 'government' — drives
+   * claim-flow copy.
+   */
   kind?: GiftClaimKind;
   place_label: string | null;
   place_name: string | null;

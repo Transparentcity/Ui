@@ -10,6 +10,7 @@ import { DEFAULT_INDEXABLE_ROBOTS } from "@/lib/defaultRobots";
 import { getSiteOrigin } from "@/lib/siteUrl";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import MetaPixel from "@/components/MetaPixel";
+import NewsletterClickBeacon from "@/components/newsletter/NewsletterClickBeacon";
 import { ToasterProvider } from "@/components/providers/toaster-provider";
 import AuthErrorToast from "@/components/AuthErrorToast";
 import { SiteStructuredData } from "@/components/StructuredData";
@@ -155,6 +156,7 @@ fbq('track', 'PageView');`,
         <AuthErrorToast />
         <GoogleAnalytics />
         <MetaPixel />
+        <NewsletterClickBeacon />
         <Analytics />
         <SpeedInsights />
         <AuthProvider>

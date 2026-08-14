@@ -19,8 +19,16 @@
  *   carries the same day/night/weekend ribbon, so time of day and day of week
  *   are readable without looking away from the dots.
  *
+ * Sound is synthesized in the browser from the same event list (see
+ * weekReplayAudio): dots land as soft struck notes placed east to west in the
+ * stereo field and pitched by category and how far north they are, key moments
+ * ring as bells, and a pad tracks the same night and weekend signals the map is
+ * already showing. It is off until the viewer turns it on, and that choice is
+ * remembered across visits.
+ *
  * After playback the unit stays interactive: scrub the week, tap pins/dots
- * for details, replay, share.
+ * for details, replay, share, or export the whole thing as a video sized for
+ * stories and feeds (see WeekReplayExportDialog).
  *
  * Events come from GET /api/user/week-events (persona-boosted ranking,
  * never persona-filtered) and are fetched lazily on mount.
@@ -31,6 +39,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -41,6 +50,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getWeekEvents } from "@/lib/apiClient";
+import { mixHex } from "@/lib/layerColors";
 import type { BoundarySketch } from "@/lib/publicApiClient";
 import { getImpersonationCacheKey } from "@/lib/impersonation";
 import { buildBasemapStaticUrl, biasViewForLeftLabels, type MapBbox } from "@/lib/mapUtils";
@@ -56,21 +66,27 @@ import {
   project,
 } from "@/components/MiniScopeMap";
 import {
+  buildAudioSchedule,
+  createReplayAudioEngine,
+  type ReplayAudioEngine,
+} from "@/lib/weekReplayAudio";
+import { isVideoExportSupported } from "@/lib/weekReplayExport/encode";
+import WeekReplayExportDialog from "@/components/WeekReplayExportDialog";
+import {
   buildDayNightBands,
+  buildEventCallout,
   buildPlaybackTimeline,
   buildSubcategoryColors,
-  eventDashCategoryKey,
   eventDateKey,
   eventTimeMs,
   formatClockTime,
   formatClockWeekday,
-  formatEventTime,
+  formatPlaybackClock,
   formatWindowRange,
   isNightAt,
   isWeekendAt,
   metricDisplayName,
   metricIcon,
-  nightness,
   weekendness,
   windowDateMs,
   windowDayLabels,
@@ -91,8 +107,11 @@ const MAP_TOP_W = 480;
 const MAP_TOP_H = 360;
 const STACKED_MQ = "(max-width: 640px)";
 
-/** Max distinct bars in the chart; the rest aggregate into "Other". */
-const MAX_CHART_ROWS = 8;
+/** Remembers the sound choice, so turning it on carries to next week. */
+const SOUND_PREF_KEY = "tc.weekReplay.sound";
+
+/** Stand-in for cities we have no shapes for, so the place still draws. */
+const EMPTY_SKETCH: BoundarySketch = { districts: [], outline: null, bbox: null };
 
 interface WeekReplayMapProps {
   cityId: number;
@@ -107,6 +126,12 @@ interface WeekReplayMapProps {
   selectedPlaceId?: number | null;
   /** Label drawn next to the place marker on the map (e.g. "Seth's Place"). */
   placeName?: string | null;
+  /**
+   * What this replay covers, in words ("the Mission", "District 6",
+   * "San Francisco"). Titles the exported video; falls back to the place name
+   * or district number.
+   */
+  scopeLabel?: string | null;
   /** Map-body click in idle state (matches MiniScopeMap behavior). */
   onOpenScopeSelector?: () => void;
   /** Optional: open the metric behind a tapped event. */
@@ -152,11 +177,21 @@ const KEY_FADE_MS = 320;
 /** Gold ring for 311 points with a loadable photo (matches CityMetricsMap). */
 const MEDIA_GOLD = "#FFD700";
 /**
- * Peak darkening of the map at deep night. Kept low on purpose: a day passes
- * in DAY_PLAYBACK_MS, so this cycles seven times during playback and a
- * heavier scrim reads as flashing rather than as nightfall.
+ * Peak dimming while a key moment holds the screen.
+ *
+ * Dimming earns its keep as a spotlight rather than as a clock: it darkens the
+ * basemap and pushes back the routine dots so the event being called out is the
+ * one bright thing on the map. Time of day is carried by the clock's own
+ * sun/moon glyph and the scrubber's night ribbon, which say it without
+ * strobing the map seven times a replay.
  */
-const NIGHT_SCRIM_MAX = 0.24;
+const SPOTLIGHT_SCRIM_MAX = 0.34;
+/**
+ * Radius left completely clear around the held event, in map units. Matched to
+ * the reach of the pulse ring a dot throws when it lands (see pulseRing), so
+ * the lit area is the same size as the gesture the eye already knows.
+ */
+const SPOTLIGHT_CLEAR_R = 20;
 /** Peak warmth of the weekend wash. */
 const WEEKEND_WASH_MAX = 0.1;
 
@@ -165,21 +200,6 @@ interface KeyMoment {
   playStartMs: number;
   playEndMs: number;
   event: PreparedEvent;
-}
-
-/**
- * Icon + label for an event callout.
- *
- * Events with no descriptive text of their own fall back to the metric name
- * server-side, which carries the metric's emoji — so the label is stripped of
- * any leading icon and the icon is always rendered as its own element,
- * instead of showing up twice.
- */
-function calloutParts(e: WeekEvent): { icon: string | null; label: string } {
-  return {
-    icon: metricIcon(e.metric_name) ?? metricIcon(e.label),
-    label: metricDisplayName(e.label),
-  };
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -218,6 +238,7 @@ export default function WeekReplayMap({
   placeRadiusM,
   selectedPlaceId,
   placeName,
+  scopeLabel,
   onOpenScopeSelector,
   onEventMetricClick,
   autoPlay,
@@ -379,13 +400,6 @@ export default function WeekReplayMap({
     [mediaVersion],
   );
 
-  /** Scope phrase for loading copy: block / district / city. */
-  const scopePhrase = isPlaceScope
-    ? "near your place"
-    : selectedDistrict > 0
-      ? "in your district"
-      : "across the city";
-
   const windowRange = data?.window
     ? formatWindowRange(data.window.start, data.window.end)
     : "";
@@ -474,28 +488,91 @@ export default function WeekReplayMap({
     return { timeline, events, keyMoments };
   }, [data, viewBbox, mapW, mapH]);
 
-  /** Dashboard section → color for dots and chart bars (kept in sync so a
-      bar and its dots always share a hue). */
+  /**
+   * Metric → color, assigned by descending event count.
+   *
+   * Keyed on the metric rather than its dashboard section, so a bar, the dots
+   * it stands for, and that metric's note in the soundtrack (which reads its
+   * palette index) all belong to the same thing.
+   */
   const subcatColors = useMemo(
-    () => buildSubcategoryColors(prepared?.events ?? [], eventDashCategoryKey),
+    () => buildSubcategoryColors(prepared?.events ?? [], (e) => String(e.metric_id)),
     [prepared],
   );
   const eventColor = useCallback(
-    (e: WeekEvent) => subcatColors.get(eventDashCategoryKey(e)) ?? "#94a3b8",
+    (e: WeekEvent) => subcatColors.get(String(e.metric_id)) ?? "#94a3b8",
     [subcatColors],
   );
+
+  // ── Sound ─────────────────────────────────────────────────────────────
+  /**
+   * Note schedule for the whole week: pitch comes from the event's category
+   * and how far north it is, stereo position from where it sits east to west.
+   * The audio is another reading of the same frame rather than a soundtrack
+   * over it.
+   */
+  const audioSchedule = useMemo(() => {
+    if (!prepared) return null;
+    return buildAudioSchedule(
+      prepared.events.map((e) => ({
+        playMs: e.playMs,
+        panX: mapW > 0 ? e.x / mapW : 0.5,
+        posY: mapH > 0 ? e.y / mapH : 0.5,
+        color: eventColor(e),
+      })),
+      prepared.keyMoments.map((m) => ({
+        playStartMs: m.playStartMs,
+        isPhoto: !!m.event.media_url,
+      })),
+      prepared.timeline,
+    );
+  }, [prepared, mapW, mapH, eventColor]);
+
+  /**
+   * Off until asked for. Sound arriving unbidden is worse than sound missed,
+   * and starting muted also means no AudioContext is created at all for the
+   * viewers who never want one.
+   */
+  const [soundOn, setSoundOn] = useState(false);
+  const audioRef = useRef<ReplayAudioEngine | null>(null);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SOUND_PREF_KEY) === "on") setSoundOn(true);
+    } catch {
+      // Private mode / blocked storage: stays off.
+    }
+  }, []);
+
+  const toggleSound = useCallback(() => {
+    setSoundOn((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SOUND_PREF_KEY, next ? "on" : "off");
+      } catch {
+        // Preference just won't persist.
+      }
+      return next;
+    });
+  }, []);
+
+  // The engine closes over its schedule, so a new event set needs a new engine.
+  useEffect(
+    () => () => {
+      audioRef.current?.dispose();
+      audioRef.current = null;
+    },
+    [audioSchedule],
+  );
+
+  const stopAudio = useCallback(() => audioRef.current?.pause(), []);
 
   // ── Playback state ────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("idle");
   const [playMs, setPlayMs] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
-  /**
-   * Chart selection: a subcategory row key, or "m:<metricId>" for a child
-   * metric row. Highlights the matching dots on the map.
-   */
-  const [highlightKey, setHighlightKey] = useState<string | null>(null);
-  /** Subcategory rows expanded into their child metric rows. */
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  /** Chart selection: the metric whose events are highlighted on the map. */
+  const [highlightMetricId, setHighlightMetricId] = useState<number | null>(null);
   /**
    * True when the viewer jumped to the end via a chart click instead of
    * watching playback — the control button then keeps its play affordance
@@ -568,9 +645,10 @@ export default function WeekReplayMap({
 
   const pause = useCallback(() => {
     stopRaf();
+    stopAudio();
     setPlayMs(playMsRef.current);
     setPhase("paused");
-  }, [stopRaf]);
+  }, [stopRaf, stopAudio]);
 
   /**
    * Jump straight to the finished state (all dots on the map, interactive).
@@ -580,12 +658,13 @@ export default function WeekReplayMap({
   const revealEndState = useCallback(() => {
     if (!prepared || phaseRef.current !== "idle") return;
     stopRaf();
+    stopAudio();
     playMsRef.current = duration;
     playMsRefLastSet.current = duration;
     setPlayMs(duration);
     setSkippedToEnd(true);
     setPhase("ended");
-  }, [prepared, duration, stopRaf]);
+  }, [prepared, duration, stopRaf, stopAudio]);
 
   const share = useCallback(async () => {
     if (!getShareUrl || shareState === "sharing") return;
@@ -620,6 +699,33 @@ export default function WeekReplayMap({
 
   useEffect(() => () => stopRaf(), [stopRaf]);
 
+  /**
+   * Drive the audio engine from playback state rather than from the play
+   * handler, so muting mid-replay, unmuting mid-replay, and starting playback
+   * all take the same path.
+   *
+   * The AudioContext is built here, one tick after the click that started
+   * playback. That still counts as user-activated (activation is sticky once
+   * the page has been interacted with), so nothing plays unprompted: with no
+   * gesture the context stays suspended and the replay is simply silent.
+   */
+  useEffect(() => {
+    if (!soundOn || prefersReducedMotion || !audioSchedule) {
+      audioRef.current?.setMuted(true);
+      audioRef.current?.pause();
+      return;
+    }
+    if (phase !== "playing") {
+      audioRef.current?.pause();
+      return;
+    }
+    if (!audioRef.current) {
+      audioRef.current = createReplayAudioEngine(audioSchedule);
+    }
+    audioRef.current.setMuted(false);
+    audioRef.current.start(playMsRef.current);
+  }, [soundOn, phase, prefersReducedMotion, audioSchedule]);
+
   // Deep-link auto-play once events are fully loaded (not mid-fill).
   useEffect(() => {
     if (
@@ -642,16 +748,16 @@ export default function WeekReplayMap({
     if (prevScopeKeyRef.current !== scopeKey) {
       prevScopeKeyRef.current = scopeKey;
       stopRaf();
+      stopAudio();
       playMsRef.current = 0;
       playMsRefLastSet.current = 0;
       setPlayMs(0);
       setPhase("idle");
       setSelectedEventId(null);
-      setHighlightKey(null);
-      setExpandedKeys(new Set());
+      setHighlightMetricId(null);
       setSkippedToEnd(false);
     }
-  }, [scopeKey, stopRaf]);
+  }, [scopeKey, stopRaf, stopAudio]);
 
   // Keep the fixed-position event popover glued to its dot: it renders in a
   // portal (to escape the hero card's overflow clipping), so reposition on
@@ -746,32 +852,37 @@ export default function WeekReplayMap({
   const keyMomentLeaving =
     activeKeyMoment != null && playMs > activeKeyMoment.playEndMs;
 
-  /**
-   * Callout text shared by the map card and the ticker. The map card gets the
-   * glanceable version; the ticker adds the metric, unless the event had no
-   * description of its own and is already named after it.
-   */
+  /** Callout for the key moment holding the screen (see buildEventCallout). */
   const keyCallout = useMemo(() => {
     if (!activeKeyMoment) return null;
     const e = activeKeyMoment.event;
-    const { icon, label } = calloutParts(e);
-    const metric = metricDisplayName(e.metric_name);
-    const when = formatEventTime(e.ts);
-    const mediaUrl = mediaIsOk(e.media_url) ? e.media_url! : null;
     return {
-      icon,
-      label,
-      mediaUrl,
-      onMap: [when, e.address].filter(Boolean).join(" · "),
-      inTicker: [metric === label ? null : metric, e.address, when]
-        .filter(Boolean)
-        .join(" · "),
+      ...buildEventCallout(e),
+      mediaUrl: mediaIsOk(e.media_url) ? e.media_url! : null,
     };
   }, [activeKeyMoment, mediaIsOk]);
 
-  /** Continuous time-of-day / weekend signals for the map overlays. */
-  const nightLevel = isRunning ? nightness(currentWeekMs) : 0;
+  /** Weekend warmth still washes the map; night no longer dims it. */
   const weekendLevel = isRunning ? weekendness(currentWeekMs) : 0;
+
+  /** Unique per instance so two replays on a page don't share a gradient. */
+  const spotlightGradientId = `${useId()}spot`;
+  /** Gradient reach: covers the frame from wherever the held event sits. */
+  const spotlightOuterR = Math.max(mapW, mapH);
+
+  /**
+   * Spotlight strength: rises as a key moment takes hold and falls as it
+   * releases, so the map darkens around the callout instead of cutting to it.
+   */
+  const spotlightLevel = useMemo(() => {
+    if (!activeKeyMoment) return 0;
+    const enter = Math.min(1, (playMs - activeKeyMoment.playStartMs) / 260);
+    const leave = Math.min(
+      1,
+      Math.max(0, (activeKeyMoment.playEndMs - playMs) / KEY_FADE_MS),
+    );
+    return Math.max(0, Math.min(enter, leave));
+  }, [activeKeyMoment, playMs]);
 
   const selectedEvent = useMemo(
     () =>
@@ -779,6 +890,12 @@ export default function WeekReplayMap({
         ? null
         : (prepared?.events.find((e) => e.id === selectedEventId) ?? null),
     [selectedEventId, prepared],
+  );
+
+  /** Callout for a tapped dot, composed exactly like the key-moment one. */
+  const selectionCallout = useMemo(
+    () => (selectedEvent ? buildEventCallout(selectedEvent) : null),
+    [selectedEvent],
   );
 
   const dayLabels = useMemo(() => {
@@ -817,140 +934,50 @@ export default function WeekReplayMap({
     return centers;
   }, [dayBoundaries]);
 
-  // ── Bar chart (dashboard sections → metrics) ──────────────────────────
-  /** Fixed row set: the dashboard's sections in dashboard order (then by
-      count for unordered ones), top rows + "Other". */
+  // ── Bar chart: metrics, busiest first ─────────────────────────────────
+  /**
+   * One row per metric, ranked by how much of the week it accounts for.
+   *
+   * Flat rather than grouped by dashboard section: the sections were an extra
+   * level to open before reaching anything specific, and "Public Safety: 38"
+   * says less than "Assaults: 12". Each row carries the same icon and color
+   * the metric's events wear on the map.
+   */
   const chartRows = useMemo(() => {
     if (!prepared) return [];
-    const finalCounts = new Map<string, number>();
-    const minOrder = new Map<string, number>();
+    const totals = new Map<number, { name: string; total: number }>();
     for (const e of prepared.events) {
-      const key = eventDashCategoryKey(e);
-      finalCounts.set(key, (finalCounts.get(key) ?? 0) + 1);
-      const order = e.dash_category_order ?? 1000;
-      minOrder.set(key, Math.min(minOrder.get(key) ?? Infinity, order));
+      const current = totals.get(e.metric_id);
+      if (current) current.total += 1;
+      else totals.set(e.metric_id, { name: e.metric_name, total: 1 });
     }
-    const ordered = [...finalCounts.entries()].sort((a, b) => {
-      const orderA = minOrder.get(a[0]) ?? 1000;
-      const orderB = minOrder.get(b[0]) ?? 1000;
-      if (orderA !== orderB) return orderA - orderB;
-      return b[1] - a[1] || a[0].localeCompare(b[0]);
-    });
-    const rows = ordered.slice(0, MAX_CHART_ROWS).map(([key, total]) => ({
-      key,
-      total,
-      color: subcatColors.get(key) ?? "#94a3b8",
-      isOther: false,
-    }));
-    const overflow = ordered.slice(MAX_CHART_ROWS);
-    if (overflow.length > 0) {
-      rows.push({
-        key: "Other",
-        total: overflow.reduce((n, [, c]) => n + c, 0),
-        color: "#94a3b8",
-        isOther: true,
-      });
-    }
-    return rows;
+    return [...totals.entries()]
+      .map(([metricId, v]) => ({
+        metricId,
+        label: metricDisplayName(v.name),
+        icon: metricIcon(v.name),
+        total: v.total,
+        color: subcatColors.get(String(metricId)) ?? "#94a3b8",
+      }))
+      .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
   }, [prepared, subcatColors]);
 
-  /** Named chart rows (everything else folds into "Other"). */
-  const namedRowKeys = useMemo(
-    () => new Set(chartRows.filter((r) => !r.isOther).map((r) => r.key)),
-    [chartRows],
-  );
-
-  /** Chart-row key for an event (its dashboard section, or "Other"). */
-  const rowKeyFor = useCallback(
-    (e: WeekEvent) => {
-      const key = eventDashCategoryKey(e);
-      return namedRowKeys.has(key) ? key : "Other";
-    },
-    [namedRowKeys],
-  );
-
-  /** Live counts that build up as dots land (full counts when idle/ended). */
+  /** Live counts that build up as events land (full counts when ended). */
   const liveChartCounts = useMemo(() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<number, number>();
     if (!prepared) return counts;
     const source =
       phase === "playing" || phase === "paused" ? visibleEvents : prepared.events;
     for (const e of source) {
-      const rowKey = rowKeyFor(e);
-      counts.set(rowKey, (counts.get(rowKey) ?? 0) + 1);
+      counts.set(e.metric_id, (counts.get(e.metric_id) ?? 0) + 1);
     }
     return counts;
-  }, [prepared, phase, visibleEvents, rowKeyFor]);
+  }, [prepared, phase, visibleEvents]);
 
-  /**
-   * Second chart level: the metrics inside the subcategory, each with its
-   * own icon (crime → 📦 Property / 🚨 Violent / 💊 Drug…). Which metrics
-   * exist here is editorially curated server-side via the per-metric
-   * ``show_on_week_replay`` flag, so no catch-all breakdown is needed.
-   */
-  const chartChildren = useMemo(() => {
-    const out = new Map<
-      string,
-      Array<{ key: string; label: string; total: number; icon: string | null }>
-    >();
-    if (!prepared) return out;
-    const byRow = new Map<string, Map<number, { name: string; total: number }>>();
-    for (const e of prepared.events) {
-      const rowKey = rowKeyFor(e);
-      let metricsMap = byRow.get(rowKey);
-      if (!metricsMap) {
-        metricsMap = new Map();
-        byRow.set(rowKey, metricsMap);
-      }
-      const cur = metricsMap.get(e.metric_id);
-      if (cur) cur.total += 1;
-      else metricsMap.set(e.metric_id, { name: e.metric_name, total: 1 });
-    }
-    for (const [rowKey, metricsMap] of byRow) {
-      out.set(
-        rowKey,
-        [...metricsMap.entries()]
-          .map(([metricId, v]) => ({
-            key: `${rowKey}::m${metricId}`,
-            label: metricDisplayName(v.name),
-            icon: metricIcon(v.name),
-            total: v.total,
-          }))
-          .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label)),
-      );
-    }
-    return out;
-  }, [prepared, rowKeyFor]);
-
-  /** Child-row key for an event (its metric within its subcategory row). */
-  const childKeyFor = useCallback(
-    (e: WeekEvent) => `${rowKeyFor(e)}::m${e.metric_id}`,
-    [rowKeyFor],
-  );
-
-  /** Live per-metric counts (for expanded child rows). */
-  const liveChildCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    if (!prepared) return counts;
-    const source =
-      phase === "playing" || phase === "paused" ? visibleEvents : prepared.events;
-    for (const e of source) {
-      const key = childKeyFor(e);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return counts;
-  }, [prepared, phase, visibleEvents, childKeyFor]);
-
-  /** Does an event match the current chart selection (subcat or type)? */
+  /** Does an event belong to the metric row the viewer picked? */
   const eventMatchesHighlight = useCallback(
-    (e: WeekEvent) => {
-      if (highlightKey == null) return false;
-      if (highlightKey.startsWith("l:")) {
-        return childKeyFor(e) === highlightKey.slice(2);
-      }
-      return rowKeyFor(e) === highlightKey;
-    },
-    [highlightKey, rowKeyFor, childKeyFor],
+    (e: WeekEvent) => highlightMetricId != null && e.metric_id === highlightMetricId,
+    [highlightMetricId],
   );
 
   const chartMax = useMemo(
@@ -960,6 +987,178 @@ export default function WeekReplayMap({
 
   const eventCount = prepared?.events.length ?? 0;
   const interactive = phase === "paused" || phase === "ended";
+
+  const hasDistrictShapes = (sketch?.districts.length ?? 0) > 0;
+  const hasPlacePoint = isPlaceScope && placeLat != null && placeLng != null;
+
+  /** Base a marker disc is tinted toward, so the icon on it stays readable. */
+  const markerFace = mapTheme === "dark" ? "#0f172a" : "#ffffff";
+
+  /**
+   * One event on the map.
+   *
+   * Drawn as the metric's own icon when it has one, so a glance reads as
+   * "graffiti, permit, assault" rather than as anonymous color. Metrics without
+   * an emoji keep the dot, and the dot also stays as the shape under the icon
+   * for the two states that need a crisp outline: the held key moment and a
+   * tapped selection.
+   */
+  const renderEvent = useCallback(
+    (e: PreparedEvent) => {
+      const isRecent =
+        phase === "playing" && playMs - e.playMs <= PULSE_WINDOW_MS;
+      const isSelected = selectedEventId === e.id;
+      const emphasized = eventMatchesHighlight(e);
+      const dimmed = highlightMetricId != null && !emphasized;
+      const isKeyNow = activeKeyMoment?.event.id === e.id;
+      const hasPhoto = mediaIsPendingOrOk(e.media_url);
+      const color = eventColor(e);
+      const icon = metricIcon(e.metric_name);
+      // The disc carries the metric's color; the icon rides on top of it. Sized
+      // so a ring of color still shows around the glyph — the color is the only
+      // thing tying a marker back to its row in the chart.
+      const r = isKeyNow ? 13 : isSelected ? 11 : emphasized ? 10 : e.is_key || hasPhoto ? 9.5 : 8.5;
+      const size = r * 1.35;
+      const opacity = dimmed ? 0.18 : isKeyNow || isRecent || emphasized ? 1 : 0.88;
+
+      return (
+        <g key={e.id}>
+          {isKeyNow && !dimmed && (
+            <circle
+              className={styles.keyHalo}
+              cx={e.x}
+              cy={e.y}
+              r={13}
+              fill="none"
+              stroke={hasPhoto ? MEDIA_GOLD : "#ad35fa"}
+              strokeWidth={1.5}
+            />
+          )}
+          {isRecent && (
+            <circle
+              className={styles.pulseRing}
+              cx={e.x}
+              cy={e.y}
+              r={4}
+              fill="none"
+              stroke={color}
+              strokeWidth={1.5}
+            />
+          )}
+          <circle
+            className={styles.dot}
+            cx={e.x}
+            cy={e.y}
+            r={r}
+            fill={icon ? mixHex(color, markerFace, 0.22) : color}
+            stroke={hasPhoto ? MEDIA_GOLD : color}
+            strokeWidth={hasPhoto || isKeyNow ? 3 : 2}
+            opacity={opacity}
+          />
+          {icon && (
+            <text
+              className={styles.eventIcon}
+              x={e.x}
+              y={e.y}
+              fontSize={size}
+              opacity={opacity}
+              textAnchor="middle"
+              dominantBaseline="central"
+              aria-hidden="true"
+            >
+              {icon}
+            </text>
+          )}
+          {interactive && !dimmed && (
+            <circle
+              className={styles.hitTarget}
+              cx={e.x}
+              cy={e.y}
+              r={11}
+              fill="transparent"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                setSelectedEventId(isSelected ? null : e.id);
+              }}
+            />
+          )}
+        </g>
+      );
+    },
+    [
+      phase,
+      playMs,
+      selectedEventId,
+      eventMatchesHighlight,
+      highlightMetricId,
+      activeKeyMoment,
+      mediaIsPendingOrOk,
+      eventColor,
+      interactive,
+      markerFace,
+    ],
+  );
+
+  /** The held key event is painted above the veil; everything else below it. */
+  const heldEvent = activeKeyMoment?.event ?? null;
+  const routineEvents = useMemo(
+    () => visibleEvents.filter((e) => e.id !== heldEvent?.id),
+    [visibleEvents, heldEvent],
+  );
+
+  // ── Video export ──────────────────────────────────────────────────────
+  const [exportOpen, setExportOpen] = useState(false);
+  /** WebCodecs only; hide the entry point rather than offer a dead end. */
+  const canExport = useMemo(
+    () => isVideoExportSupported() && eventCount > 0,
+    [eventCount],
+  );
+  /** Names the replay in the video's title card and filename. */
+  const resolvedScopeLabel =
+    (scopeLabel || "").trim() ||
+    (isPlaceScope ? (placeName || "").trim() : "") ||
+    (selectedDistrict > 0 ? `District ${selectedDistrict}` : "") ||
+    "your city";
+
+  /**
+   * Headline for the unit. A place is somewhere you are ("at Bay"), a district
+   * or city is somewhere things happen ("in San Francisco").
+   */
+  const headline = isPlaceScope
+    ? `Last week at ${resolvedScopeLabel}`
+    : `Last week in ${resolvedScopeLabel}`;
+
+  /**
+   * One line under the headline. It reports where playback is while running,
+   * and what the week added up to once it isn't — never restating the headline,
+   * since the two sit directly on top of each other.
+   */
+  const subline = useMemo(() => {
+    if (isError) return "Couldn't load the last 7 days.";
+    if (isRunning) {
+      return `${visibleEvents.length} of ${eventCount} events so far`;
+    }
+    if (eventCount === 0) {
+      return windowRange
+        ? `No mapped events between ${windowRange}.`
+        : "No mapped events in the last 7 days.";
+    }
+    const counted =
+      data && data.total_before_cap > eventCount
+        ? `${eventCount} of ${data.total_before_cap} events mapped`
+        : `${eventCount} events mapped`;
+    const categories =
+      chartRows.length > 1 ? `${chartRows.length} categories` : null;
+    return [windowRange, counted, categories].filter(Boolean).join(" · ");
+  }, [
+    isError,
+    isRunning,
+    visibleEvents.length,
+    eventCount,
+    windowRange,
+    data,
+    chartRows.length,
+  ]);
   /** No events for this scope: keep the map with a small note instead of a
       mostly empty control panel. */
   const emptyTile = !isLoading && !isError && eventCount === 0;
@@ -1002,9 +1201,13 @@ export default function WeekReplayMap({
         {basemapUrl && (
           <img src={basemapUrl} alt="" className={styles.basemap} aria-hidden="true" />
         )}
-        {sketch && sketch.districts.length > 0 && (
+        {/* The overlay carries the place marker and its capture square as well
+            as the district shapes, so it has to render for a place even when
+            the city has no shapes at all — otherwise "your place" vanishes
+            from its own replay in every city we haven't drawn yet. */}
+        {(hasDistrictShapes || hasPlacePoint) && (
           <SketchOverlay
-            sketch={sketch}
+            sketch={sketch ?? EMPTY_SKETCH}
             viewBbox={viewBbox}
             highlightDistrict={highlightDistrict}
             showCityOutline={highlightDistrict == null && !isPlaceScope}
@@ -1021,24 +1224,18 @@ export default function WeekReplayMap({
           />
         )}
 
-        {/* Time-of-day wash: night dims the basemap, weekends warm it. Both
-            sit under the dots so events stay at full contrast. */}
+        {/* Weekend warmth sits under the events. */}
         {isRunning && (
-          <>
-            <div
-              className={styles.nightScrim}
-              style={{ opacity: nightLevel * NIGHT_SCRIM_MAX }}
-              aria-hidden="true"
-            />
-            <div
-              className={styles.weekendWash}
-              style={{ opacity: weekendLevel * WEEKEND_WASH_MAX }}
-              aria-hidden="true"
-            />
-          </>
+          <div
+            className={styles.weekendWash}
+            style={{ opacity: weekendLevel * WEEKEND_WASH_MAX }}
+            aria-hidden="true"
+          />
         )}
 
-        {/* Animated event layer */}
+        {/* Animated event layer. Routine events, then the spotlight veil, then
+            the event being called out — so the veil pushes back everything
+            except the one thing the callout is naming. */}
         {prepared && phase !== "idle" && (
           <svg
             className={styles.eventLayer}
@@ -1046,109 +1243,59 @@ export default function WeekReplayMap({
             preserveAspectRatio="none"
             style={{ pointerEvents: interactive ? "auto" : "none" }}
           >
-            {visibleEvents.map((e) => {
-              const isRecent =
-                phase === "playing" && playMs - e.playMs <= PULSE_WINDOW_MS;
-              const isSelected = selectedEventId === e.id;
-              const emphasized = eventMatchesHighlight(e);
-              const dimmed = highlightKey != null && !emphasized;
-              const isKeyNow = activeKeyMoment?.event.id === e.id;
-              const hasPhoto = mediaIsPendingOrOk(e.media_url);
-              const color = eventColor(e);
-              return (
-                <g key={e.id}>
-                  {isKeyNow && !dimmed && (
-                    <circle
-                      className={styles.keyHalo}
-                      cx={e.x}
-                      cy={e.y}
-                      r={13}
-                      fill="none"
-                      stroke={hasPhoto ? MEDIA_GOLD : "#ad35fa"}
-                      strokeWidth={1.5}
-                    />
-                  )}
-                  {isRecent && (
-                    <circle
-                      className={styles.pulseRing}
-                      cx={e.x}
-                      cy={e.y}
-                      r={4}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={1.5}
-                    />
-                  )}
-                  <circle
-                    className={styles.dot}
-                    cx={e.x}
-                    cy={e.y}
-                    r={
-                      isKeyNow
-                        ? 6
-                        : isSelected
-                          ? 5
-                          : emphasized
-                            ? 4.5
-                            : e.is_key || hasPhoto
-                              ? 4
-                              : 3
-                    }
-                    fill={color}
-                    stroke={
-                      hasPhoto
-                        ? MEDIA_GOLD
-                        : isKeyNow || isSelected || emphasized || e.is_key
-                          ? "#fff"
-                          : "none"
-                    }
-                    strokeWidth={
-                      hasPhoto
-                        ? 2
-                        : isKeyNow
-                          ? 2
-                          : isSelected
-                            ? 1.5
-                            : emphasized
-                              ? 0.75
-                              : e.is_key
-                                ? 1
-                                : 0
-                    }
-                    opacity={
-                      dimmed
-                        ? 0.12
-                        : isKeyNow || isRecent || emphasized
-                          ? 0.95
-                          : 0.65
-                    }
-                  />
-                  {interactive && !dimmed && (
-                    <circle
-                      className={styles.hitTarget}
-                      cx={e.x}
-                      cy={e.y}
-                      r={11}
-                      fill="transparent"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        setSelectedEventId(isSelected ? null : e.id);
-                      }}
-                    />
-                  )}
-                </g>
-              );
-            })}
+            {routineEvents.map(renderEvent)}
+
+            {spotlightLevel > 0.01 && activeKeyMoment && (
+              <>
+                <defs>
+                  <radialGradient
+                    id={spotlightGradientId}
+                    gradientUnits="userSpaceOnUse"
+                    cx={activeKeyMoment.event.x}
+                    cy={activeKeyMoment.event.y}
+                    r={spotlightOuterR}
+                  >
+                    {/* Clear out to the pulse ring's own reach, then fall away
+                        quickly: a pool of light, not a vignette. */}
+                    <stop offset={SPOTLIGHT_CLEAR_R / spotlightOuterR} stopColor="#020617" stopOpacity="0" />
+                    <stop offset={(SPOTLIGHT_CLEAR_R * 2.6) / spotlightOuterR} stopColor="#020617" stopOpacity="0.7" />
+                    <stop offset={(SPOTLIGHT_CLEAR_R * 6) / spotlightOuterR} stopColor="#020617" stopOpacity="0.95" />
+                    <stop offset="1" stopColor="#020617" stopOpacity="1" />
+                  </radialGradient>
+                </defs>
+                <rect
+                  x={0}
+                  y={0}
+                  width={mapW}
+                  height={mapH}
+                  fill={`url(#${spotlightGradientId})`}
+                  opacity={spotlightLevel * SPOTLIGHT_SCRIM_MAX}
+                  pointerEvents="none"
+                />
+              </>
+            )}
+
+            {heldEvent ? renderEvent(heldEvent) : null}
           </svg>
         )}
         </div>
 
-        {/* Idle: centered play button (spinner while sources still load) */}
+        {/* Idle: centered play button (spinner while sources still load).
+            Everything the load has to say is said here, on the map, so the
+            unit stays a single quiet object until it is asked to run. */}
         {phase === "idle" && (isLoading || eventCount > 0) && (
           <div className={styles.idleOverlay}>
             {isLoading ? (
-              <span className={styles.mapLoaderChip} aria-hidden="true">
+              <span className={styles.mapLoaderChip}>
                 <Loader size="md" color={theme === "dark" ? "white" : "purple"} />
+                <span className={styles.loaderCaption}>
+                  Preparing your weekly replay
+                  {loadProgress ? (
+                    <span className={styles.loaderProgress}>
+                      Loading {loadProgress.done} of {loadProgress.total} sources
+                    </span>
+                  ) : null}
+                </span>
               </span>
             ) : (
               <button
@@ -1167,7 +1314,6 @@ export default function WeekReplayMap({
             )}
           </div>
         )}
-
         {/* Empty state: small note at the bottom of the full-width map */}
         {emptyTile && data && (
           <span className={styles.emptyNote}>
@@ -1244,9 +1390,11 @@ export default function WeekReplayMap({
                     {keyCallout?.icon ? (
                       <span aria-hidden="true">{keyCallout.icon} </span>
                     ) : null}
-                    {keyCallout?.label}
+                    {keyCallout?.title}
                   </span>
-                  <span className={styles.keyCalloutMeta}>{keyCallout?.onMap}</span>
+                  {keyCallout?.detail ? (
+                    <span className={styles.keyCalloutMeta}>{keyCallout.detail}</span>
+                  ) : null}
                 </div>
               )}
 
@@ -1280,40 +1428,50 @@ export default function WeekReplayMap({
                     />
                   ) : null}
                   <span className={styles.keyCalloutLabel}>
-                    {metricIcon(selectedEvent.metric_name) ? (
-                      <span aria-hidden="true">
-                        {metricIcon(selectedEvent.metric_name)}{" "}
-                      </span>
+                    {selectionCallout?.icon ? (
+                      <span aria-hidden="true">{selectionCallout.icon} </span>
                     ) : null}
-                    {selectedEvent.label}
+                    {selectionCallout?.title}
                   </span>
-                  {selectedEvent.address && (
+                  {selectionCallout?.detail ? (
                     <span className={styles.keyCalloutMeta}>
-                      {selectedEvent.address}
+                      {selectionCallout.detail}
                     </span>
-                  )}
-                  <span className={styles.keyCalloutMeta}>
-                    {formatEventTime(selectedEvent.ts)} ·{" "}
-                    {metricDisplayName(selectedEvent.metric_name)}
-                  </span>
-                  {onEventMetricClick && (
-                    <button
-                      type="button"
-                      className={styles.popoverLink}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEventMetricClick(selectedEvent.metric_id);
-                      }}
-                    >
-                      View metric
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
 
-            {phase === "ended" && getShareUrl ? (
+            {phase === "ended" && (getShareUrl || canExport) ? (
               <div className={styles.mapShare}>
+                {canExport && (
+                  <button
+                    type="button"
+                    className={styles.headerShareButton}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExportOpen(true);
+                    }}
+                    aria-label="Save this week replay as a video"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="11"
+                      height="11"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="2" y="5" width="14" height="14" rx="2.5" />
+                      <path d="M16 10l6-3.5v11L16 14z" />
+                    </svg>
+                    Video
+                  </button>
+                )}
+                {getShareUrl && (
                 <button
                   type="button"
                   className={styles.headerShareButton}
@@ -1349,215 +1507,79 @@ export default function WeekReplayMap({
                         ? "Failed"
                         : "Share"}
                 </button>
+                )}
               </div>
             ) : null}
           </>
         )}
       </div>
 
-      {/* ── Control panel (row below the map; hidden when empty) ── */}
-      {!emptyTile && (
+      {/* ── Control panel ──
+          Held back until the viewer presses play. Before that the unit is a
+          map with one affordance on it, so it sits quietly next to the rest of
+          the page instead of competing with it. An error is the exception: it
+          needs somewhere to offer a retry. */}
+      {!emptyTile && (phase !== "idle" || isError) && (
       <div className={styles.panel}>
-        {/* Idle / error header — the live clock lives on the map instead. */}
-        {(phase === "idle" || isError) && (
-        <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>
-            {isLoading
-              ? "Preparing your replay…"
-              : eventCount > 0
-                ? `Last 7 days — ${eventCount} events`
-                : isError
-                  ? "Couldn't load the last 7 days"
-                  : "No mapped events in the last 7 days"}
-            {!isLoading && eventCount > 0 && data && data.total_before_cap > eventCount
-              ? ` (of ${data.total_before_cap})`
-              : ""}
-            {!isLoading && windowRange ? (
-              <span className={styles.panelTitleRange}> · {windowRange}</span>
-            ) : null}
+        <div className={styles.panelLead}>
+          <span className={styles.panelHeadline}>{headline}</span>
+          <span className={styles.panelSubline}>
+            {subline}
+            {isError && phase === "idle" && (
+              <button
+                type="button"
+                className={styles.idleRetry}
+                onClick={() => void refetch()}
+              >
+                Try again
+              </button>
+            )}
           </span>
-
-          <span className={styles.panelHeaderSpacer} />
-
-          {isError && phase === "idle" && (
-            <button
-              type="button"
-              className={styles.idleRetry}
-              onClick={() => void refetch()}
-            >
-              Try again
-            </button>
-          )}
-        </div>
-        )}
-
-        {/* Ticker: the key event currently holding the screen */}
-        <div className={styles.ticker}>
-          {activeKeyMoment ? (
-            <div
-              className={styles.eventCard}
-              key={activeKeyMoment.event.id}
-              data-leaving={keyMomentLeaving ? "true" : undefined}
-            >
-              {keyCallout?.icon ? (
-                <span className={styles.eventCardEmoji} aria-hidden="true">
-                  {keyCallout.icon}
-                </span>
-              ) : (
-                <span
-                  className={styles.eventCardDot}
-                  style={{ background: eventColor(activeKeyMoment.event) }}
-                />
-              )}
-              <span className={styles.eventCardBody}>
-                <span className={styles.eventCardLabel}>{keyCallout?.label}</span>
-                <span className={styles.eventCardMeta}>{keyCallout?.inTicker}</span>
-              </span>
-            </div>
-          ) : isRunning ? (
-            // Between key moments: a quiet running tally so the row keeps its
-            // height and the build-up still reads as progress.
-            <span className={styles.tickerCount}>
-              {visibleEvents.length} of {eventCount} events so far
-            </span>
-          ) : phase === "idle" && isLoading ? (
-            <div className={styles.loadingBlock}>
-              <span className={styles.tickerHint}>
-                Building an animated replay of every event mapped {scopePhrase}{" "}
-                over the last 7 days{windowRange ? ` (${windowRange})` : ""}…
-              </span>
-              <div className={styles.progressTrack}>
-                <div
-                  className={styles.progressFill}
-                  data-indeterminate={loadProgress ? undefined : "true"}
-                  style={
-                    loadProgress
-                      ? {
-                          width: `${
-                            (loadProgress.done / Math.max(1, loadProgress.total)) * 100
-                          }%`,
-                        }
-                      : undefined
-                  }
-                />
-              </div>
-              {loadProgress && (
-                <span className={styles.progressLabel}>
-                  {loadProgress.done} of {loadProgress.total} data sources
-                  {eventCount > 0 ? ` · ${eventCount} events so far` : ""}
-                </span>
-              )}
-            </div>
-          ) : phase === "idle" && eventCount > 0 ? (
-            <span className={styles.tickerHint}>
-              Press play to watch the last 7 days unfold.
-            </span>
-          ) : null}
         </div>
 
-        {/* Bar chart: subcategory (level 1) → request/incident type (level 2).
-            Children stay collapsed until their subcategory is clicked;
-            clicking also highlights those dots on the map. */}
+        {/* Metrics, busiest first. Clicking one highlights its events on the
+            map; the list scrolls past the first few rather than growing. */}
         {chartRows.length > 0 && (
-          <div className={styles.chart} aria-label="Events by category">
+          <div className={styles.chart} aria-label="Events by metric">
             {chartRows.map((row) => {
-              const live = liveChartCounts.get(row.key) ?? 0;
-              const isActive = highlightKey === row.key;
-              const children = chartChildren.get(row.key) ?? [];
-              const isExpanded = expandedKeys.has(row.key);
-              const childActive = highlightKey?.startsWith(`l:${row.key}::`);
-              const isMuted =
-                highlightKey != null && !isActive && !childActive;
+              const live = liveChartCounts.get(row.metricId) ?? 0;
+              const isActive = highlightMetricId === row.metricId;
+              const isMuted = highlightMetricId != null && !isActive;
               return (
-                <div key={row.key} className={styles.chartGroup}>
-                  <button
-                    type="button"
-                    className={`${styles.chartRow}${isActive ? ` ${styles.chartRowActive}` : ""}${isMuted ? ` ${styles.chartRowMuted}` : ""}`}
-                    onClick={() => {
-                      revealEndState();
-                      setExpandedKeys((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(row.key)) next.delete(row.key);
-                        else next.add(row.key);
-                        return next;
-                      });
-                      // Collapsing clears the highlight; expanding sets it.
-                      setHighlightKey(isExpanded ? null : row.key);
-                    }}
-                    aria-pressed={isActive}
-                    aria-expanded={isExpanded}
-                    title={
-                      isExpanded
-                        ? "Collapse and clear highlight"
-                        : `Highlight ${row.key} events and show its metrics`
-                    }
-                  >
-                    <span className={styles.chartLabel}>
-                      {children.length > 0 && (
-                        <span className={styles.chartCaret} aria-hidden="true">
-                          {isExpanded ? "▾" : "▸"}
-                        </span>
-                      )}
-                      {row.key}
-                    </span>
-                    <span className={styles.chartTrack}>
-                      <span
-                        className={styles.chartBar}
-                        style={{
-                          width: `${(live / chartMax) * 100}%`,
-                          background: row.color,
-                        }}
-                      />
-                    </span>
-                    <span className={styles.chartCount}>{live}</span>
-                  </button>
-
-                  {isExpanded &&
-                    children.map((child) => {
-                      const childKey = `l:${child.key}`;
-                      const childLive = liveChildCounts.get(child.key) ?? 0;
-                      const childIsActive = highlightKey === childKey;
-                      return (
-                        <button
-                          key={child.key}
-                          type="button"
-                          className={`${styles.chartChildRow}${childIsActive ? ` ${styles.chartRowActive}` : ""}${isMuted && !childIsActive ? ` ${styles.chartRowMuted}` : ""}`}
-                          onClick={() => {
-                            revealEndState();
-                            setHighlightKey(childIsActive ? null : childKey);
-                          }}
-                          aria-pressed={childIsActive}
-                          title={
-                            childIsActive
-                              ? "Clear highlight"
-                              : `Highlight only ${child.label}`
-                          }
-                        >
-                          <span className={styles.chartChildLabel}>
-                            {child.icon && (
-                              <span
-                                className={styles.chartChildIcon}
-                                aria-hidden="true"
-                              >
-                                {child.icon}
-                              </span>
-                            )}
-                            {child.label}
-                          </span>
-                          <span className={styles.chartTrack}>
-                            <span
-                              className={`${styles.chartBar} ${styles.chartChildBar}`}
-                              style={{
-                                width: `${(childLive / chartMax) * 100}%`,
-                                background: row.color,
-                              }}
-                            />
-                          </span>
-                          <span className={styles.chartCount}>{childLive}</span>
-                        </button>
-                      );
-                    })}
-                </div>
+                <button
+                  key={row.metricId}
+                  type="button"
+                  className={`${styles.chartRow}${isActive ? ` ${styles.chartRowActive}` : ""}${isMuted ? ` ${styles.chartRowMuted}` : ""}`}
+                  onClick={() => {
+                    revealEndState();
+                    setHighlightMetricId(isActive ? null : row.metricId);
+                  }}
+                  aria-pressed={isActive}
+                  title={
+                    isActive
+                      ? "Clear highlight"
+                      : `Highlight ${row.label} on the map`
+                  }
+                >
+                  <span className={styles.chartLabel}>
+                    {row.icon && (
+                      <span className={styles.chartIcon} aria-hidden="true">
+                        {row.icon}
+                      </span>
+                    )}
+                    {row.label}
+                  </span>
+                  <span className={styles.chartTrack}>
+                    <span
+                      className={styles.chartBar}
+                      style={{
+                        width: `${(live / chartMax) * 100}%`,
+                        background: row.color,
+                      }}
+                    />
+                  </span>
+                  <span className={styles.chartCount}>{live}</span>
+                </button>
               );
             })}
           </div>
@@ -1595,6 +1617,43 @@ export default function WeekReplayMap({
                 </svg>
               )}
             </button>
+
+            {/* Sound toggle. Visible whether or not playback has started, so
+                the choice is made before the first blip rather than after. */}
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={toggleSound}
+              aria-pressed={soundOn}
+              aria-label={soundOn ? "Mute replay sound" : "Unmute replay sound"}
+              title={soundOn ? "Sound on" : "Sound off"}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11 5 6.5 9H3v6h3.5L11 19z" fill="currentColor" stroke="none" />
+                {soundOn ? (
+                  <>
+                    <path d="M15.5 8.5a4.5 4.5 0 0 1 0 7" />
+                    <path d="M18.5 5.5a8.5 8.5 0 0 1 0 13" />
+                  </>
+                ) : (
+                  <>
+                    <line x1="16" y1="9" x2="21" y2="15" />
+                    <line x1="21" y1="9" x2="16" y2="15" />
+                  </>
+                )}
+              </svg>
+            </button>
+
             <div
               ref={scrubberRef}
               className={styles.scrubber}
@@ -1607,6 +1666,7 @@ export default function WeekReplayMap({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={duration ? Math.round((playMs / duration) * 100) : 0}
+              aria-valuetext={`${formatPlaybackClock(playMs)} of ${formatPlaybackClock(duration)}`}
             >
               <div className={styles.scrubberTrack}>
                 <div
@@ -1647,9 +1707,38 @@ export default function WeekReplayMap({
                 ))}
               </div>
             </div>
+
+            {/* How far in, and how long the whole thing runs — so the length is
+                known before committing to it. The slider carries the same
+                reading in aria-valuetext, so this stays out of the a11y tree
+                rather than being announced on every frame. */}
+            <span className={styles.timeReadout} aria-hidden="true">
+              {formatPlaybackClock(playMs)}
+              <span className={styles.timeReadoutTotal}>
+                {" / "}
+                {formatPlaybackClock(duration)}
+              </span>
+            </span>
           </div>
         )}
       </div>
+      )}
+
+      {exportOpen && data && (
+        <WeekReplayExportDialog
+          onClose={() => setExportOpen(false)}
+          data={data}
+          sketch={sketch}
+          selectedDistrict={selectedDistrict}
+          isPlaceScope={isPlaceScope}
+          placeDistrict={placeDistrict}
+          placeLat={placeLat}
+          placeLng={placeLng}
+          placeRadiusM={placeRadiusM}
+          scopeLabel={resolvedScopeLabel}
+          theme={mapTheme}
+          getShareUrl={getShareUrl}
+        />
       )}
 
       {/* ── Selected event details.
@@ -1676,9 +1765,9 @@ export default function WeekReplayMap({
                   alt=""
                   className={styles.sheetPhoto}
                 />
-              ) : metricIcon(selectedEvent.metric_name) ? (
+              ) : selectionCallout?.icon ? (
                 <span className={styles.sheetIcon} aria-hidden="true">
-                  {metricIcon(selectedEvent.metric_name)}
+                  {selectionCallout.icon}
                 </span>
               ) : (
                 <span
@@ -1686,14 +1775,10 @@ export default function WeekReplayMap({
                   style={{ background: eventColor(selectedEvent) }}
                 />
               )}
-              <span className={styles.popoverLabel}>{selectedEvent.label}</span>
-              {selectedEvent.address && (
-                <span className={styles.popoverMeta}>{selectedEvent.address}</span>
-              )}
-              <span className={styles.popoverMeta}>
-                {formatEventTime(selectedEvent.ts)} ·{" "}
-                {metricDisplayName(selectedEvent.metric_name)}
-              </span>
+              <span className={styles.popoverLabel}>{selectionCallout?.title}</span>
+              {selectionCallout?.detail ? (
+                <span className={styles.popoverMeta}>{selectionCallout.detail}</span>
+              ) : null}
               {onEventMetricClick && (
                 <button
                   type="button"
@@ -1728,22 +1813,16 @@ export default function WeekReplayMap({
                     ×
                   </button>
                   <span className={styles.popoverLabel}>
-                    {metricIcon(selectedEvent.metric_name) ? (
-                      <span aria-hidden="true">
-                        {metricIcon(selectedEvent.metric_name)}{" "}
-                      </span>
+                    {selectionCallout?.icon ? (
+                      <span aria-hidden="true">{selectionCallout.icon} </span>
                     ) : null}
-                    {selectedEvent.label}
+                    {selectionCallout?.title}
                   </span>
-                  {selectedEvent.address && (
+                  {selectionCallout?.detail ? (
                     <span className={styles.popoverMeta}>
-                      {selectedEvent.address}
+                      {selectionCallout.detail}
                     </span>
-                  )}
-                  <span className={styles.popoverMeta}>
-                    {formatEventTime(selectedEvent.ts)} ·{" "}
-                    {metricDisplayName(selectedEvent.metric_name)}
-                  </span>
+                  ) : null}
                   {onEventMetricClick && (
                     <button
                       type="button"

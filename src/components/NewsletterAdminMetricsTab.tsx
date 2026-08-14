@@ -108,8 +108,8 @@ export default function NewsletterAdminMetricsTab() {
             <span className={styles.tableCount}>({total} campaigns)</span>
           </span>
           <span className={styles.tableCount}>
-            Clicks and visits accrue from Aug 2026 onward; opens require the
-            tracking pixel and are approximate.
+            Clicks count when a recipient opens a newsletter link in the
+            browser. Opens require the tracking pixel and are approximate.
           </span>
         </div>
         <div className={styles.tableWrapper}>

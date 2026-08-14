@@ -65,6 +65,16 @@ export const NEWSLETTER_PERSONA_PRESETS: PersonaPreset[] = [
     label: "Civic watchdog",
     detailPlaceholder: "e.g. I follow the city budget and hold officials accountable",
   },
+  {
+    id: "elected-official",
+    label: "Elected official",
+    detailPlaceholder: "e.g. District 6 Supervisor — I need district-first data briefings",
+  },
+  {
+    id: "city-staff",
+    label: "City staff",
+    detailPlaceholder: "e.g. I work in the Mayor's office and follow citywide service metrics",
+  },
 ];
 
 export const MAX_PERSONA_SELECTIONS = 3;
@@ -81,7 +91,8 @@ export const LEGACY_PERSONA_ID_MAP: Record<string, string> = {
   "crime-watcher": "safety-neighbor",
   "frequent-diner": "local-explorer",
   "frequent-shopper": "local-explorer",
-  "elected-official": "civic-watchdog",
+  // "elected-official" is no longer legacy — it's a first-class persona (government users).
+  // Existing users who had this id saved will keep it as-is (it's now valid).
 };
 
 const VALID_PERSONA_IDS = new Set(NEWSLETTER_PERSONA_PRESETS.map((p) => p.id));

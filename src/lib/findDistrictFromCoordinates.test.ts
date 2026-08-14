@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 
-import { resolveDistrictFromShapefiles } from "./findDistrictFromCoordinates";
+import {
+  parseDistrictIdentifier,
+  resolveDistrictFromShapefiles,
+} from "./findDistrictFromCoordinates";
 import type { CityShapefile } from "@/lib/apiClient";
 
 // Simple unit squares so point-in-polygon is unambiguous.
@@ -89,5 +92,99 @@ describe("resolveDistrictFromShapefiles (name-identified layers)", () => {
     });
     const result = resolveDistrictFromShapefiles(39.17, -84.44, [layer], null, 5);
     expect(result).toBe(7);
+  });
+});
+
+function zipLayer(): CityShapefile {
+  return makeLayer({
+    id: 99,
+    city_id: 1,
+    shapefile_name: "ZIP Codes",
+    structure_type: "zip",
+    identifier_field: "zip",
+    geometry_data: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { zip: "94102" },
+          geometry: { type: "Polygon", coordinates: [NORTH_AVONDALE_SQUARE] },
+        },
+      ],
+    },
+  });
+}
+
+function supervisorLayer(): CityShapefile {
+  return makeLayer({
+    id: 5,
+    city_id: 1,
+    shapefile_name: "Supervisor Districts",
+    structure_type: "district",
+    identifier_field: "supervisor_district",
+    is_official_district_layer: true,
+    geometry_data: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { supervisor_district: "6" },
+          geometry: { type: "Polygon", coordinates: [NORTH_AVONDALE_SQUARE] },
+        },
+      ],
+    },
+  });
+}
+
+describe("resolveDistrictFromShapefiles (ZIP vs district)", () => {
+  it("does not treat a ZIP code layer as the district", () => {
+    const result = resolveDistrictFromShapefiles(39.17, -84.44, [zipLayer()]);
+    expect(result).toBeNull();
+  });
+
+  it("uses the official district even when a ZIP layer is listed first", () => {
+    const result = resolveDistrictFromShapefiles(
+      39.17,
+      -84.44,
+      [zipLayer(), supervisorLayer()],
+    );
+    expect(result).toBe(6);
+  });
+
+  it("rejects a 5-digit ZIP stored as the district identifier value", () => {
+    const layer = makeLayer({
+      id: 5,
+      city_id: 1,
+      shapefile_name: "Supervisor Districts",
+      structure_type: "district",
+      identifier_field: "supervisor_district",
+      geometry_data: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { supervisor_district: "94102" },
+            geometry: { type: "Polygon", coordinates: [NORTH_AVONDALE_SQUARE] },
+          },
+        ],
+      },
+    });
+    const result = resolveDistrictFromShapefiles(39.17, -84.44, [layer], null, 5);
+    expect(result).toBeNull();
+  });
+});
+
+describe("parseDistrictIdentifier", () => {
+  it("parses compact district codes", () => {
+    expect(parseDistrictIdentifier(6)).toBe(6);
+    expect(parseDistrictIdentifier("District 7")).toBe(7);
+    expect(parseDistrictIdentifier("03")).toBe(3);
+  });
+
+  it("rejects US ZIP codes", () => {
+    expect(parseDistrictIdentifier("94102")).toBeNull();
+    expect(parseDistrictIdentifier(94102)).toBeNull();
+    expect(parseDistrictIdentifier("02101")).toBeNull();
+    expect(parseDistrictIdentifier("94102-1234")).toBeNull();
   });
 });

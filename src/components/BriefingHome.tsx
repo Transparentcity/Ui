@@ -8,17 +8,24 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getDbUserProfile,
   listInbox,
+  shareWeekReplay,
   type ComparisonType,
   type InboxItem,
 } from "@/lib/apiClient";
 import type { CityLeader } from "@/lib/apiClient";
 import type { BoundarySketch } from "@/lib/publicApiClient";
 import MiniScopeMap from "@/components/MiniScopeMap";
+import WeekReplayMap from "@/components/WeekReplayMap";
 import { emitOpenAddPlace, emitOpenEditPlace } from "@/lib/uiEvents";
 import { getImpersonationCacheKey } from "@/lib/impersonation";
 import { feedKeys, useFeedStories, type FeedStory } from "@/lib/hooks/useFeed";
-import { enrichStories, type EnrichedFeedStory } from "@/lib/feed/mockFeedData";
+import {
+  appendImageTheme,
+  enrichStories,
+  type EnrichedFeedStory,
+} from "@/lib/feed/mockFeedData";
 import { resolveCanonicalUrl } from "@/lib/feed/canonicalUrl";
+import { useTheme } from "@/contexts/ThemeContext";
 import { pickCitywideLeader } from "@/lib/publicLeadersPick";
 import FeedStoryModal from "@/components/feed/FeedStoryModal";
 import type { MoverMetricInput } from "@/lib/metrics/rankMetricMovers";
@@ -28,8 +35,8 @@ import InboxItemView from "@/components/InboxItemView";
 import Loader from "@/components/Loader";
 import styles from "./BriefingHome.module.css";
 
-const STORIES_INITIAL_LIMIT = 3;
-const EDITIONS_INITIAL_LIMIT = 5;
+const STORIES_INITIAL_LIMIT = 5;
+const EDITIONS_INITIAL_LIMIT = 3;
 
 interface BriefingHomeProps {
   cityId: number;
@@ -87,6 +94,10 @@ interface BriefingHomeProps {
   /** Full metrics table, shown when "All metrics" is selected in the header.
    *  Parent owns the element (mount/visibility) so it isn't mounted twice. */
   fullDashboardSlot?: React.ReactNode;
+  /** Global platform admin. Week Replay is feature-flagged to admins only
+   *  while it's still being validated (data-correctness and perf fixes are
+   *  recent) — everyone else keeps the static MiniScopeMap hero. */
+  isAdmin?: boolean;
 }
 
 function storyTimestamp(story: EnrichedFeedStory): number {
@@ -206,8 +217,12 @@ function StoryRowItem({
   placeLabelById?: Map<number, string>;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const { theme } = useTheme();
   const excerpt = storyExcerpt(story);
-  const imageUrl = story.image_url_resolved || story.image_url || null;
+  const imageUrl = appendImageTheme(
+    story.image_url_resolved || story.image_url || null,
+    theme,
+  );
   const showImage = !!imageUrl && !imgFailed;
   return (
     <li>
@@ -374,6 +389,7 @@ export default function BriefingHome({
   onBrowseAllChange,
   onDistrictSelect,
   fullDashboardSlot,
+  isAdmin = false,
 }: BriefingHomeProps) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
@@ -418,6 +434,41 @@ export default function BriefingHome({
   const isPlaceScope = selectedPlaceId != null;
   const district = selectedDistrict ?? 0;
   const isCitywideScope = !isPlaceScope && district === 0;
+
+  // ?replay=1 (newsletter hero deep link) auto-plays the Week Replay once
+  // events load. Read once on mount; client component, so window is safe here.
+  const [replayAutoPlay] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("replay") === "1",
+  );
+
+  const getWeekReplayShareUrl = useCallback(async (): Promise<string | null> => {
+    if (isPlaceScope) {
+      const ok = window.confirm(
+        "Sharing creates a public link that shows this week's events near your place (exact address is not shown). Continue?",
+      );
+      if (!ok) return null;
+    }
+    const token = await getAccessTokenSilently();
+    const res = await shareWeekReplay(token, {
+      cityId,
+      district: isPlaceScope ? null : district,
+      placeId: isPlaceScope ? selectedPlaceId : null,
+    });
+    return res.url_path;
+  }, [
+    cityId,
+    district,
+    getAccessTokenSilently,
+    isPlaceScope,
+    selectedPlaceId,
+  ]);
+
+  const weekReplayShareTitle = useMemo(
+    () => `My week in ${scopeLabel}`,
+    [scopeLabel],
+  );
 
   const { data: storiesData, isLoading: storiesLoading } = useFeedStories(
     isPlaceScope
@@ -737,22 +788,91 @@ export default function BriefingHome({
           </button>
         )}
 
-        {/* Full-width scope map — streets basemap + district/place overlay. */}
-        {(isPlaceScope
-          ? placeLat != null && placeLng != null
-          : sketch && sketch.districts.length > 0) && (
-            <MiniScopeMap
-              sketch={sketch}
-              selectedDistrict={district}
-              isPlaceScope={isPlaceScope}
-              placeDistrict={placeDistrict}
-              placeLat={placeLat}
-              placeLng={placeLng}
-              placeRadiusM={placeRadiusM}
-              onClick={onOpenScopeSelector}
-              className={styles.heroMapBanner}
-            />
-          )}
+        {/* Full-width scope map. Place scope gets the Week Replay animation
+            (play button → 7-day time-lapse); city/district scopes keep the
+            lightweight static scope map — no week-events fan-out — unless a
+            ?replay=1 deep link explicitly asks for the replay. Feature-flagged
+            to admins only for now — everyone else always gets MiniScopeMap.
+            Show a shimmer skeleton immediately while sketch is loading so
+            the map slot is visible right away rather than suddenly popping in. */}
+        {isPlaceScope ? (
+          /* Place scope: render as soon as we have coordinates */
+          (placeLat != null && placeLng != null) && (
+            isAdmin && (isPlaceScope || replayAutoPlay) ? (
+              <WeekReplayMap
+                cityId={cityId}
+                sketch={sketch}
+                selectedDistrict={district}
+                isPlaceScope={isPlaceScope}
+                placeDistrict={placeDistrict}
+                placeLat={placeLat}
+                placeLng={placeLng}
+                placeRadiusM={placeRadiusM}
+                selectedPlaceId={selectedPlaceId}
+                placeName={isPlaceScope ? scopeLabel : null}
+                scopeLabel={scopeLabel}
+                onOpenScopeSelector={onOpenScopeSelector}
+                onEventMetricClick={onMetricClick}
+                autoPlay={replayAutoPlay}
+                getShareUrl={getWeekReplayShareUrl}
+                shareTitle={weekReplayShareTitle}
+                className={styles.heroMapBanner}
+              />
+            ) : (
+              <MiniScopeMap
+                sketch={sketch}
+                selectedDistrict={district}
+                isPlaceScope={false}
+                placeDistrict={placeDistrict}
+                placeLat={placeLat}
+                placeLng={placeLng}
+                placeRadiusM={placeRadiusM}
+                onClick={onOpenScopeSelector}
+                className={styles.heroMapBanner}
+              />
+            )
+          )
+        ) : (
+          /* City / district scope: show skeleton immediately, swap in real map once sketch arrives */
+          sketch && sketch.districts.length > 0 ? (
+            isAdmin && replayAutoPlay ? (
+              <WeekReplayMap
+                cityId={cityId}
+                sketch={sketch}
+                selectedDistrict={district}
+                isPlaceScope={false}
+                placeDistrict={placeDistrict}
+                placeLat={placeLat}
+                placeLng={placeLng}
+                placeRadiusM={placeRadiusM}
+                selectedPlaceId={selectedPlaceId}
+                placeName={null}
+                scopeLabel={scopeLabel}
+                onOpenScopeSelector={onOpenScopeSelector}
+                onEventMetricClick={onMetricClick}
+                autoPlay={replayAutoPlay}
+                getShareUrl={getWeekReplayShareUrl}
+                shareTitle={weekReplayShareTitle}
+                className={styles.heroMapBanner}
+              />
+            ) : (
+              <MiniScopeMap
+                sketch={sketch}
+                selectedDistrict={district}
+                isPlaceScope={false}
+                placeDistrict={placeDistrict}
+                placeLat={placeLat}
+                placeLng={placeLng}
+                placeRadiusM={placeRadiusM}
+                onClick={onOpenScopeSelector}
+                className={styles.heroMapBanner}
+              />
+            )
+          ) : (
+            /* Skeleton: shows immediately while boundary-sketch is fetching */
+            <div className={styles.skeletonMapBanner} aria-hidden="true" />
+          )
+        )}
 
         <div className={styles.heroChips}>
           {newStoriesCount > 0 && (

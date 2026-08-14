@@ -14,6 +14,8 @@
  * draws the whole week's rhythm under the scrubber).
  */
 
+import { LAYER_COLOR_PALETTE } from "./layerColors";
+
 // ── API types (mirror /api/user/week-events) ───────────────────────────────
 
 export type WeekEventGroup =
@@ -32,6 +34,12 @@ export interface WeekEvent {
   lat: number;
   lon: number;
   label: string;
+  /**
+   * Which one it was: the row's most identifying value, picked server-side from
+   * the metric's own SELECT list ("Corgi Cafe" for a business opening). Null
+   * when the dataset has nothing beyond the type.
+   */
+  detail?: string | null;
   address: string | null;
   metric_id: number;
   metric_name: string;
@@ -111,23 +119,17 @@ export function groupLabel(group: string): string {
 // ── Subcategory colors ─────────────────────────────────────────────────────
 
 /**
- * Categorical palette for metric subcategories (dot colors + bar chart).
- * Brand purple stays reserved for key-event pins.
+ * Categorical palette for dashboard sections (dot colors + bar chart).
+ *
+ * Taken from the shared layer palette in the order it defines, so a category
+ * here reads as the same family of colors the metric and shape map layers use
+ * rather than as a second, unrelated scheme. Brand purple leads that palette
+ * but is skipped here: on this unit it is already spoken for by key-event pins,
+ * the weekend wash, and the scrubber's playhead.
  */
-export const SUBCATEGORY_PALETTE = [
-  "#ef4444", // red
-  "#0ea5e9", // sky
-  "#10b981", // emerald
-  "#f97316", // orange
-  "#6366f1", // indigo
-  "#eab308", // yellow
-  "#14b8a6", // teal
-  "#ec4899", // pink
-  "#84cc16", // lime
-  "#8b5cf6", // violet
-  "#f43f5e", // rose
-  "#06b6d4", // cyan
-] as const;
+export const SUBCATEGORY_PALETTE: readonly string[] = LAYER_COLOR_PALETTE.filter(
+  (color) => color.toLowerCase() !== "#ad35fa",
+);
 
 const SUBCATEGORY_FALLBACK_COLOR = "#94a3b8";
 
@@ -177,6 +179,96 @@ export function metricIcon(metricName: string): string | null {
 /** Metric name with its leading emoji icon stripped. */
 export function metricDisplayName(metricName: string): string {
   return (metricName || "").replace(LEADING_ICON_RE, "").trim();
+}
+
+/**
+ * Text with every leading icon removed, not just the first run.
+ *
+ * Event labels fall back to the metric name server-side, so a label can arrive
+ * already carrying the metric's emoji — and sometimes more than one, separated
+ * by spaces, which a single strip leaves behind. Callouts render the icon as
+ * its own element, so anything left at the front of the text shows up as a
+ * duplicate of it.
+ */
+export function stripLeadingIcons(text: string): string {
+  let out = (text || "").trim();
+  for (;;) {
+    const next = out.replace(LEADING_ICON_RE, "").trim();
+    if (next === out) return out;
+    out = next;
+  }
+}
+
+// ── Event callouts ─────────────────────────────────────────────────────────
+
+export interface EventCallout {
+  /** The metric's emoji, rendered once as its own element. */
+  icon: string | null;
+  /** The metric's name — the same for every event of that metric. */
+  title: string;
+  /** What narrows it to this event: subtype, address, time. */
+  detail: string;
+}
+
+/**
+ * Compose the one-icon, no-repetition callout used by every event card.
+ *
+ * Every metric is treated the same way: the metric's icon and name are the
+ * title, and the line beneath narrows it to this particular event. Titling a
+ * card with whatever descriptor a dataset happened to supply made the same
+ * metric read differently city to city — Oakland's property crime rows carry
+ * their own subtype text and so were titled by it, while SF's business openings
+ * carry none and were titled by the metric. Now the title is always the metric
+ * and the subtype always sits below it.
+ *
+ * The line beneath leads with the most specific thing available: the row's own
+ * identifying value ("Corgi Cafe"), else its subtype text ("Burglary - Auto"),
+ * else the metric's subcategory or dashboard section. Candidates that merely
+ * echo the title are skipped, so a metric named after its own subtype doesn't
+ * say it twice.
+ */
+export function buildEventCallout(e: {
+  label: string;
+  metric_name: string;
+  detail?: string | null;
+  subcategory?: string | null;
+  dash_category?: string | null;
+  address?: string | null;
+  ts: string;
+}): EventCallout {
+  const icon = metricIcon(e.metric_name) ?? metricIcon(e.label);
+  const title = stripLeadingIcons(e.metric_name) || stripLeadingIcons(e.label);
+
+  /**
+   * Redundant when either string contains the other, not just on an exact
+   * match: "Abandoned Vehicle" under "Abandoned Vehicle Complaints (311)" is
+   * an echo, and reads as one.
+   */
+  const echoesTitle = (value: string) => {
+    const a = value.trim().toLowerCase();
+    const b = title.toLowerCase();
+    if (!a) return true;
+    return a === b || b.includes(a) || a.includes(b);
+  };
+
+  const section = (e.dash_category || "").trim()
+    ? formatDashCategoryLabel((e.dash_category || "").trim())
+    : "";
+  const candidates = [
+    (e.detail || "").trim(),
+    stripLeadingIcons(e.label),
+    (e.subcategory || "").trim(),
+    section,
+  ];
+  const context = candidates.find((value) => value && !echoesTitle(value)) ?? null;
+
+  return {
+    icon,
+    title,
+    detail: [context, (e.address || "").trim() || null, formatEventTime(e.ts)]
+      .filter(Boolean)
+      .join(" · "),
+  };
 }
 
 /**
@@ -494,27 +586,42 @@ export function formatClockTime(weekMs: number): string {
 }
 
 /**
- * "Tue 8:14 PM" for callout cards and tooltips.
+ * "8:14 PM" for callout cards and tooltips.
+ *
+ * No weekday: callouts sit directly under the replay's own clock, which names
+ * the day already, and repeating it there costs a line that could carry
+ * something the reader doesn't have.
  *
  * Datasets that record a date but no time arrive as exact midnight, and
- * printing "Tue 12:00 AM" for them claims a precision the source doesn't
- * have. Those fall back to the weekday alone.
+ * printing "12:00 AM" for them claims a precision the source doesn't have, so
+ * those return nothing at all.
  */
 export function formatEventTime(ts: string): string {
   const ms = eventTimeMs(ts);
   if (!ms) return "";
   const d = new Date(ms);
-  const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
   const isMidnight =
     d.getHours() === 0 &&
     d.getMinutes() === 0 &&
     d.getSeconds() === 0 &&
     d.getMilliseconds() === 0;
-  if (isMidnight) return weekday;
-  return `${weekday} ${d.toLocaleTimeString("en-US", {
+  if (isMidnight) return "";
+  return d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-  })}`;
+  });
+}
+
+/**
+ * Playback position as a clock ("0:24"), for the scrubber's time readout.
+ *
+ * Floors rather than rounds, so the readout never claims a second that hasn't
+ * elapsed and never shows a total longer than the replay actually runs.
+ */
+export function formatPlaybackClock(playMs: number): string {
+  const total = Math.max(0, Math.floor(playMs / 1000));
+  const minutes = Math.floor(total / 60);
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
 }
 
 /** 1-based day index within the window (1..7) for "day N of 7". */

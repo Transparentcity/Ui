@@ -312,7 +312,8 @@ export default function WelcomeModal({
       // pre-filled place); only true gifts get the pre-personalized
       // gift_confirm fast path.
       const isMigrationFlow = giftContext?.kind === "substack_migration";
-      const isGiftFlow = !!giftContext && !isMigrationFlow;
+      const isGovFlow = giftContext?.kind === "government";
+      const isGiftFlow = !!giftContext && !isMigrationFlow && !isGovFlow;
       const { firstName, lastName } = isMigrationFlow
         ? { firstName: emailLocalPartFirstName(giftContext?.recipientEmail), lastName: "" }
         : splitGiftRecipientName(giftContext?.recipientName);
@@ -995,7 +996,7 @@ export default function WelcomeModal({
   // Render step indicator
   const renderStepIndicator = () => {
     const steps: Step[] =
-      giftContext && giftContext.kind !== "substack_migration"
+      giftContext && giftContext.kind !== "substack_migration" && giftContext.kind !== "government"
         ? ["gift_confirm"]
         : ["profile", "welcome", "place", "preferences"];
     const currentIndex = steps.indexOf(step);

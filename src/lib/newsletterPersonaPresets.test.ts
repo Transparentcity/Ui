@@ -7,8 +7,8 @@ import {
 } from "./newsletterPersonaPresets";
 
 describe("NEWSLETTER_PERSONA_PRESETS", () => {
-  it("has exactly 8 presets", () => {
-    expect(NEWSLETTER_PERSONA_PRESETS).toHaveLength(8);
+  it("has exactly 10 presets", () => {
+    expect(NEWSLETTER_PERSONA_PRESETS).toHaveLength(10);
   });
 
   it("each preset has a non-empty id, label, and detailPlaceholder", () => {
@@ -58,13 +58,19 @@ describe("normalizePersonaSelections", () => {
     const result = normalizePersonaSelections([
       { id: "real-estate-owner", detail: "duplex" },
       { id: "crime-watcher", detail: "" },
-      { id: "elected-official", detail: "" },
     ]);
     expect(result).toEqual([
       { id: "homeowner", detail: "duplex" },
       { id: "safety-neighbor", detail: "" },
-      { id: "civic-watchdog", detail: "" },
     ]);
+  });
+
+  it("keeps the government personas as first-class ids", () => {
+    const input = [
+      { id: "elected-official", detail: "District 6 Supervisor" },
+      { id: "city-staff", detail: "" },
+    ];
+    expect(normalizePersonaSelections(input)).toEqual(input);
   });
 
   it("de-duplicates diner + shopper into a single local-explorer, keeping first non-empty detail", () => {

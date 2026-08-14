@@ -56,4 +56,34 @@ export function getStableColorForKey(key: string): string {
   return LAYER_COLOR_PALETTE[getStableColorIndexForKey(key)];
 }
 
+/**
+ * Blend two `#rrggbb` colors, `weight` being the share of `hex`.
+ *
+ * A JS equivalent of CSS `color-mix`, for the places that need the resolved
+ * value rather than a style string — canvas fills, most notably.
+ */
+export function mixHex(hex: string, other: string, weight: number): string {
+  const parse = (c: string): [number, number, number] => {
+    const h = c.replace("#", "");
+    const full =
+      h.length === 3
+        ? h
+            .split("")
+            .map((d) => d + d)
+            .join("")
+        : h;
+    return [
+      parseInt(full.slice(0, 2), 16),
+      parseInt(full.slice(2, 4), 16),
+      parseInt(full.slice(4, 6), 16),
+    ];
+  };
+  const w = Math.min(1, Math.max(0, weight));
+  const a = parse(hex);
+  const b = parse(other);
+  const channel = (i: number) => Math.round(a[i] * w + b[i] * (1 - w));
+  const hexPart = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hexPart(channel(0))}${hexPart(channel(1))}${hexPart(channel(2))}`;
+}
+
 

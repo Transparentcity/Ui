@@ -10,13 +10,16 @@ import {
   KEY_HOLD_RATE,
   SUBCATEGORY_PALETTE,
   buildDayNightBands,
+  buildEventCallout,
   buildPlaybackTimeline,
   buildSubcategoryColors,
+  stripLeadingIcons,
   dayIndexInWindow,
   eventDateKey,
   eventSubcategoryKey,
   eventTimeMs,
   formatEventTime,
+  formatPlaybackClock,
   formatWindowRange,
   groupColor,
   groupLabel,
@@ -30,6 +33,7 @@ import {
   windowDateMs,
   windowDayLabels,
 } from "./weekReplay";
+import { LAYER_COLOR_PALETTE } from "./layerColors";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_START = new Date(2026, 6, 20).getTime(); // Monday local
@@ -294,7 +298,159 @@ describe("metric icons", () => {
   });
 });
 
+describe("stripLeadingIcons", () => {
+  it("removes every leading icon run, not just the first", () => {
+    // Labels fall back to the metric name server-side, so the emoji can arrive
+    // more than once; anything left over renders as a duplicate of the icon.
+    expect(stripLeadingIcons("🏢 🏢 Business Location Openings")).toBe(
+      "Business Location Openings",
+    );
+    expect(stripLeadingIcons("🏢🏢 Business Location Openings")).toBe(
+      "Business Location Openings",
+    );
+    expect(stripLeadingIcons("🏗️  📋✅  Permits Issued")).toBe("Permits Issued");
+  });
+
+  it("leaves icon-free text and trailing icons alone", () => {
+    expect(stripLeadingIcons("Larceny Theft Incidents")).toBe(
+      "Larceny Theft Incidents",
+    );
+    expect(stripLeadingIcons("Bay St cleanup 🧽")).toBe("Bay St cleanup 🧽");
+    expect(stripLeadingIcons("")).toBe("");
+  });
+});
+
+describe("buildEventCallout", () => {
+  const base = {
+    label: "🏢 Business Location Openings",
+    metric_name: "🏢 Business Location Openings",
+    subcategory: "Business Location Openings",
+    dash_category: "economy",
+    address: null,
+    ts: "2026-08-10T09:30",
+  };
+
+  it("shows the icon once and never repeats the title underneath", () => {
+    const callout = buildEventCallout(base);
+    expect(callout.icon).toBe("🏢");
+    expect(callout.title).toBe("Business Location Openings");
+    // Subcategory and metric both echo the title, so the section carries it.
+    expect(callout.detail).toBe("Economy · 9:30 AM");
+    expect(callout.detail).not.toContain("Business Location Openings");
+  });
+
+  it("leads the detail with the row's own value when the dataset has one", () => {
+    // A week of openings then reads as a list of businesses, while the title
+    // stays consistent for the metric.
+    const callout = buildEventCallout({
+      ...base,
+      label: "Business Location Openings",
+      detail: "Corgi Cafe",
+      address: "1200 Bay St",
+    });
+    expect(callout.title).toBe("Business Location Openings");
+    expect(callout.detail).toBe("Corgi Cafe · 1200 Bay St · 9:30 AM");
+  });
+
+  it("ignores a row value that only repeats the title", () => {
+    const callout = buildEventCallout({
+      ...base,
+      label: "Abandoned Vehicle",
+      metric_name: "🚗 Abandoned Vehicle",
+      detail: "abandoned vehicle",
+      subcategory: null,
+    });
+    // Falls through to the dashboard section rather than echoing the title.
+    expect(callout.detail).toBe("Economy · 9:30 AM");
+  });
+
+  it("titles every metric by its own name, whatever the row supplied", () => {
+    // Oakland's property crime rows carry their own subtype text and used to be
+    // titled by it, so the same metric read differently city to city.
+    const callout = buildEventCallout({
+      // Already normalized server-side (see place_week_events._title_case).
+      label: "Burglary - Auto",
+      metric_name: "📦 Property Crime Incidents",
+      subcategory: "Crime",
+      dash_category: "public_safety",
+      address: "1200 Broadway",
+      ts: "2026-08-10T09:30",
+    });
+    expect(callout.icon).toBe("📦");
+    expect(callout.title).toBe("Property Crime Incidents");
+    // The row's subtype moves to the line beneath rather than disappearing.
+    expect(callout.detail).toBe("Burglary - Auto · 1200 Broadway · 9:30 AM");
+  });
+
+  it("puts the row's own value above its subtype when it has both", () => {
+    const callout = buildEventCallout({
+      ...base,
+      label: "Storefront Opening",
+      detail: "Blue Bottle Coffee",
+      subcategory: "Retail",
+      address: "1 Ferry Building",
+    });
+    expect(callout.title).toBe("Business Location Openings");
+    expect(callout.detail).toBe("Blue Bottle Coffee · 1 Ferry Building · 9:30 AM");
+  });
+
+  it("skips a subtype that merely echoes the metric name", () => {
+    const callout = buildEventCallout({
+      ...base,
+      metric_name: "🚗 Abandoned Vehicle Complaints (311)",
+      label: "Abandoned Vehicle",
+      subcategory: "Services",
+    });
+    expect(callout.title).toBe("Abandoned Vehicle Complaints (311)");
+    // "Abandoned Vehicle" is contained in the title, so it isn't repeated.
+    expect(callout.detail).toBe("Services · 9:30 AM");
+  });
+
+  it("takes the icon from the label when the metric has none", () => {
+    const callout = buildEventCallout({
+      ...base,
+      label: "🧽 Graffiti on Bay St",
+      metric_name: "311 Cases",
+      subcategory: null,
+    });
+    expect(callout.icon).toBe("🧽");
+    expect(callout.title).toBe("311 Cases");
+    expect(callout.detail).toBe("Graffiti on Bay St · 9:30 AM");
+  });
+
+  it("falls back to the label when the metric has no name at all", () => {
+    const callout = buildEventCallout({
+      ...base,
+      label: "Graffiti on Bay St",
+      metric_name: "",
+    });
+    expect(callout.title).toBe("Graffiti on Bay St");
+  });
+
+  it("omits a date-only timestamp's fake midnight", () => {
+    const callout = buildEventCallout({ ...base, ts: "2026-08-10" });
+    expect(callout.detail).toBe("Economy");
+  });
+
+  it("does not repeat the day, which the replay's clock already shows", () => {
+    const callout = buildEventCallout(base);
+    expect(callout.detail).not.toMatch(/Mon|Tue|Wed|Thu|Fri|Sat|Sun/);
+  });
+});
+
 describe("subcategory colors", () => {
+  it("draws from the shared layer palette, minus brand purple", () => {
+    // Categories should read as the same family the map layers use, and purple
+    // is already spoken for here by key pins, the weekend wash, and the playhead.
+    for (const color of SUBCATEGORY_PALETTE) {
+      expect(LAYER_COLOR_PALETTE).toContain(color);
+      expect(color.toLowerCase()).not.toBe("#ad35fa");
+    }
+    expect(SUBCATEGORY_PALETTE.length).toBe(LAYER_COLOR_PALETTE.length - 1);
+    // Order is preserved, so assignment stays stable against the shared list.
+    expect(SUBCATEGORY_PALETTE[0]).toBe("#FF6B5A");
+  });
+
   it("keys events by subcategory, falling back to the display group", () => {
     expect(eventSubcategoryKey({ subcategory: "Crime", group: "crime" })).toBe(
       "Crime",
@@ -335,6 +491,33 @@ describe("subcategory colors", () => {
   });
 });
 
+describe("formatPlaybackClock", () => {
+  it("renders playback position as a clock", () => {
+    expect(formatPlaybackClock(0)).toBe("0:00");
+    expect(formatPlaybackClock(9_400)).toBe("0:09");
+    expect(formatPlaybackClock(24_360)).toBe("0:24");
+    expect(formatPlaybackClock(60_000)).toBe("1:00");
+    expect(formatPlaybackClock(83_500)).toBe("1:23");
+  });
+
+  it("floors, so the readout never claims a second that hasn't elapsed", () => {
+    expect(formatPlaybackClock(999)).toBe("0:00");
+    expect(formatPlaybackClock(26_712)).toBe("0:26");
+  });
+
+  it("clamps negatives rather than printing a negative clock", () => {
+    expect(formatPlaybackClock(-500)).toBe("0:00");
+  });
+
+  it("covers the full range the timeline can produce", () => {
+    // 7 days at DAY_PLAYBACK_MS, plus up to six key-event holds.
+    const shortest = 7 * DAY_PLAYBACK_MS;
+    const longest = shortest + 6 * KEY_HOLD_PLAYBACK_MS * (1 - KEY_HOLD_RATE);
+    expect(formatPlaybackClock(shortest)).toBe("0:12");
+    expect(formatPlaybackClock(longest)).toBe("0:26");
+  });
+});
+
 describe("window labels", () => {
   it("formats same-month and cross-month ranges", () => {
     expect(formatWindowRange("2026-07-12", "2026-07-18")).toBe("Jul 12 – 18");
@@ -363,9 +546,11 @@ describe("eventTimeMs / window dates", () => {
 
   it("formats event times, dropping false precision at exact midnight", () => {
     // Datasets with a date but no time arrive as midnight — weekday only.
-    expect(formatEventTime("2026-07-30")).toBe("Thu");
-    expect(formatEventTime("2026-07-30T00:00:00.000")).toBe("Thu");
-    expect(formatEventTime("2026-07-30T20:50:00")).toBe("Thu 8:50 PM");
+    // No weekday: the replay's clock already names the day above the callout.
+    expect(formatEventTime("2026-07-30T20:50:00")).toBe("8:50 PM");
+    // Date-only sources have no real time, so they get none rather than midnight.
+    expect(formatEventTime("2026-07-30")).toBe("");
+    expect(formatEventTime("2026-07-30T00:00:00.000")).toBe("");
     expect(formatEventTime("nonsense")).toBe("");
   });
 

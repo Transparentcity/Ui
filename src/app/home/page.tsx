@@ -127,6 +127,7 @@ const CityDataTable = dynamic(() => import("@/components/CityDataTable"), { ssr:
 const DatasetsAdmin = dynamic(() => import("@/components/DatasetsAdmin"), { ssr: false });
 const MetricsAdmin = dynamic(() => import("@/components/MetricsAdmin"), { ssr: false });
 const UserManagement = dynamic(() => import("@/components/UserManagement"), { ssr: false });
+const GovernmentCoveragePanel = dynamic(() => import("@/components/GovernmentCoveragePanel"), { ssr: false });
 const JobLogsViewer = dynamic(() => import("@/components/JobLogsViewer"), { ssr: false });
 const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false });
 const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
@@ -974,7 +975,11 @@ export default function DashboardPage() {
           if (giftCtx?.token) {
             try {
               const meta = await getGiftMeta(giftCtx.token);
-              const freshCtx = giftMetaToOnboardingContext(giftCtx.token, meta);
+              const freshCtx = giftMetaToOnboardingContext(
+                giftCtx.token,
+                meta,
+                giftCtx.pendingDest
+              );
               persistGiftOnboardingContext(freshCtx);
               setGiftOnboardingContext(freshCtx);
             } catch {
@@ -1007,6 +1012,15 @@ export default function DashboardPage() {
           // All signup types (resident and government) use the same
           // WelcomeModal: address/city/zip -> preferences.
           setShowWelcomeModal(true);
+        } else if (!isImpersonating) {
+          // The claim flow always routes through /home so onboarding can run.
+          // Someone who is already onboarded has nothing to do here, so hand
+          // them straight to the link they clicked in the email.
+          const giftCtx = readGiftOnboardingContext();
+          if (giftCtx?.pendingDest) {
+            clearGiftOnboardingContext();
+            window.location.href = giftCtx.pendingDest;
+          }
         }
       } catch (error) {
         // Reset so the check retries on next effect trigger (e.g. after
@@ -1040,9 +1054,10 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Seymour chat: platform admins and analysts. Gates both the left-nav
-  // entry points and the chat view itself so they can never disagree.
-  const chatEnabled = isAdmin || isAnalyst;
+  // Seymour chat: platform admins, analysts, and government-verified users.
+  // Gates both the left-nav entry points and the chat view itself so they
+  // can never disagree.
+  const chatEnabled = isAdmin || isAnalyst || !!govVerificationStatus?.government_verified;
   useEffect(() => {
     if (!isCheckingAdmin && !chatEnabled && currentView === "chat") {
       setCurrentView("feed");
@@ -1965,6 +1980,10 @@ export default function DashboardPage() {
     district?: number | null;
     placeId?: number | null;
   }) => {
+    // Set when an email click was gated into the claim flow: onboarding has
+    // just finished, so we owe the user the page they originally tapped.
+    const pendingDest = giftOnboardingContext?.pendingDest || null;
+
     setShowWelcomeModal(false);
     clearGiftOnboardingContext();
     setGiftOnboardingContext(null);
@@ -2024,10 +2043,12 @@ export default function DashboardPage() {
       try {
         const token = await getAccessTokenSilently();
 
-        // Always fetch leaders and show the mayor (no coordinates needed)
+        // Always fetch leaders and show the mayor (no coordinates needed).
+        // The reveal is skipped when we're about to navigate away — its timed
+        // sequence would just stall the hand-off on a page nobody is reading.
         const leaders = await getCityLeaders(ctx.cityId, token);
         const mayor = pickCitywideLeader(leaders);
-        if (mayor) {
+        if (mayor && !pendingDest) {
           onboardingRepNotifyRef.current?.(mayor.name, mayor.title || "Mayor");
         }
 
@@ -2051,7 +2072,7 @@ export default function DashboardPage() {
           if (district != null && district > 0) {
             await followRepresentative(ctx.cityId, String(district), token);
             const rep = leaders.find((l) => l.district === district);
-            if (rep) {
+            if (rep && !pendingDest) {
               if (mayor) await new Promise((r) => setTimeout(r, 4500));
               onboardingRepNotifyRef.current?.(rep.name);
             }
@@ -2064,6 +2085,11 @@ export default function DashboardPage() {
         // Non-blocking
       } finally {
         onboardingBackgroundWorkRef.current?.complete();
+        // Hand off only after the city/district follows have settled, so the
+        // destination page renders with the sidebar already populated.
+        if (pendingDest) {
+          window.location.href = pendingDest;
+        }
       }
     })();
   };
@@ -2161,14 +2187,26 @@ export default function DashboardPage() {
         activeCityName={activeCityName}
         inboxUnreadCount={inboxUnreadCount}
         homePlaceId={homePlaceId}
-        onQuestionClick={() => {
-          // Toast: chat coming soon
-          const toast = document.createElement("div");
-          toast.textContent = "Chat with Seymour is coming soon";
-          toast.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-secondary,#333);color:var(--text-primary,#fff);padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:opacity 0.3s ease";
-          document.body.appendChild(toast);
-          setTimeout(() => { toast.style.opacity = "0"; }, 2500);
-          setTimeout(() => { toast.remove(); }, 3000);
+        governmentUserType={govVerificationStatus?.government_user_type ?? null}
+        governmentDistrict={
+          govVerificationStatus?.government_district != null
+            ? Number(govVerificationStatus.government_district)
+            : null
+        }
+        onQuestionClick={(question) => {
+          if (chatEnabled) {
+            // Open chat view and pre-fill the question
+            setCurrentView("chat");
+            setInitialChatPrompt(question);
+          } else {
+            // Toast: chat coming soon for non-enabled users
+            const toast = document.createElement("div");
+            toast.textContent = "Chat with Seymour is coming soon";
+            toast.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-secondary,#333);color:var(--text-primary,#fff);padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:opacity 0.3s ease";
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = "0"; }, 2500);
+            setTimeout(() => { toast.remove(); }, 3000);
+          }
         }}
         onOpenSettings={handleOpenSettings}
         onViewChange={handleViewChange}
@@ -2356,6 +2394,7 @@ export default function DashboardPage() {
           {currentView === "user-management" && isAdmin && (
             <div id="user-management-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.adminContainer}>
+                <GovernmentCoveragePanel />
                 <UserManagement
                   currentUserId={currentUserId}
                   onLoginAsUser={handleLoginAsUser}

@@ -23,6 +23,21 @@ describe("expand()", () => {
     expect(out).toContain("font-size:32px");
   });
 
+  it("renders the card photo below the headline and above the body", () => {
+    const out = expand(
+      '[card stat="9,412" sublabel="AT ONE ADDRESS" headline="What happened on Elm St?" body="The city logged them all." url="#" photo_url="https://cdn.example.com/map.png" photo_caption="Map of reports"]'
+    );
+    // Question first (stat + headline), then the photo/map + body as the answer.
+    expect(out.indexOf("9,412")).toBeLessThan(out.indexOf("https://cdn.example.com/map.png"));
+    expect(out.indexOf("What happened on Elm St?")).toBeLessThan(
+      out.indexOf("https://cdn.example.com/map.png")
+    );
+    expect(out.indexOf("https://cdn.example.com/map.png")).toBeLessThan(
+      out.indexOf("The city logged them all.")
+    );
+    expect(out).toContain("Map of reports");
+  });
+
   it("drops big stat font size when over 9 chars", () => {
     const out = expand('[card stat="$1,234,567" headline="X" body="Y" url="#"]');
     expect(out).toContain("font-size:28px");

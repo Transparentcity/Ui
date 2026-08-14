@@ -8,20 +8,17 @@
  * present in the URL.
  *
  * Behaviour:
- *   - Checks Auth0 for a logged-in session (silent `getAccessTokenSilently`).
- *   - If the user IS logged in: sends a lightweight beacon to associate the
- *     click with their user_id for ranking signals (best-effort, non-blocking).
  *   - If the user is NOT logged in: shows a non-blocking slide-in banner
  *     "Get your own weekly brief" with a city-aware signup CTA.
  *
+ * Click recording is handled globally by NewsletterClickBeacon (utm / nl).
  * The banner is dismissible and not shown again for 7 days (localStorage).
  * It renders nothing when `nl` / `utm_source=newsletter` is absent.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { startSignup, SIGNUP_AUTHORIZATION_PARAMS } from "@/lib/signup";
-import { API_BASE } from "@/lib/apiBase";
+import { startSignup } from "@/lib/signup";
 
 const DISMISSED_KEY = "tc_nl_banner_dismissed_until";
 const DISMISS_DAYS = 7;
@@ -53,35 +50,11 @@ function dismiss(): void {
   localStorage.setItem(DISMISSED_KEY, String(until));
 }
 
-async function sendAuthenticatedClickBeacon(token: string): Promise<void> {
-  const params = new URLSearchParams(window.location.search);
-  const nl = params.get("nl") || "";
-  if (!nl) return;
-  try {
-    await fetch(`${API_BASE}/api/public/event`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        event_name: "newsletter_click_authenticated",
-        path: window.location.pathname,
-        properties: { nl },
-      }),
-      keepalive: true,
-    });
-  } catch {
-    // non-fatal
-  }
-}
-
 export default function NewsletterEmailLandingBanner({
   citySlug,
   cityName,
 }: NewsletterEmailLandingBannerProps) {
-  const { isAuthenticated, isLoading, getAccessTokenSilently, loginWithRedirect } =
-    useAuth0();
+  const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
   const [showBanner, setShowBanner] = useState(false);
   const [visible, setVisible] = useState(false);
   const handled = useRef(false);
@@ -91,21 +64,14 @@ export default function NewsletterEmailLandingBanner({
     if (!isNewsletterLanding()) return;
     handled.current = true;
 
-    if (isAuthenticated) {
-      // User is logged in: send an authenticated beacon (non-blocking)
-      getAccessTokenSilently()
-        .then((token) => sendAuthenticatedClickBeacon(token))
-        .catch(() => {});
-      return;
-    }
+    // Logged-in readers already have an account; skip the signup banner.
+    if (isAuthenticated) return;
 
-    // Not logged in: show signup banner (if not recently dismissed)
     if (!isDismissed()) {
       setShowBanner(true);
-      // Slight delay so the page renders before the banner slides in
       setTimeout(() => setVisible(true), 600);
     }
-  }, [isLoading, isAuthenticated, getAccessTokenSilently]);
+  }, [isLoading, isAuthenticated]);
 
   if (!showBanner) return null;
 

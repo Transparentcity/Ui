@@ -76,19 +76,15 @@
 
 /* ── Time-of-day washes ────────────────────────────────────────────────── */
 
-/* Both sit between the basemap and the dots, so events keep full contrast
-   while the map itself reads as night or weekend. Opacity is driven from JS
-   (a continuous function of the clock), so no transition here — it would
-   lag the ~30fps updates. */
-.nightScrim,
+/* Sits between the basemap and the events, so events keep full contrast while
+   the map itself reads as a weekend. Opacity is driven from JS (a continuous
+   function of the clock), so no transition here — it would lag the ~30fps
+   updates. The key-moment spotlight lives in the event SVG instead, where it
+   can be centered on the held event in the same units as the markers. */
 .weekendWash {
   position: absolute;
   inset: 0;
   pointer-events: none;
-}
-
-.nightScrim {
-  background: linear-gradient(180deg, #0b1120 0%, #17163e 60%, #1e1b4b 100%);
 }
 
 /* Weekends warm the map in the same brand purple the scrubber ribbon uses,
@@ -106,6 +102,15 @@
 
 .dot {
   transition: opacity 0.35s ease, r 0.2s ease;
+}
+
+/* Metric icons ride on the colored disc. Emoji ignore fill, so only size and
+   opacity animate; the transition keeps arrivals and spotlight changes from
+   snapping. */
+.eventIcon {
+  transition: opacity 0.35s ease, font-size 0.2s ease;
+  pointer-events: none;
+  user-select: none;
 }
 
 .hitTarget {
@@ -308,14 +313,34 @@
 
 /* Branded bracket loader in the play button's spot while sources load
    (soft backdrop chip keeps it legible over the basemap). */
+/* Everything the load has to say, in one chip on the map. */
 .mapLoaderChip {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  gap: 6px;
+  padding: 12px 18px 14px;
   border-radius: var(--radius-md, 10px);
-  background: color-mix(in srgb, var(--bg-primary, #fff) 62%, transparent);
+  background: color-mix(in srgb, var(--bg-primary, #fff) 72%, transparent);
   backdrop-filter: blur(3px);
+  text-align: center;
+}
+
+.loaderCaption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+}
+
+.loaderProgress {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary, #6b7280);
 }
 
 /* Small bottom note on the full-width empty-state map. */
@@ -488,6 +513,38 @@
   padding: 10px 14px 8px;
 }
 
+/* Headline + one supporting line, directly under the map. Sized so the block
+   keeps the same height across phases and the chart never shifts. */
+.panelLead {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.panelHeadline {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panelSubline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .panelHeader {
   display: flex;
   align-items: center;
@@ -628,6 +685,7 @@
   z-index: 4;
   display: flex;
   align-items: center;
+  gap: 4px;
   padding: 4px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--bg-primary, #fff) 82%, transparent);
@@ -635,172 +693,28 @@
   box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12);
 }
 
-/* ── Ticker: the single current-event line ─────────────────────────────── */
-
-.ticker {
-  min-height: 40px;
-}
-
-.tickerHint {
-  display: block;
-  padding: 4px 0;
-  font-size: 12px;
-  color: var(--text-secondary, #6b7280);
-}
-
-/* Quiet running tally shown between key moments. */
-.tickerCount {
-  display: block;
-  padding: 4px 0;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-tertiary, #9ca3af);
-}
-
-/* ── Loading: copy + source-progress bar ──────────────────────────────── */
-
-.loadingBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.progressTrack {
-  position: relative;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--bg-tertiary, #f3f4f6);
-  overflow: hidden;
-}
-
-.progressFill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: #ad35fa;
-  transition: width 0.4s ease-out;
-}
-
-/* First response hasn't arrived yet: sweep instead of a real fraction. */
-.progressFill[data-indeterminate="true"] {
-  width: 35%;
-  animation: progressSweep 1.2s ease-in-out infinite;
-}
-
-@keyframes progressSweep {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(300%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .progressFill[data-indeterminate="true"] {
-    animation: none;
-    width: 100%;
-    opacity: 0.4;
-  }
-}
-
-.progressLabel {
-  font-size: 10px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-secondary, #6b7280);
-}
-
-.eventCard {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  line-height: 1.3;
-  animation: eventCardIn 0.2s ease-out;
-  transition: opacity 0.3s ease;
-}
-
-/* Fades out with the map callout when the key moment's hold ends. */
-.eventCard[data-leaving="true"] {
-  opacity: 0;
-}
-
-@keyframes eventCardIn {
-  from {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.eventCardDot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  margin-top: 5px;
-}
-
-/* Metric emoji shown as the ticker's leading icon (preferred over the dot). */
-.eventCardEmoji {
-  flex: none;
-  font-size: 15px;
-  line-height: 1.2;
-  margin-top: 1px;
-}
-
-.eventCardBody {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.eventCardLabel {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary, #111827);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.eventCardMeta {
-  font-size: 12px;
-  color: var(--text-secondary, #6b7280);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* ── Bar chart: events per subcategory ─────────────────────────────────── */
 
 /* Its own full-width row under the map. Capped so expanding a source into
    its child metrics scrolls instead of stretching the whole card. */
+/* Capped at three and a half rows: the half row is the scroll affordance, and
+   the cap keeps a city with twenty metrics from turning the unit into a list.
+   (Row is ~22px + 3px gap; see .chartRow.) */
 .chart {
   flex: none;
   min-height: 0;
-  max-height: 260px;
+  max-height: 88px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.chartGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-/* Rows are buttons: clicking highlights that category's dots on the map. */
+/* Rows are buttons: clicking highlights that metric's events on the map. */
 .chartRow {
   display: grid;
-  grid-template-columns: minmax(64px, 120px) minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(90px, 150px) minmax(0, 1fr) 30px;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -844,59 +758,11 @@
   text-overflow: ellipsis;
 }
 
-.chartCaret {
+/* The metric's own emoji, the same one its events wear on the map. */
+.chartIcon {
   flex: none;
-  width: 9px;
-  font-size: 8px;
-  color: var(--text-secondary, #6b7280);
-}
-
-/* Child metric rows shown when a source is disaggregated. */
-.chartChildRow {
-  display: grid;
-  grid-template-columns: minmax(64px, 120px) minmax(0, 1fr) 30px;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 1px 4px 1px 16px;
-  margin: 0;
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  transition: background 0.15s ease;
-}
-
-.chartChildRow:hover {
-  background: rgba(173, 53, 250, 0.08);
-}
-
-.chartChildLabel {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-secondary, #6b7280);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chartChildIcon {
-  flex: none;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1;
-}
-
-.chartChildBar {
-  opacity: 0.55;
-}
-
-.chartChildRow .chartTrack {
-  height: 5px;
 }
 
 .chartTrack {
@@ -922,20 +788,16 @@
   text-align: right;
 }
 
-/* Wide view: the chart spans the card, so give labels and counts more room. */
+/* Wide view: the chart spans the card, so give labels and counts more room.
+   Metric names ("311 Offensive Graffiti Cases") need more of it than the
+   section names that used to sit here. */
 @media (min-width: 641px) {
-  .chartRow,
-  .chartChildRow {
-    grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) 34px;
+  .chartRow {
+    grid-template-columns: minmax(150px, 280px) minmax(0, 1fr) 34px;
   }
 
   .chartLabel {
     font-size: 11px;
-  }
-
-  .chartChildLabel,
-  .chartChildIcon {
-    font-size: 10px;
   }
 
   .chartCount {
@@ -976,6 +838,22 @@
   border-color: #ad35fa;
   background: rgba(173, 53, 250, 0.1);
   color: #ad35fa;
+}
+
+/* Elapsed / total. Tabular figures so the row doesn't twitch as it counts. */
+.timeReadout {
+  flex: none;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+}
+
+.timeReadoutTotal {
+  font-weight: 600;
+  color: var(--text-tertiary, #9ca3af);
 }
 
 .scrubber {

@@ -22,11 +22,33 @@ import BrandWordmark from "@/components/BrandWordmark";
 import Loader from "@/components/Loader";
 import styles from "./activate.module.css";
 
+/* ─── helpers ─── */
+
+/**
+ * Validate that `next` is a same-origin relative path (or absolute same-host
+ * URL). Returns the safe path or "" when it cannot be trusted.
+ */
+function safeParsedNext(raw: string | null): string {
+  if (!raw) return "";
+  // Allow only relative paths (no protocol) or fully qualified same-origin.
+  try {
+    if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+    const url = new URL(raw);
+    if (typeof window !== "undefined" && url.origin === window.location.origin) {
+      return url.pathname + url.search + url.hash;
+    }
+  } catch {
+    // Not a valid URL — treat as invalid
+  }
+  return "";
+}
+
 /* ─── inner page ─── */
 
 type PageState =
   | "loading"
   | "activating"
+  | "newsletter_confirm"
   | "code_entry"
   | "verifying"
   | "activated"
@@ -35,6 +57,7 @@ type PageState =
 function GiftActivateInner() {
   const searchParams = useSearchParams();
   const token = searchParams.get("t");
+  const nextDest = safeParsedNext(searchParams.get("next"));
 
   const { isAuthenticated, isLoading: authLoading } = useAuth0();
 
@@ -45,12 +68,22 @@ function GiftActivateInner() {
   const activationStarted = useRef(false);
 
   const isMigration = meta?.kind === "substack_migration";
+  const isGovernment = meta?.kind === "government";
+  // Newsletter-link clicks (have a next dest but are not an explicit CTA) show
+  // a confirm step explaining account activation before sending the OTP code.
+  const isNewsletterClick = !!nextDest;
 
-  const goToGiftOnboarding = useCallback((giftMeta: GiftMetaResponse) => {
+  const goAfterActivation = useCallback((giftMeta: GiftMetaResponse) => {
     if (!token) return;
-    persistGiftOnboardingContext(giftMetaToOnboardingContext(token, giftMeta));
+    // Always route a freshly claimed account through /home so onboarding runs.
+    // `nextDest` (the link the recipient actually clicked) rides along in the
+    // onboarding context and /home hands off to it once onboarding finishes —
+    // otherwise a gated content click would skip onboarding entirely.
+    persistGiftOnboardingContext(
+      giftMetaToOnboardingContext(token, giftMeta, nextDest)
+    );
     window.location.href = "/home";
-  }, [token]);
+  }, [token, nextDest]);
 
   const handleSendCode = useCallback(async (giftMeta: GiftMetaResponse) => {
     const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID;
@@ -94,7 +127,7 @@ function GiftActivateInner() {
           clientId,
           audience: getAuth0ApiAudience(),
         });
-        goToGiftOnboarding(giftMeta);
+        goAfterActivation(giftMeta);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Could not finish setup.";
@@ -113,16 +146,16 @@ function GiftActivateInner() {
         setPageState("error");
       }
     },
-    [goToGiftOnboarding, handleSendCode, token]
+    [goAfterActivation, handleSendCode, token]
   );
 
   // Already authenticated → home with gift onboarding context if present.
   useEffect(() => {
     if (authLoading || !meta) return;
     if (isAuthenticated) {
-      goToGiftOnboarding(meta);
+      goAfterActivation(meta);
     }
-  }, [authLoading, isAuthenticated, meta, goToGiftOnboarding]);
+  }, [authLoading, isAuthenticated, meta, goAfterActivation]);
 
   // Fetch gift metadata and start activation automatically.
   useEffect(() => {
@@ -140,9 +173,19 @@ function GiftActivateInner() {
     getGiftMeta(token)
       .then(async (data) => {
         setMeta(data);
-        persistGiftOnboardingContext(giftMetaToOnboardingContext(token, data));
+        persistGiftOnboardingContext(
+          giftMetaToOnboardingContext(token, data, nextDest)
+        );
         if (data.already_activated) {
           setPageState("activated");
+          return;
+        }
+
+        // Newsletter-link clicks show a confirm step first so the user
+        // understands they're about to claim their account before we
+        // automatically send an OTP code.
+        if (isNewsletterClick) {
+          setPageState("newsletter_confirm");
           return;
         }
 
@@ -162,7 +205,7 @@ function GiftActivateInner() {
         );
         setPageState("error");
       });
-  }, [token, handleSendCode, runTrustedActivation]);
+  }, [token, nextDest, isNewsletterClick, handleSendCode, runTrustedActivation]);
 
   const handleVerifyCode = async () => {
     if (!meta || !token) return;
@@ -188,7 +231,7 @@ function GiftActivateInner() {
         clientId,
         audience: getAuth0ApiAudience(),
       });
-      goToGiftOnboarding(meta);
+      goAfterActivation(meta);
     } catch (err) {
       setErrorMsg(
         err instanceof Error
@@ -199,6 +242,15 @@ function GiftActivateInner() {
     }
   };
 
+  const handleNewsletterConfirmClaim = async () => {
+    if (!meta) return;
+    if (meta.requires_otp) {
+      await handleSendCode(meta);
+    } else {
+      await runTrustedActivation(meta);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -206,15 +258,15 @@ function GiftActivateInner() {
 
         {pageState === "error" && <ErrorView message={errorMsg} />}
         {pageState === "activated" && (
-          <AlreadyActivatedView isMigration={isMigration} />
+          <AlreadyActivatedView isMigration={isMigration} isGovernment={isGovernment} nextDest={nextDest} />
         )}
 
         {(pageState === "loading" || pageState === "activating") && (
           <ActivatingView
             headline={
               pageState === "activating"
-                ? isMigration
-                  ? "Setting up your newsletter…"
+                ? isGovernment || isMigration
+                  ? "Setting up your account…"
                   : "Starting your trial…"
                 : "Getting things ready…"
             }
@@ -228,6 +280,15 @@ function GiftActivateInner() {
           />
         )}
 
+        {pageState === "newsletter_confirm" && meta && (
+          <NewsletterConfirmView
+            meta={meta}
+            isGovernment={isGovernment}
+            onClaim={handleNewsletterConfirmClaim}
+            nextDest={nextDest}
+          />
+        )}
+
         {(pageState === "code_entry" || pageState === "verifying") && meta && (
           <CodeEntryView
             email={meta.recipient_email}
@@ -238,6 +299,7 @@ function GiftActivateInner() {
             verifying={pageState === "verifying"}
             errorMsg={errorMsg}
             isMigration={isMigration}
+            isGovernment={isGovernment}
           />
         )}
       </div>
@@ -265,6 +327,116 @@ function ActivatingView({
   );
 }
 
+/**
+ * Shown when a newsletter link for an unclaimed account goes through /e/c.
+ * Explains free government account (or newsletter subscription for others)
+ * before we send the OTP code.
+ */
+function NewsletterConfirmView({
+  meta,
+  isGovernment,
+  onClaim,
+  nextDest,
+}: {
+  meta: GiftMetaResponse;
+  isGovernment: boolean;
+  onClaim: () => void;
+  nextDest: string;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleClaim = async () => {
+    setLoading(true);
+    await onClaim();
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className={styles.iconWrap} aria-hidden="true">
+        {isGovernment ? (
+          /* Building / government icon */
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="22" x2="21" y2="22" />
+            <line x1="6" y1="18" x2="6" y2="11" />
+            <line x1="10" y1="18" x2="10" y2="11" />
+            <line x1="14" y1="18" x2="14" y2="11" />
+            <line x1="18" y1="18" x2="18" y2="11" />
+            <polygon points="12 2 20 7 4 7" />
+          </svg>
+        ) : (
+          /* Newsletter / envelope icon */
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+        )}
+      </div>
+
+      <h1 className={styles.headline}>
+        {isGovernment
+          ? "Your district report is ready"
+          : "Claim your account to continue"}
+      </h1>
+
+      <p className={styles.body}>
+        {isGovernment ? (
+          <>
+            Every week, Seymour &mdash; our AI analyst &mdash; reads{" "}
+            {meta.city_name ? `${meta.city_name}'s` : "your city's"} public data
+            and writes a report focused on your district: what improved, what
+            needs attention, how you compare to the rest of the city. Tell us
+            your priorities once and it&apos;s framed around your promises to
+            constituents.
+            <br /><br />
+            Your staff also get free research tools: ask in plain language, get
+            sourced answers from city data &mdash; draft talking points, track
+            service commitments, understand what&apos;s happening on the streets,
+            at the MTA, in the planning pipeline.
+          </>
+        ) : (
+          "You have a free subscription waiting. Claim it to get full access to your personalized briefing and all city data."
+        )}
+      </p>
+
+      <div className={styles.emailRow}>
+        <div>
+          <span className={styles.emailLabel}>Sending code to</span>
+          <span className={styles.emailAddress}>{meta.recipient_email}</span>
+        </div>
+      </div>
+
+      <div className={styles.ctaArea}>
+        <button
+          className={styles.primaryBtn}
+          onClick={handleClaim}
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <Loader size="sm" color="white" />
+              Sending code…
+            </>
+          ) : (
+            "Send my sign-in code →"
+          )}
+        </button>
+        {nextDest && (
+          <p className={styles.ctaHint}>
+            We&apos;ll set up your account, then take you where you were headed.
+          </p>
+        )}
+        {isGovernment && (
+          <p className={styles.note} style={{ textAlign: "center" }}>
+            Free for your office — no credit card, ever. Need more seats or custom
+            research? Reply to any Seymour email.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CodeEntryView({
   email,
   otp,
@@ -274,6 +446,7 @@ function CodeEntryView({
   verifying,
   errorMsg,
   isMigration,
+  isGovernment,
 }: {
   email: string;
   otp: string;
@@ -283,7 +456,14 @@ function CodeEntryView({
   verifying: boolean;
   errorMsg: string;
   isMigration?: boolean;
+  isGovernment?: boolean;
 }) {
+  const actionLabel = isGovernment
+    ? "access your government account"
+    : isMigration
+    ? "finish setting up your newsletter"
+    : "start your trial";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className={styles.iconWrap} aria-hidden="true">
@@ -304,7 +484,7 @@ function CodeEntryView({
       <h1 className={styles.headline}>Enter your code</h1>
       <p className={styles.body}>
         We emailed a 6-digit code to <strong>{email}</strong>. Enter it below to{" "}
-        {isMigration ? "finish setting up your newsletter" : "start your trial"}.
+        {actionLabel}.
       </p>
 
       <form
@@ -344,6 +524,8 @@ function CodeEntryView({
               <Loader size="sm" color="white" />
               Verifying…
             </>
+          ) : isGovernment ? (
+            "Verify & access my account →"
           ) : isMigration ? (
             "Verify & continue →"
           ) : (
@@ -386,7 +568,16 @@ function ErrorView({ message }: { message: string }) {
   );
 }
 
-function AlreadyActivatedView({ isMigration }: { isMigration?: boolean }) {
+function AlreadyActivatedView({
+  isMigration,
+  isGovernment,
+  nextDest,
+}: {
+  isMigration?: boolean;
+  isGovernment?: boolean;
+  nextDest?: string;
+}) {
+  const destination = nextDest || "/home";
   return (
     <div className={styles.center}>
       <div className={styles.iconWrap} aria-hidden="true">
@@ -404,15 +595,21 @@ function AlreadyActivatedView({ isMigration }: { isMigration?: boolean }) {
         </svg>
       </div>
       <h1 className={styles.headline}>
-        {isMigration ? "You're already set up" : "Your trial is already active"}
+        {isGovernment
+          ? "Your government account is active"
+          : isMigration
+          ? "You're already set up"
+          : "Your trial is already active"}
       </h1>
       <p className={styles.body}>
-        {isMigration
+        {isGovernment
+          ? "Your account is ready. Personalize it to get reports built around your district priorities and promises."
+          : isMigration
           ? "Your subscription is already active. Sign in to access your dashboard."
           : "You've already activated this gift. Sign in to access your dashboard."}
       </p>
-      <Link href="/home" className={styles.primaryBtn}>
-        Go to my dashboard &rarr;
+      <Link href={destination} className={styles.primaryBtn}>
+        {nextDest ? "Continue to my briefing →" : "Go to my dashboard →"}
       </Link>
     </div>
   );

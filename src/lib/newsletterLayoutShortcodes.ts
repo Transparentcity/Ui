@@ -82,17 +82,20 @@ function expandCard(a: Attrs): string {
   const photoCaption = attr(a, "photo_caption", "");
   const statSize = stat.length > 9 ? "28px" : "32px";
   const color = statColor(direction, greendirection);
+  // The image sits BELOW the stat + sublabel + headline, not above them:
+  // the big number and headline are the "question" that grabs attention,
+  // and the photo/map plus body text read as the "answer" underneath.
   const photoHtml = photoUrl
-    ? `<div style="border-radius:12px 12px 0 0;overflow:hidden;"><img src="${photoUrl}" alt="${photoCaption || "Photo"}" style="width:100%;max-height:180px;object-fit:cover;display:block;"></div>${photoCaption ? `<div style="font-size:11px;color:${COLOR.muted};padding:4px 24px 0;">${photoCaption}</div>` : ""}`
+    ? `<div style="margin-top:14px;"><img src="${photoUrl}" alt="${photoCaption || "Photo"}" style="width:100%;max-height:180px;object-fit:cover;display:block;border-radius:8px;">${photoCaption ? `<div style="font-size:11px;color:${COLOR.muted};margin-top:4px;">${photoCaption}</div>` : ""}</div>`
     : "";
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLOR.panel};border:1px solid ${COLOR.hairline};border-radius:12px;border-collapse:separate;border-spacing:0;margin:0 0 16px;">
   <tr>
     <td style="padding:0;">
-      ${photoHtml}
       <a href="${url}" style="display:block;text-decoration:none;padding:24px;color:${COLOR.secondary};cursor:pointer;">
       <div style="font-size:${statSize};font-weight:800;color:${color};line-height:1.1;">${stat}</div>
       ${sublabel ? `<div style="font-size:11px;font-weight:600;color:${COLOR.muted};letter-spacing:0.6px;text-transform:uppercase;margin-top:6px;">${sublabel}</div>` : ""}
       <div style="font-size:16px;font-weight:700;color:${COLOR.body};line-height:22px;margin-top:14px;">${headline}</div>
+      ${photoHtml}
       <div style="font-size:14px;line-height:22px;color:${COLOR.secondary};margin-top:10px;">${body}</div>
       </a>
     </td>

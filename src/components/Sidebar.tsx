@@ -9,6 +9,7 @@ import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
 import ResearchList from "./ResearchList";
 import SidebarCitySearch, { type SidebarCitySelectOptions } from "./SidebarCitySearch";
+import SidebarRecentQuestions from "./SidebarRecentQuestions";
 import styles from "./Sidebar.module.css";
 import type { UserPlace } from "@/lib/apiClient";
 
@@ -70,6 +71,10 @@ interface SidebarProps {
   inboxUnreadCount?: number;
   /** Saved place id for the user's home location (shown in My Places). */
   homePlaceId?: number | null;
+  /** Government user type for starter questions (elected_official / staff). */
+  governmentUserType?: string | null;
+  /** Government district for elected-official starter questions. */
+  governmentDistrict?: number | null;
 }
 
 // Mobile breakpoint (matches CSS media query)
@@ -124,6 +129,8 @@ export default function Sidebar({
   onQuestionClick,
   inboxUnreadCount = 0,
   homePlaceId = null,
+  governmentUserType = null,
+  governmentDistrict = null,
 }: SidebarProps) {
   const governmentApproved =
     governmentVerified &&
@@ -589,6 +596,22 @@ export default function Sidebar({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Suggested Questions — chat-enabled users (government + admin) */}
+          {chatEnabled && onQuestionClick && (
+            <SidebarRecentQuestions
+              activeCityName={activeCityName}
+              isGovernmentVerified={governmentVerified}
+              governmentUserType={governmentUserType}
+              governmentDistrict={governmentDistrict}
+              onQuestionClick={(q) => {
+                onQuestionClick(q);
+                if (isNarrowScreen() && onClose) {
+                  onClose();
+                }
+              }}
+            />
           )}
 
           {/* Job Sessions Section (Admin Only, chat mode) */}

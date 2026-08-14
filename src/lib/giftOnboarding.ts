@@ -6,7 +6,7 @@ import type { GiftMetaResponse } from "@/lib/apiClient";
 
 export const GIFT_ONBOARDING_STORAGE_KEY = "transparentcity.gift_onboard";
 
-export type GiftOnboardingKind = "gift" | "substack_migration";
+export type GiftOnboardingKind = "gift" | "substack_migration" | "government";
 
 export interface GiftOnboardingContext {
   token: string;
@@ -22,15 +22,26 @@ export interface GiftOnboardingContext {
   lat: number | null;
   lng: number | null;
   customPrompt: string | null;
+  /**
+   * Path the recipient was originally heading to when their email click was
+   * gated into the claim flow. Onboarding runs first on /home, then hands off
+   * here so they still reach the metric or dashboard they tapped.
+   */
+  pendingDest: string | null;
 }
 
 export function giftMetaToOnboardingContext(
   token: string,
-  meta: GiftMetaResponse
+  meta: GiftMetaResponse,
+  pendingDest: string | null = null
 ): GiftOnboardingContext {
   return {
     token,
-    kind: meta.kind === "substack_migration" ? "substack_migration" : "gift",
+    kind: meta.kind === "substack_migration"
+      ? "substack_migration"
+      : meta.kind === "government"
+      ? "government"
+      : "gift",
     recipientEmail: meta.recipient_email,
     recipientName: meta.recipient_name,
     gifterDisplay: meta.gifter_display,
@@ -42,6 +53,7 @@ export function giftMetaToOnboardingContext(
     lat: meta.lat,
     lng: meta.lng,
     customPrompt: meta.custom_prompt,
+    pendingDest: pendingDest || null,
   };
 }
 

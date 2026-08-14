@@ -497,6 +497,8 @@ export interface GovernmentVerificationStatus {
   government_pending_verification?: boolean;
   government_email?: string | null;
   claim_context?: ClaimContext | null;
+  government_user_type?: string | null;
+  government_district?: number | null;
 }
 
 export function getGovernmentVerificationStatus(

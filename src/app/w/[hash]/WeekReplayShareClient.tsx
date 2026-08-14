@@ -35,6 +35,11 @@ export default function WeekReplayShareClient({
   district,
 }: Props) {
   const place = replay.scope_place;
+  const scopeLabel = isPlace
+    ? replay.city_name
+    : district > 0
+      ? `District ${district}`
+      : replay.city_name;
   return (
     <WeekReplayMap
       cityId={replay.city_id}
@@ -45,6 +50,7 @@ export default function WeekReplayShareClient({
       placeLng={place?.lng ?? null}
       placeRadiusM={place?.radius_m ?? null}
       selectedPlaceId={null}
+      scopeLabel={scopeLabel}
       autoPlay
       presetData={toPresetData(replay)}
       shareTitle={replay.title}

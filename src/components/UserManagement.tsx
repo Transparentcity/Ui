@@ -1060,6 +1060,36 @@ export default function UserManagement({
                             Substack {user.is_claimed ? "✓" : "· unclaimed"}
                           </span>
                         )}
+                        {user.source === "government_prospect" && (
+                          <span
+                            className={styles.roleBadge}
+                            style={{
+                              background: user.is_claimed
+                                ? "rgba(5, 150, 105, 0.1)"
+                                : "rgba(59, 130, 246, 0.1)",
+                              color: user.is_claimed ? "#059669" : "#2563eb",
+                              cursor: "default",
+                            }}
+                            title={[
+                              user.government_user_type === "elected_official"
+                                ? "Elected official"
+                                : "City staff",
+                              user.government_leader_name
+                                ? `Office: ${user.government_leader_name}`
+                                : null,
+                              user.government_district != null
+                                ? `District ${user.government_district}`
+                                : null,
+                              user.is_claimed
+                                ? "Account claimed"
+                                : "Unclaimed — welcome email pending",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          >
+                            G{user.government_user_type === "elected_official" ? " · Official" : " · Staff"}{user.is_claimed ? " ✓" : ""}
+                          </span>
+                        )}
                       </div>
                       <div className={styles.tableCellSubtext}>ID: {user.id}</div>
                     </td>
