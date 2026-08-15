@@ -5546,6 +5546,8 @@ export interface NewsletterGenerationExclusionSummary {
   distinct_emails_with_launched_city_row?: number;
   excluded_no_or_inactive_user_on_launched_city?: number;
   excluded_inactive_user_only?: number;
+  /** Active users whose only addresses are flagged with a SendGrid delivery problem. */
+  excluded_email_delivery_problem?: number;
   distinct_emails_only_non_launched_cities?: number;
   included_distinct_emails?: number;
   excluded_from_pipeline_launched_cohort?: number;
