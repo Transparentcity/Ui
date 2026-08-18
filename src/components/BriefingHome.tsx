@@ -16,6 +16,7 @@ import type { CityLeader } from "@/lib/apiClient";
 import type { BoundarySketch } from "@/lib/publicApiClient";
 import MiniScopeMap from "@/components/MiniScopeMap";
 import WeekReplayMap from "@/components/WeekReplayMap";
+import { weekReplayScopePhrase } from "@/lib/weekReplay";
 import { emitOpenAddPlace, emitOpenEditPlace } from "@/lib/uiEvents";
 import { getImpersonationCacheKey } from "@/lib/impersonation";
 import { feedKeys, useFeedStories, type FeedStory } from "@/lib/hooks/useFeed";
@@ -466,8 +467,8 @@ export default function BriefingHome({
   ]);
 
   const weekReplayShareTitle = useMemo(
-    () => `My week in ${scopeLabel}`,
-    [scopeLabel],
+    () => `My week ${weekReplayScopePhrase(scopeLabel, isPlaceScope)}`,
+    [scopeLabel, isPlaceScope],
   );
 
   const { data: storiesData, isLoading: storiesLoading } = useFeedStories(

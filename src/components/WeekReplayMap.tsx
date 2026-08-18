@@ -9,6 +9,11 @@
  * metric subcategory that builds up as dots land, and the play/pause +
  * scrubber controls.
  *
+ * Before playback the map already carries the finished frame — every event of
+ * the week, all at once — with the play button and its caption parked in the
+ * label gutter, so the unit shows what there is to watch before asking for the
+ * click.
+ *
  * Playing compresses the last 7 days of geolocated events into ~25s, and is
  * built so the whole picture reads at once:
  *
@@ -88,6 +93,7 @@ import {
   metricDisplayName,
   metricIcon,
   weekendness,
+  weekReplayScopePhrase,
   windowDateMs,
   windowDayLabels,
   type PlaybackTimeline,
@@ -571,6 +577,8 @@ export default function WeekReplayMap({
   const [phase, setPhase] = useState<Phase>("idle");
   const [playMs, setPlayMs] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  /** 311 photo opened full-screen, or null when the lightbox is closed. */
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   /** Chart selection: the metric whose events are highlighted on the map. */
   const [highlightMetricId, setHighlightMetricId] = useState<number | null>(null);
   /**
@@ -821,9 +829,15 @@ export default function WeekReplayMap({
   const timeline = prepared?.timeline ?? null;
   const currentWeekMs = timeline ? timeline.weekTimeAt(playMs) : 0;
 
+  /**
+   * Idle shows the finished frame — every event that landed all week — so the
+   * unit reads as "here is your week, press play to watch it happen" rather
+   * than as an empty map. During a partial load the same frame fills in as
+   * each source reports back.
+   */
   const visibleEvents = useMemo(() => {
     if (!prepared) return [];
-    if (phase === "idle") return [];
+    if (phase === "idle") return prepared.events;
     return prepared.events.filter((e) => e.playMs <= playMs);
   }, [prepared, phase, playMs]);
 
@@ -897,6 +911,59 @@ export default function WeekReplayMap({
     () => (selectedEvent ? buildEventCallout(selectedEvent) : null),
     [selectedEvent],
   );
+
+  /**
+   * A 311 photo inside a callout, as a button that opens it full-screen.
+   *
+   * Thumbnails are cropped to the callout's width, which is exactly where the
+   * detail that made the report worth looking at gets lost — so the small
+   * version is an invitation to the whole frame. Playback pauses on the way
+   * out, since the replay would otherwise run on behind the lightbox.
+   */
+  const renderCalloutPhoto = useCallback(
+    (url: string, imgClassName: string, label?: string | null) => (
+      <button
+        type="button"
+        className={styles.photoButton}
+        onClick={(ev) => {
+          ev.stopPropagation();
+          if (phaseRef.current === "playing") pause();
+          setLightboxUrl(url);
+        }}
+        aria-label={label ? `Enlarge photo: ${label}` : "Enlarge photo"}
+        title="Enlarge photo"
+      >
+        <img src={url} alt="" className={imgClassName} />
+        <span className={styles.photoZoomHint} aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <line x1="15.5" y1="15.5" x2="21" y2="21" />
+            <line x1="10.5" y1="7.5" x2="10.5" y2="13.5" />
+            <line x1="7.5" y1="10.5" x2="13.5" y2="10.5" />
+          </svg>
+        </span>
+      </button>
+    ),
+    [pause],
+  );
+
+  useEffect(() => {
+    if (!lightboxUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxUrl(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxUrl]);
 
   const dayLabels = useMemo(() => {
     if (!timeline) return [];
@@ -986,7 +1053,12 @@ export default function WeekReplayMap({
   );
 
   const eventCount = prepared?.events.length ?? 0;
-  const interactive = phase === "paused" || phase === "ended";
+  /**
+   * Markers answer clicks in any still frame — paused, ended, and the end
+   * frame the unit shows before playback. Only mid-playback are they inert,
+   * where a tap would land on a dot that has already moved on.
+   */
+  const interactive = phase !== "playing" && visibleEvents.length > 0;
 
   const hasDistrictShapes = (sketch?.districts.length ?? 0) > 0;
   const hasPlacePoint = isPlaceScope && placeLat != null && placeLng != null;
@@ -1113,6 +1185,18 @@ export default function WeekReplayMap({
     () => isVideoExportSupported() && eventCount > 0,
     [eventCount],
   );
+  /**
+   * Share and export are offered on the resting frames — the landing state
+   * before anyone presses play, and again once the replay ends. Someone who
+   * arrives already knowing they want to send their week on shouldn't have to
+   * watch it through first. They stay hidden mid-playback so the chrome keeps
+   * off the thing being watched.
+   */
+  const showShareCluster =
+    !!prepared &&
+    eventCount > 0 &&
+    (phase === "idle" || phase === "ended") &&
+    (!!getShareUrl || canExport);
   /** Names the replay in the video's title card and filename. */
   const resolvedScopeLabel =
     (scopeLabel || "").trim() ||
@@ -1124,9 +1208,25 @@ export default function WeekReplayMap({
    * Headline for the unit. A place is somewhere you are ("at Bay"), a district
    * or city is somewhere things happen ("in San Francisco").
    */
-  const headline = isPlaceScope
-    ? `Last week at ${resolvedScopeLabel}`
-    : `Last week in ${resolvedScopeLabel}`;
+  const scopePhrase = weekReplayScopePhrase(resolvedScopeLabel, isPlaceScope);
+  const headline = `Last week ${scopePhrase}`;
+
+  /**
+   * The play button says what pressing it plays, since the panel that carries
+   * the headline is still held back at this point: what the replay covers, how
+   * much is in it, and how long it runs.
+   */
+  const playMeta = useMemo(
+    () =>
+      [
+        windowRange,
+        eventCount > 0 ? `${eventCount} events` : null,
+        duration > 0 ? `${Math.round(duration / 1000)}s` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    [windowRange, eventCount, duration],
+  );
 
   /**
    * One line under the headline. It reports where playback is while running,
@@ -1175,6 +1275,19 @@ export default function WeekReplayMap({
 
   const idleClickable = phase === "idle" && !!onOpenScopeSelector;
 
+  /**
+   * Idle map body: with a marker's card open, the click that dismisses it is
+   * the one anywhere else on the map — sending that to the scope selector
+   * would answer a "close this" with a modal.
+   */
+  const onIdleMapClick = () => {
+    if (selectedEventId != null) {
+      setSelectedEventId(null);
+      return;
+    }
+    onOpenScopeSelector?.();
+  };
+
   return (
     <div
       ref={containerRef}
@@ -1186,13 +1299,17 @@ export default function WeekReplayMap({
       <div
         ref={mapPanelRef}
         className={styles.mapPanel}
-        onClick={idleClickable ? onOpenScopeSelector : undefined}
+        onClick={idleClickable ? onIdleMapClick : undefined}
         role={idleClickable ? "button" : undefined}
         aria-label={idleClickable ? "View on map" : undefined}
       >
         {/* Geo-registered layers live in a frame locked to the fetched
             crop's aspect: it covers the cell at uniform scale (tiny crop
-            instead of stretch), so circles stay circles. */}
+            instead of stretch), so circles stay circles. The clip is its own
+            element so the panel itself can stay unclipped — callout cards
+            (photos especially) then spill over the chart below instead of
+            being cut off at the bottom of the map. */}
+        <div className={styles.mapClip}>
         <div
           ref={mapFrameRef}
           className={styles.mapFrame}
@@ -1236,7 +1353,7 @@ export default function WeekReplayMap({
         {/* Animated event layer. Routine events, then the spotlight veil, then
             the event being called out — so the veil pushes back everything
             except the one thing the callout is naming. */}
-        {prepared && phase !== "idle" && (
+        {prepared && visibleEvents.length > 0 && (
           <svg
             className={styles.eventLayer}
             viewBox={`0 0 ${mapW} ${mapH}`}
@@ -1279,12 +1396,21 @@ export default function WeekReplayMap({
           </svg>
         )}
         </div>
+        </div>
 
-        {/* Idle: centered play button (spinner while sources still load).
-            Everything the load has to say is said here, on the map, so the
-            unit stays a single quiet object until it is asked to run. */}
-        {phase === "idle" && (isLoading || eventCount > 0) && (
-          <div className={styles.idleOverlay}>
+        {/* Idle: loader, then the play button and what it plays. Everything the
+            load has to say is said here, on the map, so the unit stays a single
+            quiet object until it is asked to run.
+
+            Wide place view: parked in the left gutter the crop already reserves
+            for labels, so it never sits on the place marker or its name — and
+            it steps aside entirely while a tapped marker's card is open, since
+            the card lands in that same column. */}
+        {phase === "idle" && !selectedEvent && (isLoading || eventCount > 0) && (
+          <div
+            className={styles.idleOverlay}
+            data-align={!stacked && isPlaceScope ? "left" : undefined}
+          >
             {isLoading ? (
               <span className={styles.mapLoaderChip}>
                 <Loader size="md" color={theme === "dark" ? "white" : "purple"} />
@@ -1305,11 +1431,20 @@ export default function WeekReplayMap({
                   e.stopPropagation();
                   play();
                 }}
-                aria-label="Replay the last 7 days"
               >
-                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="M8 5v14l11-7z" fill="currentColor" />
-                </svg>
+                <span className={styles.playButtonIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path d="M8 5v14l11-7z" fill="currentColor" />
+                  </svg>
+                </span>
+                <span className={styles.playButtonCopy}>
+                  <span className={styles.playButtonTitle}>
+                    Play last week {scopePhrase}
+                  </span>
+                  {playMeta ? (
+                    <span className={styles.playButtonMeta}>{playMeta}</span>
+                  ) : null}
+                </span>
               </button>
             )}
           </div>
@@ -1323,10 +1458,12 @@ export default function WeekReplayMap({
         )}
 
         {/* Live clock (top-left) with key-event callout dropping out beneath
-            it; share sits separately at top-right when playback ends. */}
-        {prepared && phase !== "idle" && timeline && (
-          <>
+            it; share sits separately at top-right. In idle the column carries
+            nothing but a tapped marker's card — there is no playback position
+            for the clock to report yet. */}
+        {prepared && timeline && (phase !== "idle" || selectedEvent) && (
             <div className={styles.mapChromeLeft}>
+              {phase !== "idle" && (
               <div className={styles.clock} aria-hidden="true">
                 <span
                   className={styles.clockDaypart}
@@ -1371,6 +1508,7 @@ export default function WeekReplayMap({
                   {formatClockTime(currentWeekMs)}
                 </span>
               </div>
+              )}
 
               {activeKeyMoment && (
                 <div
@@ -1379,13 +1517,13 @@ export default function WeekReplayMap({
                   data-leaving={keyMomentLeaving ? "true" : undefined}
                   data-photo={keyCallout?.mediaUrl ? "true" : undefined}
                 >
-                  {keyCallout?.mediaUrl ? (
-                    <img
-                      src={keyCallout.mediaUrl}
-                      alt=""
-                      className={styles.keyCalloutPhoto}
-                    />
-                  ) : null}
+                  {keyCallout?.mediaUrl
+                    ? renderCalloutPhoto(
+                        keyCallout.mediaUrl,
+                        styles.keyCalloutPhoto,
+                        keyCallout.title,
+                      )
+                    : null}
                   <span className={styles.keyCalloutLabel}>
                     {keyCallout?.icon ? (
                       <span aria-hidden="true">{keyCallout.icon} </span>
@@ -1420,13 +1558,13 @@ export default function WeekReplayMap({
                   >
                     ×
                   </button>
-                  {mediaIsOk(selectedEvent.media_url) ? (
-                    <img
-                      src={selectedEvent.media_url!}
-                      alt=""
-                      className={styles.keyCalloutPhoto}
-                    />
-                  ) : null}
+                  {mediaIsOk(selectedEvent.media_url)
+                    ? renderCalloutPhoto(
+                        selectedEvent.media_url!,
+                        styles.keyCalloutPhoto,
+                        selectionCallout?.title,
+                      )
+                    : null}
                   <span className={styles.keyCalloutLabel}>
                     {selectionCallout?.icon ? (
                       <span aria-hidden="true">{selectionCallout.icon} </span>
@@ -1441,76 +1579,76 @@ export default function WeekReplayMap({
                 </div>
               )}
             </div>
+        )}
 
-            {phase === "ended" && (getShareUrl || canExport) ? (
-              <div className={styles.mapShare}>
-                {canExport && (
-                  <button
-                    type="button"
-                    className={styles.headerShareButton}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExportOpen(true);
-                    }}
-                    aria-label="Save this week replay as a video"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="11"
-                      height="11"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <rect x="2" y="5" width="14" height="14" rx="2.5" />
-                      <path d="M16 10l6-3.5v11L16 14z" />
-                    </svg>
-                    Video
-                  </button>
-                )}
-                {getShareUrl && (
-                <button
-                  type="button"
-                  className={styles.headerShareButton}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void share();
-                  }}
-                  disabled={shareState === "sharing"}
-                  aria-label="Share this week replay"
+        {/* Share and video export, top-right. */}
+        {showShareCluster && (
+          <div className={styles.mapShare}>
+            {canExport && (
+              <button
+                type="button"
+                className={styles.headerShareButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExportOpen(true);
+                }}
+                aria-label="Save this week replay as a video"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="11"
+                  height="11"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="11"
-                    height="11"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                  </svg>
-                  {shareState === "sharing"
-                    ? "…"
-                    : shareState === "copied"
-                      ? "Copied!"
-                      : shareState === "error"
-                        ? "Failed"
-                        : "Share"}
-                </button>
-                )}
-              </div>
-            ) : null}
-          </>
+                  <rect x="2" y="5" width="14" height="14" rx="2.5" />
+                  <path d="M16 10l6-3.5v11L16 14z" />
+                </svg>
+                Video
+              </button>
+            )}
+            {getShareUrl && (
+              <button
+                type="button"
+                className={styles.headerShareButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void share();
+                }}
+                disabled={shareState === "sharing"}
+                aria-label="Share this week replay"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="11"
+                  height="11"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+                {shareState === "sharing"
+                  ? "…"
+                  : shareState === "copied"
+                    ? "Copied!"
+                    : shareState === "error"
+                      ? "Failed"
+                      : "Share"}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -1760,11 +1898,11 @@ export default function WeekReplayMap({
                 ×
               </button>
               {mediaIsOk(selectedEvent.media_url) ? (
-                <img
-                  src={selectedEvent.media_url!}
-                  alt=""
-                  className={styles.sheetPhoto}
-                />
+                renderCalloutPhoto(
+                  selectedEvent.media_url!,
+                  styles.sheetPhoto,
+                  selectionCallout?.title,
+                )
               ) : selectionCallout?.icon ? (
                 <span className={styles.sheetIcon} aria-hidden="true">
                   {selectionCallout.icon}
@@ -1836,6 +1974,37 @@ export default function WeekReplayMap({
               );
             })()
           ),
+          document.body,
+        )}
+
+      {/* Full-screen 311 photo. Portaled to <body> so it clears the hero
+          card's clipping, and dismissed by anything that reads as "out":
+          the backdrop, the close button, or Escape. */}
+      {portalReady &&
+        lightboxUrl &&
+        createPortal(
+          <div
+            className={styles.lightbox}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Report photo"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <button
+              type="button"
+              className={styles.lightboxClose}
+              onClick={() => setLightboxUrl(null)}
+              aria-label="Close photo"
+            >
+              ×
+            </button>
+            <img
+              src={lightboxUrl}
+              alt=""
+              className={styles.lightboxImage}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>,
           document.body,
         )}
     </div>

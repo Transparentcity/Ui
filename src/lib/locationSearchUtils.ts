@@ -109,6 +109,30 @@ export function suggestionToGeocodeResult(s: AddressSuggestion): GeocodeResult {
   };
 }
 
+/** Geocoding sits in front of a blocking spinner, so it must fail fast. */
+const GEOCODE_TIMEOUT_MS = 10000;
+/** Autocomplete is fired per keystroke; a stale suggestion is worse than none. */
+const SUGGEST_TIMEOUT_MS = 5000;
+
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+  label: string
+): Promise<Response> {
+  try {
+    return await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new Error(`${label} took too long. Please try again.`);
+    }
+    throw err;
+  }
+}
+
 /**
  * Fetch address autocomplete suggestions for the given query.
  * Returns an empty array if query is too short, or on error.
@@ -133,6 +157,7 @@ export async function fetchAddressSuggestions(
     const res = await fetch(`/api/geocode/suggest?${params.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(SUGGEST_TIMEOUT_MS),
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { suggestions?: AddressSuggestion[] };
@@ -154,10 +179,11 @@ export async function geocodeQuery(query: string): Promise<GeocodeResult> {
     formattedQuery = formatZipcodeForGeocoding(formattedQuery);
   }
 
-  const res = await fetch(`/api/geocode?q=${encodeURIComponent(formattedQuery)}`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  const res = await fetchWithTimeout(
+    `/api/geocode?q=${encodeURIComponent(formattedQuery)}`,
+    GEOCODE_TIMEOUT_MS,
+    "Geocoding"
+  );
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -178,12 +204,10 @@ export async function reverseGeocode(
   lat: number,
   lng: number
 ): Promise<GeocodeResult> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
-    {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    }
+    GEOCODE_TIMEOUT_MS,
+    "Reverse geocoding"
   );
 
   if (!res.ok) {

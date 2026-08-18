@@ -13,6 +13,7 @@ import {
   useDeleteShapeLayerInstance,
   useShapeLayerInstantiationStatus,
   useRetryMissingShapeLayers,
+  useRefreshAllShapeLayerGeometries,
   useSetOfficialDistrictLayer,
 } from "@/lib/hooks/useCities";
 import styles from "./ShapeLayersSection.module.css";
@@ -106,6 +107,7 @@ export default function ShapeLayersSection({ cityId }: ShapeLayersSectionProps) 
   const updateMutation = useUpdateShapeLayerInstance(cityId);
   const deleteMutation = useDeleteShapeLayerInstance(cityId);
   const retryMutation = useRetryMissingShapeLayers(cityId);
+  const refreshGeometriesMutation = useRefreshAllShapeLayerGeometries(cityId);
   const setOfficialMutation = useSetOfficialDistrictLayer(cityId);
 
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -419,6 +421,27 @@ export default function ShapeLayersSection({ cityId }: ShapeLayersSectionProps) 
     }
   };
 
+  const handleRefreshAllGeometries = async () => {
+    if (
+      !confirm(
+        "Re-download map geometries from each layer's source endpoint? Use this after importing lean platform metadata."
+      )
+    ) {
+      return;
+    }
+    try {
+      const result = await refreshGeometriesMutation.mutateAsync();
+      setGeometries({});
+      setVisibleIds([]);
+      await Promise.all([refetch(), refetchStatus()]);
+      alert(
+        `Geometry refresh: ${result.refreshed} updated, ${result.skipped} skipped, ${result.failed} failed (of ${result.total}).`
+      );
+    } catch (err: any) {
+      alert("Failed to refresh geometries: " + err.message);
+    }
+  };
+
   const handleSetOfficial = async (instanceId: number) => {
     try {
       await setOfficialMutation.mutateAsync(instanceId);
@@ -458,6 +481,18 @@ export default function ShapeLayersSection({ cityId }: ShapeLayersSectionProps) 
             {retryMutation.isPending
               ? "Retrying..."
               : `Retry Missing (${missingRequired + missingOptional})`}
+          </button>
+        )}
+        {instances.length > 0 && (
+          <button
+            className={styles.retryButton}
+            onClick={handleRefreshAllGeometries}
+            disabled={refreshGeometriesMutation.isPending}
+            title="Re-download GeoJSON from each layer's source_endpoint"
+          >
+            {refreshGeometriesMutation.isPending
+              ? "Refreshing geometries..."
+              : "Refresh geometries"}
           </button>
         )}
       </div>

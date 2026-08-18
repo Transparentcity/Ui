@@ -15,6 +15,7 @@ export const JUDGE_DIMENSION_LABELS: Record<string, string> = {
   tone: "Tone & voice",
   tool_use: "Tool use",
   charter_compliance: "Charter compliance",
+  depth: "Explanatory depth",
 };
 
 export function scoreColor(score: number | null | undefined): string {

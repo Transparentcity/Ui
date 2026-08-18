@@ -6,7 +6,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
 import { getMyPermissions, patchMapSeoPreviewImage } from "@/lib/apiClient";
-import { getPublicCityDetail } from "@/lib/publicApiClient";
+import { getCityBoundarySketch, getPublicCityDetail } from "@/lib/publicApiClient";
 import Loader from "@/components/Loader";
 import SourceInformationPanel, {
   formatSourceDateRange,
@@ -95,6 +95,100 @@ function getMultiLayerColor(layer: any, layerIndex: number): string {
   return isCssColorString(configuredColor)
     ? configuredColor.trim()
     : MULTI_LAYER_COLORS[layerIndex % MULTI_LAYER_COLORS.length];
+}
+
+// ── District-scope outline overlay ──────────────────────────────────────────
+// When a choropleth/delta map is limited to specific districts
+// (map_config.districts) but shaded by a *different* geography (e.g. a
+// neighborhood layer), we draw the enclosing district boundary on top so the
+// reader can see which district the neighborhoods sit inside. Geometry comes
+// from the city's official district layer via the public boundary-sketch
+// endpoint, so this works for any city with no per-map configuration.
+const DISTRICT_SCOPE_SOURCE = "district-scope-shapes";
+const DISTRICT_SCOPE_LAYER = "district-scope-outline";
+const DISTRICT_SCOPE_GLOW_LAYER = "district-scope-outline-glow";
+
+/** The slice of the mapbox-gl Map API the district-scope overlay touches. */
+type DistrictScopeMap = {
+  getLayer?: (id: string) => unknown;
+  removeLayer: (id: string) => void;
+  getSource?: (id: string) => unknown;
+  removeSource: (id: string) => void;
+  addSource: (id: string, source: unknown) => void;
+  addLayer: (layer: unknown) => void;
+};
+
+function removeDistrictScopeOverlay(
+  mapInstance: DistrictScopeMap | null | undefined,
+): void {
+  try {
+    for (const id of [DISTRICT_SCOPE_LAYER, DISTRICT_SCOPE_GLOW_LAYER]) {
+      if (mapInstance?.getLayer?.(id)) mapInstance.removeLayer(id);
+    }
+    if (mapInstance?.getSource?.(DISTRICT_SCOPE_SOURCE)) {
+      mapInstance.removeSource(DISTRICT_SCOPE_SOURCE);
+    }
+  } catch {
+    /* layers may not exist yet — safe to ignore */
+  }
+}
+
+async function addDistrictScopeOverlay(
+  mapInstance: DistrictScopeMap,
+  mapData: SavedMap,
+  basemapTheme: "light" | "dark",
+): Promise<void> {
+  const districts = mapData.map_config?.districts;
+  const cityId = mapData.city_id;
+  if (!cityId || !Array.isArray(districts) || districts.length === 0) return;
+
+  const sketch = await getCityBoundarySketch(cityId);
+
+  const wanted = new Set(
+    districts.map((d: unknown) => String(d).trim()).filter(Boolean),
+  );
+  const features = (sketch?.districts || [])
+    .filter((d) => wanted.has(String(d?.district_id).trim()))
+    .map((d) => ({
+      type: "Feature" as const,
+      properties: { district_id: d.district_id },
+      geometry: {
+        type: "MultiPolygon" as const,
+        // sketch rings: one outer ring per polygon part → wrap each as a polygon.
+        coordinates: (d.rings || []).map((ring) => [ring]),
+      },
+    }))
+    .filter((f) => f.geometry.coordinates.length > 0);
+  if (features.length === 0) return;
+
+  removeDistrictScopeOverlay(mapInstance);
+  mapInstance.addSource(DISTRICT_SCOPE_SOURCE, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features },
+  });
+  // Soft halo beneath the crisp line so the boundary reads over any fill color.
+  mapInstance.addLayer({
+    id: DISTRICT_SCOPE_GLOW_LAYER,
+    type: "line",
+    source: DISTRICT_SCOPE_SOURCE,
+    layout: { "line-join": "round", "line-cap": "round" },
+    paint: {
+      "line-color": basemapTheme === "dark" ? "#000000" : "#ffffff",
+      "line-width": 6,
+      "line-opacity": 0.5,
+    },
+  });
+  mapInstance.addLayer({
+    id: DISTRICT_SCOPE_LAYER,
+    type: "line",
+    source: DISTRICT_SCOPE_SOURCE,
+    layout: { "line-join": "round", "line-cap": "round" },
+    paint: {
+      "line-color": MAP_BRAND_PURPLE,
+      "line-width": 3,
+      "line-opacity": 0.95,
+    },
+  });
 }
 
 /** Collapsible layer-visibility legend for multi-layer maps, with per-layer point counts. */
@@ -1887,6 +1981,7 @@ export default function PublicMapPage() {
           if (mapInstance.getSource?.("choropleth-shapes")) {
             mapInstance.removeSource("choropleth-shapes");
           }
+          removeDistrictScopeOverlay(mapInstance);
         } catch (err) {
           console.warn("[PublicMapPage] Error removing choropleth for cleared selection:", err);
         }
@@ -2359,6 +2454,7 @@ export default function PublicMapPage() {
         if (mapInstance.getSource && mapInstance.getSource("choropleth-shapes")) {
           mapInstance.removeSource("choropleth-shapes");
         }
+        removeDistrictScopeOverlay(mapInstance);
       } catch (err) {
         console.warn("[PublicMapPage] Error removing existing choropleth layers:", err);
         // Continue anyway - layers might not exist yet
@@ -2396,6 +2492,13 @@ export default function PublicMapPage() {
             "line-opacity": theme === "dark" ? 0.8 : 0.6,
           },
         });
+        // Draw the enclosing district boundary when the map is scoped to specific
+        // districts but shaded by a different geography (e.g. neighborhoods).
+        try {
+          await addDistrictScopeOverlay(mapInstance, mapData, basemapTheme);
+        } catch (err) {
+          console.warn("[PublicMapPage] district scope overlay failed:", err);
+        }
         // For district maps, prefer the selected shape layer's geometry bounds over any
         // saved point bounds so the map opens framed around the actual polygons.
         fitMapToGeoJsonFeatures(mapInstance, features);

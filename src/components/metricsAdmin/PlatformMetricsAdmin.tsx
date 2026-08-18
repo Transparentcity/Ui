@@ -11,6 +11,7 @@ import {
   exportAdminPlatformMetadata,
   importAdminMetrics,
   importAdminPlatformMetadata,
+  refreshAllShapeLayerGeometries,
   getDefaultExecuteStartDateByPeriod,
 } from "@/lib/apiClient";
 import { isRecoverableAuth0TokenError } from "@/lib/auth0AccessToken";
@@ -162,6 +163,7 @@ export default function PlatformMetricsAdmin() {
   const [platformImportFile, setPlatformImportFile] = useState<File | null>(null);
   const [platformImportTargetCityId, setPlatformImportTargetCityId] = useState<number | null>(null);
   const [includeShapefileGeometry, setIncludeShapefileGeometry] = useState(false);
+  const [refreshingGeometries, setRefreshingGeometries] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -451,6 +453,8 @@ export default function PlatformMetricsAdmin() {
               <>
                 <p className={styles.backupPanelIntro}>
                   Use the city filter (optional). Full platform JSON includes cities, structure configs, leaders, and metrics — no time series or anomalies.
+                  Shapefile <em>rows</em> are always included; map geometry is omitted by default (recommended). After importing on another env, use{" "}
+                  <strong>Refresh map geometries</strong> (or City Data → Shape layers) to re-download GeoJSON from each layer&apos;s source endpoint.
                 </p>
 
                 {/* Full platform metadata */}
@@ -460,9 +464,9 @@ export default function PlatformMetricsAdmin() {
                     <span className={styles.backupRowHint}><code>platform_metadata.json</code> or legacy <code>metrics_export.json</code></span>
                   </div>
                   <div className={styles.backupRowActions}>
-                    <label className={styles.backupCheckbox}>
+                    <label className={styles.backupCheckbox} title="Usually times out on production via HTTP. Prefer lean export + Refresh map geometries, or scripts/export_platform_metadata.py --include-shapefile-geometry">
                       <input type="checkbox" checked={includeShapefileGeometry} onChange={(e) => setIncludeShapefileGeometry(e.target.checked)} />
-                      Include map geometry (large)
+                      Include map geometry (large; may timeout)
                     </label>
                     <button className={styles.secondaryBtn} disabled={platformExporting} onClick={async () => {
                       if (platformExporting) return;
@@ -492,7 +496,12 @@ export default function PlatformMetricsAdmin() {
                         try {
                           const token = await getAccessTokenSilently();
                           const res = await importAdminPlatformMetadata(token, platformImportFile, { target_city_id: platformImportTargetCityId ?? undefined });
-                          alert((res as any).message || "Import complete");
+                          const shapefileCount = res.counts?.city_shapefiles ?? 0;
+                          const hint =
+                            shapefileCount > 0
+                              ? `\n\nImported ${shapefileCount} shape layer row(s). If geometry was omitted, select the city and click Refresh map geometries.`
+                              : "";
+                          alert((res.message || "Import complete") + hint);
                           metricsQuery.refetch(); summaryQuery.refetch();
                         } catch (err) { alert(err instanceof Error ? err.message : "Import failed"); }
                         finally { setPlatformImporting(false); }
@@ -500,6 +509,40 @@ export default function PlatformMetricsAdmin() {
                         <i className="fas fa-upload" /> {platformImporting ? "Importing…" : "Import"}
                       </button>
                     </div>
+                    <button
+                      className={styles.secondaryBtn}
+                      disabled={!selectedCityId || refreshingGeometries}
+                      title={
+                        selectedCityId
+                          ? "Re-download GeoJSON from each layer's source_endpoint"
+                          : "Select a city filter first"
+                      }
+                      onClick={async () => {
+                        if (!selectedCityId || refreshingGeometries) return;
+                        if (
+                          !confirm(
+                            `Re-download map geometries for ${selectedCityDisplayName || `city ${selectedCityId}`} from each layer's source endpoint?`
+                          )
+                        ) {
+                          return;
+                        }
+                        setRefreshingGeometries(true);
+                        try {
+                          const token = await getAccessTokenSilently();
+                          const res = await refreshAllShapeLayerGeometries(selectedCityId, token);
+                          alert(
+                            `Geometry refresh: ${res.refreshed} updated, ${res.skipped} skipped, ${res.failed} failed (of ${res.total}).`
+                          );
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : "Geometry refresh failed");
+                        } finally {
+                          setRefreshingGeometries(false);
+                        }
+                      }}
+                    >
+                      <i className="fas fa-map" />{" "}
+                      {refreshingGeometries ? "Refreshing geometries…" : "Refresh map geometries"}
+                    </button>
                   </div>
                 </div>
 

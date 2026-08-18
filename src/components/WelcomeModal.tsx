@@ -94,6 +94,8 @@ type WelcomeLoadingAction = "search" | "gps" | null;
 
 /** Default saved place label on onboarding step 2 (createPlace only when location is precise). */
 const ONBOARDING_PLACE_LABEL_DEFAULT = "My place";
+/** Geocoding blocks the submit spinner, so cap it rather than letting it hang. */
+const GEOCODE_TIMEOUT_MS = 10000;
 
 /** Mayor from a loaded leaders list. */
 function pickMayorFromLeaders(leaders: CityLeader[]): CityLeader | null {
@@ -142,11 +144,16 @@ export default function WelcomeModal({
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<WelcomeLoadingAction>(null);
   const [leadersLoading, setLeadersLoading] = useState(false);
+  // District lookup finished but produced nothing (slow/failed backend, or a
+  // point outside every boundary). Onboarding still proceeds.
+  const [districtUnresolved, setDistrictUnresolved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState("");
   const [locationResult, setLocationResult] = useState<LocationResult | null>(null);
   const [homeCoordinates, setHomeCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [hasPreciseLocation, setHasPreciseLocation] = useState(false);
+  // True when the user entered a ZIP / postcode: coords are a centroid, not a street address.
+  const [isPostcodeLocation, setIsPostcodeLocation] = useState(false);
   const [placeLabel, setPlaceLabel] = useState(ONBOARDING_PLACE_LABEL_DEFAULT);
   const [placeRadius, setPlaceRadius] = useState(DEFAULT_PLACE_RADIUS_M);
 
@@ -342,6 +349,7 @@ export default function WelcomeModal({
       setMayorFollowed(true);
       setRepFollowed(true);
       setLeadersLoading(false);
+      setDistrictUnresolved(false);
       setAddressSuggestions([]);
       setShowAddressDropdown(false);
       setWeeklyNewsletterOptIn(true);
@@ -547,9 +555,16 @@ export default function WelcomeModal({
     if (isPrecisePick) {
       setHomeCoordinates({ lat: suggestion.lat, lng: suggestion.lon });
       setHasPreciseLocation(true);
+      setIsPostcodeLocation(false);
+    } else if (isPostcodePick) {
+      // Store ZIP centroid so a place can be auto-created at completion.
+      setHomeCoordinates({ lat: suggestion.lat, lng: suggestion.lon });
+      setHasPreciseLocation(false);
+      setIsPostcodeLocation(true);
     } else {
       setHomeCoordinates(null);
       setHasPreciseLocation(false);
+      setIsPostcodeLocation(false);
     }
     const coordsForDistrict =
       isPrecisePick || isPostcodePick ? { lat: suggestion.lat, lng: suggestion.lon } : null;
@@ -672,58 +687,58 @@ export default function WelcomeModal({
       matchedCity &&
       (finalDistrict === null || finalDistrict === undefined);
 
-    const cityDetailPromise = getCity(matchedCity.id, token)
-      .catch((err) => { console.error("Error fetching city details:", err); return null; });
+    // Only the launch check gates advancing, so it is the only blocking call.
+    // Leaders and district resolve behind an inline spinner on the next step —
+    // a ZIP in a large city used to hold the button for the full district lookup.
+    const cityDetail = await getCity(matchedCity.id, token).catch((err) => {
+      console.error("Error fetching city details:", err);
+      return null;
+    });
 
-    // Fast-path for precise locations (address/GPS): confirm city is active, then
-    // transition to step 2 immediately while leaders + district load in the background.
+    if (!cityDetail) {
+      setError("Something went wrong loading city data. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    if (!(cityDetail.is_launched ?? false)) {
+      if (onCityNotFound) {
+        onCityNotFound(
+          matchedCity.name,
+          matchedCity.state || null,
+          matchedCity.country || null
+        );
+        onClose();
+      }
+      return;
+    }
+
+    const partialResult: LocationResult = {
+      cityName: matchedCity.name,
+      state: matchedCity.state || null,
+      country: matchedCity.country || null,
+      matchedCity,
+      cityDetail,
+      leaders: [],
+      mayor: null,
+      councilMember: null,
+      district: null,
+      isActive: true,
+    };
+    setLocationResult(partialResult);
+    // Precise locations get the map step to confirm their pin; a ZIP centroid
+    // has nothing to confirm, so it goes straight to preferences.
+    setStep(isPrecise && coordinates ? "place" : "preferences");
+    setLeadersLoading(true);
+
+    recordProductEvent("onboarding_location_confirmed", {
+      city_id: matchedCity.id,
+      city_name: matchedCity.name,
+      is_precise: isPrecise,
+    });
+
+    // Pre-save partial location so we capture it if the user bails
     if (isPrecise && coordinates) {
-      const cityDetail = await cityDetailPromise;
-
-      if (!cityDetail) {
-        setError("Something went wrong loading city data. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      const isActive = cityDetail.is_launched ?? false;
-      if (!isActive) {
-        if (onCityNotFound) {
-          onCityNotFound(
-            matchedCity.name,
-            matchedCity.state || null,
-            matchedCity.country || null
-          );
-          onClose();
-        }
-        return;
-      }
-
-      // Advance to step 2 immediately with partial data; leaders fill in shortly after.
-      const partialResult: LocationResult = {
-        cityName: matchedCity.name,
-        state: matchedCity.state || null,
-        country: matchedCity.country || null,
-        matchedCity,
-        cityDetail,
-        leaders: [],
-        mayor: null,
-        councilMember: null,
-        district: null,
-        isActive: true,
-      };
-      setLocationResult(partialResult);
-      setStep("place");
-      setLeadersLoading(true);
-
-      // Analytics: location confirmed
-      recordProductEvent("onboarding_location_confirmed", {
-        city_id: matchedCity.id,
-        city_name: matchedCity.name,
-        is_precise: true,
-      });
-
-      // Pre-save partial location so we capture it if the user bails
       void (async () => {
         try {
           await updateUserPreferences({
@@ -738,97 +753,38 @@ export default function WelcomeModal({
           // non-blocking
         }
       })();
-
-      // Load leaders + district in the background (don't block the caller's finally block).
-      void (async () => {
-        try {
-          const districtPromise = shouldInferDistrict
-            ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
-                .catch((err) => { console.error("District lookup error:", err); return null; })
-            : Promise.resolve(null);
-          const leadersPromise = getCityLeaders(matchedCity.id, token);
-
-          const [districtResult, leaders] = await Promise.all([districtPromise, leadersPromise]);
-
-          if (districtResult != null) finalDistrict = districtResult;
-          const mayor = pickMayorFromLeaders(leaders);
-          const councilMember = pickRepFromLeaders(leaders, finalDistrict);
-
-          setLocationResult({
-            ...partialResult,
-            leaders,
-            mayor,
-            councilMember,
-            district: finalDistrict,
-          });
-        } catch (err) {
-          console.error("Background leader/district load error:", err);
-        } finally {
-          setLeadersLoading(false);
-        }
-      })();
-
-      return;
     }
 
-    // Standard path (city-level / postcode): wait for all data before advancing.
-    const districtPromise = shouldInferDistrict
-      ? findDistrictFromCoordinates(coordinates!.lat, coordinates!.lng, matchedCity.id, token)
-          .catch((error) => {
-            console.error("Error determining district from coordinates:", error);
-            return null;
-          })
-      : Promise.resolve(null);
+    // Load leaders + district in the background (don't block the caller's finally block).
+    void (async () => {
+      try {
+        const districtPromise = shouldInferDistrict && coordinates
+          ? findDistrictFromCoordinates(coordinates.lat, coordinates.lng, matchedCity.id, token)
+              .catch((err) => { console.error("District lookup error:", err); return null; })
+          : Promise.resolve(null);
+        const leadersPromise = getCityLeaders(matchedCity.id, token);
 
-    const leadersPromise = getCityLeaders(matchedCity.id, token);
+        const [districtResult, leaders] = await Promise.all([districtPromise, leadersPromise]);
 
-    const [districtResult, cityDetail, leaders] = await Promise.all([
-      districtPromise,
-      cityDetailPromise,
-      leadersPromise,
-    ]);
+        if (districtResult != null) finalDistrict = districtResult;
+        const mayor = pickMayorFromLeaders(leaders);
+        const councilMember = pickRepFromLeaders(leaders, finalDistrict);
 
-    if (districtResult != null) finalDistrict = districtResult;
-
-    if (!cityDetail) {
-      setError("Something went wrong loading city data. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const isActive = cityDetail.is_launched ?? false;
-    const mayor = pickMayorFromLeaders(leaders);
-    const councilMember = pickRepFromLeaders(leaders, finalDistrict);
-
-    const result: LocationResult = {
-      cityName: matchedCity.name,
-      state: matchedCity.state || null,
-      country: matchedCity.country || null,
-      matchedCity,
-      cityDetail,
-      leaders,
-      mayor,
-      councilMember,
-      district: finalDistrict,
-      isActive,
-    };
-    setLocationResult(result);
-
-    if (result.isActive) {
-      recordProductEvent("onboarding_location_confirmed", {
-        city_id: result.matchedCity?.id,
-        city_name: result.cityName,
-        is_precise: false,
-      });
-      setStep("preferences");
-    } else if (onCityNotFound) {
-      onCityNotFound(
-        matchedCity.name,
-        matchedCity.state || null,
-        matchedCity.country || null
-      );
-      onClose();
-    }
+        setLocationResult({
+          ...partialResult,
+          leaders,
+          mayor,
+          councilMember,
+          district: finalDistrict,
+        });
+        setDistrictUnresolved(shouldInferDistrict === true && districtResult == null);
+      } catch (err) {
+        console.error("Background leader/district load error:", err);
+        setDistrictUnresolved(shouldInferDistrict === true);
+      } finally {
+        setLeadersLoading(false);
+      }
+    })();
   };
 
   // Helper to detect if input is a zipcode
@@ -854,7 +810,9 @@ export default function WelcomeModal({
         query = `${query}, USA`;
       }
 
-      const geocodeRes = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+      const geocodeRes = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, {
+        signal: AbortSignal.timeout(GEOCODE_TIMEOUT_MS),
+      });
       
       if (!geocodeRes.ok) {
         if (geocodeRes.status === 404) {
@@ -902,9 +860,16 @@ export default function WelcomeModal({
       if (isPrecise) {
         setHomeCoordinates(coordinates);
         setHasPreciseLocation(true);
+        setIsPostcodeLocation(false);
+      } else if (allowDistrictFromPostcodeCentroid && coordinates) {
+        // Store ZIP centroid so a place can be auto-created at completion.
+        setHomeCoordinates(coordinates);
+        setHasPreciseLocation(false);
+        setIsPostcodeLocation(true);
       } else {
         setHomeCoordinates(null);
         setHasPreciseLocation(false);
+        setIsPostcodeLocation(false);
       }
 
       await processLocationAndFindCity(
@@ -950,7 +915,10 @@ export default function WelcomeModal({
       setHomeCoordinates({ lat: latitude, lng: longitude });
       setHasPreciseLocation(true);
 
-      const reverseRes = await fetch(`/api/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+      const reverseRes = await fetch(
+        `/api/reverse-geocode?lat=${latitude}&lng=${longitude}`,
+        { signal: AbortSignal.timeout(GEOCODE_TIMEOUT_MS) }
+      );
       
       if (!reverseRes.ok) {
         throw new Error("Reverse geocoding failed");
@@ -1648,6 +1616,29 @@ export default function WelcomeModal({
             </div>
           )}
 
+          {/* District lookup came back empty — say so rather than hiding the row,
+              so the user isn't left wondering whether we found their area. */}
+          {!leadersLoading && !rep && districtUnresolved && (
+            <div className={styles.coverageRowWrap}>
+              <div className={styles.coverageRow}>
+                <span className={styles.coverageRowIcon} aria-hidden>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity="0.5"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.5"/></svg>
+                </span>
+                <div className={styles.coverageRowContent}>
+                  <span className={styles.coverageRowTitle}>
+                    We&apos;ll confirm your district shortly
+                  </span>
+                  <span className={styles.coverageRowSubtitle}>
+                    You can finish setting up now.
+                  </span>
+                </div>
+              </div>
+              <p className={styles.coverageRowDesc}>
+                You&apos;ll still get citywide updates for {locationResult.cityName}.
+              </p>
+            </div>
+          )}
+
           {/* My district row — only shown while loading or when district data exists */}
           {(leadersLoading || rep) && (
             <div className={styles.coverageRowWrap}>
@@ -1833,14 +1824,20 @@ export default function WelcomeModal({
       // Create the user's saved place before navigation so My Places can list city → district → place
       // while the feed is selected (place id is passed to the dashboard shell).
       let createdPlaceId: number | null = null;
-      if (hasPreciseLocation && homeCoordinates) {
+      if (homeCoordinates && (hasPreciseLocation || isPostcodeLocation)) {
         try {
+          // For postcode entries, label the place after the ZIP code and use a wider radius
+          // that approximates the ZIP area footprint rather than a street-level block.
+          const zipMatch = locationInput.trim().match(/^(\d{5})(-\d{4})?$/);
+          const zipLabel = zipMatch ? `${zipMatch[1]} area` : null;
           const place = await createPlace(token, {
             city_id: cityId,
-            label: placeLabel?.trim() || ONBOARDING_PLACE_LABEL_DEFAULT,
+            label: isPostcodeLocation
+              ? (zipLabel || ONBOARDING_PLACE_LABEL_DEFAULT)
+              : (placeLabel?.trim() || ONBOARDING_PLACE_LABEL_DEFAULT),
             lat: homeCoordinates.lat,
             lng: homeCoordinates.lng,
-            radius_m: placeRadius,
+            radius_m: isPostcodeLocation ? 750 : placeRadius,
           });
           createdPlaceId = place?.id ?? null;
           if (createdPlaceId) {

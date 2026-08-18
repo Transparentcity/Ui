@@ -7,6 +7,7 @@ import {
   getCityStructure,
   getCityShapeLayers,
   getCityLeaders,
+  resolveDistrictForPoint,
   type CityShapefile,
 } from "@/lib/apiClient";
 import { resolveNeighborhoodIdFromProps } from "@/lib/atLargeCouncilNav";
@@ -189,7 +190,41 @@ export function primaryStructureIdFromLeaders(
   return result.geoStructureId;
 }
 
+/**
+ * Resolve a district for a point.
+ *
+ * Asks the backend, which runs point-in-polygon against the city's official
+ * district layer and returns a single number. Falls back to downloading
+ * geometry only while a backend without that endpoint is still deployed.
+ */
 export async function findDistrictFromCoordinates(
+  lat: number,
+  lng: number,
+  cityId: number,
+  token: string
+): Promise<number | null> {
+  try {
+    const resolved = await resolveDistrictForPoint(cityId, lat, lng);
+    return resolved.district ?? null;
+  } catch (error) {
+    const status = (error as { status?: number } | null)?.status;
+    if (status !== 404) {
+      // Timeouts and server errors must not trigger a multi-megabyte download.
+      console.error("District lookup failed:", error);
+      return null;
+    }
+  }
+  return findDistrictFromGeometry(lat, lng, cityId, token);
+}
+
+/**
+ * Legacy path: download the city's shape layers and resolve in the browser.
+ *
+ * Costs 2-18 MB per lookup depending on the city. Retained only so the UI keeps
+ * working against a backend that predates /resolve-district; delete once that
+ * endpoint is everywhere.
+ */
+async function findDistrictFromGeometry(
   lat: number,
   lng: number,
   cityId: number,
@@ -214,7 +249,7 @@ export async function findDistrictFromCoordinates(
     // Prefer official_district_shape_layer_id from city structure, then the
     // is_official_district_layer flag on the instance (structure API may omit it).
     let officialDistrictShapeLayerId: number | null =
-      (cityStructure as any).official_district_shape_layer_id ??
+      cityStructure.official_district_shape_layer_id ??
       shapefiles.find((sf) => sf.is_official_district_layer)?.id ??
       null;
 

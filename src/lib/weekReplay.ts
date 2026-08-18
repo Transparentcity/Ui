@@ -712,3 +712,16 @@ export function formatWindowRange(startIso: string, endIso: string): string {
       : e.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${sLabel} – ${eLabel}`;
 }
+
+/**
+ * Prepositional phrase for a replay scope. A place is somewhere you are
+ * ("at Bay"); a district or city is somewhere things happen ("in District 6").
+ * Shared by the live unit, share sheet, and exported video title card.
+ */
+export function weekReplayScopePhrase(
+  scopeLabel: string,
+  isPlaceScope: boolean,
+): string {
+  const label = scopeLabel.trim() || (isPlaceScope ? "your place" : "your city");
+  return isPlaceScope ? `at ${label}` : `in ${label}`;
+}

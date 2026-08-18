@@ -23,6 +23,23 @@ describe("buildStandardFeedProducerDefaultPrompt", () => {
     expect(s).toContain("1, 2");
     expect(s).toContain("alert, trend");
   });
+
+  // ScheduledJobsPanel prefills this for feed jobs with no stored prompt, and
+  // saving persists it. If it falls behind services/feed_depth_prompt.py, an
+  // admin opening a job silently downgrades its instructions back to the version
+  // that shipped stories restating a citywide total with no explanation.
+  it("requires the scoped explanation pass", () => {
+    const s = buildStandardFeedProducerDefaultPrompt([57260], ["alert"])!;
+    expect(s).toContain("EXPLANATION PASS (mandatory");
+    expect(s).toContain("get_metric_change_breakdown");
+    expect(s).toContain("get_metric_change_shape");
+  });
+
+  it("routes tool caveats away from published copy", () => {
+    const s = buildStandardFeedProducerDefaultPrompt([57260], ["alert"])!;
+    expect(s).toContain("instructions to you, not sentences for the story");
+    expect(s).toContain("worse than silence");
+  });
 });
 
 describe("parseCityIdsFromCsv", () => {

@@ -47,6 +47,15 @@ const cityAdminCache: {
   };
 } = {};
 
+const cityLeadersCache: {
+  [cityId: number]: {
+    data: any[] | null;
+    promise: Promise<any[]> | null;
+    timestamp: number;
+    token: string | null;
+  };
+} = {};
+
 const CITY_DATA_CACHE_TTL = 30000; // 30 seconds cache
 const CITY_STRUCTURE_CACHE_TTL = 120000; // 2 minutes cache (structure changes less frequently)
 const CITY_ADMIN_CACHE_TTL = 60000; // 1 minute cache
@@ -83,7 +92,8 @@ async function request<T>(
   path: string,
   method: HttpMethod = "GET",
   body?: any,
-  token?: string
+  token?: string,
+  options?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<T> {
   const url = `${getApiBaseUrl()}${path}`;
 
@@ -96,12 +106,36 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(url, {
-    method,
-    credentials: "include",
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  // Support a caller-provided signal, an auto-timeout, or neither.
+  let signal = options?.signal;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (!signal && options?.timeoutMs) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller.abort(), options.timeoutMs);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      credentials: "include",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      const timeoutError = new Error(
+        `API ${method} ${path} timed out after ${options?.timeoutMs}ms`
+      );
+      (timeoutError as any).status = 504;
+      throw timeoutError;
+    }
+    throw err;
+  }
+  if (timeoutId) clearTimeout(timeoutId);
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -198,6 +232,8 @@ export interface CityStructureData {
   }>;
   shapefiles?: any[];
   mappings?: any[];
+  /** cities.official_district_shape_layer_id — the elected-representative district layer. */
+  official_district_shape_layer_id?: number | null;
   district_field?: string | null;
   district_fields?: string[];
 }
@@ -2830,6 +2866,11 @@ export interface CityDetail {
   is_active: boolean;
   is_launched?: boolean;
   structure_status?: string | null;
+  /** cities.official_district_shape_layer_id — the elected-representative district layer. */
+  official_district_shape_layer_id?: number | null;
+  geographic_unit_label?: string | null;
+  geographic_unit_label_plural?: string | null;
+  navigation_mode?: string | null;
   geographic_structures?: Array<{
     id?: number;
     structure_name?: string;
@@ -2929,10 +2970,14 @@ export function clearCityDataCache(cityId?: number): void {
 export function clearCityStructureCache(cityId?: number): void {
   if (cityId !== undefined) {
     delete cityStructureCache[cityId];
+    delete cityLeadersCache[cityId];
   } else {
     // Clear all city structure cache
     Object.keys(cityStructureCache).forEach((key) => {
       delete cityStructureCache[Number(key)];
+    });
+    Object.keys(cityLeadersCache).forEach((key) => {
+      delete cityLeadersCache[Number(key)];
     });
   }
 }
@@ -2992,15 +3037,57 @@ export interface CityLeader {
   updated_at?: string;
 }
 
+/**
+ * Fetch a city's elected officials.
+ *
+ * Requests the structure endpoint with `include_shapefiles=false`: leaders are a
+ * few KB, while the geometry in the full response is several MB for large cities.
+ * Results are cached and in-flight requests deduped, since onboarding and the
+ * city header both ask for this on load.
+ */
 export function getCityLeaders(cityId: number, token: string): Promise<CityLeader[]> {
-  return request<any>(`/api/cities/${cityId}/structure`, "GET", undefined, token)
+  const now = Date.now();
+  const cached = cityLeadersCache[cityId];
+
+  if (
+    cached?.data &&
+    cached.token === token &&
+    now - cached.timestamp < CITY_STRUCTURE_CACHE_TTL
+  ) {
+    return Promise.resolve(cached.data);
+  }
+  if (
+    cached?.promise &&
+    cached.token === token &&
+    now - cached.timestamp < CITY_STRUCTURE_CACHE_TTL
+  ) {
+    return cached.promise;
+  }
+
+  const promise = request<any>(
+    `/api/cities/${cityId}/structure?include_shapefiles=false`,
+    "GET",
+    undefined,
+    token
+  )
     .then((data: any) => {
-      // Handle nested structure response
-      if (data.leaders && Array.isArray(data.leaders)) return data.leaders;
-      if (Array.isArray(data)) return data;
-      return [];
+      const leaders: CityLeader[] = Array.isArray(data?.leaders)
+        ? data.leaders
+        : Array.isArray(data)
+          ? data
+          : [];
+      if (cityLeadersCache[cityId]?.promise === promise) {
+        cityLeadersCache[cityId] = { data: leaders, promise: null, timestamp: now, token };
+      }
+      return leaders;
     })
-    .catch(() => []); // Return empty array if endpoint fails
+    .catch(() => {
+      delete cityLeadersCache[cityId];
+      return [];
+    });
+
+  cityLeadersCache[cityId] = { data: null, promise, timestamp: now, token };
+  return promise;
 }
 
 export type RepresentativeFollowerCountItem = { district: string; follower_count: number };
@@ -3181,6 +3268,42 @@ export interface CityShapeLayerListItem {
   instance: CityShapeLayerInstance | null;
 }
 
+export interface ResolvedDistrict {
+  city_id: number;
+  /** Null when the point falls outside every polygon, or the city has no district layer. */
+  district: number | null;
+  shape_layer_id: number | null;
+  /** How the layer was chosen: "official" | "leaders" | "heuristic" | "cache". */
+  source: string | null;
+}
+
+/** Onboarding waits on this, so cap it well below the user's patience. */
+export const DISTRICT_LOOKUP_TIMEOUT_MS = 8000;
+
+/**
+ * Resolve which subdivision of a city contains a point.
+ *
+ * Runs point-in-polygon on the server against the city's official district
+ * layer, so the browser never downloads city geometry to answer this.
+ */
+export function resolveDistrictForPoint(
+  cityId: number,
+  lat: number,
+  lng: number,
+  options?: { timeoutMs?: number }
+): Promise<ResolvedDistrict> {
+  const params = new URLSearchParams();
+  params.set("lat", String(lat));
+  params.set("lng", String(lng));
+  return request<ResolvedDistrict>(
+    `/api/public/cities/${cityId}/resolve-district?${params.toString()}`,
+    "GET",
+    undefined,
+    undefined,
+    { timeoutMs: options?.timeoutMs ?? DISTRICT_LOOKUP_TIMEOUT_MS }
+  );
+}
+
 export function getCityShapeLayers(
   cityId: number,
   token: string,
@@ -3281,6 +3404,36 @@ export function retryMissingShapeLayers(
 ): Promise<{ city_id: number; job_id: number | null; status: string; message: string }> {
   return request(
     `/api/shape-layers/cities/${cityId}/retry-missing`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export interface RefreshAllShapeLayerGeometriesResult {
+  instance_id: number;
+  shapefile_name: string;
+  status: "success" | "skipped" | "error";
+  refreshed_id?: number;
+  error?: string;
+}
+
+export interface RefreshAllShapeLayerGeometriesResponse {
+  city_id: number;
+  total: number;
+  refreshed: number;
+  skipped: number;
+  failed: number;
+  results: RefreshAllShapeLayerGeometriesResult[];
+}
+
+/** Re-download geometry for all city_shapefiles rows with source_endpoint. */
+export function refreshAllShapeLayerGeometries(
+  cityId: number,
+  token: string
+): Promise<RefreshAllShapeLayerGeometriesResponse> {
+  return request<RefreshAllShapeLayerGeometriesResponse>(
+    `/api/shape-layers/cities/${cityId}/instances/refresh-all`,
     "POST",
     undefined,
     token
@@ -5282,6 +5435,8 @@ export interface NewsletterPendingListItem {
   sent_at: string | null;
   archived_at: string | null;
   send_error: string | null;
+  /** True when generation failed: the row is a failure record with no email body. */
+  draft_failed?: boolean;
   /** Public permalink for shared newsletter drafts when an edition exists. */
   public_url?: string | null;
   /** True when the user has custom_email_prompt or newsletter_description (current profile). */
@@ -5302,6 +5457,12 @@ export interface NewsletterPendingListItem {
     cost_usd?: number | null;
     model_key?: string | null;
   } | null;
+  /** Overall LLM-judge score (1–5) from the latest auto-eval, null when not yet evaluated. */
+  eval_score?: number | null;
+  /** One-sentence verdict from the judge's overall assessment. */
+  eval_verdict?: string | null;
+  /** newsletter_eval_results.id for the imported auto-eval row, when present. */
+  eval_result_id?: number | null;
 }
 
 export function listNewsletterPending(
@@ -8954,6 +9115,13 @@ export interface NewsletterEvalResultDetail extends NewsletterEvalCell {
   session_trace?: string | null;
   /** Platform story-ranking / personalization scores passed to the judge. */
   scoring_block?: string | null;
+  /** Auto-correction metadata — present when a correction was attempted. */
+  correction_attempted_at?: string | null;
+  correction_session_id?: string | null;
+  correction_fields?: string[] | null;
+  correction_errors?: string[] | null;
+  correction_before?: Record<string, string> | null;
+  correction_after?: Record<string, string> | null;
 }
 
 export interface NewsletterEvalBatchListItem {
@@ -9110,6 +9278,18 @@ export function getNewsletterEvalBatch(
   );
 }
 
+export function getNewsletterEvalResultByPending(
+  pendingId: number,
+  token: string
+): Promise<NewsletterEvalResultDetail> {
+  return request(
+    `/api/admin/newsletter/eval/by-pending/${pendingId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function getNewsletterEvalResult(
   resultId: number,
   token: string
@@ -9135,6 +9315,21 @@ export function rejudgeNewsletterEvalResult(
     `/api/admin/newsletter/eval/results/${resultId}/rejudge`,
     "POST",
     body,
+    token
+  );
+}
+
+export function autocorrectNewsletterEvalResult(
+  resultId: number,
+  token: string
+): Promise<
+  | { job_id: string; result_id: number }
+  | { corrected: false; skipped: true; reason: string; job_id: null }
+> {
+  return request(
+    `/api/admin/newsletter/eval/results/${resultId}/correct`,
+    "POST",
+    {},
     token
   );
 }
@@ -9304,6 +9499,41 @@ export function autocorrectStoryEval(
     `/api/admin/newsletter/stories/eval/${rowId}/correct`,
     "POST",
     {},
+    token
+  );
+}
+
+export interface StoryEvalSettings {
+  /** Effective value used by the eval loop. */
+  auto_correct: boolean;
+  /** Persisted admin setting, ignored while auto_correct_env_override is set. */
+  auto_correct_stored: boolean;
+  auto_correct_default: boolean;
+  /** Non-null when STORY_EVAL_AUTO_CORRECT pins the effective value. */
+  auto_correct_env_override: boolean | null;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export function getStoryEvalSettings(
+  token: string
+): Promise<StoryEvalSettings> {
+  return request(
+    "/api/admin/newsletter/stories/eval/settings",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function updateStoryEvalSettings(
+  body: { auto_correct: boolean },
+  token: string
+): Promise<StoryEvalSettings> {
+  return request(
+    "/api/admin/newsletter/stories/eval/settings",
+    "PUT",
+    body,
     token
   );
 }

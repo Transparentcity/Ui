@@ -2235,6 +2235,9 @@ export default function CityView({
     selectedPlaceId != null ? briefingPlaceLoading : briefingBatchLoading;
 
   // District containing the selected place.
+  const officialDistrictShapeLayerId =
+    cityData?.official_district_shape_layer_id ?? null;
+
   // Fast path: use the district persisted server-side on the place row.
   // Fallback: client-side point-in-polygon (for places saved before migration).
   const briefingPlaceDistrict = useMemo(() => {
@@ -2244,15 +2247,21 @@ export default function CityView({
     const lat = place?.lat ?? initialPlaceGps?.lat;
     const lng = place?.lng ?? initialPlaceGps?.lng;
     if (lat == null || lng == null || mapShapefiles.length === 0) return null;
-    const officialId = (cityData as any)?.official_district_shape_layer_id ?? null;
     return resolveDistrictFromShapefiles(
       lat,
       lng,
       mapShapefiles,
       null,
-      officialId,
+      officialDistrictShapeLayerId,
     );
-  }, [selectedPlaceId, userPlaces, initialPlaceGps, mapShapefiles, mapLeaders]);
+  }, [
+    selectedPlaceId,
+    userPlaces,
+    initialPlaceGps,
+    mapShapefiles,
+    mapLeaders,
+    officialDistrictShapeLayerId,
+  ]);
 
   // When city has district-level data but no leaders in structure (e.g. Chicago, Oakland), build synthetic leaders so district nav still shows
   const syntheticLeadersFromDistricts = useMemo((): CityLeader[] => {
@@ -2718,6 +2727,7 @@ export default function CityView({
       selectedDistrict={selectedDistrict}
       leaders={effectiveLeaders}
       shapefiles={mapShapefiles}
+      officialDistrictShapeLayerId={officialDistrictShapeLayerId}
       onDistrictSelect={(district) => {
         setSelectedDistrict(district);
         setSelectedPlaceId(null);

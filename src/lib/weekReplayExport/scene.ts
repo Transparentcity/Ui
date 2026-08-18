@@ -121,6 +121,8 @@ export interface ExportScene {
   dateRange: string;
   /** "the Mission", "District 6", "San Francisco". */
   scopeLabel: string;
+  /** Place scopes use "at"; district/city scopes use "in". */
+  isPlaceScope: boolean;
   totalEvents: number;
 }
 
@@ -448,6 +450,7 @@ export async function buildExportScene(
     dayNightBands: buildDayNightBands(timeline),
     dateRange: formatWindowRange(data.window?.start || "", data.window?.end || ""),
     scopeLabel,
+    isPlaceScope,
     totalEvents: events.length,
   };
 }

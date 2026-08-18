@@ -9,6 +9,12 @@ import {
 } from "./mapUtils";
 
 describe("normalizeChoroplethDistrictKey", () => {
+  it("collapses whole-number floats and float strings to integers", () => {
+    expect(normalizeChoroplethDistrictKey(10.0)).toBe("10");
+    expect(normalizeChoroplethDistrictKey("10.0")).toBe("10");
+    expect(normalizeChoroplethDistrictKey("10")).toBe("10");
+  });
+
   it("strips leading zeros from numeric ids", () => {
     expect(normalizeChoroplethDistrictKey("02")).toBe("2");
   });
@@ -44,6 +50,8 @@ describe("choroplethDistrictKeyAliases", () => {
   it("returns just the normalized key for plain numbers", () => {
     expect(choroplethDistrictKeyAliases("3")).toEqual(["3"]);
     expect(choroplethDistrictKeyAliases(7)).toEqual(["7"]);
+    expect(choroplethDistrictKeyAliases(10.0)).toEqual(["10"]);
+    expect(choroplethDistrictKeyAliases("10.0")).toEqual(["10"]);
   });
 
   it("adds the trailing number for alpha-prefixed ids (Oakland CCD1 vs district_num 1)", () => {

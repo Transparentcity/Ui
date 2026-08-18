@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 
 import type { BoundarySketch } from "@/lib/publicApiClient";
 import type { WeekEventsResponse } from "@/lib/weekReplay";
+import { weekReplayScopePhrase } from "@/lib/weekReplay";
 import { buildAudioSchedule, renderReplayAudio } from "@/lib/weekReplayAudio";
 import {
   EXPORT_FORMATS,
@@ -41,11 +42,6 @@ import styles from "./WeekReplayExportDialog.module.css";
 
 /** Preview scale relative to the full export frame. */
 const PREVIEW_SCALE = 0.3;
-/**
- * Playback fraction the still preview is drawn at. Late enough that the map is
- * dense and the chart has built up, early enough to usually catch a callout.
- */
-const PREVIEW_AT = 0.72;
 
 type Status = "picking" | "preparing" | "encoding" | "ready" | "error";
 
@@ -170,6 +166,11 @@ export default function WeekReplayExportDialog({
   /**
    * Still preview of the chosen frame.
    *
+   * Drawn at the end of playback: every event is on the map, the chart has
+   * filled in, and no callout or spotlight veil is covering things — both ramp
+   * to nothing by the time a hold closes. A mid-playback frame would sell the
+   * export short, showing a half-built map behind a card.
+   *
    * Keyed on status as well as the scene: the canvas unmounts while the
    * finished video is on screen, so coming back to the picker hands us a fresh,
    * unpainted element that has to be redrawn.
@@ -186,7 +187,7 @@ export default function WeekReplayExportDialog({
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
     ctx.setTransform(PREVIEW_SCALE, 0, 0, PREVIEW_SCALE, 0, 0);
-    renderExportFrame(ctx, scene, scene.timeline.durationMs * PREVIEW_AT);
+    renderExportFrame(ctx, scene, scene.timeline.durationMs);
     setPreviewReady(true);
   }, [scene, status]);
 
@@ -303,7 +304,7 @@ export default function WeekReplayExportDialog({
       try {
         await navigator.share({
           files: [file],
-          title: `Your week in ${scopeLabel}`,
+          title: `Your week ${weekReplayScopePhrase(scopeLabel, isPlaceScope)}`,
         });
         return;
       } catch {
@@ -311,7 +312,7 @@ export default function WeekReplayExportDialog({
       }
     }
     download();
-  }, [result, scopeLabel, download]);
+  }, [result, scopeLabel, isPlaceScope, download]);
 
   const copyLink = useCallback(async () => {
     if (!getShareUrl) return;

@@ -22,6 +22,7 @@ import {
   deleteShapeLayerInstance,
   getShapeLayerInstantiationStatus,
   retryMissingShapeLayers,
+  refreshAllShapeLayerGeometries,
   setOfficialDistrictLayer,
   saveCity,
   unsaveCity,
@@ -66,7 +67,8 @@ export const cityKeys = {
   publicDistricts: (id: number) =>
     [...cityKeys.all, "publicDistricts", id] as const,
   leanLeaders: (id: number) => [...cityKeys.all, "leanLeaders", id] as const,
-  boundarySketch: (id: number) => [...cityKeys.all, "boundarySketch", id] as const,
+  boundarySketch: (id: number) =>
+    [...cityKeys.all, "boundarySketch", "v2", id] as const,
 };
 
 /**
@@ -599,6 +601,30 @@ export function useRetryMissingShapeLayers(cityId: number | null) {
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
       queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayerInstantiationStatus(cityId!) });
+    },
+  });
+}
+
+/**
+ * Re-download geometry for all shape layers that have source_endpoint.
+ * Use after importing a lean platform_metadata.json (geometry omitted).
+ */
+export function useRefreshAllShapeLayerGeometries(cityId: number | null) {
+  const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      return refreshAllShapeLayerGeometries(cityId, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, false) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayers(cityId!, true) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapefiles(cityId!) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.shapeLayerInstantiationStatus(cityId!) });
+      queryClient.invalidateQueries({ queryKey: cityKeys.boundarySketch(cityId!) });
     },
   });
 }

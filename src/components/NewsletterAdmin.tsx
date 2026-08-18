@@ -19,23 +19,31 @@ import {
   listNewsletterPending,
   listNewsletterSends,
   getNewsletterPendingDetail,
+  getNewsletterEvalResultByPending,
   sendNewsletterPendingBatch,
   deleteNewsletterPendingBatch,
   archiveNewsletterPendingBatch,
   runScheduleJob,
   typeaheadAdminUsers,
+  getAdminUserNewsletterOverview,
   getAvailableModels,
+  type AdminUserNewsletterOverview,
   type CityListItem,
   type NewsletterPendingListItem,
   type NewsletterPendingSelection,
   type NewsletterSendItem,
+  type ModelInfo,
+  type NewsletterEvalResultDetail,
 } from "@/lib/apiClient";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import Loader from "@/components/Loader";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
+import { ScoreBadge } from "@/components/eval/JudgeScoresPanel";
 import NewsletterAdminSubscribersTab from "@/components/NewsletterAdminSubscribersTab";
 import NewsletterAdminPromptsTab from "@/components/NewsletterAdminPromptsTab";
 import NewsletterAdminLibraryTab from "@/components/NewsletterAdminLibraryTab";
+import { NewsletterEvalPreviewModal } from "@/components/newsletter/NewsletterEvalPreviewModal";
+import { evalMatchesPendingRow } from "@/components/newsletter/NewsletterEvalResultDetailPane";
 import styles from "./NewsletterAdmin.module.css";
 
 // ---------------------------------------------------------------------------
@@ -1067,6 +1075,51 @@ type SearchSelection =
   | { kind: "city"; cityId: number; label: string }
   | { kind: "user"; userId: number; email: string; label: string };
 
+export interface UserGenerationDefaults {
+  cityId: number | null;
+  district: string;
+  frequency: "weekly" | "monthly";
+}
+
+/**
+ * Pick the city / district / frequency to preselect for a subscriber: their home
+ * location first, then a followed district, then a city-wide follow. Districts
+ * outside the 1–15 dropdown range and cities missing from the admin city list
+ * fall back to city-wide / unselected so the dropdowns never show a dead value.
+ */
+export function deriveUserGenerationDefaults(
+  overview: AdminUserNewsletterOverview,
+  cities: CityListItem[]
+): UserGenerationDefaults {
+  const knownCityId = (raw: unknown): number | null => {
+    const n = Number(raw);
+    return Number.isFinite(n) && cities.some((c) => c.city_id === n) ? n : null;
+  };
+  const districtValue = (raw: unknown): string => {
+    const n = Number(String(raw ?? "").trim());
+    return Number.isInteger(n) && n >= 1 && n <= 15 ? String(n) : "0";
+  };
+
+  const frequency = overview.newsletter_frequency === "monthly" ? "monthly" : "weekly";
+  const home = overview.home_location;
+  const homeCityId = home?.city_id != null ? knownCityId(home.city_id) : null;
+  if (homeCityId != null) {
+    return { cityId: homeCityId, district: districtValue(home?.district), frequency };
+  }
+
+  const subs = (overview.subscriptions || []).filter((s) => knownCityId(s.city_id) != null);
+  const preferred = subs.find((s) => districtValue(s.district) !== "0") ?? subs[0];
+  if (preferred) {
+    return {
+      cityId: knownCityId(preferred.city_id),
+      district: districtValue(preferred.district),
+      frequency,
+    };
+  }
+
+  return { cityId: null, district: "0", frequency };
+}
+
 function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const { getAccessTokenSilently } = useAuth0();
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
@@ -1077,11 +1130,10 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const [runBusy, setRunBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewDetail, setPreviewDetail] = useState<NewsletterEvalResultDetail | null>(null);
   const [previewPublicUrl, setPreviewPublicUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewSelection, setPreviewSelection] =
-    useState<NewsletterPendingSelection | null>(null);
+  const [previewModels, setPreviewModels] = useState<ModelInfo[]>([]);
 
   // Recent sends (paginated)
   const [recentSends, setRecentSends] = useState<NewsletterSendItem[]>([]);
@@ -1100,7 +1152,8 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const [searchResults, setSearchResults] = useState<NewsletterPendingListItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchExpandedId, setSearchExpandedId] = useState<number | null>(null);
-  const [searchPreviewHtml, setSearchPreviewHtml] = useState<string | null>(null);
+  const [searchPreviewDetail, setSearchPreviewDetail] =
+    useState<NewsletterEvalResultDetail | null>(null);
   const [searchPreviewPublicUrl, setSearchPreviewPublicUrl] = useState<string | null>(null);
   const [searchPreviewLoading, setSearchPreviewLoading] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
@@ -1114,6 +1167,9 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     Array<{ key: string; name: string }>
   >([]);
   const [searchGenBusy, setSearchGenBusy] = useState(false);
+  const [searchGenDefaultsLoading, setSearchGenDefaultsLoading] = useState(false);
+  /** Guards against a slower overview response overwriting a newer selection. */
+  const searchGenDefaultsSeq = useRef(0);
 
   const previewModalOpen = expandedId !== null || searchExpandedId !== null;
 
@@ -1123,13 +1179,32 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       const token = await getAccessTokenSilently();
       const u = await listNewsletterPending(token, { unsent_only: true, limit: 200 });
       setPending(u.items);
-      setSelected(new Set(u.items.map((x) => x.id)));
+      setSelected(new Set(u.items.filter((x) => !x.draft_failed).map((x) => x.id)));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load newsletter queue");
     } finally {
       setLoading(false);
     }
   }, [getAccessTokenSilently]);
+
+  /**
+   * Push a re-judged / auto-corrected eval into the cached queue rows. A full
+   * reload would work but resets the send selection, so patch in place instead.
+   */
+  const applyEvalUpdateToQueue = useCallback((updated: NewsletterEvalResultDetail) => {
+    const patchRow = (row: NewsletterPendingListItem): NewsletterPendingListItem => {
+      if (!evalMatchesPendingRow(row, updated)) return row;
+      return {
+        ...row,
+        subject: updated.subject ?? row.subject,
+        eval_score: updated.judge_scores?.overall?.score ?? null,
+        eval_verdict: updated.judge_scores?.overall?.verdict ?? null,
+        eval_result_id: updated.id > 0 ? updated.id : row.eval_result_id,
+      };
+    };
+    setPending((prev) => prev.map(patchRow));
+    setSearchResults((prev) => prev.map(patchRow));
+  }, []);
 
   const loadRecentSends = useCallback(async (page: number) => {
     try {
@@ -1252,7 +1327,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       setSearchLoading(true);
       setSearchResults([]);
       setSearchExpandedId(null);
-      setSearchPreviewHtml(null);
+      setSearchPreviewDetail(null);
       setSearchPreviewPublicUrl(null);
       try {
         const token = await getAccessTokenSilently();
@@ -1273,6 +1348,28 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     [getAccessTokenSilently]
   );
 
+  /** Preselect the subscriber's own city / district / frequency so drafts are one click. */
+  const loadUserGenerationDefaults = useCallback(
+    async (userId: number) => {
+      const seq = ++searchGenDefaultsSeq.current;
+      setSearchGenDefaultsLoading(true);
+      try {
+        const token = await getAccessTokenSilently();
+        const overview = await getAdminUserNewsletterOverview(userId, token);
+        if (seq !== searchGenDefaultsSeq.current) return;
+        const defaults = deriveUserGenerationDefaults(overview, cities);
+        setSearchGenCityId(defaults.cityId);
+        setSearchGenDistrict(defaults.district);
+        setSearchGenFrequency(defaults.frequency);
+      } catch {
+        // Non-fatal — admin can still pick the city and district by hand.
+      } finally {
+        if (seq === searchGenDefaultsSeq.current) setSearchGenDefaultsLoading(false);
+      }
+    },
+    [getAccessTokenSilently, cities]
+  );
+
   const handleSelectSuggestion = (s: SearchSuggestion) => {
     const sel: SearchSelection =
       s.kind === "city"
@@ -1283,9 +1380,12 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     setSearchGenDistrict("0");
     setSearchGenFrequency("weekly");
     if (s.kind === "city") {
+      searchGenDefaultsSeq.current += 1;
+      setSearchGenDefaultsLoading(false);
       setSearchGenCityId(s.cityId);
     } else {
       setSearchGenCityId(null);
+      void loadUserGenerationDefaults(s.userId);
     }
     setSuggestionsOpen(false);
     setSuggestions([]);
@@ -1299,8 +1399,10 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     setSuggestions([]);
     setSuggestionsOpen(false);
     setSearchExpandedId(null);
-    setSearchPreviewHtml(null);
+    setSearchPreviewDetail(null);
     setSearchPreviewPublicUrl(null);
+    searchGenDefaultsSeq.current += 1;
+    setSearchGenDefaultsLoading(false);
     setSearchGenCityId(null);
     setSearchGenDistrict("0");
     setSearchGenFrequency("weekly");
@@ -1404,17 +1506,22 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   };
 
   useEffect(() => {
+    getAccessTokenSilently()
+      .then((token) => getAvailableModels(token))
+      .then((modelGroups) => {
+        const flat = modelGroups.flatMap((g) => g.models.filter((m) => m.is_available));
+        if (flat.length > 0) setPreviewModels(flat);
+      })
+      .catch(() => {});
+  }, [getAccessTokenSilently]);
+
+  useEffect(() => {
     if (!previewModalOpen) return;
 
     const originalOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setExpandedId(null);
-        setPreviewHtml(null);
-        setPreviewPublicUrl(null);
-        setSearchExpandedId(null);
-        setSearchPreviewHtml(null);
-        setSearchPreviewPublicUrl(null);
+        closePreviewModal();
       }
     };
 
@@ -1467,7 +1574,8 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       const r = await sendNewsletterPendingBatch(ids, token);
       toast.success(`Sent ${r.sent}, skipped ${r.skipped}, failed ${r.failed}.`);
       setExpandedId(null);
-      setPreviewHtml(null);
+      setPreviewDetail(null);
+      setPreviewPublicUrl(null);
       await loadAll();
       if (recentSendsLoaded || queueTab === "recent") {
         setRecentSendsPage(1);
@@ -1492,7 +1600,8 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       const r = await deleteNewsletterPendingBatch(ids, token);
       toast.success(`Removed ${r.deleted} draft(s).`);
       setExpandedId(null);
-      setPreviewHtml(null);
+      setPreviewDetail(null);
+      setPreviewPublicUrl(null);
       await loadAll();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Delete failed");
@@ -1513,7 +1622,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       const r = await archiveNewsletterPendingBatch(ids, token);
       toast.success(`Archived ${r.archived} draft(s) as unsent.`);
       setExpandedId(null);
-      setPreviewHtml(null);
+      setPreviewDetail(null);
       setPreviewPublicUrl(null);
       await loadAll();
     } catch (e: unknown) {
@@ -1527,30 +1636,31 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     id: number,
     currentId: number | null,
     setId: (v: number | null) => void,
-    setHtml: (v: string | null) => void,
+    setDetail: (v: NewsletterEvalResultDetail | null) => void,
     setUrl: (v: string | null) => void,
     setBusy: (v: boolean) => void
   ) => {
     if (currentId === id) {
       setId(null);
-      setHtml(null);
+      setDetail(null);
       setUrl(null);
-      setPreviewSelection(null);
       return;
     }
     setId(id);
     setBusy(true);
-    setHtml(null);
+    setDetail(null);
     setUrl(null);
-    setPreviewSelection(null);
     try {
       const token = await getAccessTokenSilently();
-      const d = await getNewsletterPendingDetail(id, token);
-      setHtml(d.email_html || d.body_html);
-      setUrl(d.public_url || null);
-      setPreviewSelection(d.selection ?? null);
+      const [evalDetail, pendingDetail] = await Promise.all([
+        getNewsletterEvalResultByPending(id, token),
+        getNewsletterPendingDetail(id, token).catch(() => null),
+      ]);
+      setDetail(evalDetail);
+      setUrl(pendingDetail?.public_url || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Preview failed");
+      setId(null);
     } finally {
       setBusy(false);
     }
@@ -1561,7 +1671,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       id,
       expandedId,
       setExpandedId,
-      setPreviewHtml,
+      setPreviewDetail,
       setPreviewPublicUrl,
       setPreviewLoading
     );
@@ -1571,18 +1681,17 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       id,
       searchExpandedId,
       setSearchExpandedId,
-      setSearchPreviewHtml,
+      setSearchPreviewDetail,
       setSearchPreviewPublicUrl,
       setSearchPreviewLoading
     );
 
   const closePreviewModal = () => {
     setExpandedId(null);
-    setPreviewHtml(null);
+    setPreviewDetail(null);
     setPreviewPublicUrl(null);
-    setPreviewSelection(null);
     setSearchExpandedId(null);
-    setSearchPreviewHtml(null);
+    setSearchPreviewDetail(null);
     setSearchPreviewPublicUrl(null);
   };
 
@@ -1709,7 +1818,11 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                   <button
                     type="button"
                     className={styles.linkBtn}
-                    onClick={() => setSelected(new Set(pending.map((p) => p.id)))}
+                    onClick={() =>
+                      setSelected(
+                        new Set(pending.filter((p) => !p.draft_failed).map((p) => p.id))
+                      )
+                    }
                   >
                     Select all
                   </button>
@@ -1751,6 +1864,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                           <th className={styles.th}>Recipient</th>
                           <th className={styles.th}>Scope</th>
                           <th className={styles.th}>Subject</th>
+                          <th className={styles.th}>Eval</th>
                           <th className={styles.th}>Model</th>
                           <th className={styles.th}>Cost</th>
                           <th className={styles.th} />
@@ -1759,14 +1873,19 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                       <tbody>
                         {pending.length === 0 && (
                           <tr>
-                            <td colSpan={7} className={styles.emptyState}>
+                            <td colSpan={8} className={styles.emptyState}>
                               No newsletters waiting for review. Use Generate newsletters (one-time) to build and queue drafts.
                             </td>
                           </tr>
                         )}
                         {pending.map((row) => (
                           <Fragment key={row.id}>
-                            <tr className={styles.rowClickable}>
+                            <tr
+                              className={row.draft_failed ? undefined : styles.rowClickable}
+                              onClick={
+                                row.draft_failed ? undefined : () => handlePreview(row.id)
+                              }
+                            >
                               <td className={styles.td} onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
@@ -1780,7 +1899,36 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                 {newsletterScopeLabel(row)}
                               </td>
                               <td className={styles.td}>
-                                <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                                {row.draft_failed ? (
+                                  <div style={{ display: "grid", gap: 4 }}>
+                                    <span
+                                      className={`${styles.badge} ${styles.badgeRed}`}
+                                      style={{ justifySelf: "start" }}
+                                    >
+                                      Generation failed
+                                    </span>
+                                    <div
+                                      className={styles.headline}
+                                      title={row.send_error ?? undefined}
+                                      style={{ fontSize: 12, color: "var(--text-secondary)" }}
+                                    >
+                                      {row.send_error || "No draft was produced."}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                                )}
+                              </td>
+                              <td className={styles.td} style={{ textAlign: "center" }}>
+                                {row.eval_score != null ? (
+                                  <ScoreBadge
+                                    score={row.eval_score}
+                                    title={row.eval_verdict ?? undefined}
+                                    size={22}
+                                  />
+                                ) : (
+                                  <span style={{ color: "var(--text-tertiary, #9ca3af)", fontSize: 11 }}>—</span>
+                                )}
                               </td>
                               <td className={styles.td} style={{ fontSize: 12 }}>
                                 {modelLabel(row)}
@@ -1788,18 +1936,23 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                               <td className={styles.td}>
                                 <LlmUsagePill usage={row.llm_usage} />
                               </td>
-                              <td className={styles.td}>
+                              <td className={styles.td} onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                   {row.session_id?.trim() && (
                                     <JobSessionDebugLink sessionId={row.session_id} />
                                   )}
-                                  <button
-                                    type="button"
-                                    className={styles.linkBtn}
-                                    onClick={() => handlePreview(row.id)}
-                                  >
-                                    {expandedId === row.id ? "Hide" : "Preview"}
-                                  </button>
+                                  {!row.draft_failed && (
+                                    <button
+                                      type="button"
+                                      className={styles.linkBtn}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePreview(row.id);
+                                      }}
+                                    >
+                                      {expandedId === row.id ? "Hide" : "Preview"}
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1878,7 +2031,15 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                 ? row.pending_send_id
                                 : null;
                             return (
-                              <tr key={`send-${row.id}`}>
+                              <tr
+                                key={`send-${row.id}`}
+                                className={previewId != null ? styles.rowClickable : undefined}
+                                onClick={
+                                  previewId != null
+                                    ? () => handlePreview(previewId)
+                                    : undefined
+                                }
+                              >
                                 <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
                                   {formatDate(row.sent_at)}
                                 </td>
@@ -1900,7 +2061,11 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                 <td className={styles.td}>
                                   <LlmUsagePill usage={row.llm_usage} />
                                 </td>
-                                <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                                <td
+                                  className={styles.td}
+                                  style={{ whiteSpace: "nowrap" }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <div
                                     style={{
                                       display: "flex",
@@ -1916,7 +2081,10 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                       <button
                                         type="button"
                                         className={styles.linkBtn}
-                                        onClick={() => handlePreview(previewId)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePreview(previewId);
+                                        }}
                                       >
                                         {expandedId === previewId ? "Hide" : "Preview"}
                                       </button>
@@ -2090,11 +2258,14 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     <select
                       className={styles.select}
                       value={searchGenCityId ?? ""}
+                      disabled={searchGenDefaultsLoading}
                       onChange={(e) =>
                         setSearchGenCityId(e.target.value ? Number(e.target.value) : null)
                       }
                     >
-                      <option value="">Select…</option>
+                      <option value="">
+                        {searchGenDefaultsLoading ? "Loading…" : "Select…"}
+                      </option>
                       {cities
                         .slice()
                         .sort((a, b) => a.city_name.localeCompare(b.city_name))
@@ -2113,7 +2284,10 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     className={styles.select}
                     value={searchGenDistrict}
                     onChange={(e) => setSearchGenDistrict(e.target.value)}
-                    disabled={searchSelection.kind === "city" && searchGenBusy}
+                    disabled={
+                      (searchSelection.kind === "city" && searchGenBusy) ||
+                      searchGenDefaultsLoading
+                    }
                     title={
                       searchSelection.kind === "city"
                         ? "Legacy shared generation only; unified drafts all districts in the city"
@@ -2136,7 +2310,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     onChange={(e) =>
                       setSearchGenFrequency(e.target.value as "weekly" | "monthly")
                     }
-                    disabled={searchSelection.kind === "city"}
+                    disabled={searchSelection.kind === "city" || searchGenDefaultsLoading}
                     title={
                       searchSelection.kind === "city"
                         ? "City legacy shared uses weekly routing; unified uses pipeline frequency"
@@ -2171,6 +2345,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     className={styles.primaryBtn}
                     disabled={
                       searchGenBusy ||
+                      searchGenDefaultsLoading ||
                       (searchSelection.kind === "user" && !searchGenCityId)
                     }
                     onClick={() => void handleSearchGenerateLegacy()}
@@ -2187,6 +2362,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     className={styles.primaryBtn}
                     disabled={
                       searchGenBusy ||
+                      searchGenDefaultsLoading ||
                       (searchSelection.kind === "user" && !searchGenCityId)
                     }
                     onClick={() => void handleSearchGenerateUnified()}
@@ -2204,7 +2380,11 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
               <p className={styles.muted} style={{ margin: "10px 0 0", fontSize: 12 }}>
                 {searchSelection.kind === "city"
                   ? "Legacy queues shared drafts for the selected district group. Unified runs draft assembly for all subscribers in this city’s pipeline."
-                  : "Pick the city and district for this subscriber, then queue a personalized draft."}
+                  : searchGenDefaultsLoading
+                    ? "Loading this subscriber’s home city and district…"
+                    : searchGenCityId
+                      ? "Prefilled from this subscriber’s location and follows — adjust if needed, then queue a personalized draft."
+                      : "No city on file for this subscriber. Pick a city and district, then queue a personalized draft."}
               </p>
             </div>
           )}
@@ -2238,7 +2418,11 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                         </tr>
                       )}
                       {searchResults.map((row) => (
-                        <tr key={`search-${row.id}`}>
+                        <tr
+                          key={`search-${row.id}`}
+                          className={styles.rowClickable}
+                          onClick={() => handleSearchPreview(row.id)}
+                        >
                           <td className={styles.td} style={{ whiteSpace: "nowrap", fontSize: 12 }}>
                             {statusLabel(row)}
                           </td>
@@ -2252,7 +2436,11 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                           <td className={styles.td}>
                             <LlmUsagePill usage={row.llm_usage} />
                           </td>
-                          <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
+                          <td
+                            className={styles.td}
+                            style={{ whiteSpace: "nowrap" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                               {row.session_id?.trim() && (
                                 <JobSessionDebugLink sessionId={row.session_id} />
@@ -2260,7 +2448,10 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                               <button
                                 type="button"
                                 className={styles.linkBtn}
-                                onClick={() => handleSearchPreview(row.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSearchPreview(row.id);
+                                }}
                               >
                                 {searchExpandedId === row.id ? "Hide" : "Preview"}
                               </button>
@@ -2278,87 +2469,53 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       </div>
 
       {previewModalOpen && (
-        <div
-          className={styles.emailPreviewOverlay}
-          onClick={closePreviewModal}
-          role="presentation"
-        >
-          <div
-            className={styles.emailPreviewModal}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Newsletter email preview"
-          >
-            <div className={styles.emailPreviewHeader}>
-              <div className={styles.emailPreviewTitle}>Email preview</div>
-              <div className={styles.emailPreviewActions}>
-                {(previewPublicUrl || searchPreviewPublicUrl) && (
-                  <>
-                    <a
-                      href={previewPublicUrl || searchPreviewPublicUrl || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.secondaryBtn}
-                    >
-                      Open permalink
-                    </a>
-                    <button
-                      type="button"
-                      className={styles.secondaryBtn}
-                      onClick={async () => {
-                        const url = previewPublicUrl || searchPreviewPublicUrl || "";
-                        if (!url) return;
-                        try {
-                          await navigator.clipboard.writeText(url);
-                          toast.success("Link copied");
-                        } catch {
-                          toast.error("Could not copy link");
-                        }
-                      }}
-                    >
-                      Copy link
-                    </button>
-                  </>
-                )}
+        <NewsletterEvalPreviewModal
+          open={previewModalOpen}
+          loading={previewLoading || searchPreviewLoading}
+          title="Eval result"
+          panes={
+            previewDetail || searchPreviewDetail
+              ? [(previewDetail || searchPreviewDetail)!]
+              : []
+          }
+          models={previewModels}
+          onClose={closePreviewModal}
+          onRejudged={(updated) => {
+            if (expandedId != null) setPreviewDetail(updated);
+            if (searchExpandedId != null) setSearchPreviewDetail(updated);
+            applyEvalUpdateToQueue(updated);
+          }}
+          headerActions={
+            previewPublicUrl || searchPreviewPublicUrl ? (
+              <>
+                <a
+                  href={previewPublicUrl || searchPreviewPublicUrl || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.secondaryBtn}
+                >
+                  Open permalink
+                </a>
                 <button
                   type="button"
                   className={styles.secondaryBtn}
-                  onClick={closePreviewModal}
+                  onClick={async () => {
+                    const url = previewPublicUrl || searchPreviewPublicUrl || "";
+                    if (!url) return;
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Link copied");
+                    } catch {
+                      toast.error("Could not copy link");
+                    }
+                  }}
                 >
-                  Close
+                  Copy link
                 </button>
-              </div>
-            </div>
-            <div className={styles.emailPreviewBody}>
-              {previewLoading || searchPreviewLoading ? (
-                <div className={styles.emailPreviewEmpty}>
-                  <Loader size="sm" color="dark" />
-                  <span>Loading body…</span>
-                </div>
-              ) : (
-                <div className={styles.emailPreviewFrame}>
-                  {previewSelection && (
-                    <NewsletterSelectionPanel selection={previewSelection} />
-                  )}
-                  {previewHtml || searchPreviewHtml ? (
-                    <div className={styles.emailPreviewContent}>
-                      <div
-                        dangerouslySetInnerHTML={{
-                          __html: previewHtml || searchPreviewHtml || "",
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className={styles.emailPreviewEmpty}>
-                      <span className={styles.muted}>No body.</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+              </>
+            ) : undefined
+          }
+        />
       )}
     </>
   );

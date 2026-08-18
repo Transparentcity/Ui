@@ -1,10 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import {
+  findDistrictFromCoordinates,
   parseDistrictIdentifier,
   resolveDistrictFromShapefiles,
 } from "./findDistrictFromCoordinates";
 import type { CityShapefile } from "@/lib/apiClient";
+import {
+  getCityLeaders,
+  getCityShapeLayers,
+  getCityStructure,
+  resolveDistrictForPoint,
+} from "@/lib/apiClient";
+
+vi.mock("@/lib/apiClient", () => ({
+  resolveDistrictForPoint: vi.fn(),
+  getCityStructure: vi.fn(),
+  getCityShapeLayers: vi.fn(),
+  getCityLeaders: vi.fn(),
+}));
 
 // Simple unit squares so point-in-polygon is unambiguous.
 const NORTH_AVONDALE_SQUARE = [
@@ -171,6 +185,79 @@ describe("resolveDistrictFromShapefiles (ZIP vs district)", () => {
     });
     const result = resolveDistrictFromShapefiles(39.17, -84.44, [layer], null, 5);
     expect(result).toBeNull();
+  });
+});
+
+function httpError(status: number): Error & { status: number } {
+  const err = new Error(`failed: ${status}`) as Error & { status: number };
+  err.status = status;
+  return err;
+}
+
+describe("findDistrictFromCoordinates", () => {
+  beforeEach(() => {
+    vi.mocked(resolveDistrictForPoint).mockReset();
+    vi.mocked(getCityStructure).mockReset();
+    vi.mocked(getCityShapeLayers).mockReset();
+    vi.mocked(getCityLeaders).mockReset();
+  });
+
+  it("resolves server-side without downloading geometry", async () => {
+    vi.mocked(resolveDistrictForPoint).mockResolvedValue({
+      city_id: 56677,
+      district: 30,
+      shape_layer_id: 108,
+      source: "official",
+    });
+
+    const result = await findDistrictFromCoordinates(39.17, -84.44, 56677, "tok");
+
+    expect(result).toBe(30);
+    expect(resolveDistrictForPoint).toHaveBeenCalledWith(56677, 39.17, -84.44);
+    expect(getCityShapeLayers).not.toHaveBeenCalled();
+    expect(getCityStructure).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the point is outside every polygon", async () => {
+    vi.mocked(resolveDistrictForPoint).mockResolvedValue({
+      city_id: 56677,
+      district: null,
+      shape_layer_id: 108,
+      source: "official",
+    });
+
+    expect(await findDistrictFromCoordinates(40, -85, 56677, "tok")).toBeNull();
+    expect(getCityShapeLayers).not.toHaveBeenCalled();
+  });
+
+  it("does not download geometry when the lookup times out", async () => {
+    vi.mocked(resolveDistrictForPoint).mockRejectedValue(httpError(504));
+
+    expect(await findDistrictFromCoordinates(39.17, -84.44, 56677, "tok")).toBeNull();
+    expect(getCityShapeLayers).not.toHaveBeenCalled();
+    expect(getCityStructure).not.toHaveBeenCalled();
+  });
+
+  it("does not download geometry on a server error", async () => {
+    vi.mocked(resolveDistrictForPoint).mockRejectedValue(httpError(500));
+
+    expect(await findDistrictFromCoordinates(39.17, -84.44, 56677, "tok")).toBeNull();
+    expect(getCityShapeLayers).not.toHaveBeenCalled();
+  });
+
+  it("falls back to geometry only when the endpoint is absent (404)", async () => {
+    vi.mocked(resolveDistrictForPoint).mockRejectedValue(httpError(404));
+    vi.mocked(getCityStructure).mockResolvedValue({
+      official_district_shape_layer_id: 5,
+    } as never);
+    vi.mocked(getCityShapeLayers).mockResolvedValue([
+      { template: null, instance: supervisorLayer() },
+    ] as never);
+
+    const result = await findDistrictFromCoordinates(39.17, -84.44, 1, "tok");
+
+    expect(result).toBe(6);
+    expect(getCityShapeLayers).toHaveBeenCalledTimes(1);
   });
 });
 

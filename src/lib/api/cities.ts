@@ -1192,6 +1192,35 @@ export function retryMissingShapeLayers(
   );
 }
 
+export interface RefreshAllShapeLayerGeometriesResult {
+  instance_id: number;
+  shapefile_name: string;
+  status: "success" | "skipped" | "error";
+  refreshed_id?: number;
+  error?: string;
+}
+
+export interface RefreshAllShapeLayerGeometriesResponse {
+  city_id: number;
+  total: number;
+  refreshed: number;
+  skipped: number;
+  failed: number;
+  results: RefreshAllShapeLayerGeometriesResult[];
+}
+
+export function refreshAllShapeLayerGeometries(
+  cityId: number,
+  token: string
+): Promise<RefreshAllShapeLayerGeometriesResponse> {
+  return request<RefreshAllShapeLayerGeometriesResponse>(
+    `/api/shape-layers/cities/${cityId}/instances/refresh-all`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
 export interface SetOfficialDistrictLayerResponse {
   city_id: number;
   official_district_shape_layer_id: number;

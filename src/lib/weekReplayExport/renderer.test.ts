@@ -218,6 +218,7 @@ function makeScene(overrides: Partial<ExportScene> = {}): ExportScene {
     ],
     dateRange: "Jul 20 – 26",
     scopeLabel: "the Mission",
+    isPlaceScope: false,
     totalEvents: 40,
     ...overrides,
   };
@@ -411,6 +412,56 @@ describe("renderExportFrame", () => {
     const texts = withOutro.texts();
     expect(texts).toContain("40");
     expect(texts.some((t) => t.includes("events mapped in the Mission"))).toBe(true);
+  });
+
+  /**
+   * WeekReplayExportDialog draws its still preview at `durationMs`, so that
+   * frame has to stand on its own: the whole map, nothing covering it.
+   */
+  it("ends on a complete, unobscured map — the frame the still preview uses", () => {
+    const base = makeScene();
+    // A key event in the last moments of the week leaves a hold running to the
+    // final frame. That is the case where a callout card or its spotlight veil
+    // could still be sitting on the preview, so probe it rather than the
+    // comfortable middle-of-the-week hold.
+    const scene = makeScene({
+      keyMoments: [
+        {
+          ...base.keyMoments[0],
+          playStartMs: base.timeline.durationMs - 2400,
+          playEndMs: base.timeline.durationMs,
+        },
+      ],
+    });
+
+    const ctx = new RecordingContext();
+    renderExportFrame(ctx.asContext(), scene, scene.timeline.durationMs);
+
+    expect(ctx.texts().some((t) => t.includes("Graffiti reported"))).toBe(false);
+    expect(ctx.countOf("createRadialGradient")).toBe(0);
+    // Chart numerals add up to the full week, so every dot has landed.
+    const charted = ctx
+      .texts()
+      .filter((t) => /^\d+$/.test(t))
+      .reduce((sum, t) => sum + Number(t), 0);
+    expect(charted).toBe(scene.totalEvents);
+    // The closing card belongs to the tail, not to the preview.
+    expect(ctx.texts()).not.toContain(String(scene.totalEvents));
+  });
+
+  it("titles a place-scoped export with at, not in", () => {
+    const scene = makeScene({ scopeLabel: "Bay", isPlaceScope: true });
+    const ctx = new RecordingContext();
+    renderExportFrame(ctx.asContext(), scene, 0);
+    expect(ctx.texts()).toContain("Your week at Bay");
+
+    const outro = new RecordingContext();
+    renderExportFrame(outro.asContext(), scene, scene.timeline.durationMs, {
+      outro: 1,
+    });
+    expect(outro.texts().some((t) => t.includes("events mapped at Bay"))).toBe(
+      true,
+    );
   });
 
   it("clamps out-of-range playback times instead of drawing past the week", () => {

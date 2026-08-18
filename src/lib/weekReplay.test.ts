@@ -30,6 +30,7 @@ import {
   metricIcon,
   nightness,
   weekendness,
+  weekReplayScopePhrase,
   windowDateMs,
   windowDayLabels,
 } from "./weekReplay";
@@ -530,6 +531,19 @@ describe("window labels", () => {
     expect(labels).toHaveLength(7);
     expect(labels[0]).toBe("Sun 12");
     expect(labels[6]).toBe("Sat 18");
+  });
+});
+
+describe("weekReplayScopePhrase", () => {
+  it("uses at for places and in for districts and cities", () => {
+    expect(weekReplayScopePhrase("Bay", true)).toBe("at Bay");
+    expect(weekReplayScopePhrase("District 6", false)).toBe("in District 6");
+    expect(weekReplayScopePhrase("San Francisco", false)).toBe("in San Francisco");
+  });
+
+  it("falls back when the label is empty", () => {
+    expect(weekReplayScopePhrase("  ", true)).toBe("at your place");
+    expect(weekReplayScopePhrase("", false)).toBe("in your city");
   });
 });
 

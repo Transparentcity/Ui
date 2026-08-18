@@ -146,6 +146,8 @@ interface DistrictNavigationProps {
   selectedPlaceId?: number | null;
   /** Called when user selects a place (clears district). Call onDistrictSelect(null) when selecting a place. */
   onPlaceSelect?: (placeId: number | null) => void;
+  /** cities.official_district_shape_layer_id — disambiguates duplicate district layers. */
+  officialDistrictShapeLayerId?: number | null;
   /** Called after user saves a new place from this dialog; parent should refetch user places. */
   onPlaceSaved?: (place: UserPlace) => void;
   /** When this value changes and is > 0, open the modal (e.g. from Search Cities "Find your district"). */
@@ -184,7 +186,8 @@ function findDistrictContainingPoint(
   lat: number,
   lng: number,
   shapefiles: CityShapefile[],
-  leaders?: CityLeader[]
+  leaders?: CityLeader[],
+  officialDistrictShapeLayerId?: number | null
 ): { shapefile: CityShapefile; feature: any; identifier: string | number } | null {
   const point: [number, number] = [lng, lat];
   
@@ -194,7 +197,17 @@ function findDistrictContainingPoint(
 
   const hasOfficialFlag = shapefiles.some((sf) => (sf as any).is_official_district_layer);
 
-  if (hasOfficialFlag) {
+  if (officialDistrictShapeLayerId) {
+    // cities.official_district_shape_layer_id is authoritative, and unlike the
+    // per-instance flag it disambiguates cities with duplicate district layers.
+    shapefiles.forEach((sf) => {
+      if (sf.id === officialDistrictShapeLayerId) {
+        primaryShapefiles.push(sf);
+      } else {
+        otherShapefiles.push(sf);
+      }
+    });
+  } else if (hasOfficialFlag) {
     shapefiles.forEach((sf) => {
       if ((sf as any).is_official_district_layer) {
         primaryShapefiles.push(sf);
@@ -309,6 +322,7 @@ export default function DistrictNavigation({
   placeRefreshLastRunAt,
   geographicStructures,
   cityName,
+  officialDistrictShapeLayerId = null,
 }: DistrictNavigationProps) {
   const normalizedSelectedDistrict = useMemo(() => {
     const normalized = normalizeDistrictValue(selectedDistrict);
@@ -569,6 +583,7 @@ export default function DistrictNavigation({
         suggestion.lon,
         shapefiles,
         leaders,
+        officialDistrictShapeLayerId,
       );
 
       if (districtResult) {
@@ -665,7 +680,13 @@ export default function DistrictNavigation({
           return;
         }
       } else {
-        const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
+        const districtResult = findDistrictContainingPoint(
+          lat,
+          lng,
+          shapefiles,
+          leaders,
+          officialDistrictShapeLayerId,
+        );
 
         if (districtResult) {
           const districtNum =
@@ -739,7 +760,13 @@ export default function DistrictNavigation({
           return;
         }
       } else {
-        const districtResult = findDistrictContainingPoint(lat, lng, shapefiles, leaders);
+        const districtResult = findDistrictContainingPoint(
+          lat,
+          lng,
+          shapefiles,
+          leaders,
+          officialDistrictShapeLayerId,
+        );
 
         if (districtResult) {
           const districtNum =

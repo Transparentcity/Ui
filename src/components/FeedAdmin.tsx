@@ -19,12 +19,15 @@ import {
 import {
   autocorrectStoryEval,
   getJob,
+  getStoryEvalSettings,
   importStoryEvals,
   listStoryEvals,
   overrideStoryEligible,
   rejudgeStoryEval,
   revokeStoryEligibleOverride,
+  updateStoryEvalSettings,
   type StoryEvalRow,
+  type StoryEvalSettings,
 } from "@/lib/apiClient";
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
@@ -229,6 +232,7 @@ function DiffBlock({ label, before, after }: { label: string; before: string; af
       <div
         style={{
           background: "#fef2f2",
+          color: "#7f1d1d",
           borderLeft: "3px solid #dc2626",
           padding: "6px 10px",
           borderRadius: "0 4px 4px 0",
@@ -246,6 +250,7 @@ function DiffBlock({ label, before, after }: { label: string; before: string; af
       <div
         style={{
           background: "#f0fdf4",
+          color: "#14532d",
           borderLeft: "3px solid #16a34a",
           padding: "6px 10px",
           borderRadius: "0 4px 4px 0",
@@ -388,6 +393,10 @@ export default function FeedAdmin() {
   const [selectedStoryIds, setSelectedStoryIds] = useState<Set<number>>(new Set());
   const [judgingSelected, setJudgingSelected] = useState(false);
 
+  // Story-eval auto-correct switch (platform setting, default on)
+  const [evalSettings, setEvalSettings] = useState<StoryEvalSettings | null>(null);
+  const [savingEvalSettings, setSavingEvalSettings] = useState(false);
+
   // Table pagination
   const [page, setPage] = useState(0);
 
@@ -450,6 +459,47 @@ export default function FeedAdmin() {
       anomalyHeight: "380px",
     });
   }, [previewStory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const settings = await getStoryEvalSettings(token);
+        if (!cancelled) setEvalSettings(settings);
+      } catch (err) {
+        console.error("Error loading story eval settings:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessTokenSilently]);
+
+  const handleToggleAutoCorrect = useCallback(
+    async (enabled: boolean) => {
+      try {
+        setSavingEvalSettings(true);
+        const token = await getAccessTokenSilently();
+        const settings = await updateStoryEvalSettings(
+          { auto_correct: enabled },
+          token
+        );
+        setEvalSettings(settings);
+        toast.success(
+          enabled
+            ? "Auto-correct on — failing stories get one repair attempt, then a re-judge"
+            : "Auto-correct off — failing stories keep their original text"
+        );
+      } catch (err) {
+        console.error("Error saving story eval settings:", err);
+        toast.error(err instanceof Error ? err.message : "Could not save setting");
+      } finally {
+        setSavingEvalSettings(false);
+      }
+    },
+    [getAccessTokenSilently]
+  );
 
   const loadData = useCallback(async () => {
     try {
@@ -1142,6 +1192,35 @@ export default function FeedAdmin() {
             <option value="failing">Failing (accuracy &lt; 4)</option>
           </select>
 
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+              opacity: evalSettings ? 1 : 0.5,
+            }}
+            title={
+              evalSettings?.auto_correct_env_override != null
+                ? `Pinned ${evalSettings.auto_correct_env_override ? "on" : "off"} by the STORY_EVAL_AUTO_CORRECT environment variable — the stored setting is ignored until that is removed`
+                : "When a judged story fails on accuracy, Seymour fixes the flagged claims and the story is re-judged. Applies to feed stories only, not newsletters."
+            }
+          >
+            <input
+              type="checkbox"
+              checked={!!evalSettings?.auto_correct}
+              disabled={
+                !evalSettings ||
+                savingEvalSettings ||
+                evalSettings.auto_correct_env_override != null
+              }
+              onChange={(e) => void handleToggleAutoCorrect(e.target.checked)}
+            />
+            Auto-correct failing stories
+            {savingEvalSettings ? <Loader size="sm" color="dark" /> : null}
+          </label>
+
           <button
             className={styles.secondaryBtn}
             disabled={selectedStoryIds.size === 0 || judgingSelected}
@@ -1290,7 +1369,10 @@ export default function FeedAdmin() {
                       )}
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
-                      <GatingBadge accuracy={accuracy} />
+                      <GatingBadge
+                        accuracy={accuracy}
+                        manualOverride={!!story.metadata?.eval_manual_eligible}
+                      />
                     </td>
                     <td className={`${styles.td} ${styles.hideNarrow}`}>
                       {story.user_place_id != null ? (

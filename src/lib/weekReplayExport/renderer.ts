@@ -18,6 +18,7 @@ import {
   formatClockTime,
   formatClockWeekday,
   isNightAt,
+  weekReplayScopePhrase,
 } from "@/lib/weekReplay";
 import { mixHex } from "../layerColors";
 import type { ExportEvent, ExportScene } from "./scene";
@@ -190,7 +191,11 @@ function drawHeader(
   ctx.textAlign = "left";
   ctx.font = font(700, titleSize);
   ctx.fillStyle = p.text;
-  const title = ellipsize(ctx, `Your week in ${scene.scopeLabel}`, inner);
+  const title = ellipsize(
+    ctx,
+    `Your week ${weekReplayScopePhrase(scene.scopeLabel, scene.isPlaceScope)}`,
+    inner,
+  );
   ctx.fillText(title, header.x + pad, header.y + header.h * 0.52);
 
   ctx.font = font(600, metaSize);
@@ -819,7 +824,11 @@ function drawOutro(
   ctx.font = font(700, 34);
   ctx.fillStyle = p.text;
   ctx.fillText(
-    ellipsize(ctx, `events mapped in ${scene.scopeLabel}`, w - 60),
+    ellipsize(
+      ctx,
+      `events mapped ${weekReplayScopePhrase(scene.scopeLabel, scene.isPlaceScope)}`,
+      w - 60,
+    ),
     x + w / 2,
     y + 190,
   );

@@ -368,6 +368,12 @@
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+.badgeRed {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
 /* Headline / text truncation */
 .headline {
   max-width: 300px;
