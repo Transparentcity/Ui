@@ -1004,6 +1004,8 @@ export function ResultDetailPane({
           errors={detail.correction_errors}
           before={detail.correction_before}
           after={detail.correction_after}
+          attempts={detail.correction_attempts}
+          attemptCount={detail.correction_attempt_count}
         />
 
         {/* Full judge context — everything the LLM judge received */}

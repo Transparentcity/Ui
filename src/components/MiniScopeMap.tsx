@@ -316,17 +316,17 @@ export function SketchOverlay({
                 strokeOpacity={0.85}
               />
             )}
-            <circle cx={circleX} cy={circleY} r={4} fill="#ad35fa" opacity={0.9} />
+            <circle cx={circleX} cy={circleY} r={7} fill="#ad35fa" opacity={0.9} />
             {placeName && (
               <text
                 x={circleX}
-                y={circleY - 10}
+                y={circleY - 16}
                 textAnchor="middle"
-                fontSize="13"
+                fontSize="18"
                 fontWeight="700"
                 fill="#ad35fa"
                 stroke={mutedDark ? "rgba(0, 0, 0, 0.75)" : "rgba(255, 255, 255, 0.9)"}
-                strokeWidth="3"
+                strokeWidth="4"
                 paintOrder="stroke"
                 style={{ letterSpacing: "0.01em" }}
               >

@@ -4777,6 +4777,11 @@ export function listFeedStories(
     all_cities?: boolean;
     /** With all_cities, include saved-place-scoped rows for staff (feed admin). */
     include_staff_saved_place_stories?: boolean;
+    /**
+     * Include stories the story-eval judge failed on accuracy. They are hidden
+     * from readers, so triage surfaces (Feed Admin) must opt in. Staff only.
+     */
+    include_failing_accuracy?: boolean;
     story_type?: string | null;
     /** Saved place (user_places.id); API verifies ownership. */
     user_place_id?: number | null;
@@ -4803,6 +4808,9 @@ export function listFeedStories(
   if (options?.all_cities) params.append("all_cities", "true");
   if (options?.include_staff_saved_place_stories) {
     params.append("include_staff_saved_place_stories", "true");
+  }
+  if (options?.include_failing_accuracy) {
+    params.append("include_failing_accuracy", "true");
   }
   if (options?.story_type) params.append("story_type", options.story_type);
   if (options?.user_place_id != null) {
@@ -9122,6 +9130,10 @@ export interface NewsletterEvalResultDetail extends NewsletterEvalCell {
   correction_errors?: string[] | null;
   correction_before?: Record<string, string> | null;
   correction_after?: Record<string, string> | null;
+  /** Total attempts including the latest; null on rows stamped before chaining. */
+  correction_attempt_count?: number | null;
+  /** Earlier attempts in the chain, oldest first. */
+  correction_attempts?: CorrectionAttempt[] | null;
 }
 
 export interface NewsletterEvalBatchListItem {
@@ -9374,6 +9386,25 @@ export interface StoryEvalRow {
   correction_before: Record<string, string> | null;
   /** Current (post-correction) text for each changed field. */
   correction_after: Record<string, string> | null;
+  /** Total attempts including the latest; null on rows stamped before chaining. */
+  correction_attempt_count: number | null;
+  /** Earlier attempts in the chain, oldest first. */
+  correction_attempts: CorrectionAttempt[] | null;
+}
+
+/**
+ * One earlier correction attempt. A story can be repaired more than once when a
+ * re-judge finds an error no prior attempt tried to fix, so the top-level
+ * correction_* fields describe the latest attempt and these describe the rest.
+ */
+export interface CorrectionAttempt {
+  attempted_at: string | null;
+  session_id: string | null;
+  eval_row_id?: number | null;
+  errors: string[] | null;
+  fields: string[] | null;
+  /** Original text for each field this attempt changed. */
+  before?: Record<string, string> | null;
 }
 
 export interface StoryEvalCandidate {

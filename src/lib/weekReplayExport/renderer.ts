@@ -260,22 +260,22 @@ function drawPlace(
   ctx.restore();
 
   ctx.beginPath();
-  ctx.arc(place.x, place.y, 5 * scale, 0, Math.PI * 2);
+  ctx.arc(place.x, place.y, 8 * scale, 0, Math.PI * 2);
   ctx.fillStyle = BRAND;
   ctx.globalAlpha = 0.9;
   ctx.fill();
   ctx.globalAlpha = 1;
 
   if (place.name) {
-    ctx.font = font(700, 15 * scale);
+    ctx.font = font(700, 21 * scale);
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     // Haloed, because it sits over streets and can't rely on the basemap.
-    ctx.lineWidth = 3 * scale;
+    ctx.lineWidth = 4 * scale;
     ctx.strokeStyle = p.bg;
-    ctx.strokeText(place.name, place.x, place.y - 11 * scale);
+    ctx.strokeText(place.name, place.x, place.y - 18 * scale);
     ctx.fillStyle = BRAND;
-    ctx.fillText(place.name, place.x, place.y - 11 * scale);
+    ctx.fillText(place.name, place.x, place.y - 18 * scale);
     ctx.textAlign = "left";
   }
 }

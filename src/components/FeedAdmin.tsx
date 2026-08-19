@@ -32,6 +32,7 @@ import {
 import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import Loader from "@/components/Loader";
+import { EvalCorrectionHistoryPanel } from "@/components/eval/EvalCorrectionHistoryPanel";
 import { JudgeScoresPanel, ScoreBadge } from "@/components/eval/JudgeScoresPanel";
 import { VisualizationDeferredInteractiveContainer } from "@/components/VisualizationDeferredInteractiveContainer";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
@@ -90,13 +91,16 @@ function GatingBadge({
   if (accuracy >= PASSING_ACCURACY) {
     return (
       <span className={`${styles.badge} ${styles.badgeGreen}`}>
-        newsletter-eligible
+        public + newsletter
       </span>
     );
   }
   return (
-    <span className={`${styles.badge} ${styles.badgeRed}`}>
-      blocked: accuracy {accuracy}
+    <span
+      className={`${styles.badge} ${styles.badgeRed}`}
+      title="Hidden from the public site and newsletter pools until accuracy ≥ 4 or admin override"
+    >
+      hidden: accuracy {accuracy}
     </span>
   );
 }
@@ -215,138 +219,19 @@ function escapeCSV(value: string): string {
   return value;
 }
 
-const FIELD_LABELS: Record<string, string> = {
-  headline: "Headline",
-  description: "Description",
-  article_html: "Article",
-};
-
-function DiffBlock({ label, before, after }: { label: string; before: string; after: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const previewLen = 200;
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4, color: "var(--text-secondary)" }}>
-        {label}
-      </div>
-      <div
-        style={{
-          background: "#fef2f2",
-          color: "#7f1d1d",
-          borderLeft: "3px solid #dc2626",
-          padding: "6px 10px",
-          borderRadius: "0 4px 4px 0",
-          fontSize: 12,
-          fontFamily: "monospace",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          marginBottom: 4,
-        }}
-      >
-        {expanded || before.length <= previewLen
-          ? before
-          : before.slice(0, previewLen) + "…"}
-      </div>
-      <div
-        style={{
-          background: "#f0fdf4",
-          color: "#14532d",
-          borderLeft: "3px solid #16a34a",
-          padding: "6px 10px",
-          borderRadius: "0 4px 4px 0",
-          fontSize: 12,
-          fontFamily: "monospace",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}
-      >
-        {expanded || after.length <= previewLen
-          ? after
-          : after.slice(0, previewLen) + "…"}
-      </div>
-      {(before.length > previewLen || after.length > previewLen) && (
-        <button
-          type="button"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 11,
-            color: "var(--accent)",
-            padding: "2px 0",
-          }}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? "Show less" : "Show full text"}
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** Auto-correction history panel for the eval sidebar. */
 function CorrectionHistoryPanel({ row }: { row: StoryEvalRow }) {
-  if (!row.correction_attempted_at) return null;
-
-  const fields: string[] = Array.isArray(row.correction_fields) ? row.correction_fields : [];
-  const errors: string[] = Array.isArray(row.correction_errors) ? row.correction_errors : [];
-  const before = row.correction_before ?? {};
-  const after = row.correction_after ?? {};
-  const attempted = new Date(row.correction_attempted_at).toLocaleString();
-  const corrected = fields.length > 0;
-
   return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-        ✦ Auto-correction
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            padding: "2px 6px",
-            borderRadius: 10,
-            background: corrected ? "#f0fdf4" : "#f1f5f9",
-            color: corrected ? "#16a34a" : "#64748b",
-          }}
-        >
-          {corrected ? `${fields.length} field${fields.length > 1 ? "s" : ""} changed` : "no changes"}
-        </span>
-      </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 8 }}>
-        {attempted}
-        {row.correction_session_id && (
-          <> · session <code style={{ fontSize: 10 }}>{row.correction_session_id.slice(0, 8)}</code></>
-        )}
-      </div>
-
-      {errors.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: "var(--text-secondary)" }}>
-            Errors fixed
-          </div>
-          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }}>
-            {errors.map((e, i) => (
-              <li key={i} style={{ marginBottom: 2 }}>{e}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {corrected ? (
-        fields.map((field) => (
-          <DiffBlock
-            key={field}
-            label={FIELD_LABELS[field] ?? field}
-            before={before[field] ?? "(not captured)"}
-            after={after[field] ?? "(current text unavailable)"}
-          />
-        ))
-      ) : (
-        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-          Seymour reviewed the story but made no changes.
-        </div>
-      )}
-    </div>
+    <EvalCorrectionHistoryPanel
+      attemptedAt={row.correction_attempted_at}
+      sessionId={row.correction_session_id}
+      fields={row.correction_fields}
+      errors={row.correction_errors}
+      before={row.correction_before}
+      after={row.correction_after}
+      attempts={row.correction_attempts}
+      attemptCount={row.correction_attempt_count}
+    />
   );
 }
 
@@ -488,7 +373,7 @@ export default function FeedAdmin() {
         setEvalSettings(settings);
         toast.success(
           enabled
-            ? "Auto-correct on — failing stories get one repair attempt, then a re-judge"
+            ? "Auto-correct on — failing stories get up to 3 repair attempts (re-judge between each)"
             : "Auto-correct off — failing stories keep their original text"
         );
       } catch (err) {
@@ -512,6 +397,7 @@ export default function FeedAdmin() {
         listFeedStories(token, {
           all_cities: true,
           include_staff_saved_place_stories: true,
+          include_failing_accuracy: true,
           limit: FETCH_BATCH,
           offset: 0,
           order_by: "story_date:desc",
@@ -532,6 +418,7 @@ export default function FeedAdmin() {
           const batch = await listFeedStories(token, {
             all_cities: true,
             include_staff_saved_place_stories: true,
+            include_failing_accuracy: true,
             limit: FETCH_BATCH,
             offset,
             order_by: "story_date:desc",
@@ -1637,8 +1524,9 @@ export default function FeedAdmin() {
                 <div className={styles.previewEvalTitle}>Story eval</div>
                 <div className={styles.muted} style={{ fontSize: 12, marginBottom: 10 }}>
                   Judged against the Seymour session tool-call trace. Accuracy ≥ 4
-                  keeps the story newsletter-eligible; failing accuracy blocks it
-                  from source pools.
+                  keeps the story on the public site and in newsletter pools;
+                  failing accuracy hides it from readers until it passes or an
+                  admin sets a manual override.
                 </div>
 
                 {previewEvalsLoading ? (

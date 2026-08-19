@@ -823,7 +823,7 @@ export default function BriefingHome({
               <MiniScopeMap
                 sketch={sketch}
                 selectedDistrict={district}
-                isPlaceScope={false}
+                isPlaceScope
                 placeDistrict={placeDistrict}
                 placeLat={placeLat}
                 placeLng={placeLng}

@@ -100,6 +100,12 @@ export function listFeedStories(
      * Admins see all cities; city leads only cities they lead.
      */
     include_staff_saved_place_stories?: boolean;
+    /**
+     * Include stories the story-eval judge failed on accuracy. They are hidden
+     * from readers, so triage surfaces (Feed Admin) must opt in. Same staff
+     * permissions as include_staff_saved_place_stories.
+     */
+    include_failing_accuracy?: boolean;
     /** Filter by story type (e.g. 'off_the_charts', 'alert', 'trend'). */
     story_type?: string | null;
     /** Saved place (user_places.id); API verifies ownership. */
@@ -125,6 +131,9 @@ export function listFeedStories(
   if (options?.all_cities) params.append("all_cities", "true");
   if (options?.include_staff_saved_place_stories) {
     params.append("include_staff_saved_place_stories", "true");
+  }
+  if (options?.include_failing_accuracy) {
+    params.append("include_failing_accuracy", "true");
   }
   if (options?.story_type) params.append("story_type", options.story_type);
   if (options?.user_place_id != null) {
