@@ -33,7 +33,9 @@
  *
  * After playback the unit stays interactive: scrub the week, tap pins/dots
  * for details, replay, share, or export the whole thing as a video sized for
- * stories and feeds (see WeekReplayExportDialog).
+ * stories and feeds (see WeekReplayExportDialog). Watching through lands on
+ * the same closing card the exported clip ends on — final count, scope, and
+ * branding — with a share call to action beneath it.
  *
  * Events come from GET /api/user/week-events (persona-boosted ranking,
  * never persona-filtered) and are fetched lazily on mount.
@@ -584,9 +586,15 @@ export default function WeekReplayMap({
   /**
    * True when the viewer jumped to the end via a chart click instead of
    * watching playback — the control button then keeps its play affordance
-   * (purple) rather than switching to "replay".
+   * (purple) rather than switching to "replay", and the closing card stays
+   * off so the map stays free to explore.
    */
   const [skippedToEnd, setSkippedToEnd] = useState(false);
+  /**
+   * Viewer dismissed the closing card to dig into the finished map. Reset on
+   * the next play so a watched-through ending always gets its landing again.
+   */
+  const [endCardDismissed, setEndCardDismissed] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "sharing" | "copied" | "error">(
     "idle",
   );
@@ -645,6 +653,7 @@ export default function WeekReplayMap({
     }
     setSelectedEventId(null);
     setSkippedToEnd(false);
+    setEndCardDismissed(false);
     setPhase("playing");
     lastFrameRef.current = performance.now();
     stopRaf();
@@ -716,6 +725,10 @@ export default function WeekReplayMap({
    * playback. That still counts as user-activated (activation is sticky once
    * the page has been interacted with), so nothing plays unprompted: with no
    * gesture the context stays suspended and the replay is simply silent.
+   *
+   * A watched-through ending must not call pause(): that fades the closing
+   * swell off mid-breath. release() stops scheduling and lets the same exhale
+   * the exported video ends on ring out under the closing card.
    */
   useEffect(() => {
     if (!soundOn || prefersReducedMotion || !audioSchedule) {
@@ -723,16 +736,20 @@ export default function WeekReplayMap({
       audioRef.current?.pause();
       return;
     }
-    if (phase !== "playing") {
-      audioRef.current?.pause();
+    if (phase === "playing") {
+      if (!audioRef.current) {
+        audioRef.current = createReplayAudioEngine(audioSchedule);
+      }
+      audioRef.current.setMuted(false);
+      audioRef.current.start(playMsRef.current);
       return;
     }
-    if (!audioRef.current) {
-      audioRef.current = createReplayAudioEngine(audioSchedule);
+    if (phase === "ended" && !skippedToEnd) {
+      audioRef.current?.release();
+      return;
     }
-    audioRef.current.setMuted(false);
-    audioRef.current.start(playMsRef.current);
-  }, [soundOn, phase, prefersReducedMotion, audioSchedule]);
+    audioRef.current?.pause();
+  }, [soundOn, phase, prefersReducedMotion, audioSchedule, skippedToEnd]);
 
   // Deep-link auto-play once events are fully loaded (not mid-fill).
   useEffect(() => {
@@ -807,6 +824,8 @@ export default function WeekReplayMap({
       e.preventDefault();
       scrubbingRef.current = true;
       if (phaseRef.current === "playing") pause();
+      // Digging into the timeline leaves the closing card behind.
+      if (phaseRef.current === "ended") setEndCardDismissed(true);
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       scrubTo(e.clientX);
     },
@@ -1190,13 +1209,25 @@ export default function WeekReplayMap({
    * before anyone presses play, and again once the replay ends. Someone who
    * arrives already knowing they want to send their week on shouldn't have to
    * watch it through first. They stay hidden mid-playback so the chrome keeps
-   * off the thing being watched.
+   * off the thing being watched. While the closing card carries the share
+   * CTA, the top-right cluster still exposes Video export.
    */
   const showShareCluster =
     !!prepared &&
     eventCount > 0 &&
     (phase === "idle" || phase === "ended") &&
     (!!getShareUrl || canExport);
+
+  /**
+   * Closing card after a watched-through (or scrubbed-to) ending — same count,
+   * scope line, and branding as the exported video outro. Skipped-to-end via
+   * the chart and an explicit dismiss leave the map clear to explore.
+   */
+  const showEndCard =
+    phase === "ended" &&
+    !skippedToEnd &&
+    !endCardDismissed &&
+    eventCount > 0;
   /** Names the replay in the video's title card and filename. */
   const resolvedScopeLabel =
     (scopeLabel || "").trim() ||
@@ -1460,8 +1491,9 @@ export default function WeekReplayMap({
         {/* Live clock (top-left) with key-event callout dropping out beneath
             it; share sits separately at top-right. In idle the column carries
             nothing but a tapped marker's card — there is no playback position
-            for the clock to report yet. */}
-        {prepared && timeline && (phase !== "idle" || selectedEvent) && (
+            for the clock to report yet. Hidden under the closing card so the
+            ending reads as one composition. */}
+        {prepared && timeline && (phase !== "idle" || selectedEvent) && !showEndCard && (
             <div className={styles.mapChromeLeft}>
               {phase !== "idle" && (
               <div className={styles.clock} aria-hidden="true">
@@ -1581,8 +1613,86 @@ export default function WeekReplayMap({
             </div>
         )}
 
-        {/* Share and video export, top-right. */}
-        {showShareCluster && (
+        {/* Closing card — mirrors the exported video outro: final count, scope,
+            branding. Share is the primary action; tapping the veil dismisses
+            so the finished map can still be explored. */}
+        {showEndCard && (
+          <div
+            className={styles.endOverlay}
+            data-theme={mapTheme}
+            onClick={(e) => {
+              e.stopPropagation();
+              setEndCardDismissed(true);
+            }}
+            role="presentation"
+          >
+            <div
+              className={styles.endCard}
+              role="status"
+              aria-live="polite"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className={styles.endCount}>{eventCount}</span>
+              <span className={styles.endCaption}>
+                events mapped {scopePhrase}
+              </span>
+              <span className={styles.endBrand}>
+                {[windowRange, "transparent.city"].filter(Boolean).join(" · ")}
+              </span>
+              {getShareUrl ? (
+                <button
+                  type="button"
+                  className={styles.endShareButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void share();
+                  }}
+                  disabled={shareState === "sharing"}
+                  aria-label="Share this week replay"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                  </svg>
+                  {shareState === "sharing"
+                    ? "Sharing…"
+                    : shareState === "copied"
+                      ? "Link copied"
+                      : shareState === "error"
+                        ? "Couldn't share"
+                        : "Share this week"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={styles.endDismiss}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEndCardDismissed(true);
+                }}
+              >
+                Explore the map
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Share and video export, top-right. Share hides while the closing
+            card carries the prominent CTA; Video stays available. */}
+        {showShareCluster && (canExport || (getShareUrl && !showEndCard)) && (
           <div className={styles.mapShare}>
             {canExport && (
               <button
@@ -1611,7 +1721,7 @@ export default function WeekReplayMap({
                 Video
               </button>
             )}
-            {getShareUrl && (
+            {getShareUrl && !showEndCard && (
               <button
                 type="button"
                 className={styles.headerShareButton}

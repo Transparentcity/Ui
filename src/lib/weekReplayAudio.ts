@@ -89,6 +89,12 @@ export interface ReplayAudioEngine {
   pause(): void;
   seek(playMs: number): void;
   setMuted(muted: boolean): void;
+  /**
+   * Stop scheduling new notes and let the closing swell ring out. Use this
+   * when playback reaches its natural end — pause() would fade the swell off
+   * before it lands, which is what the exported video's outro depends on.
+   */
+  release(): void;
   dispose(): void;
 }
 
@@ -878,12 +884,33 @@ export function createReplayAudioEngine(schedule: AudioSchedule): ReplayAudioEng
     }
 
     if (!closeScheduled && schedule.endMs <= horizonPlayMs) {
-      const at = audioOrigin + (schedule.endMs - playOrigin) / 1000;
-      if (at >= ctx.currentTime) scheduleClose(ctx, generation, at);
+      // Math.max so a slightly-late scheduler still fires the swell rather
+      // than marking it done and leaving the ending silent.
+      const at = Math.max(
+        ctx.currentTime,
+        audioOrigin + (schedule.endMs - playOrigin) / 1000,
+      );
+      scheduleClose(ctx, generation, at);
       closeScheduled = true;
       // Nothing left to schedule; the tail rings out on its own.
       stopTimer();
     }
+  }
+
+  /**
+   * Ensure the closing swell is queued (or fire it now if we overslept), then
+   * stop the scheduler. Leaves generation and pad alive so the exhale can
+   * decay the same way the exported track does.
+   */
+  function releaseClose(): void {
+    stopTimer();
+    if (!ctx || !generation || closeScheduled) return;
+    const at = Math.max(
+      ctx.currentTime,
+      audioOrigin + (schedule.endMs - playOrigin) / 1000,
+    );
+    scheduleClose(ctx, generation, at);
+    closeScheduled = true;
   }
 
   function startTimer(): void {
@@ -949,6 +976,10 @@ export function createReplayAudioEngine(schedule: AudioSchedule): ReplayAudioEng
           0.05,
         );
       }
+    },
+
+    release() {
+      releaseClose();
     },
 
     dispose() {
