@@ -40,16 +40,18 @@ const BROWSER_SETTLE_MS = 6000;
 // Overall page-load timeout for Playwright (ms).
 const PAGE_TIMEOUT_MS   = 30000;
 
+// `slug` is the canonical dashboard slug used to build card URLs. The sitemap
+// API no longer returns a slug field, so it cannot be derived from the response.
 const TARGET_CITIES = [
-  { label: "SF",         slugPatterns: ["san-francisco", "sf"] },
-  { label: "Oakland",    slugPatterns: ["oakland"] },
-  { label: "Chicago",    slugPatterns: ["chicago"] },
-  { label: "Detroit",    slugPatterns: ["detroit"] },
-  { label: "Denver",     slugPatterns: ["denver"] },
-  { label: "Cincinnati", slugPatterns: ["cincinnati"] },
-  { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"] },
-  { label: "Austin",     slugPatterns: ["austin"] },
-  { label: "Seattle",    slugPatterns: ["seattle"] },
+  { label: "SF",         slug: "san-francisco", slugPatterns: ["san-francisco", "sf"] },
+  { label: "Oakland",    slug: "oakland",       slugPatterns: ["oakland"] },
+  { label: "Chicago",    slug: "chicago",       slugPatterns: ["chicago"] },
+  { label: "Detroit",    slug: "detroit",       slugPatterns: ["detroit"] },
+  { label: "Denver",     slug: "denver",        slugPatterns: ["denver"] },
+  { label: "Cincinnati", slug: "cincinnati",    slugPatterns: ["cincinnati"] },
+  { label: "NYC",        slug: "new-york-city", slugPatterns: ["new-york-city", "new-york", "nyc"] },
+  { label: "Austin",     slug: "austin",        slugPatterns: ["austin"] },
+  { label: "Seattle",    slug: "seattle",       slugPatterns: ["seattle"] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -237,7 +239,7 @@ async function main() {
       resolvedCities.push({
         ...target,
         cityId:   found.id,
-        slug:     found.slug || "",
+        slug:     found.slug || target.slug,
         cityName: found.name,
       });
     }
