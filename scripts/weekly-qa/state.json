@@ -82,16 +82,6 @@
     },
     {
       "city": "Denver",
-      "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
-      "metricKey": "denver_311_abandoned_vehicle",
-      "metricId": 541,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-07-02"
-    },
-    {
-      "city": "Denver",
       "metricName": "🎨 Graffiti Removal Requests (Denver)",
       "metricKey": "denver_311_graffiti",
       "metricId": 540,
@@ -105,7 +95,7 @@
       "metricName": "🗑️ Illegal Dumping Complaints (311)",
       "metricKey": "sf_illegal_dumping_complaints_311",
       "metricId": 834,
-      "cardUrl": "https://transparent.city/c//metrics/sf_illegal_dumping_complaints_311",
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_illegal_dumping_complaints_311",
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-08-13"
@@ -1339,7 +1329,7 @@
       "metricName": "💀 Homicides",
       "metricKey": "chicago_homicides",
       "metricId": 807,
-      "cardUrl": "https://transparent.city/c//metrics/chicago_homicides",
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_homicides",
       "normalLagRange": [
         6,
         14
@@ -1352,7 +1342,7 @@
       "metricName": "📋🔨 Demolition Permits Issued",
       "metricKey": "detroit_demolition_permits",
       "metricId": 387,
-      "cardUrl": "https://transparent.city/c//metrics/detroit_demolition_permits",
+      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_demolition_permits",
       "normalLagRange": [
         17,
         25
@@ -1365,7 +1355,7 @@
       "metricName": "🏗️ Austin Code Compliance 311 Requests",
       "metricKey": "austin_311_code_compliance",
       "metricId": 366,
-      "cardUrl": "https://transparent.city/c//metrics/austin_311_code_compliance",
+      "cardUrl": "https://transparent.city/c/austin/metrics/austin_311_code_compliance",
       "normalLagRange": [
         5,
         13
@@ -1378,7 +1368,7 @@
       "metricName": "📋🏁 New Residential Construction Permits Completed",
       "metricKey": "cincinnati_new_residential_construction_permits_completed",
       "metricId": 584,
-      "cardUrl": "https://transparent.city/c//metrics/cincinnati_new_residential_construction_permits_completed",
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_completed",
       "normalLagRange": [
         4,
         12
@@ -1391,7 +1381,7 @@
       "metricName": "⚖️ DA Convictions",
       "metricKey": "convictions_da_convictions_7",
       "metricId": 93,
-      "cardUrl": "https://transparent.city/c//metrics/convictions_da_convictions_7",
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/convictions_da_convictions_7",
       "normalLagRange": [
         8,
         16
@@ -1404,7 +1394,7 @@
       "metricName": "🏢 Business Licenses",
       "metricKey": "cincinnati_business_licenses",
       "metricId": 295,
-      "cardUrl": "https://transparent.city/c//metrics/cincinnati_business_licenses",
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_business_licenses",
       "normalLagRange": [
         7,
         15
@@ -1417,7 +1407,7 @@
       "metricName": "📞 911 Calls for Service (NYPD)",
       "metricKey": "nyc_911_calls_for_service",
       "metricId": 286,
-      "cardUrl": "https://transparent.city/c//metrics/nyc_911_calls_for_service",
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_911_calls_for_service",
       "normalLagRange": [
         28,
         36
@@ -1430,7 +1420,7 @@
       "metricName": "💊 Drug Crime Complaints",
       "metricKey": "nyc_drug_crime_complaints",
       "metricId": 829,
-      "cardUrl": "https://transparent.city/c//metrics/nyc_drug_crime_complaints",
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_complaints",
       "normalLagRange": [
         28,
         36
@@ -1443,7 +1433,7 @@
       "metricName": "⚠️ Priority Crime Arrests",
       "metricKey": "nyc_priority_crime_arrests",
       "metricId": 830,
-      "cardUrl": "https://transparent.city/c//metrics/nyc_priority_crime_arrests",
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_priority_crime_arrests",
       "normalLagRange": [
         28,
         36
@@ -1456,14 +1446,40 @@
       "metricName": "🚨 Violent Crime Arrests",
       "metricKey": "nyc_violent_crime_arrests",
       "metricId": 831,
-      "cardUrl": "https://transparent.city/c//metrics/nyc_violent_crime_arrests",
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_arrests",
       "normalLagRange": [
         28,
         36
       ],
       "source": "unconfirmed",
       "addedDate": "2026-08-13"
+    },
+    {
+      "city": "SF",
+      "metricName": "💰 Total Vendor Payments",
+      "metricKey": "sf_total_vendor_payments",
+      "metricId": 318,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_total_vendor_payments",
+      "normalLagRange": [
+        208,
+        216
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-08-20"
+    },
+    {
+      "city": "SF",
+      "metricName": "🧾 Vendor Payment Transactions",
+      "metricKey": "sf_vendor_payment_count",
+      "metricId": 320,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_vendor_payment_count",
+      "normalLagRange": [
+        208,
+        216
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-08-20"
     }
   ],
-  "lastRunDate": "2026-08-13"
+  "lastRunDate": "2026-08-20"
 }
