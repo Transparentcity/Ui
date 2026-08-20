@@ -82,16 +82,6 @@
     },
     {
       "city": "Denver",
-      "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
-      "metricKey": "denver_311_abandoned_vehicle",
-      "metricId": 541,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-07-02"
-    },
-    {
-      "city": "Denver",
       "metricName": "🎨 Graffiti Removal Requests (Denver)",
       "metricKey": "denver_311_graffiti",
       "metricId": 540,
@@ -1463,7 +1453,33 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-08-13"
+    },
+    {
+      "city": "SF",
+      "metricName": "💰 Total Vendor Payments",
+      "metricKey": "sf_total_vendor_payments",
+      "metricId": 318,
+      "cardUrl": "https://transparent.city/c//metrics/sf_total_vendor_payments",
+      "normalLagRange": [
+        208,
+        216
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-08-20"
+    },
+    {
+      "city": "SF",
+      "metricName": "🧾 Vendor Payment Transactions",
+      "metricKey": "sf_vendor_payment_count",
+      "metricId": 320,
+      "cardUrl": "https://transparent.city/c//metrics/sf_vendor_payment_count",
+      "normalLagRange": [
+        208,
+        216
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-08-20"
     }
   ],
-  "lastRunDate": "2026-08-13"
+  "lastRunDate": "2026-08-20"
 }
