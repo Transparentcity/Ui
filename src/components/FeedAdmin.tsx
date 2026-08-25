@@ -33,7 +33,9 @@ import { slugify } from "@/lib/utils";
 import JobSessionDebugLink from "@/components/JobSessionDebugLink";
 import Loader from "@/components/Loader";
 import { EvalCorrectionHistoryPanel } from "@/components/eval/EvalCorrectionHistoryPanel";
+import { EvalTicketsPanel } from "@/components/eval/EvalTicketsPanel";
 import { JudgeScoresPanel, ScoreBadge } from "@/components/eval/JudgeScoresPanel";
+import SessionViewerModal from "@/components/eval/SessionViewerModal";
 import { VisualizationDeferredInteractiveContainer } from "@/components/VisualizationDeferredInteractiveContainer";
 import { processVisualizationShortcodes } from "@/lib/visualizationShortcodes";
 import styles from "./FeedAdmin.module.css";
@@ -323,6 +325,9 @@ export default function FeedAdmin() {
   const [previewStory, setPreviewStory] = useState<FeedStory | null>(null);
   const [previewEvals, setPreviewEvals] = useState<StoryEvalRow[]>([]);
   const [previewEvalsLoading, setPreviewEvalsLoading] = useState(false);
+  // Which eval row is shown in detail (null = latest)
+  const [selectedEvalId, setSelectedEvalId] = useState<number | null>(null);
+  const [viewingSession, setViewingSession] = useState<{ id: string; label: string } | null>(null);
   const [previewJudging, setPreviewJudging] = useState(false);
   const [rejudgingId, setRejudgingId] = useState<number | null>(null);
   const [correctingId, setCorrectingId] = useState<number | null>(null);
@@ -770,8 +775,10 @@ export default function FeedAdmin() {
   useEffect(() => {
     if (previewStoryId == null) {
       setPreviewEvals([]);
+      setSelectedEvalId(null);
       return;
     }
+    setSelectedEvalId(null);
     void loadPreviewEvals(previewStoryId);
   }, [previewStoryId, loadPreviewEvals]);
 
@@ -1292,11 +1299,16 @@ export default function FeedAdmin() {
                     </td>
                     <td className={styles.td}>
                       {story.job_session_id ? (
-                        <JobSessionDebugLink
-                          sessionId={story.job_session_id}
-                          label="View session"
+                        <button
+                          type="button"
                           className={styles.jobSessionLink}
-                        />
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingSession({ id: story.job_session_id!, label: "Creation session" });
+                          }}
+                        >
+                          View session
+                        </button>
                       ) : (
                         <span className={styles.muted} title="No research job session on file">
                           —
@@ -1305,11 +1317,16 @@ export default function FeedAdmin() {
                     </td>
                     <td className={styles.td} style={{ whiteSpace: "nowrap" }}>
                       {story.job_session_id ? (
-                        <JobSessionDebugLink
-                          sessionId={story.job_session_id}
-                          label="Session"
+                        <button
+                          type="button"
                           className={styles.jobSessionAction}
-                        />
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingSession({ id: story.job_session_id!, label: "Creation session" });
+                          }}
+                        >
+                          Session
+                        </button>
                       ) : null}
                       <button
                         className={`${styles.iconBtn} ${styles.iconBtnApplaud}${
@@ -1521,186 +1538,321 @@ export default function FeedAdmin() {
 
               {/* Right: eval sidebar (mirrors newsletter workbench) */}
               <aside className={styles.previewEvalSidebar}>
-                <div className={styles.previewEvalTitle}>Story eval</div>
-                <div className={styles.muted} style={{ fontSize: 12, marginBottom: 10 }}>
-                  Judged against the Seymour session tool-call trace. Accuracy ≥ 4
-                  keeps the story on the public site and in newsletter pools;
-                  failing accuracy hides it from readers until it passes or an
-                  admin sets a manual override.
-                </div>
+                {(() => {
+                  // Derive the active eval row: the one selected by the user,
+                  // or the latest row if none is selected.
+                  const latestEval = previewEvals[0] ?? null;
+                  const activeEval =
+                    selectedEvalId != null
+                      ? (previewEvals.find((r) => r.id === selectedEvalId) ?? latestEval)
+                      : latestEval;
+                  const isViewingOlderRow =
+                    selectedEvalId != null && selectedEvalId !== latestEval?.id;
 
-                {previewEvalsLoading ? (
-                  <div className={styles.muted} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <Loader size="sm" color="dark" /> Loading eval…
-                  </div>
-                ) : previewEvals[0]?.scores_json ? (
-                  <>
-                    <JudgeScoresPanel
-                      scores={previewEvals[0].scores_json}
-                      judgeModelKey={previewEvals[0].judge_model_key}
-                    />
-                    <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      <button
-                        type="button"
-                        className={styles.secondaryBtn}
-                        disabled={rejudgingId === previewEvals[0].id}
-                        onClick={() => void handleRejudge(previewEvals[0].id)}
-                      >
-                        {rejudgingId === previewEvals[0].id ? (
-                          <Loader size="sm" color="dark" />
-                        ) : (
-                          "Re-judge"
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.secondaryBtn}
-                        disabled={previewJudging || judgingSelected}
-                        onClick={() => void handleJudgePreview()}
-                      >
-                        {previewJudging ? <Loader size="sm" color="dark" /> : "Judge again"}
-                      </button>
-                      {storyAccuracy(previewStory) !== null &&
-                        (storyAccuracy(previewStory) ?? PASSING_ACCURACY) < PASSING_ACCURACY && (
+                  return (
+                    <>
+                      {/* ── Header ──────────────────────────────────────────────── */}
+                      <div className={styles.previewEvalTitle}>Story eval</div>
+                      <div className={styles.muted} style={{ fontSize: 12, marginBottom: 10 }}>
+                        Judged against the Seymour session tool-call trace. Accuracy ≥ 4
+                        keeps the story on the public site and in newsletter pools;
+                        failing accuracy hides it from readers until it passes or an
+                        admin sets a manual override.
+                      </div>
+
+                      {/* ── Eval history picker (all rows, newest first) ─────────── */}
+                      {previewEvals.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 5 }}>
+                            Eval history ({previewEvals.length})
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            {previewEvals.map((row, i) => {
+                              const isActive =
+                                selectedEvalId === row.id ||
+                                (selectedEvalId == null && i === 0);
+                              return (
+                                <button
+                                  key={row.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedEvalId(isActive ? null : row.id)
+                                  }
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "5px 8px",
+                                    borderRadius: 6,
+                                    border: isActive
+                                      ? "1px solid var(--brand-primary, #2563eb)"
+                                      : "1px solid var(--border-primary)",
+                                    background: isActive
+                                      ? "rgba(37, 99, 235, 0.06)"
+                                      : "transparent",
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                    width: "100%",
+                                  }}
+                                >
+                                  <ScoreBadge score={row.accuracy_score} size={18} />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 11.5, fontWeight: 600 }}>
+                                      #{row.id}
+                                      {i === 0 ? (
+                                        <span
+                                          style={{
+                                            marginLeft: 5,
+                                            fontSize: 9.5,
+                                            fontWeight: 500,
+                                            padding: "1px 5px",
+                                            borderRadius: 8,
+                                            background: "var(--bg-secondary)",
+                                            color: "var(--text-secondary)",
+                                          }}
+                                        >
+                                          latest
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: 10.5,
+                                        color: "var(--text-tertiary)",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                      }}
+                                    >
+                                      {row.status}
+                                      {row.correction_attempted_at ? " · corrected" : ""}
+                                      {row.completed_at
+                                        ? ` · ${formatDate(row.completed_at)}`
+                                        : ""}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── "Viewing older eval" notice ───────────────────────────── */}
+                      {isViewingOlderRow && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            padding: "5px 8px",
+                            marginBottom: 10,
+                            borderRadius: 6,
+                            background: "rgba(180,130,0,0.07)",
+                            color: "#8a6400",
+                            border: "1px solid rgba(180,130,0,0.2)",
+                          }}
+                        >
+                          Viewing an older eval. Actions (re-judge, correct) always
+                          operate on the <strong>latest</strong> row.
+                        </div>
+                      )}
+
+                      {/* ── Eval detail for the active row ───────────────────────── */}
+                      {previewEvalsLoading ? (
+                        <div className={styles.muted} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <Loader size="sm" color="dark" /> Loading eval…
+                        </div>
+                      ) : activeEval?.scores_json ? (
+                        <>
+                          <JudgeScoresPanel
+                            scores={activeEval.scores_json}
+                            judgeModelKey={activeEval.judge_model_key}
+                          />
+
+                          {/* Tickets from new accuracy judge */}
+                          {(activeEval.scores_json._tickets?.length ?? 0) > 0 && (
+                            <EvalTicketsPanel tickets={activeEval.scores_json._tickets!} />
+                          )}
+
+                          {/* Action buttons — always target the latest eval row */}
+                          {!isViewingOlderRow && latestEval && (
+                            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                              <button
+                                type="button"
+                                className={styles.secondaryBtn}
+                                disabled={rejudgingId === latestEval.id}
+                                onClick={() => void handleRejudge(latestEval.id)}
+                              >
+                                {rejudgingId === latestEval.id ? (
+                                  <Loader size="sm" color="dark" />
+                                ) : (
+                                  "Re-judge"
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.secondaryBtn}
+                                disabled={previewJudging || judgingSelected}
+                                onClick={() => void handleJudgePreview()}
+                              >
+                                {previewJudging ? <Loader size="sm" color="dark" /> : "Judge again"}
+                              </button>
+                              {storyAccuracy(previewStory) !== null &&
+                                (storyAccuracy(previewStory) ?? PASSING_ACCURACY) < PASSING_ACCURACY && (
+                                  <button
+                                    type="button"
+                                    className={styles.primaryBtn}
+                                    disabled={correctingId === latestEval.id}
+                                    title="Ask Seymour to make a minimal factual fix based on the judge's accuracy errors"
+                                    onClick={() => void handleAutoCorrect(latestEval.id)}
+                                  >
+                                    {correctingId === latestEval.id ? (
+                                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <Loader size="sm" color="white" /> Correcting…
+                                      </span>
+                                    ) : (
+                                      "✦ Auto-correct"
+                                    )}
+                                  </button>
+                                )}
+                              {previewStory.metadata?.eval_manual_eligible ? (
+                                <button
+                                  type="button"
+                                  className={styles.secondaryBtn}
+                                  disabled={overridingEligibility}
+                                  title="Remove admin override — story returns to normal eval gating"
+                                  onClick={() => void handleOverrideEligible(true)}
+                                >
+                                  {overridingEligibility ? (
+                                    <Loader size="sm" color="dark" />
+                                  ) : (
+                                    "Revoke override"
+                                  )}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={styles.secondaryBtn}
+                                  disabled={overridingEligibility}
+                                  title="Force this story into the newsletter pool regardless of eval score"
+                                  onClick={() => void handleOverrideEligible(false)}
+                                >
+                                  {overridingEligibility ? (
+                                    <Loader size="sm" color="dark" />
+                                  ) : (
+                                    "Override eligible"
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {lastCorrectionResult && !isViewingOlderRow && (
+                            <div style={{ marginTop: 8, fontSize: 12 }} className={styles.muted}>
+                              {lastCorrectionResult.corrected
+                                ? `Corrected: ${(lastCorrectionResult.changed_fields ?? []).join(", ")} — re-judged`
+                                : lastCorrectionResult.reason ?? "No changes made"}
+                            </div>
+                          )}
+
+                          <div style={{ marginTop: 10, fontSize: 11 }} className={styles.muted}>
+                            Status: {activeEval.status}
+                            {activeEval.source ? ` · ${activeEval.source}` : ""}
+                            {activeEval.completed_at
+                              ? ` · ${formatDate(activeEval.completed_at)}`
+                              : ""}
+                          </div>
+
+                          <StoryEvalTelemetry row={activeEval} />
+                          <CorrectionHistoryPanel row={activeEval} />
+                        </>
+                      ) : activeEval?.status === "pending" ? (
+                        <div className={styles.muted}>
+                          Judging in progress…{" "}
+                          <button
+                            type="button"
+                            className={styles.secondaryBtn}
+                            style={{ marginLeft: 6 }}
+                            onClick={() => void loadPreviewEvals(previewStory.id)}
+                          >
+                            Refresh
+                          </button>
+                        </div>
+                      ) : activeEval?.error ? (
+                        <div>
+                          <div className={styles.errorMessage}>{activeEval.error}</div>
+                          {!isViewingOlderRow && latestEval && (
+                            <button
+                              type="button"
+                              className={styles.secondaryBtn}
+                              style={{ marginTop: 8 }}
+                              disabled={rejudgingId === latestEval.id}
+                              onClick={() => void handleRejudge(latestEval.id)}
+                            >
+                              {rejudgingId === latestEval.id ? (
+                                <Loader size="sm" color="dark" />
+                              ) : (
+                                "Re-judge"
+                              )}
+                            </button>
+                          )}
+                          <StoryEvalTelemetry row={activeEval} />
+                          <CorrectionHistoryPanel row={activeEval} />
+                        </div>
+                      ) : (
+                        <div>
+                          <div className={styles.muted} style={{ marginBottom: 10 }}>
+                            Not judged yet. New stories are judged automatically when
+                            producer jobs run; you can also judge this story now.
+                          </div>
                           <button
                             type="button"
                             className={styles.primaryBtn}
-                            disabled={correctingId === previewEvals[0].id}
-                            title="Ask Seymour to make a minimal factual fix based on the judge's accuracy errors"
-                            onClick={() => void handleAutoCorrect(previewEvals[0].id)}
+                            disabled={previewJudging || judgingSelected}
+                            onClick={() => void handleJudgePreview()}
                           >
-                            {correctingId === previewEvals[0].id ? (
-                              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <Loader size="sm" color="white" /> Correcting…
-                              </span>
-                            ) : (
-                              "✦ Auto-correct"
-                            )}
+                            {previewJudging ? <Loader size="sm" color="dark" /> : "Judge story"}
                           </button>
-                        )}
-                      {previewStory.metadata?.eval_manual_eligible ? (
-                        <button
-                          type="button"
-                          className={styles.secondaryBtn}
-                          disabled={overridingEligibility}
-                          title="Remove admin override — story returns to normal eval gating"
-                          onClick={() => void handleOverrideEligible(true)}
-                        >
-                          {overridingEligibility ? (
-                            <Loader size="sm" color="dark" />
-                          ) : (
-                            "Revoke override"
-                          )}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.secondaryBtn}
-                          disabled={overridingEligibility}
-                          title="Force this story into the newsletter pool regardless of eval score"
-                          onClick={() => void handleOverrideEligible(false)}
-                        >
-                          {overridingEligibility ? (
-                            <Loader size="sm" color="dark" />
-                          ) : (
-                            "Override eligible"
-                          )}
-                        </button>
+                        </div>
                       )}
-                    </div>
-                    {lastCorrectionResult && (
-                      <div style={{ marginTop: 8, fontSize: 12 }} className={styles.muted}>
-                        {lastCorrectionResult.corrected
-                          ? `Corrected: ${(lastCorrectionResult.changed_fields ?? []).join(", ")} — re-judged`
-                          : lastCorrectionResult.reason ?? "No changes made"}
-                      </div>
-                    )}
-                    <div style={{ marginTop: 10, fontSize: 11 }} className={styles.muted}>
-                      Status: {previewEvals[0].status}
-                      {previewEvals[0].source ? ` · ${previewEvals[0].source}` : ""}
-                      {previewEvals[0].completed_at
-                        ? ` · ${formatDate(previewEvals[0].completed_at)}`
-                        : ""}
-                    </div>
-                    <StoryEvalTelemetry row={previewEvals[0]} />
-                    <CorrectionHistoryPanel row={previewEvals[0]} />
-                  </>
-                ) : previewEvals[0]?.status === "pending" ? (
-                  <div className={styles.muted}>
-                    Judging in progress…{" "}
-                    <button
-                      type="button"
-                      className={styles.secondaryBtn}
-                      style={{ marginLeft: 6 }}
-                      onClick={() => void loadPreviewEvals(previewStory.id)}
-                    >
-                      Refresh
-                    </button>
-                  </div>
-                ) : previewEvals[0]?.error ? (
-                  <div>
-                    <div className={styles.errorMessage}>{previewEvals[0].error}</div>
-                    <button
-                      type="button"
-                      className={styles.secondaryBtn}
-                      style={{ marginTop: 8 }}
-                      disabled={rejudgingId === previewEvals[0].id}
-                      onClick={() => void handleRejudge(previewEvals[0].id)}
-                    >
-                      {rejudgingId === previewEvals[0].id ? (
-                        <Loader size="sm" color="dark" />
-                      ) : (
-                        "Re-judge"
+
+                      {/* ── Session links ──────────────────────────────────────────── */}
+                      {(previewStory.job_session_id ||
+                        latestEval?.session_id ||
+                        activeEval?.judge_usage?.judge_session_id) && (
+                        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+                          {(latestEval?.session_id || previewStory.job_session_id) && (
+                            <button
+                              type="button"
+                              className={styles.jobSessionLink}
+                              onClick={() =>
+                                setViewingSession({
+                                  id: (latestEval?.session_id || previewStory.job_session_id)!,
+                                  label: "Creation session",
+                                })
+                              }
+                            >
+                              Creation session
+                            </button>
+                          )}
+                          {activeEval?.judge_usage?.judge_session_id && (
+                            <button
+                              type="button"
+                              className={styles.jobSessionLink}
+                              onClick={() =>
+                                setViewingSession({
+                                  id: activeEval.judge_usage!.judge_session_id!,
+                                  label: "Judge session",
+                                })
+                              }
+                            >
+                              Judge session
+                            </button>
+                          )}
+                        </div>
                       )}
-                    </button>
-                    <StoryEvalTelemetry row={previewEvals[0]} />
-                    <CorrectionHistoryPanel row={previewEvals[0]} />
-                  </div>
-                ) : (
-                  <div>
-                    <div className={styles.muted} style={{ marginBottom: 10 }}>
-                      Not judged yet. New stories are judged automatically when
-                      producer jobs run; you can also judge this story now.
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.primaryBtn}
-                      disabled={previewJudging || judgingSelected}
-                      onClick={() => void handleJudgePreview()}
-                    >
-                      {previewJudging ? <Loader size="sm" color="dark" /> : "Judge story"}
-                    </button>
-                  </div>
-                )}
-
-                {(previewStory.job_session_id || previewEvals[0]?.session_id) && (
-                  <div style={{ marginTop: 14 }}>
-                    <JobSessionDebugLink
-                      sessionId={
-                        previewEvals[0]?.session_id || previewStory.job_session_id
-                      }
-                      label="Creation session"
-                      className={styles.jobSessionLink}
-                    />
-                  </div>
-                )}
-
-                {previewEvals.length > 1 && (
-                  <div style={{ marginTop: 14 }}>
-                    <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
-                      Prior evals ({previewEvals.length - 1})
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }} className={styles.muted}>
-                      {previewEvals.slice(1).map((row) => (
-                        <li key={row.id}>
-                          #{row.id} · accuracy {row.accuracy_score ?? "—"} ·{" "}
-                          {row.status}
-                          {row.completed_at ? ` · ${formatDate(row.completed_at)}` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                    </>
+                  );
+                })()}
               </aside>
             </div>
 
@@ -2016,6 +2168,15 @@ export default function FeedAdmin() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Session viewer modal ────────────────────────────────────────────── */}
+      {viewingSession && (
+        <SessionViewerModal
+          sessionId={viewingSession.id}
+          label={viewingSession.label}
+          onClose={() => setViewingSession(null)}
+        />
       )}
     </div>
   );

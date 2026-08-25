@@ -38,7 +38,13 @@ function AttemptBadge({ changedCount }: { changedCount: number }) {
   );
 }
 
-function ErrorList({ errors }: { errors: string[] }) {
+function ErrorList({
+  errors,
+  label = "Errors the judge reported",
+}: {
+  errors: string[];
+  label?: string;
+}) {
   if (errors.length === 0) return null;
   return (
     <div style={{ marginBottom: 10 }}>
@@ -47,18 +53,18 @@ function ErrorList({ errors }: { errors: string[] }) {
           fontSize: 11,
           fontWeight: 600,
           marginBottom: 4,
-          color: "var(--text-secondary)",
+          color: "#c1341b",
         }}
       >
-        Errors the judge reported
+        {label}
       </div>
-      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }}>
+      <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "#c1341b" }}>
         {errors.map((e, i) => (
-          <li key={i} style={{ marginBottom: 2 }}>
+          <li key={i} style={{ marginBottom: 3, lineHeight: 1.4 }}>
             {e}
           </li>
         ))}
-      </ul>
+      </ol>
     </div>
   );
 }
@@ -144,14 +150,21 @@ export function EvalCorrectionHistoryPanel({
           gap: 6,
         }}
       >
-        ✦ Auto-correction
+        ✦ Auto-correction history
         {total > 1 && (
           <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
-            {total} attempts
+            {total} attempt{total > 1 ? "s" : ""}
           </span>
         )}
         <AttemptBadge changedCount={latestFields.length} />
       </div>
+
+      {/* Top-level errors from the most recent correction — shown prominently
+          even when the re-judge subsequently passed the story, so the admin
+          can trace what was wrong before the fix was applied. */}
+      {latestErrors.length > 0 && (
+        <ErrorList errors={latestErrors} label="What the judge found wrong" />
+      )}
 
       {priorAttempts.map((attempt, index) => {
         const attemptFields = Array.isArray(attempt.fields) ? attempt.fields : [];
@@ -211,7 +224,6 @@ export function EvalCorrectionHistoryPanel({
           </div>
         )}
         <AttemptMeta attemptedAt={attemptedAt} sessionId={sessionId} />
-        <ErrorList errors={latestErrors} />
 
         {latestFields.length > 0 ? (
           latestFields.map((field) => (

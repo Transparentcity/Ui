@@ -9024,11 +9024,23 @@ export interface NewsletterEvalJudgeDimension {
   errors?: string[];
 }
 
+/** One structured ticket emitted by the new accuracy judge. */
+export interface AccuracyJudgeTicket {
+  claim_id: string;
+  quote: string;
+  action: "replace" | "research" | "qualify";
+  correction?: string | null;
+  reason: string;
+  source_tool_index?: number | null;
+}
+
 export interface NewsletterEvalJudgeScores {
   dimensions: Record<string, NewsletterEvalJudgeDimension>;
   overall: { score: number | null; verdict: string };
   top_issues: string[];
   fabrication_capped: boolean;
+  /** Structured tickets from the new accuracy judge (may be absent on old-format rows). */
+  _tickets?: AccuracyJudgeTicket[];
 }
 
 export interface NewsletterEvalLlmUsage {
@@ -9359,7 +9371,12 @@ export interface StoryEvalRow {
   error: string | null;
   scores_json: NewsletterEvalJudgeScores | null;
   judge_usage:
-    | (NewsletterEvalLlmUsage & { judge_ms?: number })
+    | (NewsletterEvalLlmUsage & {
+        judge_ms?: number;
+        judge_type?: string;
+        /** chat_sessions session_id for the judge LLM call — opens in session debugger. */
+        judge_session_id?: string | null;
+      })
     | null;
   /** Creation-session tool-call summary that grounded the judge. */
   run_telemetry: NewsletterEvalRunTelemetry | null;
