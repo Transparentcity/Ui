@@ -41,15 +41,15 @@ const BROWSER_SETTLE_MS = 6000;
 const PAGE_TIMEOUT_MS   = 30000;
 
 const TARGET_CITIES = [
-  { label: "SF",         slugPatterns: ["san-francisco", "sf"] },
-  { label: "Oakland",    slugPatterns: ["oakland"] },
-  { label: "Chicago",    slugPatterns: ["chicago"] },
-  { label: "Detroit",    slugPatterns: ["detroit"] },
-  { label: "Denver",     slugPatterns: ["denver"] },
-  { label: "Cincinnati", slugPatterns: ["cincinnati"] },
-  { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"] },
-  { label: "Austin",     slugPatterns: ["austin"] },
-  { label: "Seattle",    slugPatterns: ["seattle"] },
+  { label: "SF",         slugPatterns: ["san-francisco", "sf"],                slug: "san-francisco" },
+  { label: "Oakland",    slugPatterns: ["oakland"],                            slug: "oakland" },
+  { label: "Chicago",    slugPatterns: ["chicago"],                            slug: "chicago" },
+  { label: "Detroit",    slugPatterns: ["detroit"],                            slug: "detroit" },
+  { label: "Denver",     slugPatterns: ["denver"],                             slug: "denver" },
+  { label: "Cincinnati", slugPatterns: ["cincinnati"],                         slug: "cincinnati" },
+  { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"],   slug: "new-york-city" },
+  { label: "Austin",     slugPatterns: ["austin"],                             slug: "austin" },
+  { label: "Seattle",    slugPatterns: ["seattle"],                            slug: "seattle" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -237,7 +237,10 @@ async function main() {
       resolvedCities.push({
         ...target,
         cityId:   found.id,
-        slug:     found.slug || "",
+        // The sitemap/city-detail API no longer returns a `slug` field (as of
+        // ~2026-07-23), so we use the canonical slug from TARGET_CITIES rather
+        // than `found.slug`, which silently produced broken /c//metrics/... URLs.
+        slug:     target.slug,
         cityName: found.name,
       });
     }
