@@ -1,26 +1,6 @@
 {
   "knownOutages": [
     {
-      "city": "SF",
-      "metricName": "⚠️ Speed Camera Warnings",
-      "metricKey": "speed_camera_warnings_citations",
-      "metricId": 135,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/speed_camera_warnings_citations",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
-      "metricName": "⚡ Speed Camera Citations",
-      "metricKey": "speed_camera_citations",
-      "metricId": 140,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/speed_camera_citations",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
       "city": "Oakland",
       "metricName": "🔓 Auto Burglary Reports",
       "metricKey": "oakland_auto_burglary",
@@ -99,6 +79,16 @@
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-08-13"
+    },
+    {
+      "city": "Denver",
+      "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
+      "metricKey": "denver_311_abandoned_vehicle",
+      "metricId": 541,
+      "cardUrl": "https://transparent.city/c//metrics/denver_311_abandoned_vehicle",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-08-28"
     }
   ],
   "knownLags": [
@@ -1479,7 +1469,20 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-08-20"
+    },
+    {
+      "city": "SF",
+      "metricName": "🗑️ Illegal Dumping Complaints (311)",
+      "metricKey": "sf_illegal_dumping_complaints_311",
+      "metricId": 834,
+      "cardUrl": "https://transparent.city/c//metrics/sf_illegal_dumping_complaints_311",
+      "normalLagRange": [
+        16,
+        24
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-08-28"
     }
   ],
-  "lastRunDate": "2026-08-20"
+  "lastRunDate": "2026-08-28"
 }
