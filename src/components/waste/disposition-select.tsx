@@ -21,11 +21,55 @@ const DISPOSITION_OPTIONS: { value: WasteDispositionType; label: string }[] = [
   { value: "inconclusive", label: "Inconclusive" },
 ]
 
-/** Dismiss reason → internal disposition mapping */
-const DISMISS_REASONS: { label: string; value: WasteDispositionType }[] = [
-  { label: "Not real", value: "false_positive" },
-  { label: "Bad data", value: "data_error" },
-  { label: "Already known", value: "inconclusive" },
+/**
+ * Dismiss reason → internal disposition mapping. The backend enum is coarse,
+ * so each reason also carries a structured `note` (stored on the disposition
+ * row) preserving WHY it was dismissed: "legitimate explanation" implies the
+ * detector logic misread the pattern, "threshold too tight" implies
+ * calibration, "wrong entity" implies entity resolution — three different
+ * fixes that a bare false_positive can't distinguish. "Already known"
+ * findings that were substantiated are true positives for detector
+ * calibration, so they map to confirmed_waste rather than inconclusive.
+ * `key` doubles as the keyboard shortcut in the triage list.
+ */
+export interface DismissReason {
+  key: string
+  label: string
+  value: WasteDispositionType
+  note: string
+}
+
+export const DISMISS_REASONS: DismissReason[] = [
+  {
+    key: "1",
+    label: "Legitimate explanation",
+    value: "false_positive",
+    note: "Dismissed: pattern has a legitimate explanation",
+  },
+  {
+    key: "2",
+    label: "Threshold too tight",
+    value: "false_positive",
+    note: "Dismissed: within normal range — detector threshold too tight",
+  },
+  {
+    key: "3",
+    label: "Bad data",
+    value: "data_error",
+    note: "Dismissed: source data wrong or stale",
+  },
+  {
+    key: "4",
+    label: "Wrong entity",
+    value: "data_error",
+    note: "Dismissed: finding attached to the wrong entity",
+  },
+  {
+    key: "5",
+    label: "Already known (substantiated)",
+    value: "confirmed_waste",
+    note: "Already known: previously substantiated by audit or investigation",
+  },
 ]
 
 interface DispositionSelectProps {
@@ -64,7 +108,7 @@ export function DispositionSelect({
 
 interface QuickDispositionProps {
   /** Called when the user flags or dismisses (skip does not call this). */
-  onDispose: (disposition: WasteDispositionType) => void
+  onDispose: (disposition: WasteDispositionType, note?: string) => void
   /** Called when the user clicks Skip. */
   onSkip?: () => void
   className?: string
@@ -136,12 +180,12 @@ export function QuickDisposition({
           <span className="text-[10px] text-gray-500 uppercase tracking-wide">Why?</span>
           {DISMISS_REASONS.map((reason) => (
             <button
-              key={reason.value}
+              key={reason.key}
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowDismissReasons(false)
-                onDispose(reason.value)
+                onDispose(reason.value, reason.note)
               }}
               className="px-2 py-1 rounded text-[11px] text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors"
             >

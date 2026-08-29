@@ -19,7 +19,18 @@ import {
   translateWasteError,
   translateStructuredError,
   type PersistedRunBundle,
+  wilsonLowerBound,
+  findingRealProbability,
+  findingCorroborationCount,
+  findingCorroborationBoost,
+  findingDataQualityFactor,
+  findingImpactEstimate,
+  findingEvidenceScore,
+  isFindingDismissed,
+  sortByEvidenceScore,
+  resolveRunScope,
 } from "./waste-utils"
+import { makeFinding as makeTestFinding } from "./test-utils"
 
 // ── formatDollar ────────────────────────────────────────────────────────────
 
@@ -144,9 +155,9 @@ describe("normalizeWasteCategory", () => {
     expect(normalizeWasteCategory("precision_metrics")).toBe("accuracy")
   })
 
-  // Unknown → defaults to payroll
-  it("defaults unknown category to payroll", () => {
-    expect(normalizeWasteCategory("something_random")).toBe("payroll")
+  // Unknown → routed to a visible Uncategorized bucket (never payroll)
+  it("routes unknown categories to uncategorized", () => {
+    expect(normalizeWasteCategory("something_random")).toBe("uncategorized")
   })
 
   // Whitespace and special character handling
@@ -1331,5 +1342,212 @@ describe("mergePersistedRuns carried-over and unknown-scope semantics", () => {
       .filter((f) => normalizeWasteCategory(f.category) === "payroll")
       .map((f) => f.id)
     expect(payrollIds).toEqual(["p-old"])
+  })
+})
+
+
+// ── Evidence-weighted ranking ───────────────────────────────────────────────
+
+describe("wilsonLowerBound", () => {
+  it("returns 0 for an empty sample", () => {
+    expect(wilsonLowerBound(0, 0)).toBe(0)
+  })
+
+  it("keeps small perfect samples conservative", () => {
+    // 3/3 reviewed should NOT read as certainty.
+    const b = wilsonLowerBound(3, 3)
+    expect(b).toBeGreaterThan(0.3)
+    expect(b).toBeLessThan(0.6)
+  })
+
+  it("approaches the point estimate as n grows", () => {
+    expect(wilsonLowerBound(90, 100)).toBeGreaterThan(0.8)
+    expect(wilsonLowerBound(900, 1000)).toBeGreaterThan(0.87)
+  })
+
+  it("is monotonic in sample size at fixed rate", () => {
+    expect(wilsonLowerBound(9, 10)).toBeLessThan(wilsonLowerBound(90, 100))
+  })
+})
+
+describe("findingRealProbability", () => {
+  it("uses auditor precision (Wilson-bounded) once enough reviews exist", () => {
+    const f = makeTestFinding({ confidence_score: 0.9 })
+    const p = findingRealProbability(f, { rate: 0.8, total: 20 })
+    // Wilson lower bound of 16/20, not the confidence score.
+    expect(p).toBeGreaterThan(0.55)
+    expect(p).toBeLessThan(0.8)
+  })
+
+  it("ignores precision below the review minimum and falls back to confidence score", () => {
+    const f = makeTestFinding({ confidence_score: 0.9 })
+    expect(findingRealProbability(f, { rate: 1, total: 3 })).toBe(0.9)
+  })
+
+  it("tolerates 0-100 confidence scores", () => {
+    const f = makeTestFinding({ confidence_score: 85 })
+    expect(findingRealProbability(f, null)).toBe(0.85)
+  })
+
+  it("falls back to the confidence band when no score exists", () => {
+    const f = makeTestFinding({ confidence_score: 0, confidence: "Low" })
+    expect(findingRealProbability(f, null)).toBe(0.25)
+  })
+})
+
+describe("corroboration", () => {
+  it("counts explicit corroboration_count", () => {
+    expect(
+      findingCorroborationCount(makeTestFinding({ corroboration_count: 2 })),
+    ).toBe(2)
+  })
+
+  it("counts convergence domains beyond the first", () => {
+    const f = makeTestFinding({
+      convergence_details: { domains_flagged: 3 },
+    })
+    expect(findingCorroborationCount(f)).toBe(2)
+  })
+
+  it("counts consolidated supporting findings", () => {
+    const f = makeTestFinding({ supporting_findings: ["a", "b", "c"] })
+    expect(findingCorroborationCount(f)).toBe(3)
+  })
+
+  it("boost is 1 with no corroboration and caps at 2x", () => {
+    expect(findingCorroborationBoost(makeTestFinding())).toBe(1)
+    expect(
+      findingCorroborationBoost(makeTestFinding({ corroboration_count: 99 })),
+    ).toBe(2)
+  })
+})
+
+describe("findingDataQualityFactor", () => {
+  it("is 1 for complete data", () => {
+    expect(findingDataQualityFactor(makeTestFinding())).toBe(1)
+  })
+
+  it("discounts partial data", () => {
+    expect(
+      findingDataQualityFactor(makeTestFinding({ is_partial_data: true })),
+    ).toBe(0.75)
+  })
+
+  it("scales by data completeness in both wire forms", () => {
+    expect(
+      findingDataQualityFactor(makeTestFinding({ data_completeness: 0.5 })),
+    ).toBe(0.5)
+    expect(
+      findingDataQualityFactor(makeTestFinding({ data_completeness: 50 })),
+    ).toBe(0.5)
+  })
+
+  it("never drops below the floor", () => {
+    expect(
+      findingDataQualityFactor(
+        makeTestFinding({ data_completeness: 0.01, is_partial_data: true }),
+      ),
+    ).toBe(0.1)
+  })
+})
+
+describe("findingImpactEstimate", () => {
+  it("prefers estimated_dollar_impact", () => {
+    expect(
+      findingImpactEstimate(
+        makeTestFinding({ estimated_dollar_impact: 500, amount: 100 }),
+      ),
+    ).toBe(500)
+  })
+
+  it("falls back to amount", () => {
+    expect(findingImpactEstimate(makeTestFinding({ amount: 100 }))).toBe(100)
+  })
+
+  it("uses a severity nominal when no dollar figure exists", () => {
+    expect(
+      findingImpactEstimate(
+        makeTestFinding({ amount: null, severity: "critical" }),
+      ),
+    ).toBe(1_000_000)
+    expect(
+      findingImpactEstimate(makeTestFinding({ amount: null, severity: "low" })),
+    ).toBe(10_000)
+  })
+})
+
+describe("sortByEvidenceScore", () => {
+  it("ranks a corroborated high-precision finding above a lone big-dollar one", () => {
+    const benford = makeTestFinding({
+      id: "benford",
+      amount: 2_000_000,
+      confidence_score: 0.2,
+      tool: "Benford",
+    })
+    const ghost = makeTestFinding({
+      id: "ghost",
+      amount: 400_000,
+      confidence_score: 0.9,
+      corroboration_count: 2,
+      tool: "Ghost Vendor",
+    })
+    const sorted = sortByEvidenceScore([benford, ghost])
+    expect(sorted.map((f) => f.id)).toEqual(["ghost", "benford"])
+  })
+
+  it("uses per-detector auditor precision when provided", () => {
+    const a = makeTestFinding({ id: "a", amount: 100_000, confidence_score: 0.5 })
+    const b = makeTestFinding({ id: "b", amount: 100_000, confidence_score: 0.5 })
+    const sorted = sortByEvidenceScore([a, b], (f) =>
+      f.id === "b" ? { rate: 0.9, total: 30 } : { rate: 0.1, total: 30 },
+    )
+    expect(sorted.map((f) => f.id)).toEqual(["b", "a"])
+  })
+
+  it("sinks already-dismissed findings regardless of score", () => {
+    const dismissed = makeTestFinding({
+      id: "dismissed",
+      amount: 9_000_000,
+      confidence_score: 0.95,
+      ...( { latest_disposition: { disposition: "false_positive" } } as Partial<WasteFinding>),
+    })
+    const live = makeTestFinding({ id: "live", amount: 1_000, confidence_score: 0.3 })
+    expect(isFindingDismissed(dismissed)).toBe(true)
+    const sorted = sortByEvidenceScore([dismissed, live])
+    expect(sorted.map((f) => f.id)).toEqual(["live", "dismissed"])
+  })
+
+  it("evidence score multiplies probability, boost, quality, and impact", () => {
+    const f = makeTestFinding({
+      amount: 100,
+      confidence_score: 0.5,
+      corroboration_count: 1,
+      is_partial_data: true,
+    })
+    expect(findingEvidenceScore(f, null)).toBeCloseTo(0.5 * 1.25 * 0.75 * 100)
+  })
+})
+
+describe("uncategorized routing", () => {
+  it("run scope treats unknown labels as covering nothing", () => {
+    expect(resolveRunScope("something_random")).toEqual({ kind: "unknown" })
+    expect(resolveRunScope("all")).toEqual({ kind: "unknown" })
+    expect(resolveRunScope("payroll")).toEqual({
+      kind: "category",
+      category: "payroll",
+    })
+  })
+
+  it("unknown-category findings merge into the uncategorized bucket, not payroll", () => {
+    const run = makeRun({
+      ts: "2026-08-20T00:00:00Z",
+      findings: [
+        makeTestFinding({ id: "mystery", category: "quantum_risk" as never }),
+      ],
+    })
+    const merged = mergePersistedRuns([run])
+    const mystery = merged?.response.findings.find((f) => f.id === "mystery")
+    expect(mystery).toBeDefined()
+    expect(normalizeWasteCategory(mystery!.category)).toBe("uncategorized")
   })
 })

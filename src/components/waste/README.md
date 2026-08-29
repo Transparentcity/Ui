@@ -98,18 +98,77 @@ API. Surfaces: a headline number on each `/waste` category card, and the
 full chart). Year-grain share metrics populate once Platform PR #122 is
 deployed and the metrics re-run.
 
+## Evidence-weighted ranking
+
+Category detail pages default to the **Evidence** sort (toggle: Evidence /
+Severity / Amount). Evidence order is expected value, computed client-side in
+`waste-utils.ts`:
+
+```
+score = P(real) × corroboration boost × data-quality factor × dollar impact
+```
+
+- **P(real)** (`findingRealProbability`): the detector's auditor-validated
+  precision — as a Wilson 95% lower bound, so 3/3 reviewed reads ~0.44, not
+  1.0 — once it has ≥ `PRECISION_MIN_REVIEWS_FOR_SCORE` (5) reviews;
+  otherwise the backend `confidence_score`, then the High/Medium/Low band.
+- **Corroboration boost** (`findingCorroborationBoost`): +25% per independent
+  corroborating signal (explicit `corroboration_count`, convergence domains
+  beyond the first, consolidated supporting findings), capped at 2×.
+- **Data-quality factor** (`findingDataQualityFactor`): scales by
+  `data_completeness` and discounts `is_partial_data` 25%, floored at 0.1 —
+  anomalies from partial datasets are often ingestion artifacts.
+- **Impact** (`findingImpactEstimate`): `estimated_dollar_impact` → `amount`
+  → a severity-based nominal for findings with no dollar figure.
+
+Findings whose `latest_disposition` is a dismissal sink to the bottom
+regardless of score (`sortByEvidenceScore`). Cards also carry a purple
+"Corroborated ×N" chip whenever independent signals (other detectors or
+cross-domain convergence) corroborate a finding — consolidation (+N) and
+fraud-triangle (N/3) chips already cover those two signals separately.
+
 ## Triage (the learning loop)
 
 Finding cards on category detail pages carry Flag / Dismiss / Skip controls
-(`QuickDisposition`). Flag posts `under_investigation`; Dismiss posts a
-reason (`false_positive` / `data_error` / `inconclusive`); Skip writes
-nothing. Dispositions feed detector precision on the backend, which
-calibrates severity, so triaging findings directly sharpens the detectors.
-Cards also show an auditor-validated precision chip ("87% precision · 23
-reviewed") once a detector has 3+ reviewed findings.
+(`QuickDisposition`). Flag posts `under_investigation`; Skip writes nothing.
+Dismiss opens a five-reason picker (`DISMISS_REASONS` in
+`disposition-select.tsx`) whose reasons map onto the backend enum **and**
+carry a structured `notes` string preserving *why* — the enum alone can't
+distinguish "detector logic misread the pattern" (legitimate explanation)
+from "calibration" (threshold too tight) from "entity resolution" (wrong
+entity), and those imply different fixes. "Already known (substantiated)"
+maps to `confirmed_waste`, not `inconclusive`: a substantiated case is a
+true positive for detector calibration. Dispositions feed detector precision
+on the backend, which calibrates severity, so triaging findings directly
+sharpens the detectors.
+
+In the flat sorts (Evidence / Amount) the list also supports **keyboard
+triage** (`waste-findings-list.tsx`): `j`/`k` move a highlight, `f` flags,
+`1`–`5` dismiss with the corresponding reason, `s` skips (when wired), Esc
+clears. Keyboard verdicts are mirrored onto the card via `triageOverride`.
+Findings already carrying a `latest_disposition` are navigation-only — the
+buttons don't render and keyboard verdicts are ignored, because re-disposing
+the same finding week after week corrupts the precision counters.
+
+Cards show an auditor-validated precision chip ("87% precision · 23
+reviewed") once a detector has 3+ reviewed findings; below 10 reviews the
+chip is grey and labeled *(provisional)* — 2/3 vs 3/3 is a coin flip — and
+its tooltip carries the Wilson 95% lower bound. The same stats appear as a
+per-detector line on `/waste/settings/thresholds` (`DetectorPrecisionHint`),
+so threshold tuning is informed by labeled outcomes: <40% precision reads
+"tightening candidate", ≥70% reads "validated; avoid loosening".
 
 The triage buttons require the numeric `db_id` on the finding payload
 (Platform PR #123); older payloads degrade to no triage row.
+
+## Uncategorized bucket
+
+`normalizeWasteCategory` routes unrecognized backend category strings to an
+`uncategorized` bucket (it used to silently fall back to `payroll`). The
+categories grid shows an "Uncategorized" row only when findings actually
+land there, so a new or renamed backend category surfaces visibly instead of
+polluting Payroll & Personnel. `resolveRunScope` treats a run whose scope
+label normalizes to `uncategorized` as covering nothing.
 
 ## Cities
 

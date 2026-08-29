@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach } from "vitest"
 import { WasteFindingCard } from "./waste-finding-card"
 import { makeFinding } from "./test-utils"
+import type { WasteFinding } from "@/lib/apiClient"
 
 describe("WasteFindingCard", () => {
   const onToggle = vi.fn()
@@ -227,7 +228,11 @@ describe("WasteFindingCard triage and precision", () => {
       />,
     )
     fireEvent.click(screen.getByText("Flag"))
-    expect(onDispose).toHaveBeenCalledWith(finding, "under_investigation")
+    expect(onDispose).toHaveBeenCalledWith(
+      finding,
+      "under_investigation",
+      undefined,
+    )
     expect(screen.getByTestId("triage-confirmation").textContent).toContain(
       "Flagged for investigation",
     )
@@ -246,8 +251,12 @@ describe("WasteFindingCard triage and precision", () => {
       />,
     )
     fireEvent.click(screen.getByText("Dismiss"))
-    fireEvent.click(screen.getByText("Not real"))
-    expect(onDispose).toHaveBeenCalledWith(expect.anything(), "false_positive")
+    fireEvent.click(screen.getByText("Legitimate explanation"))
+    expect(onDispose).toHaveBeenCalledWith(
+      expect.anything(),
+      "false_positive",
+      "Dismissed: pattern has a legitimate explanation",
+    )
     expect(screen.getByTestId("triage-confirmation").textContent).toContain(
       "Dismissed",
     )
@@ -277,5 +286,50 @@ describe("WasteFindingCard triage and precision", () => {
       />,
     )
     expect(screen.queryByTestId("precision-chip")).not.toBeInTheDocument()
+  })
+})
+
+describe("WasteFindingCard corroboration chip", () => {
+  const onToggle = vi.fn()
+
+  it("shows the chip when independent signals corroborate the finding", () => {
+    render(
+      <WasteFindingCard
+        finding={makeFinding({ corroboration_count: 2 } as Partial<WasteFinding>)}
+        isExpanded={false}
+        onToggle={onToggle}
+      />,
+    )
+    expect(screen.getByTestId("corroboration-chip").textContent).toContain(
+      "Corroborated ×2",
+    )
+  })
+
+  it("derives the count from cross-domain convergence", () => {
+    render(
+      <WasteFindingCard
+        finding={makeFinding({
+          convergence_details: { domains_flagged: 3 },
+        } as Partial<WasteFinding>)}
+        isExpanded={false}
+        onToggle={onToggle}
+      />,
+    )
+    expect(screen.getByTestId("corroboration-chip").textContent).toContain(
+      "Corroborated ×2",
+    )
+  })
+
+  it("hides the chip when the only signal is consolidation (already chipped as +N)", () => {
+    render(
+      <WasteFindingCard
+        finding={makeFinding({
+          supporting_findings: ["a", "b"],
+        } as Partial<WasteFinding>)}
+        isExpanded={false}
+        onToggle={onToggle}
+      />,
+    )
+    expect(screen.queryByTestId("corroboration-chip")).not.toBeInTheDocument()
   })
 })
