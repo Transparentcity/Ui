@@ -15,7 +15,10 @@ import {
 } from "./waste-finding-narrator"
 import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
-import { WasteFindingsList } from "./waste-findings-list"
+import {
+  WasteFindingsList,
+  type FindingSortMode,
+} from "./waste-findings-list"
 import { WasteKeyMetricsStrip } from "./waste-key-metrics-strip"
 import { WasteSeverityFilter } from "./waste-severity-filter"
 import { WasteExport } from "./waste-export"
@@ -41,6 +44,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   integrity: "Personnel Integrity",
   confirmed: "Confirmed Cases",
   convergence: "Cross-Domain Convergence",
+  uncategorized: "Uncategorized",
 }
 
 function SummaryCell({
@@ -89,6 +93,10 @@ export function ForensicsCategoryDetailPage({
   const { selectedCityId: cityId } = useWasteCity()
   const normalizedCat = normalizeWasteCategory(category)
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all")
+  // Evidence (expected value: precision × impact) is the default lens — it
+  // puts the likeliest-real, biggest-dollar findings first instead of raw
+  // severity labels.
+  const [sortMode, setSortMode] = useState<FindingSortMode>("evidence")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
 
   const handleAskSeymour = (finding: WasteFinding) => {
@@ -103,7 +111,11 @@ export function ForensicsCategoryDetailPage({
   // don't render the triage buttons.
   const disposeMutation = useCreateWasteDisposition()
   const handleDispose = useCallback(
-    async (finding: WasteFinding, disposition: WasteDispositionType) => {
+    async (
+      finding: WasteFinding,
+      disposition: WasteDispositionType,
+      note?: string,
+    ) => {
       // Reject (rather than silently return) so the card can roll back its
       // optimistic "triaged" state and restore the buttons on failure.
       if (finding.db_id == null || !cityId) {
@@ -111,7 +123,13 @@ export function ForensicsCategoryDetailPage({
       }
       await disposeMutation.mutateAsync({
         findingId: finding.db_id,
-        data: { city_id: cityId, disposition },
+        data: {
+          city_id: cityId,
+          disposition,
+          // Structured dismiss reason: preserves WHY (legitimate explanation
+          // vs. threshold vs. entity mismatch) beyond the coarse enum.
+          ...(note ? { notes: note } : {}),
+        },
       })
     },
     [disposeMutation, cityId],
@@ -223,7 +241,44 @@ export function ForensicsCategoryDetailPage({
             activeFilter={severityFilter}
             onFilterChange={setSeverityFilter}
           />
-          <WasteExport category={normalizedCat} cityId={cityId} />
+          <div className="flex items-center gap-2">
+            <div
+              className="flex items-center rounded-md border border-gray-200 bg-white p-0.5"
+              role="group"
+              aria-label="Sort findings"
+              data-testid="finding-sort-toggle"
+            >
+              {(
+                [
+                  ["evidence", "Evidence"],
+                  ["severity", "Severity"],
+                  ["amount", "Amount"],
+                ] as [FindingSortMode, string][]
+              ).map(([mode, modeLabel]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSortMode(mode)}
+                  aria-pressed={sortMode === mode}
+                  title={
+                    mode === "evidence"
+                      ? "Expected value: detector precision × dollar impact, corroboration-boosted; dismissed findings sink"
+                      : mode === "severity"
+                        ? "Grouped by subcategory, worst severity first"
+                        : "Flat list, largest dollar amount first"
+                  }
+                  className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                    sortMode === mode
+                      ? "bg-purple-50 text-purple-700"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {modeLabel}
+                </button>
+              ))}
+            </div>
+            <WasteExport category={normalizedCat} cityId={cityId} />
+          </div>
         </div>
 
         {/* Cluster map for infrastructure */}
@@ -257,6 +312,7 @@ export function ForensicsCategoryDetailPage({
               onDispose={cityId ? handleDispose : undefined}
               cityId={cityId}
               precisionFor={precisionFor}
+              sortMode={sortMode}
             />
           </>
         )}

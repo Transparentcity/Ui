@@ -53,6 +53,12 @@ const CATEGORY_META: Record<
     label: "Cross-Domain Convergence",
     description: "Entities flagged across multiple independent detector categories indicating systemic risk",
   },
+  // Rendered only when findings actually land in it (an unrecognized backend
+  // category), so misrouted findings are visible instead of polluting payroll.
+  uncategorized: {
+    label: "Uncategorized",
+    description: "Findings whose backend category isn't recognized by this UI yet",
+  },
 }
 
 const DATA_FONT = { fontFamily: "var(--font-data)" } as const
@@ -98,7 +104,9 @@ export function ForensicsCategoriesPage() {
     return counts
   }, [allFindings])
 
-  const categoryKeys = Object.keys(CATEGORY_META)
+  const categoryKeys = Object.keys(CATEGORY_META).filter(
+    (key) => key !== "uncategorized" || (categoryCounts[key]?.total ?? 0) > 0,
+  )
 
   return (
     <WasteShell

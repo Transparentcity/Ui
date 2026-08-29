@@ -11,6 +11,8 @@ import {
   isConfirmedFinding,
   parseContractDriftContractId,
   procurementVendorNameFromEntity,
+  wilsonLowerBound,
+  PRECISION_PROVISIONAL_BELOW,
 } from "./waste-utils"
 import { formatDetector, stripDetectorCodes } from "./detector-info"
 import { deriveHeadline, whySuspicious } from "./waste-finding-narrator"
@@ -211,8 +213,14 @@ interface WasteFindingCardProps {
   onDispose?: (
     finding: WasteFinding,
     disposition: WasteDispositionType,
+    note?: string,
   ) => void | Promise<void>
   onSkip?: (finding: WasteFinding) => void
+  /**
+   * Triage verdict recorded outside the card (keyboard triage in the list).
+   * Merged with the card's own state so the confirmation renders either way.
+   */
+  triageOverride?: WasteDispositionType | "skipped" | null
   cityId?: number
   isCarriedOver?: boolean
   carriedOverAsOf?: string | null
@@ -1041,6 +1049,7 @@ export function WasteFindingCard({
   carriedOverAsOf = null,
   allFindings,
   precision,
+  triageOverride = null,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
@@ -1090,9 +1099,10 @@ export function WasteFindingCard({
       | null
       | undefined
   )?.disposition
-  const [triaged, setTriaged] = useState<WasteDispositionType | "skipped" | null>(
+  const [selfTriaged, setTriaged] = useState<WasteDispositionType | "skipped" | null>(
     (priorDisposition as WasteDispositionType | undefined) ?? null,
   )
+  const triaged = selfTriaged ?? triageOverride
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
@@ -1396,6 +1406,33 @@ export function WasteFindingCard({
         {finding.signal_tier === "primary" && (
           <span className={FLAT_CHIP}>Primary</span>
         )}
+        {(() => {
+          // Independent corroboration is the strongest evidence the pipeline
+          // produces, so it's surfaced on every card — not just the
+          // convergence tab. Consolidated findings (+N chip) and fraud
+          // triangle legs (N/3 chip) already render their own chips, so this
+          // one counts only the signals not shown elsewhere: the explicit
+          // corroboration count and cross-domain convergence.
+          const conv = finding.convergence_details
+          const domains = conv?.domains_flagged ?? conv?.domains?.length ?? 0
+          const corroboration = Math.max(
+            finding.corroboration_count ?? 0,
+            domains > 1 ? domains - 1 : 0,
+          )
+          return corroboration > 0 ? (
+            <span
+              className={cn(
+                FLAT_CHIP,
+                "gap-0.5 bg-purple-50 text-purple-700 border-purple-100",
+              )}
+              title={`${corroboration} independent signal${corroboration === 1 ? "" : "s"} corroborate this finding (other detectors or cross-domain convergence)`}
+              data-testid="corroboration-chip"
+            >
+              <Layers className="w-2.5 h-2.5" />
+              Corroborated ×{corroboration}
+            </span>
+          ) : null
+        })()}
         {isCarriedOver && (
           <span className={cn(FLAT_CHIP, "gap-0.5")} title={carriedOverTitle}>
             <History className="w-2.5 h-2.5" />
@@ -1620,12 +1657,12 @@ export function WasteFindingCard({
               After a verdict, show a confirmation instead of the buttons. */}
           {onDispose && finding.db_id != null && triaged == null && (
             <QuickDisposition
-              onDispose={(disposition) => {
+              onDispose={(disposition, note) => {
                 // Optimistically show the confirmation, but roll back to the
                 // buttons if the write fails (e.g. a stale db_id from cache or
                 // a 403) so the verdict isn't silently lost.
                 setTriaged(disposition)
-                Promise.resolve(onDispose(finding, disposition)).catch(() => {
+                Promise.resolve(onDispose(finding, disposition, note)).catch(() => {
                   setTriaged(null)
                 })
               }}
@@ -1652,7 +1689,9 @@ export function WasteFindingCard({
             >
               {triaged === "under_investigation"
                 ? "Flagged for investigation. Your verdict trains this detector."
-                : "Dismissed. Your verdict trains this detector."}
+                : triaged === "confirmed_waste" || triaged === "confirmed_fraud"
+                  ? "Recorded as already-known. Your verdict trains this detector."
+                  : "Dismissed. Your verdict trains this detector."}
             </p>
           )}
 
@@ -1674,12 +1713,20 @@ export function WasteFindingCard({
                 .join(" · ")}
               {precision != null && precision.total >= 3 && (
                 <span
-                  className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 align-middle"
-                  title={`Auditor-validated precision for this detector: ${precision.total} findings reviewed`}
+                  className={cn(
+                    "ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border align-middle",
+                    precision.total >= PRECISION_PROVISIONAL_BELOW
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      : "bg-gray-50 text-gray-500 border-gray-200",
+                  )}
+                  title={`Auditor-validated precision for this detector: ${precision.total} findings reviewed. Conservative (Wilson 95%) lower bound: ${Math.round(wilsonLowerBound(Math.round(precision.rate * precision.total), precision.total) * 100)}%.${precision.total < PRECISION_PROVISIONAL_BELOW ? " Provisional — fewer than " + PRECISION_PROVISIONAL_BELOW + " reviews." : ""}`}
                   data-testid="precision-chip"
                 >
                   {Math.round(precision.rate * 100)}% precision ·{" "}
                   {precision.total} reviewed
+                  {precision.total < PRECISION_PROVISIONAL_BELOW && (
+                    <span className="ml-1 italic">(provisional)</span>
+                  )}
                 </span>
               )}
               {isOnRoadmap(finding) && (

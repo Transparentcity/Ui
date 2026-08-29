@@ -94,7 +94,11 @@ interface WasteSubcategoryGroupProps {
   expandedFindingId: string | null
   onFindingToggle: (id: string) => void
   onAskSeymour?: (finding: WasteFinding) => void
-  onDispose?: (finding: WasteFinding, disposition: WasteDispositionType) => void
+  onDispose?: (
+    finding: WasteFinding,
+    disposition: WasteDispositionType,
+    note?: string,
+  ) => void
   onSkip?: (finding: WasteFinding) => void
   cityId?: number
   isCarriedOver?: (f: WasteFinding) => boolean

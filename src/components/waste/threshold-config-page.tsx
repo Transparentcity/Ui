@@ -28,7 +28,15 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import type { WasteThreshold, UpdateThresholdRequest } from "@/lib/apiClient"
+import type {
+  WasteThreshold,
+  UpdateThresholdRequest,
+  WasteDetectorAccuracy,
+} from "@/lib/apiClient"
+import {
+  wilsonLowerBound,
+  PRECISION_PROVISIONAL_BELOW,
+} from "./waste-utils"
 
 // ── Business Use-Case Groups ────────────────────────────────────────────────
 
@@ -209,6 +217,54 @@ function ImpactPreview({
   )
 }
 
+// ── Per-detector precision hint ─────────────────────────────────────────────
+
+/**
+ * Auditor-validated outcome stats for one detector, shown beside its
+ * threshold slider so tuning is informed by labeled results instead of
+ * vibes: a high-precision detector's threshold probably shouldn't be
+ * raised, a low-precision one is a tightening candidate.
+ */
+export function DetectorPrecisionHint({
+  accuracy,
+}: {
+  accuracy: WasteDetectorAccuracy | undefined
+}) {
+  if (!accuracy) return null
+  const reviewed =
+    (accuracy.confirmed_count ?? 0) + (accuracy.false_positive_count ?? 0)
+  if (reviewed < 3) return null
+  const provisional = reviewed < PRECISION_PROVISIONAL_BELOW
+  const lower = wilsonLowerBound(accuracy.confirmed_count ?? 0, reviewed)
+  const pct = Math.round(accuracy.precision_rate * 100)
+  return (
+    <p
+      className={cn(
+        "mt-0.5 text-[11px] tabular-nums",
+        provisional
+          ? "text-gray-400"
+          : accuracy.precision_rate >= 0.7
+            ? "text-emerald-600"
+            : accuracy.precision_rate < 0.4
+              ? "text-red-500"
+              : "text-gray-500",
+      )}
+      title={`Auditor-reviewed outcomes for this detector: ${accuracy.confirmed_count} confirmed, ${accuracy.false_positive_count} false positives. Conservative (Wilson 95%) lower bound: ${Math.round(lower * 100)}%.`}
+      data-testid={`precision-hint-${accuracy.detector_key}`}
+    >
+      {pct}% precision · {reviewed} reviewed ·{" "}
+      {accuracy.false_positive_count ?? 0} FP
+      {provisional && <span className="italic"> (provisional)</span>}
+      {!provisional && accuracy.precision_rate < 0.4 && (
+        <span> — tightening candidate</span>
+      )}
+      {!provisional && accuracy.precision_rate >= 0.7 && (
+        <span> — validated; avoid loosening</span>
+      )}
+    </p>
+  )
+}
+
 // ── Category Sensitivity Slider ─────────────────────────────────────────────
 
 function CategorySensitivity({
@@ -272,6 +328,15 @@ export function ThresholdConfigPage() {
 
   const { data: thresholds, isLoading, error } = useWasteThresholds(selectedCityId)
   const updateMutation = useUpdateWasteThresholds()
+
+  // Auditor-validated outcomes per detector, so each slider shows what the
+  // triage loop has actually learned about that detector.
+  const { data: pageAccuracyData } = useWasteDetectorAccuracy(selectedCityId ?? 0)
+  const accuracyByKey = useMemo(() => {
+    const m = new Map<string, WasteDetectorAccuracy>()
+    for (const a of pageAccuracyData ?? []) m.set(a.detector_key, a)
+    return m
+  }, [pageAccuracyData])
 
   const [localValues, setLocalValues] = useState<Record<string, number>>({})
   const [hasChanges, setHasChanges] = useState(false)
@@ -495,6 +560,9 @@ export function ThresholdConfigPage() {
                                 {description}
                               </p>
                             )}
+                            <DetectorPrecisionHint
+                              accuracy={accuracyByKey.get(threshold.detector_key)}
+                            />
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <span
@@ -552,9 +620,14 @@ export function ThresholdConfigPage() {
                   return (
                     <div key={threshold.id}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-800">
-                          {threshold.detector_name}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-800">
+                            {threshold.detector_name}
+                          </span>
+                          <DetectorPrecisionHint
+                            accuracy={accuracyByKey.get(threshold.detector_key)}
+                          />
+                        </div>
                         <div className="flex items-center gap-3">
                           <span
                             className={cn(

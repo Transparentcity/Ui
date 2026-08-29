@@ -19,6 +19,7 @@ export type WasteCategoryKey =
   | "detectors"
   | "review"
   | "accuracy"
+  | "uncategorized"
 
 export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
   overview: "Findings",
@@ -32,6 +33,7 @@ export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
   detectors: "Detectors & Data",
   review: "Review Workbench",
   accuracy: "Detector Accuracy",
+  uncategorized: "Uncategorized",
 }
 
 /**
@@ -98,7 +100,10 @@ export function normalizeWasteCategory(category: string): WasteCategoryKey {
   if (key === "review" || key.includes("queue")) return "review"
   if (key === "accuracy" || key.includes("precision")) return "accuracy"
 
-  return "payroll"
+  // Unknown backend categories used to silently land in "payroll", polluting
+  // that view. Route them to a visible Uncategorized bucket instead so a new
+  // or renamed backend category surfaces as itself rather than as payroll.
+  return "uncategorized"
 }
 
 export function getWasteCategoryLabel(category: string): string {
@@ -118,6 +123,8 @@ export const WASTE_CATEGORY_DESCRIPTIONS: Record<WasteCategoryKey, string> = {
   detectors: "All anomaly-detection algorithms and public datasets used by the platform",
   review: "Disposition workflow for auditor triage and assignment",
   accuracy: "Precision tracking from auditor feedback",
+  uncategorized:
+    "Findings whose backend category isn't recognized by this UI yet",
 }
 
 export function getWasteCategoryDescription(category: string): string {
@@ -915,6 +922,10 @@ const MERGEABLE_CATEGORIES: WasteCategoryKey[] = [
   "integrity",
   "confirmed",
   "convergence",
+  // Findings whose backend category the UI doesn't recognize merge into a
+  // visible Uncategorized bucket rather than vanishing (or, as before the
+  // normalizer fix, polluting payroll).
+  "uncategorized",
 ]
 
 const MERGEABLE_SET = new Set<WasteCategoryKey>(MERGEABLE_CATEGORIES)
@@ -927,24 +938,17 @@ export type RunScope =
 /**
  * Strictly resolve a run's scope label. `null`/empty means a full run.
  * A label that doesn't clearly name a mergeable category is "unknown" and
- * the run is treated as covering nothing: normalizeWasteCategory falls back
- * to "payroll" for unrecognized inputs, and letting e.g. a future
- * category="all" run pass as a payroll-scoped run would blank the payroll
- * category with its zero findings.
+ * the run is treated as covering nothing: normalizeWasteCategory routes
+ * unrecognized inputs to "uncategorized", and letting e.g. a future
+ * category="all" run pass as a scoped run would let it claim authority it
+ * doesn't have.
  */
 export function resolveRunScope(label: string | null | undefined): RunScope {
   if (label == null || String(label).trim() === "") return { kind: "full" }
-  const lower = String(label).toLowerCase()
   const normalized = normalizeWasteCategory(String(label))
+  // The normalizer's unknown-input fallback, not a genuine scope label.
+  if (normalized === "uncategorized") return { kind: "unknown" }
   if (!MERGEABLE_SET.has(normalized)) return { kind: "unknown" }
-  if (
-    normalized === "payroll" &&
-    !lower.includes("payroll") &&
-    !lower.includes("compensation")
-  ) {
-    // The normalizer's unknown-input fallback, not a genuine payroll scope.
-    return { kind: "unknown" }
-  }
   return { kind: "category", category: normalized }
 }
 
@@ -1076,4 +1080,196 @@ export function mergePersistedRuns(
     },
     carriedOver,
   }
+}
+
+// ── Evidence-weighted ranking ───────────────────────────────────────────────
+//
+// The default detector output is a stack of statistical screens: high recall,
+// low precision. These helpers rank findings by *expected value* — the
+// probability the finding is real (auditor-validated detector precision when
+// we have enough reviews, model confidence otherwise) times its dollar
+// impact, boosted when independent detectors corroborate the same entity and
+// discounted when the underlying data is partial or incomplete. Findings the
+// auditor already dismissed sink to the bottom.
+
+/** Auditor-validated precision for a finding's detector. */
+export interface DetectorPrecision {
+  rate: number
+  total: number
+}
+
+/** Reviews needed before auditor precision drives ranking (vs. model confidence). */
+export const PRECISION_MIN_REVIEWS_FOR_SCORE = 5
+
+/** Reviews below which the precision chip renders as "provisional". */
+export const PRECISION_PROVISIONAL_BELOW = 10
+
+/**
+ * Wilson score interval lower bound (default 95%). A conservative estimate of
+ * a detector's true precision: 3 confirmed out of 3 reviewed reads ~0.44, not
+ * 1.0, so tiny samples can't dominate the ranking.
+ */
+export function wilsonLowerBound(
+  successes: number,
+  n: number,
+  z = 1.96,
+): number {
+  if (n <= 0) return 0
+  const p = Math.min(1, Math.max(0, successes / n))
+  const z2 = z * z
+  const denom = 1 + z2 / n
+  const center = p + z2 / (2 * n)
+  const margin = z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)
+  return Math.max(0, (center - margin) / denom)
+}
+
+const CONFIDENCE_BAND_PROBABILITY: Record<string, number> = {
+  high: 0.75,
+  medium: 0.5,
+  low: 0.25,
+}
+
+/**
+ * P(finding is real). Prefers the detector's auditor-validated precision
+ * (Wilson lower bound, so small review counts stay conservative) once it has
+ * PRECISION_MIN_REVIEWS_FOR_SCORE reviews; otherwise falls back to the
+ * backend confidence score (0–1, tolerating a 0–100 wire form), then to the
+ * coarse High/Medium/Low confidence band.
+ */
+export function findingRealProbability(
+  f: WasteFinding,
+  precision?: DetectorPrecision | null,
+): number {
+  if (precision && precision.total >= PRECISION_MIN_REVIEWS_FOR_SCORE) {
+    return wilsonLowerBound(
+      Math.round(precision.rate * precision.total),
+      precision.total,
+    )
+  }
+  const cs = findingConfidenceScore(f)
+  if (cs > 0) return Math.min(1, cs > 1 ? cs / 100 : cs)
+  const band = (f.confidence ?? "").toLowerCase()
+  return CONFIDENCE_BAND_PROBABILITY[band] ?? 0.5
+}
+
+/**
+ * How many *independent* signals corroborate this finding beyond the detector
+ * that produced it: explicit corroboration count, cross-domain convergence
+ * (domains beyond the first), or consolidated supporting findings.
+ */
+export function findingCorroborationCount(f: WasteFinding): number {
+  const conv = f.convergence_details
+  const domains = conv?.domains_flagged ?? conv?.domains?.length ?? 0
+  const legs = conv?.triangle_legs_present?.length ?? 0
+  return Math.max(
+    f.corroboration_count ?? 0,
+    domains > 1 ? domains - 1 : 0,
+    legs > 1 ? legs - 1 : 0,
+    f.supporting_findings?.length ?? 0,
+  )
+}
+
+/**
+ * Ranking multiplier for corroboration: +25% per independent corroborating
+ * signal, capped at 2×. Independent detectors converging on one entity is the
+ * strongest evidence the pipeline produces, so it outweighs any single
+ * detector's severity label.
+ */
+export function findingCorroborationBoost(f: WasteFinding): number {
+  return 1 + 0.25 * Math.min(4, findingCorroborationCount(f))
+}
+
+/**
+ * Discount for data quality: scale by data completeness (tolerating both 0–1
+ * and 0–100 wire forms) and knock 25% off partial-data findings. Floored at
+ * 0.1 so a finding never disappears from ranking entirely.
+ */
+export function findingDataQualityFactor(f: WasteFinding): number {
+  let q = 1
+  const rec = f as unknown as Record<string, unknown>
+  const dcRaw = rec["data_completeness"]
+  const dc = typeof dcRaw === "number" && Number.isFinite(dcRaw) ? dcRaw : null
+  if (dc != null && dc > 0) q *= dc <= 1 ? dc : Math.min(1, dc / 100)
+  if (f.is_partial_data) q *= 0.75
+  return Math.max(q, 0.1)
+}
+
+/**
+ * Nominal impact for findings that carry no dollar figure (service-quality
+ * patterns, registration gaps), so they still rank meaningfully against
+ * dollar-denominated findings instead of pinning to zero.
+ */
+const SEVERITY_NOMINAL_IMPACT: Record<string, number> = {
+  critical: 1_000_000,
+  high: 250_000,
+  medium: 50_000,
+  low: 10_000,
+  info: 1_000,
+}
+
+/** Dollar impact estimate: estimated_dollar_impact → amount → severity nominal. */
+export function findingImpactEstimate(f: WasteFinding): number {
+  const impact = findingDollarImpact(f)
+  if (impact != null && impact > 0) return impact
+  if (f.amount != null && f.amount > 0) return f.amount
+  return (
+    SEVERITY_NOMINAL_IMPACT[f.severity?.toLowerCase() ?? "medium"] ?? 50_000
+  )
+}
+
+/**
+ * Expected-value score used by the "Evidence" sort:
+ * P(real) × corroboration boost × data-quality factor × dollar impact.
+ */
+export function findingEvidenceScore(
+  f: WasteFinding,
+  precision?: DetectorPrecision | null,
+): number {
+  return (
+    findingRealProbability(f, precision) *
+    findingCorroborationBoost(f) *
+    findingDataQualityFactor(f) *
+    findingImpactEstimate(f)
+  )
+}
+
+/** Latest auditor disposition recorded on the finding payload, if any. */
+export function findingLatestDisposition(f: WasteFinding): string | null {
+  const rec = f as unknown as Record<string, unknown>
+  const ld = rec["latest_disposition"] as
+    | { disposition?: unknown }
+    | null
+    | undefined
+  return typeof ld?.disposition === "string" ? ld.disposition : null
+}
+
+const DISMISSED_DISPOSITIONS = new Set([
+  "false_positive",
+  "data_error",
+  "inconclusive",
+])
+
+/** True when the auditor already dismissed this finding. */
+export function isFindingDismissed(f: WasteFinding): boolean {
+  const d = findingLatestDisposition(f)
+  return d != null && DISMISSED_DISPOSITIONS.has(d)
+}
+
+/**
+ * Sort findings by evidence score (descending), sinking already-dismissed
+ * findings to the bottom regardless of score.
+ */
+export function sortByEvidenceScore(
+  findings: readonly WasteFinding[],
+  precisionFor?: (f: WasteFinding) => DetectorPrecision | null,
+): WasteFinding[] {
+  return [...findings].sort((a, b) => {
+    const dismissedA = isFindingDismissed(a) ? 1 : 0
+    const dismissedB = isFindingDismissed(b) ? 1 : 0
+    if (dismissedA !== dismissedB) return dismissedA - dismissedB
+    return (
+      findingEvidenceScore(b, precisionFor?.(b) ?? null) -
+      findingEvidenceScore(a, precisionFor?.(a) ?? null)
+    )
+  })
 }

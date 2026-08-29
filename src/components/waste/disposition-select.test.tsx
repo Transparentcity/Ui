@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import {
   DispositionSelect,
   DISPOSITION_OPTIONS,
+  DISMISS_REASONS,
 } from "@/components/waste/disposition-select";
 
 describe("DISPOSITION_OPTIONS data integrity", () => {
@@ -45,5 +46,37 @@ describe("DispositionSelect rendering", () => {
   it("renders with the default placeholder when none is provided", () => {
     render(<DispositionSelect onValueChange={() => {}} />);
     expect(screen.getByText("Select disposition…")).toBeInTheDocument();
+  });
+});
+
+describe("DISMISS_REASONS data integrity", () => {
+  it("keyboard keys are unique single characters", () => {
+    const keys = DISMISS_REASONS.map((r) => r.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const k of keys) expect(k).toHaveLength(1);
+  });
+
+  it("every reason has a label and a structured note", () => {
+    for (const r of DISMISS_REASONS) {
+      expect(r.label.length).toBeGreaterThan(0);
+      expect(r.note.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("maps to valid disposition enum values only", () => {
+    const valid = new Set(DISPOSITION_OPTIONS.map((o) => o.value));
+    for (const r of DISMISS_REASONS) expect(valid.has(r.value)).toBe(true);
+  });
+
+  it("substantiated already-known findings count as true positives", () => {
+    const known = DISMISS_REASONS.find((r) => r.label.startsWith("Already known"));
+    expect(known?.value).toBe("confirmed_waste");
+  });
+
+  it("distinguishes detector-logic vs calibration vs entity failures in notes", () => {
+    const notes = DISMISS_REASONS.map((r) => r.note.toLowerCase());
+    expect(notes.some((n) => n.includes("legitimate"))).toBe(true);
+    expect(notes.some((n) => n.includes("threshold"))).toBe(true);
+    expect(notes.some((n) => n.includes("entity"))).toBe(true);
   });
 });
