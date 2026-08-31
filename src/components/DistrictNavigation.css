@@ -31,12 +31,12 @@
 
 .district-navigation-header:hover {
   background: rgba(255, 255, 255, 0.95);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 2px 6px rgba(173, 53, 250, 0.12);
 }
 
 .district-navigation-header:focus {
-  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
 
@@ -79,8 +79,8 @@
 }
 
 .district-navigation-header--place:hover {
-  background: var(--bg-secondary, #f8f9fa);
-  border-color: var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary);
+  border-color: var(--border-primary);
   box-shadow: none;
 }
 
@@ -100,13 +100,13 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   line-height: 1;
 }
 
 .district-navigation-place-eyebrow-chevron {
   flex-shrink: 0;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   opacity: 0.8;
 }
 
@@ -114,7 +114,7 @@
   font-family: var(--font-heading, "Inter", sans-serif);
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   letter-spacing: -0.01em;
   line-height: 1.25;
   white-space: nowrap;
@@ -168,9 +168,9 @@
   font: inherit;
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: transparent;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   border-radius: 6px;
   text-decoration: none;
   white-space: nowrap;
@@ -191,14 +191,14 @@
 }
 
 .district-navigation-subscribe:hover {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
 }
 
 .district-navigation-subscribe.following {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .district-navigation-subscribe.following:hover {
@@ -245,7 +245,7 @@
 [data-theme="dark"] .district-navigation-header:hover,
 .dark .district-navigation-header:hover {
   background: rgba(45, 45, 45, 0.95);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 [data-theme="dark"] .district-navigation-subscribers,
@@ -256,13 +256,13 @@
 
 [data-theme="dark"] .district-navigation-subscribe,
 .dark .district-navigation-subscribe {
-  color: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 [data-theme="dark"] .district-navigation-subscribe:hover,
 .dark .district-navigation-subscribe:hover {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
 }
 
@@ -272,8 +272,8 @@
 .dark .district-navigation-subscribe.following,
 .dark .district-navigation-subscribe.following:hover {
   color: var(--text-on-brand, #ffffff);
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 /* Modal Styles */
@@ -360,7 +360,7 @@
   right: 0;
   margin-top: 4px;
   background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   max-height: 240px;
@@ -397,13 +397,13 @@
 
 .district-navigation-input:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.1);
 }
 
 .district-navigation-search-button {
   padding: 12px 24px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
   border: none;
   border-radius: 8px;
@@ -445,7 +445,7 @@
 
 .district-navigation-gps-button:hover:not(:disabled) {
   background: var(--bg-tertiary, #e5e5e5);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .district-navigation-gps-button:disabled {
@@ -470,7 +470,7 @@
   margin-top: 16px;
   padding: 16px;
   background: var(--bg-secondary, #f9fafb);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -490,12 +490,12 @@
 
 .district-navigation-save-block-slider {
   width: 100%;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
 }
 
 .district-navigation-save-block-input {
   padding: 8px 12px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   font-size: 0.9rem;
 }
@@ -505,7 +505,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -557,15 +557,15 @@
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .district-navigation-result-edit:hover {
   background: var(--bg-primary, #ffffff);
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 /* Edit gesture on the place trigger bar (place scope). */
@@ -578,15 +578,15 @@
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .district-navigation-edit-btn:hover {
   background: var(--bg-secondary, #f5f5f5);
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .district-navigation-result-item {
@@ -603,14 +603,14 @@
 
 .district-navigation-result-item:hover {
   background: var(--bg-secondary, #f5f5f5);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(173, 53, 250, 0.15);
 }
 
 .district-navigation-result-item.selected {
   background: rgba(173, 53, 250, 0.1);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .district-navigation-result-name {
@@ -643,7 +643,7 @@
 [data-theme="dark"] .district-navigation-header:hover,
 .dark .district-navigation-header:hover {
   background: rgba(31, 41, 55, 0.7); /* Slightly more opaque on hover */
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 [data-theme="dark"] .district-navigation-modal,
@@ -685,7 +685,7 @@
 [data-theme="dark"] .district-navigation-result-item:hover,
 .dark .district-navigation-result-item:hover {
   background: var(--bg-tertiary, #334155);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 [data-theme="dark"] .district-navigation-result-item.selected,
@@ -734,7 +734,7 @@
   margin: 0 0 10px;
   font-size: 0.8125rem;
   line-height: 1.45;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .district-navigation-council-list {
@@ -745,7 +745,7 @@
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 6px 12px;
   font-size: 0.8125rem;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .district-navigation-council-list li {

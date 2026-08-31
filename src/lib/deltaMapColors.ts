@@ -14,7 +14,7 @@ export type DeltaBasemapTheme = "light" | "dark";
 
 /** Same hues as the public map legend (good / bad at strong change). */
 const RGB_GOOD: [number, number, number] = [34, 197, 94]; // #22c55e
-const RGB_BAD: [number, number, number] = [239, 68, 68]; // #ef4444
+const RGB_BAD: [number, number, number] = [239, 68, 68]; // var(--error)
 const RGB_NEUTRAL: [number, number, number] = [245, 245, 245];
 const RGB_NEUTRAL_DARK: [number, number, number] = [63, 79, 99]; // #3f4f63
 

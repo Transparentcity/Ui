@@ -70,7 +70,7 @@ const severityConfig = {
 const severityTextColor: Record<string, string> = {
   critical: "#dc2626",
   high: "#b45309",
-  medium: "#6b7280",
+  medium: "var(--text-muted)",
 }
 
 // Flat, neutral status chip (New / Roadmap / Primary / Earlier run / triangle /
@@ -1370,7 +1370,7 @@ export function WasteFindingCard({
         "group bg-white border-t transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-inset outline-none",
         isExpanded ? "bg-gray-50/40" : "hover:bg-gray-50/60"
       )}
-      style={{ borderColor: "#f3f4f6" }}
+      style={{ borderColor: "var(--bg-tertiary)" }}
       role="button"
       tabIndex={0}
       aria-expanded={isExpanded}
@@ -1445,15 +1445,15 @@ export function WasteFindingCard({
         <span className="flex-1 min-w-0 truncate text-sm">
           {titleDashIdx > 0 ? (
             <>
-              <span style={{ color: "#111827", fontWeight: 650 }}>
+              <span style={{ color: "var(--text-primary)", fontWeight: 650 }}>
                 {displayTitle.slice(0, titleDashIdx)}
               </span>
-              <span style={{ color: "#6b7280", fontWeight: 400 }}>
+              <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                 {displayTitle.slice(titleDashIdx)}
               </span>
             </>
           ) : (
-            <span style={{ color: "#111827", fontWeight: 650 }}>
+            <span style={{ color: "var(--text-primary)", fontWeight: 650 }}>
               {displayTitle}
             </span>
           )}
@@ -1505,7 +1505,7 @@ export function WasteFindingCard({
         {finding.amount != null && finding.amount > 0 && (
           <span
             className="w-[130px] text-right text-[14px] font-semibold whitespace-nowrap hidden md:inline-flex items-center justify-end gap-1 tabular-nums"
-            style={{ fontFamily: "var(--font-data)", color: "#111827" }}
+            style={{ fontFamily: "var(--font-data)", color: "var(--text-primary)" }}
           >
             {formatDollar(finding.amount)}
             {finding.capApplied != null && finding.capApplied > 0 && (
@@ -1569,7 +1569,7 @@ export function WasteFindingCard({
               </div>
               <p
                 className="text-[14px] max-w-[920px]"
-                style={{ lineHeight: 1.55, color: "#374151" }}
+                style={{ lineHeight: 1.55, color: "var(--text-secondary)" }}
               >
                 {stripDetectorCodes(finding.description)}
               </p>
@@ -1642,7 +1642,7 @@ export function WasteFindingCard({
             >
               <AlertCircle
                 className="w-3.5 h-3.5 shrink-0 mt-0.5"
-                style={{ color: "#f59e0b" }}
+                style={{ color: "var(--warning)" }}
               />
               <div className="text-[13px] space-y-0.5" style={{ color: "#92400e" }}>
                 {dataNotes.map((note, i) => (
@@ -1745,7 +1745,7 @@ export function WasteFindingCard({
               <button
                 onClick={handleAskSeymour}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-[filter] hover:brightness-95"
-                style={{ backgroundColor: "rgba(173,53,250,0.1)", color: "#7c3aed" }}
+                style={{ backgroundColor: "rgba(173,53,250,0.1)", color: "var(--brand-primary-hover)" }}
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Ask Seymour

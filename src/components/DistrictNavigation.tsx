@@ -1062,7 +1062,7 @@ export default function DistrictNavigation({
                   {showAddressDropdown && (addressSuggestions.length > 0 || addressSuggestionsLoading) && (
                     <div className="district-navigation-address-dropdown" role="listbox">
                       {addressSuggestionsLoading ? (
-                        <div className="district-navigation-address-item" style={{ color: "var(--text-secondary, #6b7280)" }}>
+                        <div className="district-navigation-address-item" style={{ color: "var(--text-secondary, var(--text-muted))" }}>
                           Searching addresses…
                         </div>
                       ) : (

@@ -135,7 +135,7 @@
   border: none;
   border-radius: 6px;
   background: none;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -150,7 +150,7 @@
   font-weight: 600;
   border: none;
   border-radius: 6px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -212,7 +212,7 @@
 
 .searchInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -241,7 +241,7 @@
 }
 
 .citySearchInput:focus {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .cityTypeaheadList {
@@ -302,7 +302,7 @@
 .cityTypeaheadFollow {
   font-size: 12px;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   flex-shrink: 0;
 }
 
@@ -318,7 +318,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(173, 53, 250, 0.1);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-size: 13px;
   font-weight: 500;
   display: flex;
@@ -394,14 +394,14 @@
 }
 
 .cityFollowBtn:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .cityFollowBtnFollowed {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .cityCheckbox {
@@ -420,8 +420,8 @@
 }
 
 .cityCheckboxChecked {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .cityFollowedLabel {
@@ -456,8 +456,8 @@
 }
 
 .topicChipActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 
@@ -502,7 +502,7 @@
 }
 
 .toggleSwitchActive {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
 }
 
 .toggleKnob {
@@ -538,7 +538,7 @@
 }
 
 .placeItemActive {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-weight: 500;
 }
 
@@ -555,14 +555,14 @@
 }
 
 .placeRadioActive {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .placeRadioDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
 }
 
 .addPlaceBtn {
@@ -572,7 +572,7 @@
   padding: 8px 4px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: none;
   border: none;
   cursor: pointer;
@@ -652,8 +652,8 @@
 }
 
 .districtChipActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 
@@ -693,14 +693,14 @@
 }
 
 .sortRadioActive {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .sortRadioDot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
 }
 
 .sortLabel {
@@ -731,7 +731,7 @@
   font-weight: 600;
   border: none;
   border-radius: 10px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s ease;

@@ -159,8 +159,8 @@
 }
 
 .map-layer-icon-button.selected {
-  background: #ad35fa;
-  border-color: #ad35fa;
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: white;
   opacity: 1;
   box-shadow: 0 2px 8px rgba(173, 53, 250, 0.4);
@@ -184,8 +184,8 @@
 
 [data-theme="dark"] .map-layer-icon-button.selected,
 .dark .map-layer-icon-button.selected {
-  background: #ad35fa;
-  border-color: #ad35fa;
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: white;
 }
 
@@ -263,7 +263,7 @@
 
 .map-layer-check {
   margin-left: auto;
-  color: #ad35fa;
+  color: var(--brand-primary);
   font-weight: bold;
   flex-shrink: 0;
 }

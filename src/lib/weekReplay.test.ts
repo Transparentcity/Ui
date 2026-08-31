@@ -445,7 +445,7 @@ describe("subcategory colors", () => {
     // is already spoken for here by key pins, the weekend wash, and the playhead.
     for (const color of SUBCATEGORY_PALETTE) {
       expect(LAYER_COLOR_PALETTE).toContain(color);
-      expect(color.toLowerCase()).not.toBe("#ad35fa");
+      expect(color.toLowerCase()).not.toBe("var(--brand-primary)");
     }
     expect(SUBCATEGORY_PALETTE.length).toBe(LAYER_COLOR_PALETTE.length - 1);
     // Order is preserved, so assignment stays stable against the shared list.

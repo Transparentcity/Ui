@@ -69,12 +69,12 @@ export default async function MetricOgImage({ params }: Props) {
               backgroundColor: "#3b82f6",
             }}
           />
-          <span style={{ color: "#6b7280", fontSize: 18, letterSpacing: "0.05em" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: 18, letterSpacing: "0.05em" }}>
             transparent.city
           </span>
           {category && (
             <>
-              <span style={{ color: "#374151", fontSize: 18 }}>/</span>
+              <span style={{ color: "var(--text-secondary)", fontSize: 18 }}>/</span>
               <span
                 style={{
                   color: "#3b82f6",
@@ -108,7 +108,7 @@ export default async function MetricOgImage({ params }: Props) {
           <div
             style={{
               fontSize: 30,
-              color: "#6b7280",
+              color: "var(--text-muted)",
               fontWeight: 400,
             }}
           >

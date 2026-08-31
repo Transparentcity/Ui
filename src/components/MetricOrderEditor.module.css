@@ -1,6 +1,6 @@
 .container {
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 12px;
   margin-bottom: 16px;
   overflow: hidden;
@@ -22,7 +22,7 @@
 
 .expandIcon {
   font-size: 10px;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   width: 16px;
   transition: transform 0.2s ease;
 }
@@ -39,7 +39,7 @@
   margin-left: auto;
   padding: 3px 10px;
   background: linear-gradient(135deg, rgba(173, 53, 250, 0.15), rgba(173, 53, 250, 0.1));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
@@ -47,13 +47,13 @@
 
 .content {
   padding: 0 18px 18px;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--border-color, var(--border-primary));
 }
 
 .instructions {
   padding: 14px 0;
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .categoryList {
@@ -64,7 +64,7 @@
 
 .categoryItem {
   background: var(--bg-primary, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 10px;
   transition: all 0.15s ease;
 }
@@ -78,7 +78,7 @@
 
 .expandToggle {
   font-size: 10px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   padding: 6px;
   border-radius: 6px;
@@ -87,7 +87,7 @@
 
 .expandToggle:hover {
   background: rgba(173, 53, 250, 0.08);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .categoryName {
@@ -107,7 +107,7 @@
 
 .categoryNameEditable:hover {
   background: rgba(173, 53, 250, 0.08);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .categoryNameInput {
@@ -115,7 +115,7 @@
   font-size: 14px;
   color: var(--text-primary, #222222);
   padding: 4px 8px;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   border-radius: 6px;
   outline: none;
   min-width: 120px;
@@ -126,9 +126,9 @@
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
-  background: var(--bg-tertiary, #f3f4f6);
-  border: 1px solid var(--border-color, #e5e7eb);
+  color: var(--text-secondary, var(--text-muted));
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
@@ -136,15 +136,15 @@
 
 .renameBtn:hover {
   background: rgba(173, 53, 250, 0.1);
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .metricCount {
   margin-left: auto;
   font-size: 11px;
-  color: var(--text-tertiary, #6b7280);
-  background: var(--bg-tertiary, #f3f4f6);
+  color: var(--text-tertiary, var(--text-muted));
+  background: var(--bg-tertiary);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -173,20 +173,20 @@
 .subcategoryName {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .subcategoryCount {
   font-size: 11px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .subcategoryNameEditable {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -196,14 +196,14 @@
 
 .subcategoryNameEditable:hover {
   background: rgba(173, 53, 250, 0.08);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .subcategoryNameInput {
   font-size: 12px;
   font-weight: 600;
   padding: 4px 8px;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   border-radius: 4px;
   outline: none;
   min-width: 100px;
@@ -216,9 +216,9 @@
   padding: 2px 8px;
   font-size: 10px;
   font-weight: 500;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   background: transparent;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -226,8 +226,8 @@
 
 .renameBtnSmall:hover {
   background: rgba(173, 53, 250, 0.08);
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .addCategoryRow {
@@ -239,9 +239,9 @@
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.08);
-  border: 1px dashed var(--brand-primary, #ad35fa);
+  border: 1px dashed var(--brand-primary);
   border-radius: 8px;
   cursor: pointer;
   font-family: inherit;
@@ -249,7 +249,7 @@
 
 .addCategoryBtn:hover {
   background: rgba(173, 53, 250, 0.12);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .addSubcategoryRow {
@@ -261,9 +261,9 @@
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   background: transparent;
-  border: 1px dashed var(--border-color, #e5e7eb);
+  border: 1px dashed var(--border-color, var(--border-primary));
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
@@ -271,26 +271,26 @@
 
 .addSubcategoryBtn:hover {
   background: rgba(173, 53, 250, 0.06);
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .moveToSelect {
   margin-left: auto;
   font-size: 11px;
   padding: 4px 8px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 6px;
   background: var(--bg-primary, #ffffff);
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   font-family: inherit;
   max-width: 180px;
 }
 
 .moveToSelect:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .metricItem {
@@ -298,7 +298,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   border: 1px solid transparent;
   border-radius: 8px;
   transition: all 0.15s ease;
@@ -324,7 +324,7 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
 }
 
 .moveButtons {
@@ -344,18 +344,18 @@
   margin: 0;
   font-size: 8px;
   line-height: 1;
-  background: var(--bg-tertiary, #f3f4f6);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 3px;
   cursor: pointer;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   transition: all 0.1s ease;
 }
 
 .moveBtn:hover:not(:disabled) {
   background: rgba(173, 53, 250, 0.1);
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .moveBtn:disabled {
@@ -373,12 +373,12 @@
   gap: 10px;
   margin-top: 18px;
   padding-top: 18px;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--border-color, var(--border-primary));
 }
 
 .saveButton {
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--brand-primary, #ad35fa), #9b2de0);
+  background: linear-gradient(135deg, var(--brand-primary), #9b2de0);
   color: white;
   border: none;
   border-radius: 8px;
@@ -406,8 +406,8 @@
 .resetButton {
   padding: 10px 20px;
   background: transparent;
-  color: var(--text-secondary, #6b7280);
-  border: 1px solid var(--border-color, #e5e7eb);
+  color: var(--text-secondary, var(--text-muted));
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
@@ -417,7 +417,7 @@
 }
 
 .resetButton:hover:not(:disabled) {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-color: var(--border-dark, #d1d5db);
   color: var(--text-primary, #222222);
 }
@@ -440,7 +440,7 @@
 .loading {
   padding: 20px;
   text-align: center;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 13px;
 }
 
@@ -449,7 +449,7 @@
   display: inline-block;
   margin-right: 8px;
   animation: spin 1s linear infinite;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 @keyframes spin {

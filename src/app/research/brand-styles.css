@@ -5,29 +5,19 @@
 
 :root {
   /* Primary Brand Colors */
-  --bright-purple: #ad35fa;
+  --bright-purple: var(--brand-primary);
   --warm-coral: #FF6B5A;
   --spruce-green: #4A7463;
   --sky-blue: #71B2CA;
-  
-  /* Backgrounds */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --bg-tertiary: #f3f4f6;
-  
-  /* Text */
-  --text-primary: #222222;
-  --text-secondary: #666666;
-  --text-tertiary: #999999;
   
   /* Status Colors */
   --status-success: #4A7463;
   --status-error: #FF6B5A;
   --status-info: #71B2CA;
-  --status-warning: #f59e0b;
+  --status-warning: var(--warning);
   
   /* Gradients */
-  --gradient-purple: linear-gradient(135deg, #ad35fa 0%, #764ba2 100%);
+  --gradient-purple: linear-gradient(135deg, var(--brand-primary) 0%, #764ba2 100%);
   --gradient-blue: linear-gradient(135deg, #71B2CA 0%, #3b82f6 100%);
   
   /* Typography */
@@ -47,10 +37,10 @@
   --space-16: 64px;
   
   /* Border Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --research-radius-sm: 4px;
+  --research-radius-md: 6px;
+  --research-radius-lg: 8px;
+  --research-radius-xl: 12px;
   
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -62,10 +52,10 @@
 [data-theme="dark"] {
   --bg-primary: #020617;
   --bg-secondary: #1f2937;
-  --bg-tertiary: #374151;
+  --bg-tertiary: var(--text-secondary);
   --text-primary: #f9fafb;
   --text-secondary: #d1d5db;
-  --text-tertiary: #6b7280;
+  --text-tertiary: var(--text-muted);
 }
 
 /* Typography */
@@ -85,7 +75,7 @@ h1, h2, h3, h4, h5, h6 {
   color: white;
   border: none;
   padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-md);
+  border-radius: var(--research-radius-md);
   font-family: var(--font-heading);
   font-weight: 600;
   cursor: pointer;
@@ -108,7 +98,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-primary);
   border: 1px solid #ddd;
   padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-md);
+  border-radius: var(--research-radius-md);
   font-family: var(--font-heading);
   font-weight: 500;
   cursor: pointer;
@@ -122,7 +112,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Cards */
 .card {
   background: var(--bg-primary);
-  border-radius: var(--radius-lg);
+  border-radius: var(--research-radius-lg);
   padding: var(--space-6);
   box-shadow: var(--shadow-md);
 }
@@ -130,7 +120,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Status Badges */
 .status-badge {
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  border-radius: var(--research-radius-sm);
   font-size: 0.85rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -161,7 +151,7 @@ h1, h2, h3, h4, h5, h6 {
 .progress-bar {
   height: 8px;
   background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
+  border-radius: var(--research-radius-sm);
   overflow: hidden;
 }
 
@@ -169,7 +159,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   background: var(--gradient-purple);
   transition: width 0.3s ease;
-  border-radius: var(--radius-sm);
+  border-radius: var(--research-radius-sm);
 }
 
 /* Inputs */
@@ -179,7 +169,7 @@ textarea,
 select {
   padding: var(--space-3);
   border: 1px solid #ddd;
-  border-radius: var(--radius-md);
+  border-radius: var(--research-radius-md);
   font-family: var(--font-body);
   font-size: 1rem;
   background: var(--bg-primary);
@@ -230,7 +220,7 @@ input[type="range"]::-moz-range-thumb {
   padding: var(--space-4);
   background: #ffe6e6;
   border: 1px solid #ffcccc;
-  border-radius: var(--radius-md);
+  border-radius: var(--research-radius-md);
   color: var(--status-error);
   font-size: 0.95rem;
 }

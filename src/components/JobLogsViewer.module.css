@@ -13,7 +13,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border, #e5e7eb);
+  border-bottom: 1px solid var(--border, var(--border-primary));
   background: var(--bg-primary, #ffffff);
 }
 
@@ -42,26 +42,26 @@
   gap: 0.375rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .statusDot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--success, #10b981);
+  background: var(--success);
 }
 
 .statusDotYellow {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--warning, #f59e0b);
+  background: var(--warning);
 }
 
 .refreshButton {
   padding: 0.5rem 1rem;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
   border: none;
   border-radius: var(--radius-sm, 6px);
@@ -95,7 +95,7 @@
   gap: 0;
   padding: 0 1.5rem;
   background: var(--bg-secondary, #f9fafb);
-  border-bottom: 1px solid var(--border, #e5e7eb);
+  border-bottom: 1px solid var(--border, var(--border-primary));
 }
 
 .tabButton {
@@ -110,18 +110,18 @@
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   transition: all 0.15s ease;
 }
 
 .tabButton:hover {
   color: var(--text-primary, #1f2937);
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .tabButtonActive {
-  color: var(--brand-primary, #ad35fa);
-  border-bottom-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
   background: var(--bg-primary, #ffffff);
 }
 
@@ -146,14 +146,14 @@
   height: 1.25rem;
   padding: 0 0.375rem;
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   border-radius: 10px;
   font-size: 0.7rem;
   font-weight: 600;
 }
 
 .tabButtonActive .tabBadge {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
 }
 
@@ -173,7 +173,7 @@
   justify-content: center;
   gap: 0.75rem;
   padding: 3rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 0.875rem;
 }
 

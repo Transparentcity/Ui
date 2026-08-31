@@ -599,24 +599,24 @@ export function WasteAnalysisContent() {
   <meta charset="utf-8"/>
   <title>Transparent.city Comprehensive Auditor Report</title>
   <style>
-    body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#111827;max-width:1100px;margin:0 auto;padding:20px}
+    body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:var(--text-primary);max-width:1100px;margin:0 auto;padding:20px}
     h1{border-bottom:3px solid #4f46e5;padding-bottom:10px;color:#1f2937;font-size:24px}
-    h2{background-color:#f3f4f6;padding:10px 15px;border-left:4px solid #4f46e5;margin-top:35px;font-size:16px}
+    h2{background-color:var(--bg-tertiary);padding:10px 15px;border-left:4px solid #4f46e5;margin-top:35px;font-size:16px}
     h3{color:#4f46e5;font-size:14px;margin-top:20px}
-    .meta{background:#f9fafb;padding:15px 20px;border-radius:8px;margin-bottom:25px;font-size:13px;border:1px solid #e5e7eb}
+    .meta{background:#f9fafb;padding:15px 20px;border-radius:8px;margin-bottom:25px;font-size:13px;border:1px solid var(--border-primary)}
     .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:15px 0}
-    .stat-card{background:white;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center}
+    .stat-card{background:white;border:1px solid var(--border-primary);border-radius:8px;padding:12px;text-align:center}
     .stat-card .value{font-size:22px;font-weight:bold;color:#4f46e5}
-    .stat-card .label{font-size:11px;color:#6b7280;text-transform:uppercase}
-    .finding-box{border:1px solid #e5e7eb;padding:20px;border-radius:8px;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin:15px 0}
+    .stat-card .label{font-size:11px;color:var(--text-muted);text-transform:uppercase}
+    .finding-box{border:1px solid var(--border-primary);padding:20px;border-radius:8px;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin:15px 0}
     .finding-box .field{margin:4px 0;font-size:13px}
-    .finding-box .field strong{display:inline-block;min-width:160px;color:#374151}
+    .finding-box .field strong{display:inline-block;min-width:160px;color:var(--text-secondary)}
     .narrative-box{background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:12px;margin:10px 0;font-style:italic;font-size:13px}
     .report-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:12px;margin:10px 0;font-size:13px;white-space:pre-wrap}
     table{width:100%;border-collapse:collapse;margin-top:10px;font-size:11px}
     th{background:#4f46e5;color:white;text-align:left;padding:8px;font-size:11px}
     td{padding:6px}
-    .footer{margin-top:50px;font-size:11px;color:#6b7280;border-top:2px solid #e5e7eb;padding-top:15px}
+    .footer{margin-top:50px;font-size:11px;color:var(--text-muted);border-top:2px solid var(--border-primary);padding-top:15px}
     .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold}
     .badge-critical{background:#FEE2E2;color:#991B1B}
     .badge-high{background:#FEF3C7;color:#92400E}

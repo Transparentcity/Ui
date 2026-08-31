@@ -344,7 +344,7 @@ export function WasteFindingsList({
             ))}
           </p>
         )}
-        <div className="border-b border-[#e5e7eb]" ref={listRef}>
+        <div className="border-b border-[var(--border-primary)]" ref={listRef}>
           {flatSorted.map((finding) => (
             <div
               key={finding.id}
@@ -378,7 +378,7 @@ export function WasteFindingsList({
   }
 
   return (
-    <div className="border-b border-[#e5e7eb]">
+    <div className="border-b border-[var(--border-primary)]">
       {grouped.map((group) => (
         <WasteSubcategoryGroup
           key={group.label}

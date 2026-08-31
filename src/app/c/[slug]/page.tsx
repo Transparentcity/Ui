@@ -427,7 +427,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
                     display: "inline-block",
                     marginTop: 12,
                     fontSize: 13,
-                    color: "var(--brand-primary, #ad35fa)",
+                    color: "var(--brand-primary)",
                     textDecoration: "none",
                   }}
                 >

@@ -179,7 +179,7 @@ export function AdminDataTable<T>({
               border: "1px solid",
               borderColor: action.variant === "danger" ? "#dc2626" : "#d1d5db",
               background: action.variant === "danger" ? "#fee2e2" : "#f9fafb",
-              color: action.variant === "danger" ? "#dc2626" : "#374151",
+              color: action.variant === "danger" ? "#dc2626" : "var(--text-secondary)",
               fontWeight: 600,
               fontSize: 13,
               cursor: batchInProgress || total === 0 ? "not-allowed" : "pointer",
@@ -196,7 +196,7 @@ export function AdminDataTable<T>({
       <div
         style={{
           fontSize: 12,
-          color: "#6b7280",
+          color: "var(--text-muted)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -231,10 +231,10 @@ export function AdminDataTable<T>({
                   style={{
                     textAlign: "left",
                     padding: "8px 12px",
-                    borderBottom: "2px solid #e5e7eb",
+                    borderBottom: "2px solid var(--border-primary)",
                     fontWeight: 700,
                     fontSize: 12,
-                    color: "#6b7280",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     width: col.width,
@@ -249,7 +249,7 @@ export function AdminDataTable<T>({
                   style={{
                     textAlign: "right",
                     padding: "8px 12px",
-                    borderBottom: "2px solid #e5e7eb",
+                    borderBottom: "2px solid var(--border-primary)",
                   }}
                 />
               )}
@@ -274,7 +274,7 @@ export function AdminDataTable<T>({
               <tr
                 key={rowKey(row)}
                 style={{
-                  borderBottom: "1px solid #f3f4f6",
+                  borderBottom: "1px solid var(--bg-tertiary)",
                   transition: "background 0.1s",
                 }}
                 onMouseEnter={(e) =>
@@ -315,7 +315,7 @@ export function AdminDataTable<T>({
                           background:
                             action.variant === "danger" ? "#fee2e2" : "#f9fafb",
                           color:
-                            action.variant === "danger" ? "#dc2626" : "#374151",
+                            action.variant === "danger" ? "#dc2626" : "var(--text-secondary)",
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: action.disabled?.(row)
@@ -381,9 +381,9 @@ function _pageBtn(disabled: boolean, active = false) {
     padding: "6px 12px",
     borderRadius: 7,
     border: "1px solid",
-    borderColor: active ? "#ad35fa" : "#e5e7eb",
-    background: active ? "#ad35fa" : disabled ? "#f9fafb" : "#fff",
-    color: active ? "#fff" : disabled ? "#9ca3af" : "#374151",
+    borderColor: active ? "var(--brand-primary)" : "var(--border-primary)",
+    background: active ? "var(--brand-primary)" : disabled ? "#f9fafb" : "#fff",
+    color: active ? "#fff" : disabled ? "#9ca3af" : "var(--text-secondary)",
     fontWeight: active ? 700 : 500,
     fontSize: 13,
     cursor: disabled ? "not-allowed" : "pointer",

@@ -61,14 +61,14 @@ const Logo = ({ size = 18 }: { size?: number }) => (
       fontFamily: "var(--font-heading)",
       fontWeight: 900,
       fontSize: size,
-      color: "#111827",
+      color: "var(--text-primary)",
       letterSpacing: "-0.03em",
       lineHeight: 1,
     }}
   >
-    <BracketMark size={size * 1.25} color="#111827" />
+    <BracketMark size={size * 1.25} color="var(--text-primary)" />
     <span>
-      transparent<span style={{ color: "#ad35fa" }}>.city</span>
+      transparent<span style={{ color: "var(--brand-primary)" }}>.city</span>
     </span>
   </span>
 );
@@ -103,7 +103,7 @@ function MiniHeader() {
             style={{
               fontFamily: "var(--font-ui)",
               fontSize: 12.5,
-              color: "#6b7280",
+              color: "var(--text-muted)",
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
@@ -114,7 +114,7 @@ function MiniHeader() {
                 width: 6,
                 height: 6,
                 borderRadius: 999,
-                background: "#10b981",
+                background: "var(--success)",
               }}
             />
             <span>🐅 Cincinnati edition</span>
@@ -125,7 +125,7 @@ function MiniHeader() {
               fontFamily: "var(--font-ui)",
               fontSize: 13.5,
               fontWeight: 600,
-              color: "#ad35fa",
+              color: "var(--brand-primary)",
             }}
           >
             Subscribe →
@@ -157,7 +157,7 @@ function Hero({
         padding: "64px 24px 56px",
         background:
           "radial-gradient(900px 540px at 18% -10%, rgba(173,53,250,0.16), transparent 60%), radial-gradient(800px 480px at 92% 8%, rgba(245,158,11,0.06), transparent 55%), #ffffff",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid var(--border-primary)",
         overflow: "hidden",
       }}
     >
@@ -185,7 +185,7 @@ function Hero({
               fontFamily: "var(--font-ui)",
               fontSize: 12.5,
               fontWeight: 600,
-              color: "#7c3aed",
+              color: "var(--brand-primary-hover)",
               marginBottom: 22,
             }}
           >
@@ -202,7 +202,7 @@ function Hero({
               letterSpacing: "-0.045em",
               lineHeight: 0.98,
               margin: "0 0 22px",
-              color: "#111827",
+              color: "var(--text-primary)",
               textWrap: "balance",
             }}
           >
@@ -211,7 +211,7 @@ function Hero({
               style={{
                 fontStyle: "italic",
                 fontWeight: 900,
-                backgroundImage: "linear-gradient(120deg, #ad35fa 0%, #6d28d9 100%)",
+                backgroundImage: "linear-gradient(120deg, var(--brand-primary) 0%, #6d28d9 100%)",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",
@@ -229,7 +229,7 @@ function Hero({
               fontFamily: "var(--font-body)",
               fontSize: 17.5,
               lineHeight: 1.5,
-              color: "#374151",
+              color: "var(--text-secondary)",
               margin: "0 0 14px",
               maxWidth: "46ch",
             }}
@@ -241,7 +241,7 @@ function Hero({
             style={{
               fontFamily: "var(--font-body)",
               fontSize: 14.5,
-              color: "#6b7280",
+              color: "var(--text-muted)",
               margin: "0 0 26px",
             }}
           >
@@ -296,7 +296,7 @@ const CincyStat = ({
         fontFamily: "var(--font-data)",
         fontSize: 22,
         fontWeight: 700,
-        color: tone === "good" ? "#059669" : "#111827",
+        color: tone === "good" ? "#059669" : "var(--text-primary)",
         letterSpacing: "-0.02em",
         lineHeight: 1,
       }}
@@ -310,7 +310,7 @@ const CincyStat = ({
         fontWeight: 600,
         textTransform: "uppercase",
         letterSpacing: "0.04em",
-        color: "#6b7280",
+        color: "var(--text-muted)",
         marginTop: 6,
       }}
     >
@@ -320,7 +320,7 @@ const CincyStat = ({
 );
 
 const Divider = () => (
-  <div style={{ width: 1, height: 28, background: "#e5e7eb" }} />
+  <div style={{ width: 1, height: 28, background: "var(--border-primary)" }} />
 );
 
 function CincyEnvelope() {
@@ -332,7 +332,7 @@ function CincyEnvelope() {
           inset: 0,
           transform: "rotate(-3deg) translate(-12px, 8px)",
           background: "#fff",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border-primary)",
           borderRadius: 16,
           opacity: 0.5,
         }}
@@ -343,7 +343,7 @@ function CincyEnvelope() {
           inset: 0,
           transform: "rotate(2deg) translate(8px, 4px)",
           background: "#fff",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border-primary)",
           borderRadius: 16,
           opacity: 0.7,
         }}
@@ -354,7 +354,7 @@ function CincyEnvelope() {
           position: "relative",
           background: "#fff",
           borderRadius: 16,
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border-primary)",
           boxShadow:
             "0 22px 50px rgba(17,24,39,0.10), 0 4px 12px rgba(17,24,39,0.04)",
           transform: "rotate(-1deg)",
@@ -364,7 +364,7 @@ function CincyEnvelope() {
         <div
           style={{
             padding: "14px 18px",
-            borderBottom: "1px solid #f3f4f6",
+            borderBottom: "1px solid var(--bg-tertiary)",
             display: "flex",
             alignItems: "center",
             gap: 10,
@@ -375,7 +375,7 @@ function CincyEnvelope() {
               width: 32,
               height: 32,
               borderRadius: 999,
-              background: "#111827",
+              background: "var(--text-primary)",
               color: "#fff",
               display: "flex",
               alignItems: "center",
@@ -390,7 +390,7 @@ function CincyEnvelope() {
                 fontFamily: "var(--font-ui)",
                 fontSize: 13,
                 fontWeight: 700,
-                color: "#111827",
+                color: "var(--text-primary)",
               }}
             >
               The Cincinnati Weekly
@@ -399,7 +399,7 @@ function CincyEnvelope() {
               style={{
                 fontFamily: "var(--font-ui)",
                 fontSize: 12,
-                color: "#6b7280",
+                color: "var(--text-muted)",
               }}
             >
               to you · Sun, May 24 · 7:14 AM
@@ -412,7 +412,7 @@ function CincyEnvelope() {
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
-              color: "#ad35fa",
+              color: "var(--brand-primary)",
               padding: "4px 8px",
               background: "rgba(173,53,250,0.08)",
               borderRadius: 6,
@@ -430,7 +430,7 @@ function CincyEnvelope() {
               fontWeight: 700,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "#7c3aed",
+              color: "var(--brand-primary-hover)",
               marginBottom: 10,
             }}
           >
@@ -445,7 +445,7 @@ function CincyEnvelope() {
               lineHeight: 1.1,
               letterSpacing: "-0.03em",
               margin: "0 0 14px",
-              color: "#111827",
+              color: "var(--text-primary)",
             }}
           >
             Cincinnati&rsquo;s Property Crime Drop Has a Shape, and Auto Theft Is Driving It
@@ -470,7 +470,7 @@ function CincyEnvelope() {
               fontFamily: "var(--font-body)",
               fontSize: 13,
               lineHeight: 1.55,
-              color: "#374151",
+              color: "var(--text-secondary)",
               margin: "0 0 14px",
             }}
           >
@@ -487,11 +487,11 @@ function CincyEnvelope() {
               borderRadius: 8,
               fontFamily: "var(--font-data)",
               fontSize: 12,
-              color: "#6b7280",
+              color: "var(--text-muted)",
             }}
           >
             <span>Source: Cincinnati STARS dataset</span>
-            <span style={{ color: "#ad35fa", fontWeight: 600 }}>
+            <span style={{ color: "var(--brand-primary)", fontWeight: 600 }}>
               Read full story →
             </span>
           </div>
@@ -523,7 +523,7 @@ function CategoryBar({
     borderRadius: 2,
     ...(flat
       ? { background: "#9ca3af" }
-      : { background: "linear-gradient(180deg,#ad35fa,#7c3aed)" }),
+      : { background: "linear-gradient(180deg,var(--brand-primary),var(--brand-primary-hover))" }),
   };
   return (
     <div
@@ -540,7 +540,7 @@ function CategoryBar({
           style={{
             width: 18,
             height: `${prevH}px`,
-            background: "#e5e7eb",
+            background: "var(--border-primary)",
             borderRadius: 2,
           }}
           title={`2025: ${prev}`}
@@ -552,7 +552,7 @@ function CategoryBar({
           fontFamily: "var(--font-ui)",
           fontSize: 10,
           fontWeight: 600,
-          color: "#6b7280",
+          color: "var(--text-muted)",
           textAlign: "center",
         }}
       >
@@ -563,7 +563,7 @@ function CategoryBar({
           fontFamily: "var(--font-data)",
           fontSize: 10.5,
           fontWeight: 700,
-          color: flat ? "#6b7280" : delta < 0 ? "#059669" : "#dc2626",
+          color: flat ? "var(--text-muted)" : delta < 0 ? "#059669" : "#dc2626",
         }}
       >
         {delta > 0 ? "+" : ""}
@@ -589,7 +589,7 @@ const BRIEFS = [
     eyebrow: "One intersection · 30 days",
     title: "A North Avondale signal was fixed five times, then broke again",
     body: "The city closed 5 traffic signal repair cases at 3924 Reading Rd in the 30 days ending May 20, compared to zero in the same window a year earlier.",
-    accent: "#ad35fa",
+    accent: "var(--brand-primary)",
   },
   {
     n: "14,700",
@@ -597,7 +597,7 @@ const BRIEFS = [
     eyebrow: "Mt. Auburn · May 29 opening",
     title: "FotoFocus gets its first permanent home after 16 years",
     body: "228 East Liberty Street, two galleries, year-round free programming. The nonprofit has run America's largest photography biennial since 2010 without a building of its own.",
-    accent: "#ad35fa",
+    accent: "var(--brand-primary)",
   },
   {
     n: "506",
@@ -614,8 +614,8 @@ function ThisWeek() {
     <section
       style={{
         padding: "80px 24px 64px",
-        background: "#f8f9fa",
-        borderTop: "1px solid #e5e7eb",
+        background: "var(--bg-secondary)",
+        borderTop: "1px solid var(--border-primary)",
       }}
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -637,7 +637,7 @@ function ThisWeek() {
                 fontWeight: 700,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                color: "#ad35fa",
+                color: "var(--brand-primary)",
                 marginBottom: 12,
               }}
             >
@@ -651,7 +651,7 @@ function ThisWeek() {
                 letterSpacing: "-0.04em",
                 lineHeight: 1.04,
                 margin: 0,
-                color: "#111827",
+                color: "var(--text-primary)",
                 maxWidth: "20ch",
               }}
             >
@@ -662,10 +662,10 @@ function ThisWeek() {
             style={{
               fontFamily: "var(--font-ui)",
               fontSize: 13,
-              color: "#6b7280",
+              color: "var(--text-muted)",
               padding: "8px 14px",
               background: "#fff",
-              border: "1px solid #e5e7eb",
+              border: "1px solid var(--border-primary)",
               borderRadius: 999,
             }}
           >
@@ -686,7 +686,7 @@ function ThisWeek() {
               key={i}
               style={{
                 background: "#fff",
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--border-primary)",
                 borderRadius: 14,
                 padding: "22px 22px 24px",
                 display: "flex",
@@ -737,7 +737,7 @@ function ThisWeek() {
                   fontWeight: 700,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  color: "#6b7280",
+                  color: "var(--text-muted)",
                   marginBottom: 12,
                 }}
               >
@@ -748,7 +748,7 @@ function ThisWeek() {
                   fontFamily: "var(--font-heading)",
                   fontSize: 16.5,
                   fontWeight: 800,
-                  color: "#111827",
+                  color: "var(--text-primary)",
                   letterSpacing: "-0.02em",
                   lineHeight: 1.2,
                   margin: "0 0 10px",
@@ -777,7 +777,7 @@ function ThisWeek() {
             marginTop: 24,
             padding: "24px 26px",
             background: "#fff",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border-primary)",
             borderRadius: 14,
             display: "grid",
             gridTemplateColumns: "auto 1fr",
@@ -792,7 +792,7 @@ function ThisWeek() {
               alignItems: "flex-start",
               gap: 6,
               paddingRight: 24,
-              borderRight: "1px solid #e5e7eb",
+              borderRight: "1px solid var(--border-primary)",
             }}
           >
             <span
@@ -802,7 +802,7 @@ function ThisWeek() {
                 fontWeight: 700,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                color: "#ad35fa",
+                color: "var(--brand-primary)",
               }}
             >
               Across Cincinnati
@@ -812,7 +812,7 @@ function ThisWeek() {
                 fontFamily: "var(--font-heading)",
                 fontSize: 44,
                 fontWeight: 900,
-                color: "#111827",
+                color: "var(--text-primary)",
                 letterSpacing: "-0.04em",
                 lineHeight: 1,
               }}
@@ -824,7 +824,7 @@ function ThisWeek() {
                 fontFamily: "var(--font-ui)",
                 fontSize: 11,
                 fontWeight: 600,
-                color: "#6b7280",
+                color: "var(--text-muted)",
               }}
             >
               POTHOLE COMPLAINTS YTD
@@ -837,7 +837,7 @@ function ThisWeek() {
                 fontSize: 22,
                 fontWeight: 900,
                 letterSpacing: "-0.03em",
-                color: "#111827",
+                color: "var(--text-primary)",
                 margin: "0 0 8px",
                 lineHeight: 1.15,
               }}
@@ -903,7 +903,7 @@ function Numbers({
       style={{
         padding: "88px 24px 72px",
         background: "#fff",
-        borderTop: "1px solid #e5e7eb",
+        borderTop: "1px solid var(--border-primary)",
       }}
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -915,7 +915,7 @@ function Numbers({
               fontWeight: 700,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "#ad35fa",
+              color: "var(--brand-primary)",
               marginBottom: 12,
             }}
           >
@@ -929,7 +929,7 @@ function Numbers({
               letterSpacing: "-0.04em",
               lineHeight: 1.02,
               margin: "0 0 14px",
-              color: "#111827",
+              color: "var(--text-primary)",
               textWrap: "balance",
             }}
           >
@@ -940,7 +940,7 @@ function Numbers({
               fontFamily: "var(--font-body)",
               fontSize: 16,
               lineHeight: 1.55,
-              color: "#6b7280",
+              color: "var(--text-muted)",
               margin: 0,
             }}
           >
@@ -950,7 +950,7 @@ function Numbers({
 
         <div
           style={{
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border-primary)",
             borderRadius: 16,
             overflow: "hidden",
             background: "#fff",
@@ -964,13 +964,13 @@ function Numbers({
               gridTemplateColumns: "1fr 1fr 130px 130px",
               padding: "12px 22px",
               background: "#f9fafb",
-              borderBottom: "1px solid #e5e7eb",
+              borderBottom: "1px solid var(--border-primary)",
               fontFamily: "var(--font-ui)",
               fontSize: 10.5,
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              color: "#6b7280",
+              color: "var(--text-muted)",
             }}
           >
             <div>Metric</div>
@@ -1003,7 +1003,7 @@ function Numbers({
 
 function NumberRow({ r, last }: { r: Row; last: boolean }) {
   const arrow = r.dir === "up" ? "↑" : "↓";
-  const color = r.bad === true ? "#dc2626" : r.bad === false ? "#059669" : "#6b7280";
+  const color = r.bad === true ? "#dc2626" : r.bad === false ? "#059669" : "var(--text-muted)";
   return (
     <div
       className="numbersRow"
@@ -1012,7 +1012,7 @@ function NumberRow({ r, last }: { r: Row; last: boolean }) {
         gridTemplateColumns: "1fr 1fr 130px 130px",
         alignItems: "center",
         padding: "14px 22px",
-        borderBottom: last ? 0 : "1px solid #f3f4f6",
+        borderBottom: last ? 0 : "1px solid var(--bg-tertiary)",
         transition: "background 120ms ease",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
@@ -1025,7 +1025,7 @@ function NumberRow({ r, last }: { r: Row; last: boolean }) {
             fontFamily: "var(--font-ui)",
             fontSize: 14,
             fontWeight: 600,
-            color: "#111827",
+            color: "var(--text-primary)",
           }}
         >
           {r.label}
@@ -1041,7 +1041,7 @@ function NumberRow({ r, last }: { r: Row; last: boolean }) {
             letterSpacing: "0.06em",
             color: "#9ca3af",
             padding: "3px 8px",
-            background: "#f3f4f6",
+            background: "var(--bg-tertiary)",
             borderRadius: 4,
           }}
         >
@@ -1054,7 +1054,7 @@ function NumberRow({ r, last }: { r: Row; last: boolean }) {
           fontFamily: "var(--font-data)",
           fontSize: 16,
           fontWeight: 700,
-          color: "#111827",
+          color: "var(--text-primary)",
           letterSpacing: "-0.01em",
         }}
       >
@@ -1166,7 +1166,7 @@ function Stories() {
       style={{
         padding: "84px 24px 72px",
         background: "#fff",
-        borderTop: "1px solid #e5e7eb",
+        borderTop: "1px solid var(--border-primary)",
       }}
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -1188,7 +1188,7 @@ function Stories() {
                 fontWeight: 700,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                color: "#ad35fa",
+                color: "var(--brand-primary)",
                 marginBottom: 10,
               }}
             >
@@ -1202,7 +1202,7 @@ function Stories() {
                 letterSpacing: "-0.04em",
                 lineHeight: 1.04,
                 margin: 0,
-                color: "#111827",
+                color: "var(--text-primary)",
                 maxWidth: "22ch",
               }}
             >
@@ -1233,7 +1233,7 @@ function StoryCard({ s }: { s: Story }) {
     <article
       style={{
         background: "#fff",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border-primary)",
         borderRadius: 14,
         padding: "22px 24px",
         transition: "all 200ms cubic-bezier(0.4,0,0.2,1)",
@@ -1246,7 +1246,7 @@ function StoryCard({ s }: { s: Story }) {
         e.currentTarget.style.boxShadow = "0 12px 36px rgba(0,0,0,0.07)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "#e5e7eb";
+        e.currentTarget.style.borderColor = "var(--border-primary)";
         e.currentTarget.style.transform = "none";
         e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.025)";
       }}
@@ -1268,19 +1268,19 @@ function StoryCard({ s }: { s: Story }) {
             gap: 8,
             fontFamily: "var(--font-ui)",
             fontSize: 13,
-            color: "#ad35fa",
+            color: "var(--brand-primary)",
           }}
         >
-          <b style={{ color: "#111827" }}>{s.cat}</b>
-          <span style={{ color: "#6b7280", fontWeight: 500 }}>· {s.time}</span>
+          <b style={{ color: "var(--text-primary)" }}>{s.cat}</b>
+          <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· {s.time}</span>
         </span>
         <span
           style={{
             fontFamily: "var(--font-ui)",
             fontSize: 12.5,
             fontWeight: 500,
-            color: "#6b7280",
-            background: "#f3f4f6",
+            color: "var(--text-muted)",
+            background: "var(--bg-tertiary)",
             padding: "3px 10px",
             borderRadius: 999,
             whiteSpace: "nowrap",
@@ -1304,7 +1304,7 @@ function StoryCard({ s }: { s: Story }) {
               letterSpacing: "0.06em",
               padding: "4px 10px",
               borderRadius: 999,
-              color: "#7c3aed",
+              color: "var(--brand-primary-hover)",
               background: "rgba(173,53,250,0.08)",
             }}
           >
@@ -1322,7 +1322,7 @@ function StoryCard({ s }: { s: Story }) {
           lineHeight: 1.12,
           letterSpacing: "-0.03em",
           margin: "0 0 10px",
-          color: "#111827",
+          color: "var(--text-primary)",
         }}
       >
         {s.head}
@@ -1363,7 +1363,7 @@ function FinalCTA({
         padding: "96px 24px 88px",
         background: "linear-gradient(180deg,#0f0a1f 0%,#1a1330 100%)",
         color: "#fff",
-        borderTop: "1px solid #e5e7eb",
+        borderTop: "1px solid var(--border-primary)",
       }}
     >
       <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>

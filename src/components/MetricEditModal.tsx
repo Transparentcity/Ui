@@ -882,7 +882,7 @@ export default function MetricEditModal({
                         style={{ 
                           padding: "4px 10px", 
                           fontSize: 11, 
-                          backgroundColor: "var(--color-danger, #ef4444)",
+                          backgroundColor: "var(--color-danger, var(--error))",
                           color: "white",
                           border: "none",
                           borderRadius: 4,
@@ -915,7 +915,7 @@ export default function MetricEditModal({
                         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
                           Total Changes
                         </div>
-                        <div style={{ fontSize: 18, fontWeight: 600, color: completenessStats.total_changes > 0 ? "var(--color-warning, #f59e0b)" : "var(--text-primary)" }}>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: completenessStats.total_changes > 0 ? "var(--color-warning, var(--warning))" : "var(--text-primary)" }}>
                           {completenessStats.total_changes.toLocaleString()}
                         </div>
                         {completenessStats.recent_changes > 0 && (
@@ -929,7 +929,7 @@ export default function MetricEditModal({
                         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
                           Stable Periods
                         </div>
-                        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-success, #10b981)" }}>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-success, var(--success))" }}>
                           {completenessStats.stable_periods_count.toLocaleString()}
                         </div>
                         {completenessStats.avg_stable_days && (
@@ -943,7 +943,7 @@ export default function MetricEditModal({
                         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
                           Unstable Periods
                         </div>
-                        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-warning, #f59e0b)" }}>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-warning, var(--warning))" }}>
                           {completenessStats.unstable_periods_count.toLocaleString()}
                         </div>
                       </div>
@@ -1018,7 +1018,7 @@ export default function MetricEditModal({
                     }}>
                       {completenessStats.periods_checked_today > 0 && (
                         <span>
-                          <i className="fas fa-check-circle" style={{ color: "var(--color-success, #10b981)", marginRight: 4 }} />
+                          <i className="fas fa-check-circle" style={{ color: "var(--color-success, var(--success))", marginRight: 4 }} />
                           {completenessStats.periods_checked_today.toLocaleString()} checked today
                         </span>
                       )}
@@ -1431,7 +1431,7 @@ export default function MetricEditModal({
             }}
             disabled={purging}
             style={{
-              backgroundColor: "var(--color-danger, #ef4444)",
+              backgroundColor: "var(--color-danger, var(--error))",
               color: "white",
               border: "none",
               cursor: purging ? "not-allowed" : "pointer",

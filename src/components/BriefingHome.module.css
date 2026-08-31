@@ -41,8 +41,8 @@
 
 .heroEditButton:hover {
   background: var(--bg-tertiary);
-  color: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .heroScopeButton {
@@ -84,7 +84,7 @@
 }
 
 .heroBrace {
-  fill: var(--text-primary, #111827);
+  fill: var(--text-primary);
 }
 
 .heroBracesContent {
@@ -648,7 +648,7 @@
 
 .storyFilterChipMuted:hover {
   color: var(--text-secondary);
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--bg-secondary, var(--bg-tertiary));
   border-color: var(--border-primary);
 }
 

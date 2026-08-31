@@ -3,9 +3,9 @@
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, #ad35fa 12%, transparent), transparent 55%),
+    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--brand-primary) 12%, transparent), transparent 55%),
     var(--bg-primary, #fff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .main {
@@ -29,7 +29,7 @@
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .eyebrow a {
@@ -38,7 +38,7 @@
 }
 
 .eyebrow a:hover {
-  color: #ad35fa;
+  color: var(--brand-primary);
   text-decoration: underline;
 }
 
@@ -53,14 +53,14 @@
 .sub {
   margin: 0;
   font-size: 14px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .playerShell {
   width: 100%;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   background: var(--bg-secondary, #f8fafc);
 }
 
@@ -76,7 +76,7 @@
 }
 
 .ctaLink {
-  color: #ad35fa;
+  color: var(--brand-primary);
   font-weight: 700;
   text-decoration: none;
 }

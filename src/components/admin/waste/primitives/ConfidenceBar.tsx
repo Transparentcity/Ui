@@ -7,7 +7,7 @@ type Props = {
 function bandFor(value: number) {
   if (value >= 0.85) return { fill: "#dc2626", label: "#dc2626" };
   if (value >= 0.7) return { fill: "#d97706", label: "#d97706" };
-  return { fill: "#6b7280", label: "#6b7280" };
+  return { fill: "var(--text-muted)", label: "var(--text-muted)" };
 }
 
 export function ConfidenceBar({ value }: Props) {

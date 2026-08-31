@@ -6,14 +6,14 @@
 
 .caption {
   font-size: 0.75rem;
-  color: var(--text-secondary, #374151);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.45;
 }
 
 .empty {
   font-size: 0.8125rem;
-  color: var(--text-secondary, #374151);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -37,7 +37,7 @@
   background: var(--bg-primary, #fff);
   text-align: left;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   min-width: 15ch;
   max-width: 22ch;
   white-space: nowrap;
@@ -50,7 +50,7 @@
 .tdTotal {
   text-align: right;
   padding: 6px 6px;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -59,9 +59,9 @@
 .thPeriod {
   text-align: right;
   padding: 6px 6px;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   font-weight: 600;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   white-space: nowrap;
 }
 
@@ -76,8 +76,8 @@
 .tdCount {
   text-align: right;
   padding: 6px 6px;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   white-space: nowrap;
 }

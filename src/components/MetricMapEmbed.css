@@ -146,21 +146,21 @@
 .map-legend-collapsed-toggle {
   appearance: none;
   background: transparent;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 999px;
   padding: 4px 10px;
   margin: 0.5rem 0;
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   line-height: 1;
 }
 
 .map-legend-collapsed-toggle:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--text-primary, #111827);
+  border-color: var(--brand-primary);
+  color: var(--text-primary);
 }
 
 .map-legend {
@@ -190,13 +190,13 @@
 }
 
 .map-legend-dot-current {
-  background-color: #ad35fa;
+  background-color: var(--brand-primary);
   border: 1.5px solid #fff;
   box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.15);
 }
 
 .map-legend-dot-comparison {
-  background-color: #6b7280;
+  background-color: var(--text-muted);
   opacity: 0.7;
   border: 1px solid #fff;
   box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1);

@@ -123,7 +123,7 @@ export function getTemplateConfig(templateId: number | null | undefined): Templa
 /**
  * Get color index for a template_id
  * Each template_id gets its own distinct color based on its ID value
- * Template ID 1 gets purple (#ad35fa), ID 2 gets coral (#FF6B5A), then variations
+ * Template ID 1 gets purple (var(--brand-primary)), ID 2 gets coral (#FF6B5A), then variations
  * This ensures consistent color assignment: same template_id = same color everywhere
  */
 export function getColorIndexForTemplate(templateId: number | null | undefined): number {

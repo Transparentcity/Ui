@@ -8,7 +8,7 @@ export const MAX_PLACE_RADIUS_M = 700;
 export const DEFAULT_MAP_ZOOM = 13;
 
 /** Brand purple — used as the default monochrome point color, not for series overflow. */
-export const MAP_BRAND_PURPLE = "#ad35fa";
+export const MAP_BRAND_PURPLE = "var(--brand-primary)";
 /**
  * Neutral swatch for series categories outside the top-N legend ("Other").
  * Kept distinct from brand purple so overflow types don't look like the first category.
@@ -49,13 +49,13 @@ export const CHOROPLETH_FIT_MAX_ZOOM_DISTRICT = 15;
  * Low is a very light lavender (#f6edff), not pure white, so polygons stay visible on light basemaps.
  */
 export const CHOROPLETH_BRAND_LOW_RGB: [number, number, number] = [246, 237, 255];
-/** Saturated end of the default ramp (#ad35fa). */
+/** Saturated end of the default ramp (var(--brand-primary)). */
 export const CHOROPLETH_BRAND_HIGH_RGB: [number, number, number] = [173, 53, 250];
 
 /** Basemap style the choropleth colors are tuned for (matches Mapbox light-v11 / dark-v11). */
 export type ChoroplethBasemapTheme = "light" | "dark";
 
-export const CHOROPLETH_NO_DATA_LIGHT = "#e5e7eb";
+export const CHOROPLETH_NO_DATA_LIGHT = "var(--border-primary)";
 /** No-data fill on dark basemap (subtle vs black land). */
 export const CHOROPLETH_NO_DATA_DARK = "#475569";
 
@@ -427,9 +427,9 @@ export function buildStaticMapUrl(
         type: "Feature" as const,
         geometry: { type: "Polygon" as const, coordinates: [ring] },
         properties: {
-          fill: "#ad35fa",
+          fill: "var(--brand-primary)",
           "fill-opacity": 0.25,
-          stroke: "#ad35fa",
+          stroke: "var(--brand-primary)",
           "stroke-width": 2,
         },
       },
@@ -437,9 +437,9 @@ export function buildStaticMapUrl(
         type: "Feature" as const,
         geometry: { type: "Polygon" as const, coordinates: [dotRing] },
         properties: {
-          fill: "#ad35fa",
+          fill: "var(--brand-primary)",
           "fill-opacity": 1,
-          stroke: "#ad35fa",
+          stroke: "var(--brand-primary)",
           "stroke-width": 1,
         },
       },

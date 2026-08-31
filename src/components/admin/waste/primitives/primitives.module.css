@@ -23,7 +23,7 @@
 .btnHero { padding: 13px 32px; font-size: 15px; border-radius: 12px; }
 
 .btnPrimary {
-  background: linear-gradient(135deg, #ad35fa 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, #8b5cf6 100%);
   color: #fff;
   border-color: rgba(173, 53, 250, 0.35);
 }
@@ -51,7 +51,7 @@
 
 .btnInvert {
   background: #fff;
-  color: #ad35fa;
+  color: var(--brand-primary);
   border-color: transparent;
 }
 
@@ -105,7 +105,7 @@
   border-radius: 4px;
   white-space: nowrap;
 }
-.statusOpen      { color: #7c3aed; background: rgba(173, 53, 250, 0.08); }
+.statusOpen      { color: var(--brand-primary-hover); background: rgba(173, 53, 250, 0.08); }
 .statusInReview  { color: #4338ca; background: #eef2ff; }
 .statusConfirmed { color: #15803d; background: #f0fdf4; }
 .statusDismissed { color: var(--text-tertiary); background: var(--bg-tertiary); }

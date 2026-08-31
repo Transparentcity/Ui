@@ -34,9 +34,9 @@ export default function SignUpToCustomizeMetricsButton({ cityId, cityName, cityS
         padding: "6px 12px",
         fontSize: 13,
         fontWeight: 500,
-        color: "var(--brand-primary, #ad35fa)",
+        color: "var(--brand-primary)",
         background: "transparent",
-        border: "1px solid var(--brand-primary, #ad35fa)",
+        border: "1px solid var(--brand-primary)",
         borderRadius: 6,
         cursor: "pointer",
       }}

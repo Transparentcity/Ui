@@ -72,7 +72,7 @@ export default function NeedsAttentionPanel() {
   return (
     <div>
       {error && (
-        <div style={{ color: "#ef4444", marginBottom: "0.75rem" }}>
+        <div style={{ color: "var(--error)", marginBottom: "0.75rem" }}>
           {error}
         </div>
       )}

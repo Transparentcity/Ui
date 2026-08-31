@@ -21,7 +21,7 @@ describe("mixHex", () => {
   });
 
   it("keeps a tint recognizably close to its base but much lighter", () => {
-    const tint = mixHex("#10b981", "#ffffff", 0.22);
+    const tint = mixHex("var(--success)", "#ffffff", 0.22);
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(tint.slice(i, i + 2), 16));
     // Still green — the middle channel leads, as in the source color.
     expect(g).toBeGreaterThan(r);
@@ -37,7 +37,7 @@ describe("mixHex", () => {
   });
 
   it("mixes toward a dark face for dark mode", () => {
-    const tint = mixHex("#10b981", "#0f172a", 0.22);
+    const tint = mixHex("var(--success)", "#0f172a", 0.22);
     const channels = [1, 3, 5].map((i) => parseInt(tint.slice(i, i + 2), 16));
     expect(Math.max(...channels)).toBeLessThan(90);
   });

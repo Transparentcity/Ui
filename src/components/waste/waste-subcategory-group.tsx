@@ -70,7 +70,7 @@ function SeverityBadges({ critCount, highCount, totalAmount, hasCapped }: { crit
       {totalAmount > 0 && (
         <span
           className="w-[150px] text-right text-[15px] font-bold tabular-nums inline-flex items-center justify-end gap-1"
-          style={{ fontFamily: "var(--font-data)", color: "#111827" }}
+          style={{ fontFamily: "var(--font-data)", color: "var(--text-primary)" }}
         >
           {formatDollar(totalAmount)}
           {hasCapped && (
@@ -134,7 +134,7 @@ export function WasteSubcategoryGroup({
       {/* Subcategory header: full-bleed band row */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="flex items-center gap-3 w-full px-3 py-2.5 border-t border-[#e5e7eb] bg-[#f8f9fa] hover:bg-gray-100 transition-colors text-left"
+        className="flex items-center gap-3 w-full px-3 py-2.5 border-t border-[var(--border-primary)] bg-[var(--bg-secondary)] hover:bg-gray-100 transition-colors text-left"
       >
         <ChevronRight
           className={cn(

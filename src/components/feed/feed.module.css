@@ -111,15 +111,15 @@
 }
 
 .chip:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   color: var(--text-primary);
   background: var(--bg-secondary);
 }
 
 .chipActive {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .chipActive:hover {
@@ -166,7 +166,7 @@
 
 .filterSelect:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -178,9 +178,9 @@
   font-size: 13px;
   font-weight: 500;
   border-radius: 999px;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -238,7 +238,7 @@
 
 .compactSelect:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -295,8 +295,8 @@
 }
 
 .filterChipActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 
@@ -308,7 +308,7 @@
 
 .filterChipBuilding {
   position: relative;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   animation: chipPulse 1.5s ease-in-out infinite;
 }
 
@@ -320,7 +320,7 @@
 @media (prefers-reduced-motion: reduce) {
   .filterChipBuilding {
     animation: none;
-    border-color: var(--brand-primary, #ad35fa);
+    border-color: var(--brand-primary);
   }
 }
 
@@ -371,12 +371,12 @@
 .cityChip:focus-visible,
 .actionBtn:focus-visible,
 .feedOrderBtn:focus-visible {
-  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
 .cityChipActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 .cityChipActive:hover {
@@ -387,13 +387,13 @@
 
 .cityChipExplore {
   border-style: dashed;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   text-decoration: none;
 }
 .cityChipExplore:hover {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 /* ── City chip follow button ───────────────────────────────────────────────── */
@@ -424,13 +424,13 @@
   line-height: 1;
 }
 .cityFollowBtn:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
 }
 .cityFollowBtnActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
   font-size: 11px;
 }
@@ -441,11 +441,11 @@
 }
 /* When the chip itself is active (purple), adjust the follow button border */
 .cityFollowBtnOnActive {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 .cityFollowBtnOnActive:not(.cityFollowBtnActive) {
   background: rgba(255, 255, 255, 0.9);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 /* ── Filter chip caret (for collapsible district button) ───────────────────── */
@@ -539,7 +539,7 @@
 
 /* Traction (good news) accent */
 .cardTraction {
-  border-left: 3px solid var(--success, #10b981);
+  border-left: 3px solid var(--success);
   background: rgba(16, 185, 129, 0.04);
 }
 
@@ -683,7 +683,7 @@
   display: inline-block;
   font-size: 13px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   margin-top: 4px;
   margin-bottom: 8px;
   cursor: pointer;
@@ -793,9 +793,9 @@
   height: 240px;
   background: linear-gradient(
     90deg,
-    var(--bg-secondary, #f3f4f6) 25%,
-    var(--bg-tertiary, #e5e7eb) 50%,
-    var(--bg-secondary, #f3f4f6) 75%
+    var(--bg-secondary, var(--bg-tertiary)) 25%,
+    var(--bg-tertiary, var(--border-primary)) 50%,
+    var(--bg-secondary, var(--bg-tertiary)) 75%
   );
   background-size: 200% 100%;
   animation: vizSkeletonPulse 1.5s ease-in-out infinite;
@@ -812,7 +812,7 @@
   padding: 0 4px;
   font-size: 0.75rem;
   line-height: 1.45;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-style: italic;
 }
 
@@ -881,8 +881,8 @@
   color: var(--text-primary);
 }
 
-.metricUp { color: var(--error, #ef4444); }
-.metricDown { color: var(--success, #10b981); }
+.metricUp { color: var(--error); }
+.metricDown { color: var(--success); }
 .metricFlat { color: var(--text-secondary); }
 
 /* ── Action bar ────────────────────────────────────────────────────────────── */
@@ -923,7 +923,7 @@
 }
 
 .actionBtnActive {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .actionLabel {
@@ -1015,7 +1015,7 @@
 }
 
 .overflowItemDanger {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .overflowItemDanger:hover {
@@ -1032,7 +1032,7 @@
 }
 
 .overflowItemDanger .overflowItemIcon {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .overflowItemLiked {
@@ -1110,7 +1110,7 @@
 }
 
 .sheetItemDanger {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .sheetItemIcon {
@@ -1123,7 +1123,7 @@
 }
 
 .sheetItemDanger .sheetItemIcon {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .sheetItemLiked {
@@ -1172,7 +1172,7 @@
 
 .escalateTextarea:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .escalateToggleRow {
@@ -1210,7 +1210,7 @@
 }
 
 .escalateToggleOn {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
 }
 
 .escalateToggleOn::after {
@@ -1223,7 +1223,7 @@
   font-size: 16px;
   font-weight: 600;
   color: var(--text-on-brand, #fff);
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -1351,7 +1351,7 @@
   width: 24px;
   height: 24px;
   border: 2px solid var(--border-primary);
-  border-top-color: var(--brand-primary, #ad35fa);
+  border-top-color: var(--brand-primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -1372,7 +1372,7 @@
   padding: 10px 24px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: 8px;
@@ -1382,7 +1382,7 @@
 
 .loadMoreBtn:hover {
   background: var(--bg-tertiary);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 /* ── Empty / loading / error states ────────────────────────────────────────── */
@@ -1423,9 +1423,9 @@
   gap: 12px;
   padding: 12px 16px;
   margin-bottom: 12px;
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
-  border-left: 3px solid var(--brand-primary, #ad35fa);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--brand-primary);
   border-radius: var(--radius-lg, 12px);
 }
 
@@ -1433,12 +1433,12 @@
   flex: 1;
   margin: 0;
   font-size: 14px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   line-height: 1.4;
 }
 
 .cityLaunchLink {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-weight: 500;
   text-decoration: none;
 }
@@ -1457,15 +1457,15 @@
   padding: 8px;
   border: none;
   background: transparent;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .cityLaunchDismiss:hover {
-  background: var(--bg-tertiary, #f3f4f6);
-  color: var(--text-secondary, #6b7280);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 @media (max-width: 768px) {
@@ -1481,7 +1481,7 @@
   }
 }
 
-.errorState { color: var(--error, #ef4444); }
+.errorState { color: var(--error); }
 
 .retryBtn {
   margin-top: 12px;
@@ -1497,8 +1497,8 @@
 }
 
 .retryBtn:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 /* Session-expired card (auth error variant) */
@@ -1513,7 +1513,7 @@
   padding: 32px 28px;
   max-width: 420px;
   background: var(--bg-primary, #ffffff);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg, 12px);
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.06);
   color: var(--text-primary);
@@ -1526,8 +1526,8 @@
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand-primary, #ad35fa) 12%, transparent);
-  color: var(--brand-primary, #ad35fa);
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  color: var(--brand-primary);
   margin-bottom: 4px;
 }
 
@@ -1550,9 +1550,9 @@
   padding: 10px 24px;
   font-size: 14px;
   font-weight: 600;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   border-radius: 8px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #ffffff;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
@@ -1568,7 +1568,7 @@
 }
 
 .authSignInBtn:focus-visible {
-  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
 
@@ -1628,7 +1628,7 @@
   font-size: 14px;
   font-weight: 600;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: 20px;
   cursor: pointer;
@@ -1705,7 +1705,7 @@
   margin: 0 0 18px;
 }
 .detailArticleBody a {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1781,7 +1781,7 @@
   text-underline-offset: 2px;
 }
 .detailArticleBody :global(.viz-embed-source-button:hover) {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 :global(.viz-source-modal-backdrop) {
   position: fixed;
@@ -1815,7 +1815,7 @@
 }
 :global(.viz-source-modal-eyebrow) {
   margin: 0 0 4px;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1839,7 +1839,7 @@
   margin: 0 0 16px;
   padding: 9px 12px;
   border-radius: 8px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   font-size: 0.9rem;
   font-weight: 700;
@@ -1864,7 +1864,7 @@
 }
 :global(.viz-source-modal-row span),
 :global(.viz-source-modal-query span) {
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1880,7 +1880,7 @@
   word-break: break-word;
 }
 :global(.viz-source-modal-row a) {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1894,7 +1894,7 @@
   margin: 0;
   padding: 10px;
   border-radius: 8px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 0.76rem;
   line-height: 1.45;
@@ -1903,7 +1903,7 @@
 }
 :global(.viz-source-modal-link) {
   display: inline-flex;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-size: 0.9rem;
   font-weight: 700;
   text-decoration: none;
@@ -1919,7 +1919,7 @@
 .detailDivider { border: none; border-top: 1px solid var(--border-primary); margin: 24px 0; }
 .detailActionBar { display: flex; align-items: center; gap: 12px; }
 .detailActionBtn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; font-size: 14px; font-weight: 500; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; }
-.detailActionBtn:hover { border-color: var(--brand-primary, #ad35fa); color: var(--text-primary); }
+.detailActionBtn:hover { border-color: var(--brand-primary); color: var(--text-primary); }
 
 /* ════════════════════════════════════════════════════════════════════════════
  * New filter icon + active pills + prompts
@@ -1962,7 +1962,7 @@
   line-height: 16px;
   text-align: center;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border-radius: 999px;
 }
 
@@ -1995,9 +1995,9 @@
   font-size: 12px;
   font-weight: 500;
   border-radius: 999px;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -2050,7 +2050,7 @@
   gap: 10px;
   padding: 8px 14px;
   margin-bottom: 10px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: 10px;
   font-size: 13px;
@@ -2068,7 +2068,7 @@
   font-weight: 600;
   border: none;
   border-radius: 20px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -2102,7 +2102,7 @@
   font-weight: 600;
   border: none;
   background: none;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -2119,7 +2119,7 @@
   font-weight: 600;
   border: none;
   border-radius: 10px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -2171,7 +2171,7 @@
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: 8px;
@@ -2181,7 +2181,7 @@
 }
 
 .detailReportLink:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: var(--bg-tertiary);
 }
 
@@ -2382,7 +2382,7 @@
   align-items: center;
   gap: 4px;
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 12px;
@@ -2439,8 +2439,8 @@
   font-weight: 600;
 }
 
-.metricFavorable { color: var(--success, #10b981); }
-.metricUnfavorable { color: var(--error, #ef4444); }
+.metricFavorable { color: var(--success); }
+.metricUnfavorable { color: var(--error); }
 
 .metricTileLabel {
   font-size: 12.5px;
@@ -2571,7 +2571,7 @@
 }
 
 .barFillCurrent {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
 }
 
 .barFillPrior {
@@ -2599,12 +2599,12 @@
 
 .deltaPillUnfavorable {
   background: rgba(239, 68, 68, 0.08);
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .deltaPillFavorable {
   background: rgba(16, 185, 129, 0.08);
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .vendorBlock {
@@ -2640,7 +2640,7 @@
   align-items: center;
   gap: 5px;
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   padding: 4px 12px;
   border-radius: 999px;
   font-size: 11px;
@@ -2652,7 +2652,7 @@
 
 .milestoneBadge {
   background: rgba(16, 185, 129, 0.1);
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .fixItAlreadyBadge {
@@ -2660,7 +2660,7 @@
   align-items: center;
   gap: 6px;
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   padding: 4px 12px;
   border-radius: 999px;
   font-size: 11px;
@@ -2715,7 +2715,7 @@
 }
 
 .otcHighlight {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-weight: 600;
 }
 
@@ -2812,8 +2812,8 @@
   flex-shrink: 0;
 }
 
-.statusOpen { background: var(--warning, #f59e0b); }
-.statusResolved { background: var(--success, #10b981); }
+.statusOpen { background: var(--warning); }
+.statusResolved { background: var(--success); }
 .statusInProgress { background: #60a5fa; }
 
 .statusText {
@@ -2846,7 +2846,7 @@
   align-items: center;
   gap: 4px;
   background: rgba(16, 185, 129, 0.1);
-  color: var(--success, #10b981);
+  color: var(--success);
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -2857,7 +2857,7 @@
 /* ── Text card subtypes ────────────────────────────────────────────────────── */
 
 .contextCallout {
-  border-left: 2px solid var(--brand-primary, #ad35fa);
+  border-left: 2px solid var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.06));
   padding: 10px 14px;
   border-radius: 0 6px 6px 0;
@@ -2880,12 +2880,12 @@
 
 .justiceConviction {
   background: rgba(239, 68, 68, 0.08);
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .justiceAcquittal {
   background: rgba(16, 185, 129, 0.08);
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .justicePending {
@@ -2919,12 +2919,12 @@
 
 .businessOpening {
   background: rgba(16, 185, 129, 0.08);
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .businessClosing {
   background: rgba(239, 68, 68, 0.08);
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .trendStrip {
@@ -2953,7 +2953,7 @@
 
 /* Traction (good news) subtypes */
 .tractionCallout {
-  border-left: 2px solid var(--success, #10b981);
+  border-left: 2px solid var(--success);
   background: rgba(16, 185, 129, 0.06);
   padding: 10px 14px;
   border-radius: 0 6px 6px 0;
@@ -2973,7 +2973,7 @@
   font-weight: 600;
   margin-bottom: 8px;
   background: rgba(16, 185, 129, 0.08);
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 /* ── Compact card variant ──────────────────────────────────────────────────── */
@@ -3028,7 +3028,7 @@
   margin-top: 4px;
   background: var(--bg-tertiary, rgba(0, 0, 0, 0.03));
   border-radius: 8px;
-  border-left: 3px solid var(--brand-primary, #ad35fa);
+  border-left: 3px solid var(--brand-primary);
 }
 
 .actionBarCompact {
@@ -3063,7 +3063,7 @@
 /* ── Inline metric links ──────────────────────────────────────────────────── */
 
 .metricLink {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   text-decoration: underline;
   text-decoration-color: rgba(173, 53, 250, 0.4);
   text-underline-offset: 2px;
@@ -3072,8 +3072,8 @@
 }
 
 .metricLink:hover {
-  color: var(--brand-primary-hover, #7c3aed);
-  text-decoration-color: var(--brand-primary-hover, #7c3aed);
+  color: var(--brand-primary-hover);
+  text-decoration-color: var(--brand-primary-hover);
 }
 
 .metricIndicator {

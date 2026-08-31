@@ -42,7 +42,7 @@
 }
 
 .previewCard:hover .previewCta {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .previewCardFoot {

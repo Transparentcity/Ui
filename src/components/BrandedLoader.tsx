@@ -22,10 +22,10 @@ const SIZE_PX: Record<LoaderSize, number> = {
 };
 
 const COLOR_MAP: Record<LoaderColor, string> = {
-  purple: "#ad35fa",
+  purple: "var(--brand-primary)",
   blue: "#3b82f6",
-  green: "#10b981",
-  orange: "#f59e0b",
+  green: "var(--success)",
+  orange: "var(--warning)",
   white: "#ffffff",
   dark: "#1f2937",
   brand: "var(--brand-primary, #3b82f6)",
@@ -190,7 +190,7 @@ export default function BrandedLoader({
         <span
           style={{
             fontSize: size === "sm" ? 11 : size === "md" ? 13 : 15,
-            color: "var(--text-secondary, #6b7280)",
+            color: "var(--text-secondary, var(--text-muted))",
             fontWeight: 500,
           }}
         >

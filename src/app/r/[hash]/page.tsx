@@ -338,7 +338,7 @@ export default function PublicResearchPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border-primary, rgba(17,24,39,0.08))" }}>
             <a
               href="/"
-              style={{ color: "var(--brand-primary, #ad35fa)", textDecoration: "none", fontSize: "0.95rem" }}
+              style={{ color: "var(--brand-primary)", textDecoration: "none", fontSize: "0.95rem" }}
             >
               ← Back to the feed
             </a>
@@ -352,7 +352,7 @@ export default function PublicResearchPage() {
                 padding: "0.5rem 1rem",
                 fontSize: "0.9rem",
                 background: "var(--bg-secondary, #f5f5f5)",
-                border: "1px solid var(--border-primary, #e5e7eb)",
+                border: "1px solid var(--border-primary)",
                 borderRadius: "6px",
                 color: "var(--text-secondary, #666)",
                 cursor: "pointer",

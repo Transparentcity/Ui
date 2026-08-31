@@ -7,7 +7,7 @@
 
 .chain-divergence-banner {
   background: rgba(245, 158, 11, 0.1);
-  border: 1px solid var(--warning, #f59e0b);
+  border: 1px solid var(--warning);
   border-radius: var(--radius-sm, 6px);
   padding: 0.75rem 1rem;
   margin-bottom: 1.25rem;
@@ -50,7 +50,7 @@
 }
 
 .chain-stage-card--divergence {
-  border-color: var(--warning, #f59e0b);
+  border-color: var(--warning);
   background: rgba(245, 158, 11, 0.08);
 }
 
@@ -91,7 +91,7 @@
 }
 
 .chain-stage-delta--down {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .chain-stage-rate {
@@ -105,14 +105,14 @@
 }
 
 .chain-rate-down {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .chain-stage-divergence-badge {
   margin-top: 0.4rem;
   font-size: 0.68rem;
   font-weight: 600;
-  color: var(--warning, #f59e0b);
+  color: var(--warning);
   background: rgba(245, 158, 11, 0.12);
   border-radius: 3px;
   padding: 0.1rem 0.35rem;
@@ -231,7 +231,7 @@
 }
 
 .chain-waterfall-bar--negative {
-  background: var(--error, #ef4444);
+  background: var(--error);
   opacity: 0.85;
 }
 

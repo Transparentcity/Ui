@@ -5,13 +5,13 @@
   gap: 6px;
   font-size: 0.8125rem;
   line-height: 1.4;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-family: var(--font-body);
   margin-bottom: 0.75rem;
 }
 
 .link {
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted);
   text-decoration: none;
   transition: color 0.15s;
   white-space: nowrap;

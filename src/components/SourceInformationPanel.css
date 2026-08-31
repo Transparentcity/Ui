@@ -42,7 +42,7 @@
   margin: 0;
   background: none;
   border: none;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 0.8125rem;
   font-weight: 600;
   font-family: inherit;
@@ -53,7 +53,7 @@
 }
 
 .map-source-toggle-inline:hover {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .map-source-toggle-icon {

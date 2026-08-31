@@ -17,8 +17,8 @@
   flex-shrink: 0;
 }
 .addBtn:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.06));
 }
 
@@ -56,7 +56,7 @@
   font-weight: 500;
   background: none;
   border: none;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   cursor: pointer;
   position: relative;
 }
@@ -70,7 +70,7 @@
   position: absolute;
   bottom: -1px; left: 16px; right: 16px;
   height: 2px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border-radius: 2px 2px 0 0;
 }
 
@@ -87,7 +87,7 @@
 }
 .searchInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: var(--bg-primary);
 }
 
@@ -126,8 +126,8 @@
   flex-shrink: 0;
 }
 .checkboxChecked {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .itemLabel {
@@ -195,6 +195,6 @@
 .sortMenuCheck {
   width: 14px;
   font-size: 12px;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   flex-shrink: 0;
 }

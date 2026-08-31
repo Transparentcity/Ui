@@ -141,12 +141,12 @@
 
 .statusInProgress {
   background: rgba(245, 158, 11, 0.08);
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .statusResolved {
   background: rgba(16, 185, 129, 0.08);
-  color: #10b981;
+  color: var(--success);
 }
 
 /* Expanded detail */
@@ -236,8 +236,8 @@
 }
 
 .removeBtn:hover {
-  color: #ef4444;
-  border-color: #ef4444;
+  color: var(--error);
+  border-color: var(--error);
 }
 
 .viewStoryLink {

@@ -148,14 +148,14 @@ export function CostPageContent() {
               value={data.more_expensive_city}
               subtext={`${data.metrics_available} metrics`}
               icon={<DollarSign className="h-4 w-4 text-red-500" />}
-              accentColor="#ef4444"
+              accentColor="var(--error)"
             />
             <StatItem
               label="Biggest Gap"
               value={data.biggest_gap_metric}
               subtext={`${formatRatio(data.biggest_gap_ratio)} diff`}
               icon={<ArrowRightLeft className="h-4 w-4 text-amber-500" />}
-              accentColor="#f59e0b"
+              accentColor="var(--warning)"
             />
             <StatItem
               label="After COL"

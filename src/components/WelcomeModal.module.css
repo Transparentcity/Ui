@@ -47,7 +47,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   padding: 6px;
   min-width: 44px;
   min-height: 44px;
@@ -62,8 +62,8 @@
 }
 
 .closeButton:hover {
-  background: var(--bg-tertiary, #f3f4f6);
-  color: var(--text-secondary, #6b7280);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 /* Step Indicator */
@@ -83,14 +83,14 @@
 }
 
 .stepDotActive {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   width: 24px;
   border-radius: 4px;
   box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.12);
 }
 
 .stepDotComplete {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   opacity: 0.4;
 }
 
@@ -118,7 +118,7 @@
 .title {
   font-size: 26px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 6px 0;
   line-height: 1.2;
 }
@@ -137,7 +137,7 @@
 
 .subtitle {
   font-size: 14px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   margin: 0 0 12px 0;
   line-height: 1.4;
 }
@@ -145,7 +145,7 @@
 .stepTitle {
   font-size: 22px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
   display: flex;
   align-items: center;
@@ -155,7 +155,7 @@
 
 .stepDescription {
   font-size: 15px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   margin: 0 0 20px 0;
   line-height: 1.5;
 }
@@ -174,11 +174,11 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .valuePropCompact svg {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   flex-shrink: 0;
 }
 
@@ -202,7 +202,7 @@
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
@@ -239,12 +239,12 @@
 .locationDividerLine {
   flex: 1;
   height: 1px;
-  background: var(--border-primary, #e5e7eb);
+  background: var(--border-primary);
 }
 
 .locationDividerText {
   font-size: 12px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   white-space: nowrap;
 }
 
@@ -257,14 +257,14 @@
 .inputWithGPS {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-primary, #ffffff);
   transition: all 0.15s ease;
 }
 
 .inputWithGPS:focus-within {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -275,7 +275,7 @@
   border: none;
   border-radius: var(--radius-md, 8px);
   background: transparent;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .inputWithGPS .input:focus {
@@ -283,7 +283,7 @@
 }
 
 .inputWithGPS .input::placeholder {
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .gpsButton {
@@ -291,18 +291,18 @@
   align-items: center;
   justify-content: center;
   padding: 0 14px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   border: none;
-  border-left: 1px solid var(--border-primary, #e5e7eb);
+  border-left: 1px solid var(--border-primary);
   border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0;
   cursor: pointer;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   transition: all 0.15s ease;
 }
 
 .gpsButton:hover:not(:disabled) {
-  background: var(--bg-tertiary, #f3f4f6);
-  color: var(--brand-primary, #ad35fa);
+  background: var(--bg-tertiary);
+  color: var(--brand-primary);
 }
 
 .gpsButton:disabled {
@@ -319,18 +319,18 @@
   min-height: 44px;
   background: transparent;
   border: none;
-  border-left: 1px solid var(--border-primary, #e5e7eb);
+  border-left: 1px solid var(--border-primary);
   border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0;
   cursor: pointer;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   transition: all 0.15s ease;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
 .gpsInlineButton:hover:not(:disabled) {
-  background: var(--bg-tertiary, #f3f4f6);
-  color: var(--brand-primary, #ad35fa);
+  background: var(--bg-tertiary);
+  color: var(--brand-primary);
 }
 
 .gpsInlineButton:disabled {
@@ -342,7 +342,7 @@
   width: 18px;
   height: 18px;
   border: 2px solid var(--border-secondary, #d1d5db);
-  border-top-color: var(--brand-primary, #ad35fa);
+  border-top-color: var(--brand-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -359,7 +359,7 @@
   right: 0;
   margin-top: 4px;
   background: var(--bg-primary, #ffffff);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-lg, 0 10px 15px rgba(0, 0, 0, 0.1));
   max-height: 240px;
@@ -375,7 +375,7 @@
   padding: 12px 14px;
   min-height: 44px;
   font-size: 14px;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   background: none;
   border: none;
   cursor: pointer;
@@ -386,7 +386,7 @@
 }
 
 .dropdownItem:hover {
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
 }
 
 .cityEmoji {
@@ -408,7 +408,7 @@
   font-size: 15px;
   font-weight: 600;
   color: #ffffff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
@@ -438,9 +438,9 @@
   padding: 14px 24px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: transparent;
-  border: 1.5px solid var(--brand-primary, #ad35fa);
+  border: 1.5px solid var(--brand-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -470,7 +470,7 @@
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   background: none;
   border: none;
   border-radius: var(--radius-md, 8px);
@@ -479,14 +479,14 @@
 }
 
 .backButton:hover {
-  color: var(--text-primary, #111827);
-  background: var(--bg-secondary, #f8f9fa);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .skipButton {
   padding: 10px 16px;
   font-size: 13px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   background: none;
   border: none;
   border-radius: var(--radius-md, 8px);
@@ -495,14 +495,14 @@
 }
 
 .skipButton:hover {
-  color: var(--text-secondary, #6b7280);
-  background: var(--bg-secondary, #f8f9fa);
+  color: var(--text-secondary, var(--text-muted));
+  background: var(--bg-secondary);
 }
 
 /* Disclaimer */
 .disclaimer {
   font-size: 11px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   margin-top: 12px;
   line-height: 1.5;
 }
@@ -513,7 +513,7 @@
 }
 
 .disclaimerLink:hover {
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 /* City Confirm Card — the "we found your city" moment */
@@ -531,8 +531,8 @@
   align-items: flex-start;
   gap: 12px;
   padding: 12px 14px;
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -540,13 +540,13 @@
 }
 
 .trackOption:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .trackOption input[type="radio"],
 .trackOption input[type="checkbox"] {
   margin-top: 2px;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
 }
 
@@ -559,12 +559,12 @@
 .trackOptionText strong {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .trackOptionText span {
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 /* Lead Benefits */
@@ -573,15 +573,15 @@
   text-align: left;
   margin: 12px 0 16px;
   padding: 16px 18px;
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg, 12px);
 }
 
 .leadBenefits p {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 10px 0;
 }
 
@@ -592,7 +592,7 @@
 
 .leadBenefits li {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   margin-bottom: 6px;
   line-height: 1.4;
 }
@@ -605,7 +605,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(16, 185, 129, 0.1);
-  color: var(--success, #10b981);
+  color: var(--success);
   border-radius: 50%;
   margin-bottom: 16px;
   animation: iconPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -622,7 +622,7 @@
   width: 100%;
   padding: 10px 14px;
   font-size: 13px;
-  color: var(--error, #ef4444);
+  color: var(--error);
   background: rgba(239, 68, 68, 0.06);
   border: 1px solid rgba(239, 68, 68, 0.15);
   border-radius: var(--radius-md, 8px);
@@ -637,7 +637,7 @@
   gap: 8px;
   padding: 12px 16px;
   font-size: 14px;
-  color: var(--success, #10b981);
+  color: var(--success);
   background: rgba(16, 185, 129, 0.06);
   border: 1px solid rgba(16, 185, 129, 0.15);
   border-radius: var(--radius-md, 8px);
@@ -706,7 +706,7 @@
 }
 
 .modal::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary, #6b7280);
+  background: var(--text-tertiary, var(--text-muted));
 }
 
 /* Dark mode */
@@ -761,13 +761,13 @@
 .sectionTitle {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .sectionDescription {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   margin: 0 0 12px 0;
 }
 
@@ -776,8 +776,8 @@
   align-items: flex-start;
   gap: 12px;
   padding: 12px 14px;
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -786,12 +786,12 @@
 }
 
 .preferenceOption:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .preferenceOption input[type="checkbox"] {
   margin-top: 2px;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
 }
 
@@ -805,12 +805,12 @@
 .preferenceOptionText strong {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .preferenceOptionText span {
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .reportScopeOptions {
@@ -819,7 +819,7 @@
   margin-top: 8px;
   margin-left: 32px;
   padding: 8px 12px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-sm, 6px);
 }
 
@@ -828,12 +828,12 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
 }
 
 .reportScopeOption input[type="radio"] {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
 }
 
@@ -850,29 +850,29 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
   font-size: 13px;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .categoryChip:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  background: var(--bg-tertiary, #f3f4f6);
+  border-color: var(--brand-primary);
+  background: var(--bg-tertiary);
 }
 
 .categoryChip input[type="checkbox"] {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
 }
 
 .categoryChip:has(input:checked) {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   font-weight: 500;
 }
 
@@ -882,21 +882,21 @@
   padding: 12px 14px;
   font-size: 14px;
   font-family: inherit;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-primary, #ffffff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   resize: vertical;
   transition: all 0.15s ease;
 }
 
 .learningFocusInput::placeholder {
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .learningFocusInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -905,7 +905,7 @@
   margin-top: 12px;
   margin-left: 32px;
   padding: 12px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-md, 8px);
   display: flex;
   flex-direction: column;
@@ -915,7 +915,7 @@
 .textInputLabel {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
@@ -924,22 +924,22 @@
   padding: 12px 14px;
   font-size: 13px;
   font-family: inherit;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-primary, #ffffff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   resize: vertical;
   transition: all 0.15s ease;
   line-height: 1.5;
 }
 
 .newsletterDescriptionInput::placeholder {
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .newsletterDescriptionInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -957,18 +957,18 @@
   cursor: pointer;
   padding: 9px 12px;
   border-radius: var(--radius-md, 8px);
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border: 1.5px solid var(--border-primary);
   background: var(--bg-secondary, #f9fafb);
   transition: all 0.15s ease;
 }
 
 .emailOptInOption:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.02);
 }
 
 .emailOptInOption input[type="checkbox"] {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
   margin-top: 2px;
   flex-shrink: 0;
@@ -978,14 +978,14 @@
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   line-height: 1.3;
 }
 
 .emailOptInDesc {
   display: block;
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   line-height: 1.4;
   margin-top: 2px;
 }
@@ -994,7 +994,7 @@
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.08);
   padding: 1px 6px;
   border-radius: 4px;
@@ -1007,9 +1007,9 @@
   align-items: flex-start;
   gap: 8px;
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   background: var(--bg-secondary, #f9fafb);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   padding: 8px 10px;
   margin-top: -4px;
@@ -1020,7 +1020,7 @@
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   cursor: pointer;
   font-size: 13px;
   padding: 0 2px;
@@ -1028,7 +1028,7 @@
 }
 
 .digestNudgeDismiss:hover {
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 /* Show More / Hide More Buttons */
@@ -1037,9 +1037,9 @@
   padding: 10px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: none;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1087,7 +1087,7 @@
 
 .stepWelcomeSubtitle {
   font-size: 14px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   text-align: center;
   margin: 0 0 10px;
   line-height: 1.45;
@@ -1107,7 +1107,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-secondary, #f9fafb);
 }
@@ -1118,7 +1118,7 @@
   height: 32px;
   border-radius: 50%;
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-size: 11px;
   font-weight: 700;
   display: flex;
@@ -1138,7 +1138,7 @@
 .leaderJurisdiction {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1150,7 +1150,7 @@
 .leaderName {
   font-size: 12px;
   font-weight: 400;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1160,7 +1160,7 @@
 .leaderTitle {
   font-size: 11px;
   font-weight: 400;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1187,9 +1187,9 @@
   font-size: 12px;
   font-weight: 600;
   border-radius: 20px;
-  border: 1.5px solid var(--brand-primary, #ad35fa);
+  border: 1.5px solid var(--brand-primary);
   background: rgba(173, 53, 250, 0.08);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   transition: all 0.15s ease;
   -webkit-tap-highlight-color: transparent;
@@ -1197,7 +1197,7 @@
 
 .leaderFollowBtnActive:hover {
   background: rgba(173, 53, 250, 0.04);
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .leaderFollowBtnIdle {
@@ -1211,15 +1211,15 @@
   border-radius: 20px;
   border: 1.5px solid var(--border-primary, #d1d5db);
   background: var(--bg-primary, #fff);
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   transition: all 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .leaderFollowBtnIdle:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .placeNameField {
@@ -1232,7 +1232,7 @@
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .placeNameInput {
@@ -1240,15 +1240,15 @@
   box-sizing: border-box;
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-primary, #fff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .placeNameInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.12);
 }
 
@@ -1270,14 +1270,14 @@
 .radiusSliderLabel {
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .radiusSliderInput {
   flex: 1;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
   height: 4px;
 }
@@ -1285,7 +1285,7 @@
 .radiusSliderValue {
   font-size: 11px;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   white-space: nowrap;
   flex-shrink: 0;
   min-width: 36px;
@@ -1304,9 +1304,9 @@
   padding: 10px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  color: var(--text-secondary, var(--text-muted));
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-primary);
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1316,15 +1316,15 @@
 }
 
 .presetChip:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.04);
 }
 
 .presetChipActive {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.08);
 }
 
@@ -1352,9 +1352,9 @@
   padding: 10px 14px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  color: var(--text-secondary, var(--text-muted));
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   text-align: left;
@@ -1362,17 +1362,17 @@
 }
 
 .advancedNewsletterToggle:hover {
-  border-color: var(--brand-primary, #ad35fa);
-  color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.04);
 }
 
 .advancedNewsletterPanel {
   margin-top: 12px;
   padding: 14px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   text-align: left;
 }
 
@@ -1380,7 +1380,7 @@
   margin: 0 0 14px 0;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .advancedNewsletterPanel .textInputLabel {
@@ -1393,7 +1393,7 @@
   font-size: 14px;
   font-weight: 600;
   color: white;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
@@ -1412,15 +1412,15 @@
 
 .sampleSuccess {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   margin: 0 0 16px 0;
   padding: 12px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   border-radius: var(--radius-sm, 6px);
 }
 
 .sampleSuccess a {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   text-decoration: none;
 }
 
@@ -1487,19 +1487,19 @@
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: var(--bg-secondary, #f8f9fa);
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
   font-size: 14px;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .cityPickerCard:hover:not(:disabled) {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.04);
 }
 
@@ -1527,7 +1527,7 @@
   gap: 10px;
   padding: 24px 0;
   font-size: 14px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .cityPickerDividerButton {
@@ -1535,7 +1535,7 @@
   padding: 12px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: none;
   border: none;
   cursor: pointer;
@@ -1609,7 +1609,7 @@
 .placeNameAboveLabel {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1618,22 +1618,22 @@
   flex: 1;
   padding: 7px 10px;
   font-size: 14px;
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   background: var(--bg-primary, #fff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .placeNameAboveInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.1);
 }
 
 /* ── Place setup card (step 2) ───────────────────── */
 .placeSetupCard {
   width: 100%;
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
   margin-bottom: 12px;
@@ -1644,7 +1644,7 @@
   align-items: center;
   gap: 10px;
   padding: 9px 14px;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .placeSetupRow:last-of-type {
@@ -1667,7 +1667,7 @@
   text-align: center;
   padding: 5px 14px 7px;
   margin: 0;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* ── Address chip (precise location display) ─────── */
@@ -1678,7 +1678,7 @@
   padding: 6px 12px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.07);
   border: 1px solid rgba(173, 53, 250, 0.18);
   border-radius: 20px;
@@ -1696,7 +1696,7 @@
 /* ── Location value prop ─────────────────────────── */
 .locationValueProp {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   text-align: center;
   margin: 0 0 12px;
   line-height: 1.45;
@@ -1708,8 +1708,8 @@
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
   margin-bottom: 10px;
-  border: 1px solid var(--border-primary, #e5e7eb);
-  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
   line-height: 0;
 }
 
@@ -1723,7 +1723,7 @@
 /* ── Tagline ───────────────────────────────────── */
 .tagline {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   text-align: center;
   margin: 0 0 14px;
   line-height: 1.45;
@@ -1751,7 +1751,7 @@
 }
 
 .coverageCheckbox {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   width: 14px;
   height: 14px;
   flex-shrink: 0;
@@ -1761,14 +1761,14 @@
 /* ── Coverage section (My place / district / city) */
 .coverageSection {
   width: 100%;
-  border: 1.5px solid var(--border-primary, #e5e7eb);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
   margin-bottom: 12px;
 }
 
 .coverageRowWrap {
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .coverageRowWrapLast {
@@ -1812,7 +1812,7 @@
 .coverageRowTitle {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1821,7 +1821,7 @@
 
 .coverageRowSubtitle {
   font-size: 11px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1832,16 +1832,16 @@
   flex: 1;
   padding: 5px 9px;
   font-size: 13px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm, 6px);
   background: var(--bg-primary, #fff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   min-width: 0;
 }
 
 .coverageRowInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.1);
 }
 
@@ -1850,22 +1850,22 @@
   flex-shrink: 0;
   padding: 4px 8px;
   font-size: 12px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm, 6px);
   background: var(--bg-primary, #fff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .coverageRowInputSm:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.1);
 }
 
 .coverageMapFull {
   width: 100%;
   line-height: 0;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
 }
 
 .coverageMapFull img {
@@ -1882,7 +1882,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .cityEmoji {
@@ -1897,7 +1897,7 @@
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.03em;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.1);
   border-radius: 4px;
   padding: 2px 4px;
@@ -1927,7 +1927,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   margin-bottom: 8px;
 }
 
@@ -1952,7 +1952,7 @@
   margin: 0 0 10px;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text-secondary, #374151);
+  color: var(--text-secondary);
 }
 
 .giftLocationSection .locationSection {
@@ -1973,6 +1973,6 @@
   gap: 10px;
   padding: 14px 0 10px;
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   margin-bottom: 4px;
 }

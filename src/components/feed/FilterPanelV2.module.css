@@ -103,13 +103,13 @@
   font-weight: 500;
   background: none;
   border: none;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   cursor: pointer;
   border-radius: 6px;
 }
 .headerClear:hover { background: var(--bg-secondary); color: var(--text-primary); }
 .headerClear:disabled { opacity: 0.4; cursor: default; }
-.headerClear:disabled:hover { background: none; color: var(--text-tertiary, #6b7280); }
+.headerClear:disabled:hover { background: none; color: var(--text-tertiary, var(--text-muted)); }
 
 /* ── Active chip row (above content) ──────────────────────────────────── */
 
@@ -133,9 +133,9 @@
   font-weight: 500;
   line-height: 1.4;
   border-radius: 999px;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   transition: background 0.12s ease;
   max-width: 180px;
@@ -218,7 +218,7 @@
   font-weight: 500;
   background: none;
   border: none;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   cursor: pointer;
   transition: color 0.12s ease;
 }
@@ -234,7 +234,7 @@
   right: 0;
   bottom: -1px;
   height: 2px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border-radius: 2px 2px 0 0;
 }
 .tabCount {
@@ -245,7 +245,7 @@
   font-weight: 600;
   border-radius: 8px;
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.12));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   min-width: 16px;
   line-height: 16px;
 }
@@ -278,7 +278,7 @@
 .searchInput::placeholder { color: var(--text-tertiary, #999); }
 .searchInput:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: var(--bg-primary);
 }
 .searchIcon {
@@ -312,7 +312,7 @@
   font-weight: 500;
   background: none;
   border: none;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   border-radius: 6px;
 }
@@ -338,7 +338,7 @@
 }
 .cityRow:hover { background: var(--bg-secondary); }
 .cityRow:focus-visible {
-  outline: 2px solid var(--brand-primary, #ad35fa);
+  outline: 2px solid var(--brand-primary);
   outline-offset: -2px;
 }
 
@@ -358,11 +358,11 @@
   transition: all 0.12s ease;
 }
 .cityRow:hover .checkbox:not(.checkboxChecked) {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 .checkboxChecked {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .cityName {
@@ -378,7 +378,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   opacity: 0.6;
   flex-shrink: 0;
 }
@@ -427,7 +427,7 @@
 .typeaheadFollow {
   font-size: 12px;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 .typeaheadFollowing {
   font-size: 12px;
@@ -465,8 +465,8 @@
   color: var(--text-primary);
 }
 .topicChipActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 .topicChipActive:hover {
@@ -536,8 +536,8 @@
 }
 .districtChip:hover { border-color: var(--text-tertiary, #999); color: var(--text-primary); }
 .districtChipActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 
@@ -587,7 +587,7 @@
   border: none;
   padding: 0;
 }
-.toggleSwitchActive { background: var(--brand-primary, #ad35fa); }
+.toggleSwitchActive { background: var(--brand-primary); }
 .toggleKnob {
   width: 18px; height: 18px;
   border-radius: 50%;
@@ -622,7 +622,7 @@
   text-align: left;
 }
 .placeOption:hover { background: var(--bg-primary); color: var(--text-primary); }
-.placeOptionActive { color: var(--brand-primary, #ad35fa); font-weight: 500; }
+.placeOptionActive { color: var(--brand-primary); font-weight: 500; }
 .placeRadio {
   width: 14px; height: 14px;
   border-radius: 50%;
@@ -632,15 +632,15 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.placeRadioActive { border-color: var(--brand-primary, #ad35fa); }
-.placeRadioDot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-primary, #ad35fa); }
+.placeRadioActive { border-color: var(--brand-primary); }
+.placeRadioDot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-primary); }
 
 .addAddressBtn {
   margin-top: 4px;
   padding: 6px 4px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: none;
   border: none;
   text-align: left;
@@ -663,7 +663,7 @@
 }
 .countLabel {
   font-size: 12px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 .countLabel strong {
   font-weight: 600;
@@ -675,7 +675,7 @@
   font-weight: 600;
   border: none;
   border-radius: 8px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s ease;

@@ -201,23 +201,23 @@ export default function ScheduledJobsPanel({
   const getStatusColor = (status: string): string => {
     switch (status) {
       case "completed":
-        return "var(--success, #10b981)";
+        return "var(--success)";
       case "failed":
-        return "var(--error, #ef4444)";
+        return "var(--error)";
       case "running":
         return "#3b82f6";
       case "pending":
-        return "var(--warning, #f59e0b)";
+        return "var(--warning)";
       case "cancelled":
-        return "var(--text-secondary, #6b7280)";
+        return "var(--text-secondary, var(--text-muted))";
       case "active":
-        return "var(--success, #10b981)";
+        return "var(--success)";
       case "paused":
-        return "var(--warning, #f59e0b)";
+        return "var(--warning)";
       case "disabled":
-        return "var(--text-secondary, #6b7280)";
+        return "var(--text-secondary, var(--text-muted))";
       default:
-        return "var(--text-secondary, #6b7280)";
+        return "var(--text-secondary, var(--text-muted))";
     }
   };
 

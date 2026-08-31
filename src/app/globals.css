@@ -1,10 +1,50 @@
 @import "tailwindcss";
+/* v4 replacement for the tailwindcss-animate plugin (shadcn animate-in/out) */
+@import "tw-animate-css";
 
 /* Tailwind v4 defaults `dark:` to prefers-color-scheme; tailwind.config.js's
    darkMode: ["class"] is not read without @config. Bind `dark:` to the app's
    theme toggle (.dark class / data-theme attr on <html>) so Tailwind-styled
    components (e.g. shadcn dialogs) follow in-app dark mode. */
 @custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+/* Semantic utility theme (Tailwind v4).
+   v4 does not read tailwind.config.js, so the shadcn-style utilities
+   (bg-primary, text-destructive, bg-muted, text-muted-foreground, ...) are
+   defined here, mapped onto the app tokens in tokens.css. `inline` keeps the
+   var() reference in the emitted CSS, so every utility follows the light/dark
+   token swap automatically. Chart series colors live in tokens.css. */
+@theme inline {
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--bg-primary);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--bg-primary);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--brand-primary);
+  --color-primary-foreground: var(--text-on-brand);
+  --color-secondary: var(--bg-tertiary);
+  --color-secondary-foreground: var(--text-secondary);
+  --color-muted: var(--bg-tertiary);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--bg-tertiary);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--error);
+  --color-destructive-foreground: var(--text-on-brand);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border-primary);
+  --color-input: var(--border-secondary);
+  --color-ring: var(--brand-primary);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+}
 
 :root {
   --font-inter: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -53,8 +93,8 @@ body {
   overflow: hidden;
   z-index: 9999;
   padding: 0.75rem 1.5rem;
-  background: #9333ea;
-  color: #fff;
+  background: var(--brand-primary-hover);
+  color: var(--text-on-brand, #fff);
   font-size: 0.875rem;
   font-weight: 600;
   border-radius: 0 0 0.5rem 0;
@@ -103,8 +143,8 @@ body {
 }
 
 .metric-link-inline:hover {
-  color: #7c3aed;
-  text-decoration-color: #7c3aed;
+  color: var(--brand-primary-hover);
+  text-decoration-color: var(--brand-primary-hover);
 }
 
 .metric-link-inline .link-indicator {
@@ -142,7 +182,7 @@ body {
 
 .viz-deferred-interactive {
   margin: 0;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
   background: var(--bg-secondary, #f9fafb);
 }
 
@@ -152,7 +192,7 @@ body {
   padding: 10px 14px;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--brand-primary, #7c3aed);
+  color: var(--brand-primary, var(--brand-primary-hover));
   user-select: none;
 }
 
@@ -171,8 +211,8 @@ body {
 }
 
 .viz-deferred-interactive-frame-wrap {
-  border-top: 1px solid var(--border-primary, #e5e7eb);
-  background: var(--bg-subtle, #f3f4f6);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-subtle, var(--bg-tertiary));
 }
 
 /* Responsive adjustments - Mobile full-bleed visualizations */
@@ -214,11 +254,6 @@ body {
   .anomaly-embed iframe {
     height: 280px;
   }
-}
-
-/* Muted foreground color utility for Tailwind v4 */
-.text-muted-foreground {
-  color: #4b5563;
 }
 
 /* Shared default loading treatment across dashboard/map/anomaly surfaces */

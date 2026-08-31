@@ -38,7 +38,7 @@
 
 .access-denied h1 {
   margin: 0 0 0.5rem 0;
-  color: #ef4444;
+  color: var(--error);
 }
 
 .back-link {
@@ -200,7 +200,7 @@
 
 .bulk-button.delete {
   background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  color: var(--error);
 }
 
 .bulk-button:disabled {
@@ -420,7 +420,7 @@
 }
 
 .preview-btn:hover {
-  background: #7c3aed;
+  background: var(--brand-primary-hover);
 }
 
 /* Responsive */

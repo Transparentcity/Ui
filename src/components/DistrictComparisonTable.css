@@ -6,7 +6,7 @@
 .district-comparison-caption {
   margin-top: 12px;
   font-size: 0.9375rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   line-height: 1.5;
 }
 
@@ -32,12 +32,12 @@
 .district-comparison-table td {
   padding: 0.625rem 0.75rem;
   text-align: left;
-  border-bottom: 1px solid var(--border-light, #e5e7eb);
+  border-bottom: 1px solid var(--border-light, var(--border-primary));
 }
 
 .district-comparison-table th {
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.025em;
@@ -52,7 +52,7 @@
 }
 
 .district-comparison-table th.sortable:hover {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .district-comparison-table th.numeric,
@@ -66,7 +66,7 @@
 
 .district-comparison-table .district-cell {
   font-weight: 500;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .district-comparison-table .change-cell {
@@ -82,7 +82,7 @@
 }
 
 .district-comparison-table .change-cell.neutral {
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .sort-icon {
@@ -114,7 +114,7 @@
 }
 
 .district-comparison-table .total-label {
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.025em;

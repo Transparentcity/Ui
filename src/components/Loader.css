@@ -60,7 +60,7 @@
 
 /* Color variants */
 .loader-purple .brace {
-  fill: #ad35fa;
+  fill: var(--brand-primary);
 }
 
 .loader-blue .brace {
@@ -68,11 +68,11 @@
 }
 
 .loader-green .brace {
-  fill: #10b981;
+  fill: var(--success);
 }
 
 .loader-orange .brace {
-  fill: #f59e0b;
+  fill: var(--warning);
 }
 
 .loader-white .brace {

@@ -1214,13 +1214,13 @@ export default function CityDataAdmin({
                             ? "#d1fae5"
                             : cityDataTyped.last_fetch_status === "error"
                             ? "#fee2e2"
-                            : "#f3f4f6",
+                            : "var(--bg-tertiary)",
                         color:
                           cityDataTyped.last_fetch_status === "success"
                             ? "#065f46"
                             : cityDataTyped.last_fetch_status === "error"
                             ? "#991b1b"
-                            : "#374151",
+                            : "var(--text-secondary)",
                       }}
                     >
                       {cityDataTyped.last_fetch_status || "N/A"}
@@ -1453,13 +1453,13 @@ export default function CityDataAdmin({
                               ? "#d1fae5"
                               : populationSource.last_refresh_status === "failed"
                               ? "#fee2e2"
-                              : "#f3f4f6",
+                              : "var(--bg-tertiary)",
                           color:
                             populationSource.last_refresh_status === "success"
                               ? "#065f46"
                               : populationSource.last_refresh_status === "failed"
                               ? "#991b1b"
-                              : "#374151",
+                              : "var(--text-secondary)",
                         }}
                       >
                         {populationSource.last_refresh_status ?? "—"}
@@ -1656,7 +1656,7 @@ export default function CityDataAdmin({
               disabled={!selectedModel}
               style={{
                 padding: "8px 16px",
-                background: selectedModel ? "#f59e0b" : "#ccc",
+                background: selectedModel ? "var(--warning)" : "#ccc",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
@@ -1673,7 +1673,7 @@ export default function CityDataAdmin({
               disabled={saving || !structureDataTyped?.query_configs || structureDataTyped.query_configs.length === 0}
               style={{
                 padding: "8px 16px",
-                background: (structureDataTyped?.query_configs && structureDataTyped.query_configs.length > 0) ? "#10b981" : "#ccc",
+                background: (structureDataTyped?.query_configs && structureDataTyped.query_configs.length > 0) ? "var(--success)" : "#ccc",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
@@ -2133,7 +2133,7 @@ export default function CityDataAdmin({
                       disabled={!leadersConfig || !officialsData.length || saving}
                       style={{
                         padding: "6px 12px",
-                        background: (leadersConfig && officialsData.length && !saving) ? "#10b981" : "#ccc",
+                        background: (leadersConfig && officialsData.length && !saving) ? "var(--success)" : "#ccc",
                         color: "white",
                         border: "none",
                         borderRadius: "4px",
@@ -2185,7 +2185,7 @@ export default function CityDataAdmin({
                       disabled={leadersConfigs.length === 0 || reExtractLeadersMutation.isPending}
                       style={{
                         padding: "6px 12px",
-                        background: (leadersConfigs.length > 0 && !reExtractLeadersMutation.isPending) ? "#f59e0b" : "#ccc",
+                        background: (leadersConfigs.length > 0 && !reExtractLeadersMutation.isPending) ? "var(--warning)" : "#ccc",
                         color: "white",
                         border: "none",
                         borderRadius: "4px",
@@ -2388,9 +2388,9 @@ export default function CityDataAdmin({
                               >
                                 <td style={{ padding: "8px" }}>
                                   {isStored ? (
-                                    <span style={{ color: "#10b981", fontWeight: 500 }}>✓ Stored</span>
+                                    <span style={{ color: "var(--success)", fontWeight: 500 }}>✓ Stored</span>
                                   ) : (
-                                    <span style={{ color: "#f59e0b", fontWeight: 500 }}>⚠ Not stored</span>
+                                    <span style={{ color: "var(--warning)", fontWeight: 500 }}>⚠ Not stored</span>
                                   )}
                                 </td>
                                 <td style={{ padding: "8px" }}>
@@ -2410,7 +2410,7 @@ export default function CityDataAdmin({
                                                 const target = e.currentTarget;
                                                 const originalHTML = target.innerHTML;
                                                 target.innerHTML = "✓ Copied!";
-                                                target.style.color = "#10b981";
+                                                target.style.color = "var(--success)";
                                                 setTimeout(() => {
                                                   target.innerHTML = originalHTML;
                                                   target.style.color = "";

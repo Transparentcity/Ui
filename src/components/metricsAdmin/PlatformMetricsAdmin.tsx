@@ -435,7 +435,7 @@ export default function PlatformMetricsAdmin() {
               <div><div className={styles.statLabel}>Completed</div><div className={styles.statValue}>{summary?.completed_metrics ?? "—"}</div></div>
             </div>
             <div className={styles.statCard}>
-              <div className={styles.statIcon}><i className="fas fa-exclamation-triangle" style={{ color: "var(--color-error, #ef4444)" }} /></div>
+              <div className={styles.statIcon}><i className="fas fa-exclamation-triangle" style={{ color: "var(--color-error, var(--error))" }} /></div>
               <div><div className={styles.statLabel}>Failed</div><div className={styles.statValue}>{summary?.failed_metrics ?? "—"}</div></div>
             </div>
           </div>
@@ -599,11 +599,11 @@ export default function PlatformMetricsAdmin() {
                   </div>
                   <div className={styles.backupRowActions}>
                     {selectedCityId && (
-                      <button className={styles.secondaryBtn} style={{ borderColor: "var(--color-error, #ef4444)", color: "var(--color-error, #ef4444)" }} onClick={() => clearCityData(selectedCityId)}>
+                      <button className={styles.secondaryBtn} style={{ borderColor: "var(--color-error, var(--error))", color: "var(--color-error, var(--error))" }} onClick={() => clearCityData(selectedCityId)}>
                         <i className="fas fa-trash" /> Clear selected city
                       </button>
                     )}
-                    <button className={styles.secondaryBtn} style={{ borderColor: "var(--color-error, #ef4444)", color: "var(--color-error, #ef4444)" }} onClick={() => clearCityData(null)}>
+                    <button className={styles.secondaryBtn} style={{ borderColor: "var(--color-error, var(--error))", color: "var(--color-error, var(--error))" }} onClick={() => clearCityData(null)}>
                       <i className="fas fa-trash" /> Clear ALL cities
                     </button>
                   </div>

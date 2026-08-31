@@ -278,7 +278,7 @@
 
 .roleAdmin {
   background: rgba(173, 53, 250, 0.1);
-  color: #ad35fa;
+  color: var(--brand-primary);
 }
 
 .roleAnalyst {
@@ -288,7 +288,7 @@
 
 .roleViewer {
   background: rgba(107, 114, 128, 0.1);
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .roleCityLead {

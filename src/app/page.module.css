@@ -125,7 +125,7 @@ a.secondary {
 }
 
 .logoBrace {
-  fill: #111827;
+  fill: var(--text-primary);
 }
 
 [data-theme="dark"] .logoBrace,

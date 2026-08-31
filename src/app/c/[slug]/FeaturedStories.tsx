@@ -186,12 +186,12 @@ export default function FeaturedStories({
           </header>
           <div
             style={{
-              background: "var(--bg-secondary, #f8f9fa)",
-              border: "1px solid var(--border-primary, #e5e7eb)",
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-primary)",
               borderRadius: "12px",
               padding: "24px 20px",
               textAlign: "center",
-              color: "var(--text-secondary, #6b7280)",
+              color: "var(--text-secondary, var(--text-muted))",
               fontSize: "15px",
               lineHeight: "1.6",
             }}

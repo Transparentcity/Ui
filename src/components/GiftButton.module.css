@@ -17,7 +17,7 @@
 .giftBtn:hover {
   background: linear-gradient(
     135deg,
-    var(--brand-primary, #ad35fa) 0%,
+    var(--brand-primary) 0%,
     #8b5cf6 100%
   );
   color: #ffffff;
@@ -35,7 +35,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;

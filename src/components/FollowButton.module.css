@@ -7,7 +7,7 @@
   font-weight: 500;
   text-align: center;
   white-space: normal;
-  border: 1px solid var(--brand-primary, #ad35fa);
+  border: 1px solid var(--brand-primary);
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
 }
@@ -38,7 +38,7 @@
 
 /* --- State: not following (filled) --- */
 .idle {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: var(--text-on-brand, #ffffff);
 }
 
@@ -50,11 +50,11 @@
 /* --- State: following (outline) --- */
 .following {
   background: transparent;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .following:hover {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: white;
 }
 

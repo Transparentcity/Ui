@@ -37,14 +37,14 @@
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   letter-spacing: 0.01em;
 }
 
 .year-compare-map-panel-count {
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.75rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-variant-numeric: tabular-nums;
 }
 
@@ -62,18 +62,18 @@
   align-items: center;
   gap: 0.65rem 1rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 8px;
   background: var(--bg-primary, #fff);
   cursor: pointer;
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.8125rem;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .year-compare-legend-title {
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .year-compare-legend-items {
@@ -98,19 +98,19 @@
 .year-compare-legend-chevron,
 .year-compare-legend-collapsed {
   margin-left: auto;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .year-compare-legend-collapsed {
   align-self: flex-start;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   background: var(--bg-primary, #fff);
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   font-family: "IBM Plex Sans", sans-serif;
   font-size: 0.75rem;
   cursor: pointer;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .year-compare-map-panels--compact .year-compare-map-panel-title {

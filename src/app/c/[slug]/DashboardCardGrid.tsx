@@ -26,7 +26,7 @@ type Props = {
 
 // Deterministic category color palette
 const CATEGORY_COLORS = [
-  { bg: "#fef2f2", border: "#fecaca", spark: "#ef4444" }, // red
+  { bg: "#fef2f2", border: "#fecaca", spark: "var(--error)" }, // red
   { bg: "#eff6ff", border: "#bfdbfe", spark: "#3b82f6" }, // blue
   { bg: "#f0fdf4", border: "#bbf7d0", spark: "#22c55e" }, // green
   { bg: "#fefce8", border: "#fef08a", spark: "#eab308" }, // yellow

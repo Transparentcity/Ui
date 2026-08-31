@@ -264,10 +264,10 @@ export function SketchOverlay({
             stroke={
               muted
                 ? isHighlighted
-                  ? "#ad35fa"
+                  ? "var(--brand-primary)"
                   : mutedStroke
                 : isHighlighted
-                  ? "#ad35fa"
+                  ? "var(--brand-primary)"
                   : "rgba(148, 163, 184, 0.65)"
             }
             strokeWidth={muted ? (isHighlighted ? 2 : 1) : isHighlighted ? 2.5 : 1}
@@ -287,7 +287,7 @@ export function SketchOverlay({
               key={`outline-${i}`}
               d={pathD}
               fill="none"
-              stroke="#ad35fa"
+              stroke="var(--brand-primary)"
               strokeWidth={2.5}
               strokeLinejoin="round"
               strokeOpacity={0.85}
@@ -310,13 +310,13 @@ export function SketchOverlay({
                 width={squareBox.w}
                 height={squareBox.h}
                 fill="none"
-                stroke="#ad35fa"
+                stroke="var(--brand-primary)"
                 strokeWidth={2}
                 strokeDasharray="6 5"
                 strokeOpacity={0.85}
               />
             )}
-            <circle cx={circleX} cy={circleY} r={7} fill="#ad35fa" opacity={0.9} />
+            <circle cx={circleX} cy={circleY} r={7} fill="var(--brand-primary)" opacity={0.9} />
             {placeName && (
               <text
                 x={circleX}
@@ -324,7 +324,7 @@ export function SketchOverlay({
                 textAnchor="middle"
                 fontSize="18"
                 fontWeight="700"
-                fill="#ad35fa"
+                fill="var(--brand-primary)"
                 stroke={mutedDark ? "rgba(0, 0, 0, 0.75)" : "rgba(255, 255, 255, 0.9)"}
                 strokeWidth="4"
                 paintOrder="stroke"
@@ -340,12 +340,12 @@ export function SketchOverlay({
               cx={circleX}
               cy={circleY}
               r={circleR}
-              fill="#ad35fa"
+              fill="var(--brand-primary)"
               fillOpacity={0.25}
-              stroke="#ad35fa"
+              stroke="var(--brand-primary)"
               strokeWidth={2}
             />
-            <circle cx={circleX} cy={circleY} r={6} fill="#ad35fa" />
+            <circle cx={circleX} cy={circleY} r={6} fill="var(--brand-primary)" />
           </>
         ))}
     </svg>

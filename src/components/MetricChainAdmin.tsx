@@ -258,10 +258,10 @@ function EdgeRow({
           disabled={deleting}
           style={{
             padding: "0.18rem 0.5rem",
-            border: "1px solid var(--error, #ef4444)",
+            border: "1px solid var(--error)",
             borderRadius: "3px",
             background: "transparent",
-            color: "var(--error, #ef4444)",
+            color: "var(--error)",
             cursor: "pointer",
             fontSize: "0.72rem",
           }}
@@ -371,7 +371,7 @@ function AddEdgeForm({
         <div
           style={{
             fontSize: "0.8rem",
-            color: "var(--error, #ef4444)",
+            color: "var(--error)",
             background: "rgba(239,68,68,0.08)",
             borderRadius: "4px",
             padding: "0.4rem 0.75rem",

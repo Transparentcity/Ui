@@ -310,17 +310,17 @@ export default function JobListPanel({
   const getStatusColor = (status: string): string => {
     switch (status) {
       case "completed":
-        return "var(--success, #10b981)";
+        return "var(--success)";
       case "failed":
-        return "var(--error, #ef4444)";
+        return "var(--error)";
       case "running":
         return "#3b82f6";
       case "pending":
-        return "var(--warning, #f59e0b)";
+        return "var(--warning)";
       case "cancelled":
-        return "var(--text-secondary, #6b7280)";
+        return "var(--text-secondary, var(--text-muted))";
       default:
-        return "var(--text-secondary, #6b7280)";
+        return "var(--text-secondary, var(--text-muted))";
     }
   };
 
@@ -368,7 +368,7 @@ export default function JobListPanel({
           </div>
           <div className={styles.statItem}>
             <span className={styles.statLabel}>Failed</span>
-            <span className={styles.statValue} style={{ color: "var(--error, #ef4444)" }}>
+            <span className={styles.statValue} style={{ color: "var(--error)" }}>
               {stats.failed_count}
             </span>
           </div>
@@ -512,7 +512,7 @@ export default function JobListPanel({
                       <span className={styles.detailValue}>
                         {JOB_TYPE_LABELS[selectedJob.job_type] ?? selectedJob.job_type}
                         {JOB_TYPE_LABELS[selectedJob.job_type] ? (
-                          <span style={{ color: "var(--text-secondary, #6b7280)", fontSize: "12px" }}>
+                          <span style={{ color: "var(--text-secondary, var(--text-muted))", fontSize: "12px" }}>
                             {" "}
                             ({selectedJob.job_type})
                           </span>

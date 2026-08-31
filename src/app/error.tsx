@@ -74,7 +74,7 @@ export default function Error({ error, reset }: ErrorProps) {
         <div
           style={{
             maxWidth: "500px",
-            background: "var(--bg-secondary, #f8f9fa)",
+            background: "var(--bg-secondary)",
             borderRadius: "12px",
             padding: "32px",
             boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
@@ -128,7 +128,7 @@ export default function Error({ error, reset }: ErrorProps) {
                 fontSize: "15px",
                 fontWeight: 500,
                 color: "#ffffff",
-                background: "var(--brand-primary, #ad35fa)",
+                background: "var(--brand-primary)",
                 border: "none",
                 borderRadius: "8px",
                 cursor: "pointer",
@@ -138,7 +138,7 @@ export default function Error({ error, reset }: ErrorProps) {
                 e.currentTarget.style.background = "var(--brand-primary-hover, #9333ea)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--brand-primary, #ad35fa)";
+                e.currentTarget.style.background = "var(--brand-primary)";
               }}
             >
               Go to Home

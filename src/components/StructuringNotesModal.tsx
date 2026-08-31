@@ -30,7 +30,7 @@ function formatDate(v?: string | null): string {
 function confidenceColor(c: number): string {
   if (c >= 0.8) return "var(--color-success, #22c55e)";
   if (c >= 0.5) return "var(--color-warning, #eab308)";
-  return "var(--color-error, #ef4444)";
+  return "var(--color-error, var(--error))";
 }
 
 function confidenceLabel(c: number): string {
@@ -47,7 +47,7 @@ function statusBadge(status: string | null) {
     status === "completed"
       ? "var(--color-success, #22c55e)"
       : status === "failed"
-        ? "var(--color-error, #ef4444)"
+        ? "var(--color-error, var(--error))"
         : "var(--text-secondary)";
   return (
     <span
@@ -112,7 +112,7 @@ function AgentObservationsPanel({ obs }: { obs: Record<string, any> }) {
             gap: "10px",
             padding: "10px 12px",
             borderRadius: "6px",
-            background: "var(--bg-tertiary, #f8f9fa)",
+            background: "var(--bg-tertiary, var(--bg-secondary))",
           }}
         >
           <span style={{ fontWeight: 600, fontSize: "13px" }}>
@@ -277,8 +277,8 @@ function FreshnessPanel({ f }: { f: Record<string, any> }) {
   const assessmentColor: Record<string, string> = {
     fresh: "var(--color-success, #22c55e)",
     acceptable: "var(--color-warning, #eab308)",
-    stale: "var(--color-error, #ef4444)",
-    very_stale: "var(--color-error, #ef4444)",
+    stale: "var(--color-error, var(--error))",
+    very_stale: "var(--color-error, var(--error))",
   };
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", fontSize: "12px" }}>
@@ -352,7 +352,7 @@ function FieldSearchesPanel({ searches }: { searches: Record<string, any>[] }) {
                   color:
                     s.status === "found"
                       ? "var(--color-success, #22c55e)"
-                      : "var(--color-error, #ef4444)",
+                      : "var(--color-error, var(--error))",
                   fontWeight: 500,
                 }}
               >
@@ -432,7 +432,7 @@ function TrialExecutionPanel({ te }: { te: Record<string, any> }) {
       <KV
         label="Status"
         value={te.success ? "Success" : "Failed"}
-        valueColor={te.success ? "var(--color-success, #22c55e)" : "var(--color-error, #ef4444)"}
+        valueColor={te.success ? "var(--color-success, #22c55e)" : "var(--color-error, var(--error))"}
       />
       {te.job_id && <KV label="Job ID" value={te.job_id} />}
       {te.rows_processed != null && (
@@ -442,7 +442,7 @@ function TrialExecutionPanel({ te }: { te: Record<string, any> }) {
         <KV label="Duration" value={`${(te.execution_time_ms / 1000).toFixed(1)}s`} />
       )}
       {te.error_message && (
-        <div style={{ gridColumn: "1 / -1", color: "var(--color-error, #ef4444)" }}>
+        <div style={{ gridColumn: "1 / -1", color: "var(--color-error, var(--error))" }}>
           {te.error_message}
         </div>
       )}
@@ -563,7 +563,7 @@ export default function StructuringNotesModal({
               Loading…
             </div>
           ) : notesQuery.isError ? (
-            <div style={{ padding: "24px", color: "var(--color-error, #ef4444)" }}>
+            <div style={{ padding: "24px", color: "var(--color-error, var(--error))" }}>
               Failed to load structuring notes.
             </div>
           ) : !hasContent ? (
@@ -586,7 +586,7 @@ export default function StructuringNotesModal({
                   alignItems: "center",
                   padding: "10px 12px",
                   borderRadius: "6px",
-                  background: "var(--bg-tertiary, #f8f9fa)",
+                  background: "var(--bg-tertiary, var(--bg-secondary))",
                   marginBottom: "12px",
                   fontSize: "13px",
                 }}
@@ -631,7 +631,7 @@ export default function StructuringNotesModal({
                     border: "1px solid rgba(239, 68, 68, 0.2)",
                     marginBottom: "12px",
                     fontSize: "13px",
-                    color: "var(--color-error, #ef4444)",
+                    color: "var(--color-error, var(--error))",
                   }}
                 >
                   <strong>Error:</strong> {notes.error_context}
@@ -696,7 +696,7 @@ export default function StructuringNotesModal({
                               ? "var(--color-success, #22c55e)"
                               : notes.freshness.assessment === "acceptable"
                                 ? "var(--color-warning, #eab308)"
-                                : "var(--color-error, #ef4444)",
+                                : "var(--color-error, var(--error))",
                         }}
                       >
                         {notes.freshness.assessment.replace("_", " ")}
@@ -759,7 +759,7 @@ export default function StructuringNotesModal({
                     style={{
                       fontSize: "11px",
                       padding: "8px",
-                      background: "var(--bg-tertiary, #f8f9fa)",
+                      background: "var(--bg-tertiary, var(--bg-secondary))",
                       borderRadius: "4px",
                       overflow: "auto",
                       maxHeight: "200px",

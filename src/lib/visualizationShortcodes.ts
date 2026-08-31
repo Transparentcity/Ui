@@ -336,7 +336,7 @@ function getStaticVisualizationEmbed(
   );
   const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   const debugHtml = cfg.showDebug
-    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
 
   const deferInteractive = shouldDeferInteractiveForStatic(config);
@@ -362,7 +362,7 @@ function getStaticVisualizationEmbed(
             width="${cfg.width}"
             height="${height}"
             frameborder="0"
-            style="border: none; border-radius: 8px; background: #f8f9fa; display: block;"
+            style="border: none; border-radius: 8px; background: var(--bg-secondary); display: block;"
             title="${escapeHtml(iframeTitle)}"
           ></iframe>
         </div>
@@ -381,7 +381,7 @@ function getStaticVisualizationEmbed(
           alt="${altEscaped}"
           loading="lazy"
           class="visualization-static-image"
-          style="width: 100%; height: ${height}; object-fit: cover; display: block; background: #f8f9fa;"
+          style="width: 100%; height: ${height}; object-fit: cover; display: block; background: var(--bg-secondary);"
         />
       </div>
       ${footerHtml}
@@ -426,7 +426,7 @@ export function getChartEmbed(
   const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   
   const debugHtml = cfg.showDebug
-    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   const groupAttr = trimmedGroup
     ? ` data-group-value="${escapeHtml(trimmedGroup)}"`
@@ -440,7 +440,7 @@ export function getChartEmbed(
         height="${height}"
         frameborder="0"
         loading="lazy"
-        style="border: none; border-radius: 8px; background: #f8f9fa;"
+        style="border: none; border-radius: 8px; background: var(--bg-secondary);"
         title="Chart ${chartId}"
       ></iframe>
       ${footerHtml}
@@ -471,7 +471,7 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
   const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   
   const debugHtml = cfg.showDebug
-    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   return `
     <div class="${cfg.className} map-embed" data-map-hash="${shortHash}" data-shortcode="${shortcodeEscaped}">
@@ -482,7 +482,7 @@ export function getMapEmbed(shortHash: string, config: EmbedConfig = {}): string
         height="${height}" 
         frameborder="0" 
         loading="lazy"
-        style="border: none; border-radius: 8px; background: #f8f9fa;"
+        style="border: none; border-radius: 8px; background: var(--bg-secondary);"
         title="Map ${shortHash}"
       ></iframe>
       ${footerHtml}
@@ -513,7 +513,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
   const footerHtml = getEmbedFooterHtml(captionHtml, sourceHtml);
   
   const debugHtml = cfg.showDebug
-    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:#6b7280;margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
+    ? `<span class="visualization-embed-debug" style="display:block;font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Shortcode: ${shortcodeEscaped}</span>`
     : "";
   return `
     <div class="${cfg.className} anomaly-embed" data-anomaly-id="${resultId}" data-shortcode="${shortcodeEscaped}">
@@ -524,7 +524,7 @@ export function getAnomalyEmbed(resultId: string | number, config: EmbedConfig =
         height="${height}" 
         frameborder="0" 
         loading="lazy"
-        style="border: none; border-radius: 8px; background: #f8f9fa;"
+        style="border: none; border-radius: 8px; background: var(--bg-secondary);"
         title="Anomaly ${resultId}"
       ></iframe>
       ${footerHtml}

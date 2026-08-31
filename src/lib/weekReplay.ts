@@ -87,10 +87,10 @@ export interface WeekEventsResponse {
 
 /** Dot colors per display group. Brand purple is reserved for key-event pins. */
 export const GROUP_COLORS: Record<WeekEventGroup, string> = {
-  crime: "#ef4444",
+  crime: "var(--error)",
   safety: "#f97316",
   "311": "#0ea5e9",
-  permits: "#10b981",
+  permits: "var(--success)",
   business: "#eab308",
   transit: "#6366f1",
   government: "#14b8a6",
@@ -128,7 +128,7 @@ export function groupLabel(group: string): string {
  * the weekend wash, and the scrubber's playhead.
  */
 export const SUBCATEGORY_PALETTE: readonly string[] = LAYER_COLOR_PALETTE.filter(
-  (color) => color.toLowerCase() !== "#ad35fa",
+  (color) => color.toLowerCase() !== "var(--brand-primary)",
 );
 
 const SUBCATEGORY_FALLBACK_COLOR = "#94a3b8";

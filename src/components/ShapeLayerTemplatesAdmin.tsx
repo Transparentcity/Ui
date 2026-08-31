@@ -279,7 +279,7 @@ export default function ShapeLayerTemplatesAdmin() {
                               fontSize: "10px",
                               fontWeight: 600,
                               cursor: "pointer",
-                              background: (t.is_active ?? true) ? "#10b981" : "#6b7280",
+                              background: (t.is_active ?? true) ? "var(--success)" : "var(--text-muted)",
                               color: "white",
                             }}
                             title="Click to toggle"
@@ -296,7 +296,7 @@ export default function ShapeLayerTemplatesAdmin() {
                               disabled={updateMutation.isPending}
                               style={{
                                 padding: "4px 10px",
-                                background: "#10b981",
+                                background: "var(--success)",
                                 color: "white",
                                 border: "none",
                                 borderRadius: "4px",

@@ -2516,7 +2516,7 @@ export default function DashboardPage() {
             <div style={{
               padding: "12px 16px",
               margin: "0 0 12px",
-              background: "var(--bg-secondary, #f3f4f6)",
+              background: "var(--bg-secondary, var(--bg-tertiary))",
               borderRadius: 8,
               fontSize: 13,
               color: "var(--text-secondary)",
@@ -2828,11 +2828,11 @@ export default function DashboardPage() {
                       <div className={styles.settingsRadioGroup}>
                         <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>Frequency:</span>
                         <label className={styles.settingsRadioLabel}>
-                          <input type="radio" name="newsletterFreqSettings" checked={editableNewsletterFrequency === "weekly"} onChange={() => setEditableNewsletterFrequency("weekly")} style={{ accentColor: "var(--brand-primary, #ad35fa)" }} />
+                          <input type="radio" name="newsletterFreqSettings" checked={editableNewsletterFrequency === "weekly"} onChange={() => setEditableNewsletterFrequency("weekly")} style={{ accentColor: "var(--brand-primary)" }} />
                           Weekly
                         </label>
                         <label className={styles.settingsRadioLabel}>
-                          <input type="radio" name="newsletterFreqSettings" checked={editableNewsletterFrequency === "monthly"} onChange={() => setEditableNewsletterFrequency("monthly")} style={{ accentColor: "var(--brand-primary, #ad35fa)" }} />
+                          <input type="radio" name="newsletterFreqSettings" checked={editableNewsletterFrequency === "monthly"} onChange={() => setEditableNewsletterFrequency("monthly")} style={{ accentColor: "var(--brand-primary)" }} />
                           Monthly
                         </label>
                       </div>

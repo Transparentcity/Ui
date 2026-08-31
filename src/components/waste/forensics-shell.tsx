@@ -39,7 +39,7 @@ export function ForensicsShell({ children, title }: ForensicsShellProps) {
     <div>
       {/* Sub-tab navigation: full-width 3-column grid, centered labels, active
           tab carries a 3px brand underline overlapping the container hairline. */}
-      <div className="grid grid-cols-3 mb-5 border-b border-[#e5e7eb]">
+      <div className="grid grid-cols-3 mb-5 border-b border-[var(--border-primary)]">
         {FORENSICS_TABS.map((tab) => {
           const active = isTabActive(tab)
           return (
@@ -49,8 +49,8 @@ export function ForensicsShell({ children, title }: ForensicsShellProps) {
               className={cn(
                 "flex items-center justify-center py-3 text-sm text-center whitespace-nowrap no-underline border-b-[3px] -mb-px transition-colors",
                 active
-                  ? "text-[#111827] font-semibold border-[#ad35fa]"
-                  : "text-[#6b7280] font-medium border-transparent hover:text-gray-900"
+                  ? "text-[var(--text-primary)] font-semibold border-[var(--brand-primary)]"
+                  : "text-[var(--text-muted)] font-medium border-transparent hover:text-gray-900"
               )}
             >
               {tab.name}

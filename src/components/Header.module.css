@@ -75,7 +75,7 @@
 }
 
 .logoCity {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .navRight {
@@ -130,7 +130,7 @@
 .buttonPrimary {
   background: linear-gradient(
     135deg,
-    var(--brand-primary, #ad35fa) 0%,
+    var(--brand-primary) 0%,
     var(--brand-primary-hover, #8b5cf6) 100%
   );
   border-color: rgba(173, 53, 250, 0.35);
@@ -173,7 +173,7 @@
 }
 
 .buttonSignUp {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   color: var(--text-inverse, #ffffff);
   padding: 6px 12px;
@@ -257,7 +257,7 @@
   border-radius: 14px;
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
   background: var(--bg-primary, rgba(255, 255, 255, 0.9));
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
@@ -293,7 +293,7 @@
   justify-content: space-between;
   gap: 10px;
   transition: background-color 120ms ease;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .cityOption:hover {

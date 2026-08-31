@@ -1121,7 +1121,7 @@ export default function WeekReplayMap({
               cy={e.y}
               r={13}
               fill="none"
-              stroke={hasPhoto ? MEDIA_GOLD : "#ad35fa"}
+              stroke={hasPhoto ? MEDIA_GOLD : "var(--brand-primary)"}
               strokeWidth={1.5}
             />
           )}

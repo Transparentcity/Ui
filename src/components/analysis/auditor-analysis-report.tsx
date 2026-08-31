@@ -261,7 +261,7 @@ export function AuditorAnalysisReport() {
           <meta charset="utf-8" />
           <title>Transparent.city Auditor Analysis Report</title>
         </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
+        <body style="font-family: Arial, sans-serif; line-height: 1.5; color: var(--text-primary);">
           <h1>Transparent.city Auditor Analysis Report</h1>
           <p><strong>Report date:</strong> ${generatedLabel}</p>
           <p><strong>Analysis period:</strong> ${analysisPeriod}</p>

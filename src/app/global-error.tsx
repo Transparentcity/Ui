@@ -69,7 +69,7 @@ export default function GlobalError({
             textAlign: "center",
             fontFamily:
               'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            background: "#f8f9fa",
+            background: "var(--bg-secondary)",
           }}
         >
           <div
@@ -129,7 +129,7 @@ export default function GlobalError({
                   fontSize: "15px",
                   fontWeight: 500,
                   color: "#ffffff",
-                  background: "#ad35fa",
+                  background: "var(--brand-primary)",
                   border: "none",
                   borderRadius: "8px",
                   cursor: "pointer",

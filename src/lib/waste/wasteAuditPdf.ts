@@ -74,14 +74,14 @@ export interface WasteAuditPdfInput {
 // ── Palette & geometry ──────────────────────────────────────────────────────
 
 const INK = "#1f2937" // gray-800 — headings & wordmark
-const INK_SOFT = "#374151" // gray-700 — body
-const MUTED = "#6b7280" // gray-500 — secondary
+const INK_SOFT = "var(--text-secondary)" // gray-700 — body
+const MUTED = "var(--text-muted)" // gray-500 — secondary
 const FAINT = "#9ca3af" // gray-400 — labels
-const HAIRLINE = "#e5e7eb" // gray-200
+const HAIRLINE = "var(--border-primary)" // gray-200
 const ZEBRA = "#f9fafb" // gray-50 — table zebra
-const PANEL = "#f3f4f6" // gray-100 — stat panels
+const PANEL = "var(--bg-tertiary)" // gray-100 — stat panels
 
-const BRAND = "#7c3aed" // violet-600 — accents
+const BRAND = "var(--brand-primary-hover)" // violet-600 — accents
 const CONFIDENTIAL = "#b91c1c" // red-700 — confidentiality marks
 const NOTICE_BG = "#fef2f2" // red-50
 const NOTICE_BORDER = "#fecaca" // red-200
@@ -90,7 +90,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: "#dc2626",
   high: "#ea580c",
   medium: "#d97706",
-  low: "#6b7280",
+  low: "var(--text-muted)",
   info: "#9ca3af",
 }
 const SEVERITY_RANK: Record<string, number> = {

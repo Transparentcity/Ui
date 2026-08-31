@@ -18,7 +18,7 @@
 .placeholder {
   width: 100%;
   aspect-ratio: 3 / 1;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-md);
 }
 
@@ -43,8 +43,8 @@
   z-index: 2;
   aspect-ratio: 2.5 / 1;
   max-height: 440px;
-  background: var(--bg-tertiary, #f3f4f6);
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 /* Crops the oversized (cover-sized) map frame to the banner. */
@@ -102,7 +102,7 @@
 /* Weekends warm the map in the same brand purple the scrubber ribbon uses,
    so the two read as one signal. */
 .weekendWash {
-  background: linear-gradient(160deg, #ad35fa 0%, #f0abfc 100%);
+  background: linear-gradient(160deg, var(--brand-primary) 0%, #f0abfc 100%);
 }
 
 .eventLayer {
@@ -184,7 +184,7 @@
   margin-top: 6px;
   padding: 7px 11px;
   border-radius: var(--radius-md, 10px);
-  border: 1px solid color-mix(in srgb, #ad35fa 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
   background: color-mix(in srgb, var(--bg-primary, #fff) 90%, transparent);
   backdrop-filter: blur(6px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
@@ -214,13 +214,13 @@
 .keyCalloutLabel {
   font-size: 13px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .keyCalloutMeta {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .keyCalloutPhoto {
@@ -229,7 +229,7 @@
   max-height: 140px;
   object-fit: cover;
   border-radius: 6px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 /* Photo thumbnails open full-screen. Clickable even inside the key callout,
@@ -264,7 +264,7 @@
 
 .photoButton:hover .photoZoomHint,
 .photoButton:focus-visible .photoZoomHint {
-  background: #ad35fa;
+  background: var(--brand-primary);
 }
 
 /* ── Full-screen photo ─────────────────────────────────────────────────── */
@@ -347,7 +347,7 @@
   margin-top: 6px;
   padding: 8px 28px 8px 11px;
   border-radius: var(--radius-md, 10px);
-  border: 1px solid color-mix(in srgb, #ad35fa 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
   background: color-mix(in srgb, var(--bg-primary, #fff) 92%, transparent);
   backdrop-filter: blur(6px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
@@ -437,7 +437,7 @@
 
 .playButton:hover {
   transform: scale(1.04);
-  background: #ad35fa;
+  background: var(--brand-primary);
 }
 
 .playButtonIcon {
@@ -499,14 +499,14 @@
   gap: 1px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .loaderProgress {
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 /* Small bottom note on the full-width empty-state map. */
@@ -523,7 +523,7 @@
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -545,7 +545,7 @@
   max-width: 240px;
   padding: 8px 10px;
   border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   background: var(--bg-primary, #fff);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
   line-height: 1.3;
@@ -577,7 +577,7 @@
   gap: 3px;
   padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px));
   border-radius: 14px 14px 0 0;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-bottom: none;
   background: var(--bg-primary, #fff);
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.3);
@@ -619,7 +619,7 @@
   max-height: 180px;
   object-fit: cover;
   border-radius: 8px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .sheet .photoButton {
@@ -640,7 +640,7 @@
   right: 6px;
   border: none;
   background: transparent;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 14px;
   cursor: pointer;
   padding: 2px;
@@ -650,13 +650,13 @@
 .popoverLabel {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   padding-right: 14px;
 }
 
 .popoverMeta {
   font-size: 11px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .popoverLink {
@@ -667,7 +667,7 @@
   padding: 0;
   font-size: 11px;
   font-weight: 600;
-  color: #ad35fa;
+  color: var(--brand-primary);
   cursor: pointer;
 }
 
@@ -699,7 +699,7 @@
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -712,7 +712,7 @@
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -732,12 +732,12 @@
 .panelTitle {
   font-size: 13px;
   font-weight: 800;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .panelTitleRange {
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .headerShareButton {
@@ -747,17 +747,17 @@
   gap: 4px;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   background: transparent;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .headerShareButton:hover:not(:disabled) {
-  border-color: #ad35fa;
-  color: #ad35fa;
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .headerShareButton:disabled {
@@ -769,16 +769,16 @@
   flex: none;
   padding: 4px 12px;
   border-radius: 999px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   background: transparent;
   font-size: 11px;
   font-weight: 700;
-  color: #ad35fa;
+  color: var(--brand-primary);
   cursor: pointer;
 }
 
 .idleRetry:hover {
-  border-color: #ad35fa;
+  border-color: var(--brand-primary);
 }
 
 /* Top-left stack: date slug on top, key-event callout drops out beneath.
@@ -832,13 +832,13 @@
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.01em;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 /* Weekends read in brand purple, matching the scrubber ribbon and the map. */
 .clockDay[data-weekend="true"] {
-  color: #ad35fa;
+  color: var(--brand-primary);
 }
 
 .clockTime {
@@ -846,7 +846,7 @@
   font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #ad35fa;
+  color: var(--brand-primary);
   white-space: nowrap;
 }
 
@@ -935,7 +935,7 @@
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -948,7 +948,7 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .endOverlay[data-theme="dark"] .endCaption {
@@ -960,7 +960,7 @@
   font-size: 11px;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .endOverlay[data-theme="dark"] .endBrand {
@@ -988,7 +988,7 @@
 
 .endShareButton:hover:not(:disabled) {
   transform: scale(1.03);
-  background: #ad35fa;
+  background: var(--brand-primary);
 }
 
 .endShareButton:disabled {
@@ -1006,7 +1006,7 @@
   padding: 4px 8px;
   border: none;
   background: transparent;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -1015,7 +1015,7 @@
 }
 
 .endDismiss:hover {
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .endOverlay[data-theme="dark"] .endDismiss {
@@ -1101,7 +1101,7 @@
 }
 
 .chartRowActive .chartLabel {
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   font-weight: 700;
 }
 
@@ -1115,7 +1115,7 @@
   gap: 3px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1132,7 +1132,7 @@
   display: block;
   height: 8px;
   border-radius: 999px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   overflow: hidden;
 }
 
@@ -1147,7 +1147,7 @@
   font-size: 10px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   text-align: right;
 }
 
@@ -1184,23 +1184,23 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   background: var(--bg-secondary, #f9fafb);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
 .controlButton:hover {
-  border-color: #ad35fa;
-  color: #ad35fa;
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 /* Skipped-ahead state: they haven't watched the replay yet, so the button
    reads as a purple play invitation rather than a neutral replay. */
 .controlButtonAccent {
-  border-color: #ad35fa;
+  border-color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.1);
-  color: #ad35fa;
+  color: var(--brand-primary);
 }
 
 /* Elapsed / total. Tabular figures so the row doesn't twitch as it counts. */
@@ -1210,7 +1210,7 @@
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
 }
 
@@ -1232,7 +1232,7 @@
   position: relative;
   height: 5px;
   border-radius: 999px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   overflow: visible;
 }
 
@@ -1242,7 +1242,7 @@
   top: 0;
   bottom: 0;
   border-radius: 999px;
-  background: #ad35fa;
+  background: var(--brand-primary);
 }
 
 /* Day/night/weekend ribbon under the progress track. Colors are fixed rather
@@ -1288,13 +1288,13 @@
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   line-height: 1;
 }
 
 .scrubberDayLabel[data-weekend="true"] {
-  color: #ad35fa;
+  color: var(--brand-primary);
   font-weight: 700;
 }
 

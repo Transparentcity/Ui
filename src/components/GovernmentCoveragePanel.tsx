@@ -57,8 +57,8 @@ function FunnelStage({
     fraction === 1
       ? "#16a34a"
       : fraction >= 0.5
-      ? "var(--brand-primary, #ad35fa)"
-      : "#f59e0b";
+      ? "var(--brand-primary)"
+      : "var(--warning)";
 
   return (
     <div style={{ flex: 1, minWidth: 120 }}>
@@ -68,7 +68,7 @@ function FunnelStage({
           fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.05em",
-          color: "var(--text-tertiary, #6b7280)",
+          color: "var(--text-tertiary, var(--text-muted))",
           marginBottom: 6,
         }}
       >
@@ -78,7 +78,7 @@ function FunnelStage({
       <div
         style={{
           fontSize: 12,
-          color: "var(--text-secondary, #374151)",
+          color: "var(--text-secondary)",
           marginTop: 2,
           marginBottom: 8,
         }}
@@ -89,7 +89,7 @@ function FunnelStage({
             style={{
               marginLeft: 6,
               fontSize: 11,
-              color: "var(--text-tertiary, #6b7280)",
+              color: "var(--text-tertiary, var(--text-muted))",
             }}
           >
             ({pct(value, total)})
@@ -165,7 +165,7 @@ function Funnel({ summary }: { summary: GovernmentCoverageSummaryResponse }) {
             fontWeight: 600,
             textTransform: "uppercase",
             letterSpacing: "0.05em",
-            color: "var(--text-tertiary, #6b7280)",
+            color: "var(--text-tertiary, var(--text-muted))",
             marginBottom: 6,
           }}
         >
@@ -177,7 +177,7 @@ function Funnel({ summary }: { summary: GovernmentCoverageSummaryResponse }) {
         <div
           style={{
             fontSize: 12,
-            color: "var(--text-secondary, #374151)",
+            color: "var(--text-secondary)",
             marginTop: 2,
           }}
         >
@@ -252,7 +252,7 @@ function CityRow({
         <td style={{ padding: "9px 12px", fontSize: 13, textAlign: "right" }}>
           {row.leaders_with_email}
           <span
-            style={{ fontSize: 11, color: "var(--text-tertiary, #6b7280)", marginLeft: 4 }}
+            style={{ fontSize: 11, color: "var(--text-tertiary, var(--text-muted))", marginLeft: 4 }}
           >
             ({pct(row.leaders_with_email, row.total_leaders)})
           </span>
@@ -264,7 +264,7 @@ function CityRow({
             <span>
               {row.leaders_claimed}{" "}
               <span
-                style={{ fontSize: 11, color: "var(--text-tertiary, #6b7280)" }}
+                style={{ fontSize: 11, color: "var(--text-tertiary, var(--text-muted))" }}
               >
                 / {row.total_leaders}
               </span>
@@ -280,7 +280,7 @@ function CityRow({
           style={{
             padding: "9px 12px",
             fontSize: 11,
-            color: "var(--text-tertiary, #6b7280)",
+            color: "var(--text-tertiary, var(--text-muted))",
             textAlign: "right",
             whiteSpace: "nowrap",
           }}
@@ -315,7 +315,7 @@ function CityRow({
                           padding: "5px 8px",
                           textAlign: "left",
                           fontWeight: 600,
-                          color: "var(--text-tertiary, #6b7280)",
+                          color: "var(--text-tertiary, var(--text-muted))",
                           borderBottom:
                             "1px solid var(--border-primary, rgba(17,24,39,0.08))",
                         }}
@@ -337,7 +337,7 @@ function CityRow({
                       <td
                         style={{
                           padding: "5px 8px",
-                          color: "var(--text-tertiary, #6b7280)",
+                          color: "var(--text-tertiary, var(--text-muted))",
                         }}
                       >
                         {off.district != null ? `D${off.district}` : "—"}
@@ -348,7 +348,7 @@ function CityRow({
                           style={{
                             marginLeft: 6,
                             fontSize: 11,
-                            color: "var(--text-tertiary, #6b7280)",
+                            color: "var(--text-tertiary, var(--text-muted))",
                           }}
                         >
                           {off.title}
@@ -371,7 +371,7 @@ function CityRow({
                       <td
                         style={{
                           padding: "5px 8px",
-                          color: "var(--text-secondary, #374151)",
+                          color: "var(--text-secondary)",
                         }}
                       >
                         {off.staff_count > 0 ? off.staff_count : "—"}
@@ -456,7 +456,7 @@ export default function GovernmentCoveragePanel() {
             <span
               style={{
                 fontSize: 12,
-                color: "var(--text-tertiary, #6b7280)",
+                color: "var(--text-tertiary, var(--text-muted))",
                 fontWeight: 400,
               }}
             >
@@ -470,7 +470,7 @@ export default function GovernmentCoveragePanel() {
       {expanded && (
         <div style={{ padding: "20px" }}>
           {loading && (
-            <p style={{ fontSize: 13, color: "var(--text-tertiary, #6b7280)" }}>
+            <p style={{ fontSize: 13, color: "var(--text-tertiary, var(--text-muted))" }}>
               Loading…
             </p>
           )}
@@ -513,7 +513,7 @@ export default function GovernmentCoveragePanel() {
                               textAlign: h === "City" || h === "" ? "left" : "right",
                               fontWeight: 600,
                               fontSize: 11,
-                              color: "var(--text-secondary, #374151)",
+                              color: "var(--text-secondary)",
                               whiteSpace: "nowrap",
                             }}
                           >
@@ -541,7 +541,7 @@ export default function GovernmentCoveragePanel() {
                     border: "1px solid var(--border-primary, rgba(17,24,39,0.15))",
                     background: "var(--bg-primary, #fff)",
                     cursor: "pointer",
-                    color: "var(--text-secondary, #374151)",
+                    color: "var(--text-secondary)",
                   }}
                 >
                   Refresh

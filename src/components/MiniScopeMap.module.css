@@ -27,7 +27,7 @@
   width: 100%;
   aspect-ratio: 2.5 / 1;
   overflow: hidden;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .basemap {
@@ -48,6 +48,6 @@
 .placeholder {
   width: 100%;
   aspect-ratio: 2.5 / 1;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-md);
 }

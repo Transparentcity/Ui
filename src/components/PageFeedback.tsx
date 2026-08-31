@@ -91,7 +91,7 @@ export default function PageFeedback({
 
   // Standalone styles
   const containerStyle: React.CSSProperties = {
-    borderTop: "1px solid var(--border-primary, #e5e7eb)",
+    borderTop: "1px solid var(--border-primary)",
     padding: "20px 0",
     marginTop: 32,
     opacity: visible ? 1 : 0,
@@ -100,7 +100,7 @@ export default function PageFeedback({
 
   const labelStyle: React.CSSProperties = {
     fontSize: 13,
-    color: "var(--text-secondary, #6b7280)",
+    color: "var(--text-secondary, var(--text-muted))",
     marginBottom: 10,
     lineHeight: 1.4,
   };
@@ -112,7 +112,7 @@ export default function PageFeedback({
     padding: "6px 12px",
     fontSize: 12,
     fontWeight: 500,
-    border: "1px solid var(--border-primary, #e5e7eb)",
+    border: "1px solid var(--border-primary)",
     borderRadius: 20,
     cursor: "pointer",
     transition: "all 0.15s ease",
@@ -125,10 +125,10 @@ export default function PageFeedback({
     flex: 1,
     padding: "8px 10px",
     fontSize: 13,
-    border: "1px solid var(--border-primary, #e5e7eb)",
+    border: "1px solid var(--border-primary)",
     borderRadius: 8,
     background: "var(--bg-secondary, #f9fafb)",
-    color: "var(--text-primary, #111827)",
+    color: "var(--text-primary)",
     fontFamily: "inherit",
     boxSizing: "border-box",
     outline: "none",
@@ -158,7 +158,7 @@ export default function PageFeedback({
               height: 20,
               borderRadius: "50%",
               background: "rgba(16, 185, 129, 0.12)",
-              color: "#10b981",
+              color: "var(--success)",
               fontSize: 12,
               fontWeight: 700,
               flexShrink: 0,
@@ -182,7 +182,7 @@ export default function PageFeedback({
             style={{
               background: "none",
               border: "none",
-              color: "var(--brand-primary, #ad35fa)",
+              color: "var(--brand-primary)",
               cursor: "pointer",
               fontSize: 13,
               textDecoration: "underline",
@@ -217,8 +217,8 @@ export default function PageFeedback({
               style={{
                 ...buttonBase,
                 background: state === "explaining" ? "transparent" : "rgba(16, 185, 129, 0.06)",
-                color: state === "explaining" ? "var(--text-secondary, #6b7280)" : "#059669",
-                borderColor: state === "explaining" ? "var(--border-primary, #e5e7eb)" : "rgba(16, 185, 129, 0.25)",
+                color: state === "explaining" ? "var(--text-secondary, var(--text-muted))" : "#059669",
+                borderColor: state === "explaining" ? "var(--border-primary)" : "rgba(16, 185, 129, 0.25)",
                 opacity: state === "submitting" ? 0.6 : 1,
               }}
             >
@@ -235,8 +235,8 @@ export default function PageFeedback({
               style={{
                 ...buttonBase,
                 background: state === "explaining" ? "rgba(245, 158, 11, 0.08)" : "transparent",
-                color: state === "explaining" ? "#d97706" : "var(--text-secondary, #6b7280)",
-                borderColor: state === "explaining" ? "rgba(245, 158, 11, 0.3)" : "var(--border-primary, #e5e7eb)",
+                color: state === "explaining" ? "#d97706" : "var(--text-secondary, var(--text-muted))",
+                borderColor: state === "explaining" ? "rgba(245, 158, 11, 0.3)" : "var(--border-primary)",
                 opacity: state === "submitting" ? 0.6 : 1,
               }}
             >
@@ -270,10 +270,10 @@ export default function PageFeedback({
                   padding: 12,
                   fontSize: 13,
                   lineHeight: 1.5,
-                  border: "1px solid var(--border-primary, #e5e7eb)",
+                  border: "1px solid var(--border-primary)",
                   borderRadius: 8,
                   background: "var(--bg-secondary, #f9fafb)",
-                  color: "var(--text-primary, #111827)",
+                  color: "var(--text-primary)",
                   resize: "vertical",
                   fontFamily: "inherit",
                   boxSizing: "border-box",
@@ -309,8 +309,8 @@ export default function PageFeedback({
                     background:
                       !explanation.trim()
                         ? "var(--bg-secondary, #f5f5f5)"
-                        : "var(--brand-primary, #ad35fa)",
-                    color: !explanation.trim() ? "var(--text-secondary, #6b7280)" : "#fff",
+                        : "var(--brand-primary)",
+                    color: !explanation.trim() ? "var(--text-secondary, var(--text-muted))" : "#fff",
                     border: "none",
                     opacity: state === "submitting" ? 0.6 : 1,
                   }}
@@ -326,7 +326,7 @@ export default function PageFeedback({
                     style={{
                       ...buttonBase,
                       background: "transparent",
-                      color: "var(--text-secondary, #6b7280)",
+                      color: "var(--text-secondary, var(--text-muted))",
                       border: "none",
                     }}
                   >

@@ -262,7 +262,7 @@ function AnomaliesModal({
       >
         <div className={metricStyles.modalHeader}>
           <div className={metricStyles.modalTitle}>
-            <i className="fas fa-exclamation-triangle" style={{ marginRight: 8, color: "var(--warning-text, #f59e0b)" }} />
+            <i className="fas fa-exclamation-triangle" style={{ marginRight: 8, color: "var(--warning-text, var(--warning))" }} />
             <span className={metricStyles.modalTitleText}>
               Anomaly Detection: {metricData?.metric_name || `Metric ${metricId}`}
               {anomaliesData ? ` (${anomaliesData.count} results)` : ""}
@@ -373,7 +373,7 @@ function AnomaliesModal({
                       >
                         <td style={{ padding: "6px 10px" }}>{getAnomalyRecentDate(a) ?? "—"}</td>
                         <td style={{ padding: "6px 10px" }}>{a.period_type}</td>
-                        <td style={{ padding: "6px 10px", textAlign: "right", color: (a.pct_change ?? 0) > 0 ? "var(--color-success, #22c55e)" : "var(--color-error, #ef4444)", fontWeight: 600 }}>
+                        <td style={{ padding: "6px 10px", textAlign: "right", color: (a.pct_change ?? 0) > 0 ? "var(--color-success, #22c55e)" : "var(--color-error, var(--error))", fontWeight: 600 }}>
                           {a.pct_change != null ? `${a.pct_change > 0 ? "+" : ""}${a.pct_change.toFixed(1)}%` : "—"}
                         </td>
                         <td style={{ padding: "6px 10px" }}>{a.is_anomaly ? "Yes" : "No"}</td>
@@ -525,7 +525,7 @@ function MetricDetailDrawer({
                 <span className={styles.drawerBadge}>{metric.category}</span>
               )}
               {!isActive && (
-                <span className={`${styles.drawerBadge}`} style={{ borderColor: "var(--color-error, #ef4444)", color: "var(--color-error, #ef4444)" }}>
+                <span className={`${styles.drawerBadge}`} style={{ borderColor: "var(--color-error, var(--error))", color: "var(--color-error, var(--error))" }}>
                   Inactive
                 </span>
               )}
@@ -1094,7 +1094,7 @@ export default function CityMetricsTab({
                             <td className={cityAdminStyles.metricDateCell}>
                               {metric.most_recent_data_date
                                 ? <span>{new Date(metric.most_recent_data_date).toLocaleDateString("en-US", { timeZone: "UTC" })}</span>
-                                : <span style={{ color: "var(--color-error, #ef4444)" }}>No data</span>
+                                : <span style={{ color: "var(--color-error, var(--error))" }}>No data</span>
                               }
                             </td>
                             <td className={cityAdminStyles.metricExecutionCell}>
@@ -1337,7 +1337,7 @@ export default function CityMetricsTab({
               <h4 className={styles.cleanupSubHeading}>
                 Inactive metrics
                 {inactiveMetrics.length > 0 && (
-                  <span className={styles.sectionBadge} style={{ background: "var(--color-error, #ef4444)" }}>{inactiveMetrics.length}</span>
+                  <span className={styles.sectionBadge} style={{ background: "var(--color-error, var(--error))" }}>{inactiveMetrics.length}</span>
                 )}
               </h4>
               {inactiveMetrics.length > 0 && (
@@ -1431,7 +1431,7 @@ export default function CityMetricsTab({
             <h4 className={styles.cleanupSubHeading}>
               Active metrics with no data
               {noDataActiveMetrics.length > 0 && (
-                <span className={styles.sectionBadge} style={{ background: "var(--color-warning, #f59e0b)" }}>{noDataActiveMetrics.length}</span>
+                <span className={styles.sectionBadge} style={{ background: "var(--color-warning, var(--warning))" }}>{noDataActiveMetrics.length}</span>
               )}
             </h4>
             <p className={styles.sectionInfo}>
@@ -1470,7 +1470,7 @@ export default function CityMetricsTab({
                               <span>
                                 <span className={`${styles.statusDot} ${isFailure ? styles.statusFailed : styles.statusNone}`} />
                                 {formatDate(metric.last_execution_at)}
-                                {isFailure && <span style={{ fontSize: 10, color: "var(--color-error, #ef4444)", marginLeft: 4 }}>Failed</span>}
+                                {isFailure && <span style={{ fontSize: 10, color: "var(--color-error, var(--error))", marginLeft: 4 }}>Failed</span>}
                               </span>
                             ) : <span style={{ color: "var(--text-tertiary)" }}>Never</span>}
                           </td>

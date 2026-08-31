@@ -113,7 +113,7 @@
   margin: 0;
   padding: var(--space-md);
   background: var(--bg-secondary);
-  border-left: 3px solid #ad35fa;
+  border-left: 3px solid var(--brand-primary);
   border-radius: 4px;
   font-size: 15px;
   line-height: 1.6;
@@ -130,7 +130,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #ad35fa, #764ba2);
+  background: linear-gradient(90deg, var(--brand-primary), #764ba2);
   transition: width 0.3s ease;
 }
 
@@ -222,12 +222,12 @@
 }
 
 .reportContent a {
-  color: var(--bright-purple, #ad35fa);
+  color: var(--bright-purple, var(--brand-primary));
   text-decoration: underline;
 }
 
 .reportContent a:hover {
-  color: var(--bright-purple, #ad35fa);
+  color: var(--bright-purple, var(--brand-primary));
   text-decoration: none;
 }
 
@@ -344,12 +344,12 @@
 }
 
 .reportHtml a {
-  color: var(--bright-purple, #ad35fa);
+  color: var(--bright-purple, var(--brand-primary));
   text-decoration: underline;
 }
 
 .reportHtml a:hover {
-  color: var(--bright-purple, #ad35fa);
+  color: var(--bright-purple, var(--brand-primary));
   text-decoration: none;
 }
 
@@ -375,7 +375,7 @@
 }
 
 .reportHtml blockquote {
-  border-left: 4px solid var(--bright-purple, #ad35fa);
+  border-left: 4px solid var(--bright-purple, var(--brand-primary));
   padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
   margin: var(--space-lg) 0;
   color: var(--text-secondary);
@@ -525,8 +525,8 @@
 }
 
 .tabActive {
-  color: var(--bright-purple, #ad35fa);
-  border-bottom-color: var(--bright-purple, #ad35fa);
+  color: var(--bright-purple, var(--brand-primary));
+  border-bottom-color: var(--bright-purple, var(--brand-primary));
   font-weight: 600;
 }
 
@@ -547,7 +547,7 @@
 .agendaListItem {
   padding: var(--space-md);
   background: var(--bg-secondary);
-  border-left: 3px solid #ad35fa;
+  border-left: 3px solid var(--brand-primary);
   border-radius: 4px;
   margin: 0;
 }
@@ -661,7 +661,7 @@
 
 .publishButton {
   padding: var(--space-sm) var(--space-lg);
-  background: #ad35fa;
+  background: var(--brand-primary);
   color: white;
   border: none;
   border-radius: 6px;
@@ -760,7 +760,7 @@
 
 .modelSelect:focus {
   outline: none;
-  border-color: #ad35fa;
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(173, 53, 250, 0.15);
 }
 
@@ -797,7 +797,7 @@
 }
 
 .regenerateButton {
-  background: #ad35fa;
+  background: var(--brand-primary);
   color: white;
 }
 
@@ -950,7 +950,7 @@
   .agendaListItem {
     padding: var(--space-sm);
     background: var(--bg-secondary);
-    border-left: 2px solid #ad35fa;
+    border-left: 2px solid var(--brand-primary);
     border-radius: 0;
   }
 

@@ -206,14 +206,14 @@ function EmbeddedAnomalyCard({ data }: { data: any }) {
           {isAnomaly && (
             <>
               <span className={styles.mapPreviewDot}>•</span>
-              <span style={{ color: "var(--warning-text, #f59e0b)" }}>Anomaly</span>
+              <span style={{ color: "var(--warning-text, var(--warning))" }}>Anomaly</span>
             </>
           )}
           {pctChange !== 0 && (
             <>
               <span className={styles.mapPreviewDot}>•</span>
               <span style={{ 
-                color: pctChange > 0 ? "var(--error-text, #ef4444)" : "var(--success-text, #10b981)" 
+                color: pctChange > 0 ? "var(--error-text, var(--error))" : "var(--success-text, var(--success))" 
               }}>
                 {pctChange > 0 ? "+" : ""}{Math.round(pctChange)}%
               </span>

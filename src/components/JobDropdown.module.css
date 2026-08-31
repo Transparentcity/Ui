@@ -39,8 +39,8 @@
 
 .cancelAllBtn {
   background: transparent;
-  border: 1px solid #ef4444;
-  color: #ef4444;
+  border: 1px solid var(--error);
+  color: var(--error);
   font-size: 11px;
   font-weight: 500;
   padding: 4px 10px;
@@ -50,7 +50,7 @@
 }
 
 .cancelAllBtn:hover:not(:disabled) {
-  background: #ef4444;
+  background: var(--error);
   color: white;
 }
 
@@ -72,7 +72,7 @@
 
 .refreshBtn:hover:not(:disabled) {
   background: rgba(173, 53, 250, 0.1);
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .refreshBtn:disabled {
@@ -82,7 +82,7 @@
 
 .refreshBtn.refreshing {
   animation: spin 1s linear infinite;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 @keyframes spin {
@@ -155,22 +155,22 @@
 }
 
 .statusCompleted {
-  background: #10b981;
+  background: var(--success);
   color: white;
 }
 
 .statusFailed {
-  background: #ef4444;
+  background: var(--error);
   color: white;
 }
 
 .statusCancelled {
-  background: #6b7280;
+  background: var(--text-muted);
   color: white;
 }
 
 .statusPending {
-  background: #f59e0b;
+  background: var(--warning);
   color: white;
 }
 

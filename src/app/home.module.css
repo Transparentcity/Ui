@@ -31,7 +31,7 @@
       transparent 55%
     ),
     var(--bg-primary, #ffffff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -91,7 +91,7 @@
   width: 26px;
   height: 26px;
   flex: 0 0 auto;
-  --logo-fill: #111827;
+  --logo-fill: var(--text-primary);
 }
 
 .brandMark rect {
@@ -161,7 +161,7 @@
 }
 
 .buttonPrimary {
-  background: linear-gradient(135deg, var(--brand-primary, #ad35fa) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
   border-color: rgba(173, 53, 250, 0.35);
   color: var(--text-inverse, #ffffff);
 }
@@ -234,7 +234,7 @@
   border-radius: 14px;
   border: 1px solid var(--border-primary, rgba(17, 24, 39, 0.14));
   background: var(--bg-primary, rgba(255, 255, 255, 0.9));
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
@@ -270,7 +270,7 @@
   justify-content: space-between;
   gap: 10px;
   transition: background-color 120ms ease;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .cityOption:hover {
@@ -313,7 +313,7 @@
   font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   line-height: 1.2;
 }
 
@@ -367,7 +367,7 @@
 
 .heroCityLink:hover {
   border-color: var(--brand-primary, rgba(173, 53, 250, 0.3));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.04);
 }
 
@@ -409,7 +409,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--brand-primary, #ad35fa) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -616,7 +616,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   border: 1px solid var(--brand-primary, rgba(173, 53, 250, 0.2));
   background: rgba(173, 53, 250, 0.06);
   border-radius: 999px;
@@ -658,7 +658,7 @@
   height: 22px;
   border-radius: 50%;
   background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  color: var(--success);
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
@@ -682,7 +682,7 @@
   font-weight: 600;
   border-radius: 12px;
   border: none;
-  background: linear-gradient(135deg, var(--brand-primary, #ad35fa) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
   color: #ffffff;
   cursor: pointer;
   text-decoration: none;
@@ -707,7 +707,7 @@
 }
 
 .audienceSecondaryLink:hover {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 /* Legacy grid/tile kept for any other usage */
@@ -824,7 +824,7 @@
 }
 
 .researchCard:hover .researchReadMore {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .researchContent {
@@ -848,7 +848,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .researchDate {
@@ -929,7 +929,7 @@
 
 .ctaSection {
   padding: 48px 0;
-  background: linear-gradient(135deg, var(--brand-primary, #ad35fa) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover, #8b5cf6) 100%);
   color: #ffffff;
   text-align: center;
 }
@@ -971,7 +971,7 @@
   border-radius: 12px;
   border: none;
   background: #ffffff;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -1008,7 +1008,7 @@
 [data-theme="dark"] .ctaBtnPrimary,
 .dark .ctaBtnPrimary {
   background: #ffffff;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 [data-theme="dark"] .ctaBtnOutline,

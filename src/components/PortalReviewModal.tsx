@@ -29,7 +29,7 @@ function probeStatusLabel(status: string, apiFormat: string | null): React.React
       </span>
     );
   }
-  if (status === "not_found") return <span style={{ color: "#6b7280" }}>no catalog API</span>;
+  if (status === "not_found") return <span style={{ color: "var(--text-muted)" }}>no catalog API</span>;
   if (status === "blocked_403") return <span style={{ color: "#d97706" }}>blocked (403)</span>;
   if (status === "error") return <span style={{ color: "#dc2626" }}>error</span>;
   return <span style={{ color: "#9ca3af" }}>not probed</span>;
@@ -89,7 +89,7 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
             <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700 }}>
               Portal candidates — {city.city_name}
             </h2>
-            <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--text-secondary, #6b7280)" }}>
+            <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--text-secondary, var(--text-muted))" }}>
               The matcher found these portals but confidence was below the auto-save threshold.
               Review and accept the best match, or close to leave for later.
             </p>
@@ -99,7 +99,7 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
             aria-label="Close"
             style={{
               background: "none", border: "none", cursor: "pointer",
-              fontSize: "20px", lineHeight: 1, color: "var(--text-secondary, #6b7280)",
+              fontSize: "20px", lineHeight: 1, color: "var(--text-secondary, var(--text-muted))",
               padding: "0 0 0 16px",
             }}
           >
@@ -111,13 +111,13 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
         {city.main_portal_url && (
           <div style={{
             background: "var(--bg-secondary, #f9fafb)",
-            border: "1px solid var(--border, #e5e7eb)",
+            border: "1px solid var(--border, var(--border-primary))",
             borderRadius: "6px",
             padding: "10px 14px",
             marginBottom: "18px",
             fontSize: "12px",
           }}>
-            <span style={{ color: "var(--text-secondary, #6b7280)" }}>Current portal URL: </span>
+            <span style={{ color: "var(--text-secondary, var(--text-muted))" }}>Current portal URL: </span>
             <a href={city.main_portal_url} target="_blank" rel="noopener noreferrer"
               style={{ color: "var(--brand-primary)", wordBreak: "break-all" }}>
               {city.main_portal_url}
@@ -126,7 +126,7 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
         )}
 
         {candidates.length === 0 ? (
-          <p style={{ color: "var(--text-secondary, #6b7280)", fontSize: "13px" }}>
+          <p style={{ color: "var(--text-secondary, var(--text-muted))", fontSize: "13px" }}>
             No candidate data recorded. Re-run "Determine Portal Type" to generate candidates.
           </p>
         ) : (
@@ -135,7 +135,7 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
               <div
                 key={c.url}
                 style={{
-                  border: "1px solid var(--border, #e5e7eb)",
+                  border: "1px solid var(--border, var(--border-primary))",
                   borderRadius: "8px",
                   padding: "14px 16px",
                   background: c.probe_status === "success"
@@ -148,12 +148,12 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
                     {/* Rank + URL */}
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                       <span style={{
-                        background: "var(--bg-secondary, #f3f4f6)",
+                        background: "var(--bg-secondary, var(--bg-tertiary))",
                         borderRadius: "4px",
                         padding: "1px 6px",
                         fontSize: "10px",
                         fontWeight: 700,
-                        color: "var(--text-secondary, #6b7280)",
+                        color: "var(--text-secondary, var(--text-muted))",
                       }}>
                         #{idx + 1}
                       </span>
@@ -179,18 +179,18 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
                       marginTop: "8px", fontSize: "12px",
                     }}>
                       <span>
-                        <span style={{ color: "var(--text-secondary, #6b7280)" }}>API: </span>
+                        <span style={{ color: "var(--text-secondary, var(--text-muted))" }}>API: </span>
                         {probeStatusLabel(c.probe_status, c.api_format)}
                       </span>
                       <span>
-                        <span style={{ color: "var(--text-secondary, #6b7280)" }}>Score: </span>
+                        <span style={{ color: "var(--text-secondary, var(--text-muted))" }}>Score: </span>
                         <strong>{c.total_score}</strong>
-                        <span style={{ color: "var(--text-secondary, #6b7280)" }}>
+                        <span style={{ color: "var(--text-secondary, var(--text-muted))" }}>
                           {" "}(host {c.hostname_score})
                         </span>
                       </span>
                       <span>
-                        <span style={{ color: "var(--text-secondary, #6b7280)" }}>Source: </span>
+                        <span style={{ color: "var(--text-secondary, var(--text-muted))" }}>Source: </span>
                         {sourceLabel(c.source)}
                       </span>
                     </div>
@@ -203,12 +203,12 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
                             key={s.name}
                             title={s.desc}
                             style={{
-                              background: "var(--bg-secondary, #f3f4f6)",
-                              border: "1px solid var(--border, #e5e7eb)",
+                              background: "var(--bg-secondary, var(--bg-tertiary))",
+                              border: "1px solid var(--border, var(--border-primary))",
                               borderRadius: "4px",
                               padding: "1px 6px",
                               fontSize: "10px",
-                              color: "var(--text-secondary, #6b7280)",
+                              color: "var(--text-secondary, var(--text-muted))",
                               cursor: "default",
                             }}
                           >
@@ -220,7 +220,7 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
 
                     {/* Winning endpoint */}
                     {c.winning_endpoint && (
-                      <div style={{ marginTop: "6px", fontSize: "11px", color: "var(--text-secondary, #6b7280)" }}>
+                      <div style={{ marginTop: "6px", fontSize: "11px", color: "var(--text-secondary, var(--text-muted))" }}>
                         API endpoint: <code style={{ fontSize: "10px" }}>{c.winning_endpoint}</code>
                       </div>
                     )}
@@ -263,7 +263,7 @@ export default function PortalReviewModal({ city, onClose, onAccepted }: Props) 
             onClick={onClose}
             style={{
               padding: "8px 20px",
-              border: "1px solid var(--border, #e5e7eb)",
+              border: "1px solid var(--border, var(--border-primary))",
               borderRadius: "6px",
               background: "none",
               cursor: "pointer",

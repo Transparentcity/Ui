@@ -41,7 +41,7 @@
 .subtitle {
   margin: 4px 0 0;
   font-size: 13px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .close {
@@ -51,7 +51,7 @@
   border: none;
   border-radius: var(--radius-sm, 6px);
   background: transparent;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -140,7 +140,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .formatOption {
@@ -160,12 +160,12 @@
 }
 
 .formatOption[data-active="true"] {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.08));
 }
 
 .formatOption input {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   flex: none;
 }
 
@@ -193,8 +193,8 @@
 }
 
 .formatOption[data-active="true"] .formatSwatch {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .formatText {
@@ -219,12 +219,12 @@
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--bg-tertiary);
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .formatDest {
   font-size: 12px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -239,7 +239,7 @@
 }
 
 .soundToggle input {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
 }
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
@@ -265,7 +265,7 @@
 }
 
 .primaryBtn {
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
 }
 
@@ -285,7 +285,7 @@
 
 .ghostBtn {
   background: transparent;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   padding: 9px 6px;
 }
 
@@ -302,7 +302,7 @@
 
 .hint {
   font-size: 12px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .readyNote {
@@ -322,7 +322,7 @@
 .error {
   margin: 0;
   font-size: 13px;
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 /* ── Progress ───────────────────────────────────────────────────────────── */
@@ -345,7 +345,7 @@
 .progressFill {
   height: 100%;
   border-radius: 999px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   transition: width 0.2s ease;
 }
 

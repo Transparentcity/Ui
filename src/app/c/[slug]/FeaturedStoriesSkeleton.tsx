@@ -28,21 +28,21 @@ export default function FeaturedStoriesSkeleton() {
           width: 120px;
           height: 14px;
           border-radius: 4px;
-          background: var(--bg-tertiary, #e5e7eb);
+          background: var(--bg-tertiary, var(--border-primary));
           animation: skeletonPulse 1.5s ease-in-out infinite;
         }
         .skeleton-heading {
           width: 200px;
           height: 20px;
           border-radius: 4px;
-          background: var(--bg-tertiary, #e5e7eb);
+          background: var(--bg-tertiary, var(--border-primary));
           margin-top: 8px;
           animation: skeletonPulse 1.5s ease-in-out infinite;
           animation-delay: 0.1s;
         }
         .skeleton-story-card {
           padding: 12px 16px;
-          border: 1px solid var(--border-primary, #e5e7eb);
+          border: 1px solid var(--border-primary);
           border-radius: 12px;
           display: flex;
           flex-direction: column;
@@ -51,7 +51,7 @@ export default function FeaturedStoriesSkeleton() {
         .skeleton-line {
           height: 12px;
           border-radius: 4px;
-          background: var(--bg-tertiary, #e5e7eb);
+          background: var(--bg-tertiary, var(--border-primary));
           animation: skeletonPulse 1.5s ease-in-out infinite;
         }
         .skeleton-line-short { width: 40%; animation-delay: 0s; }

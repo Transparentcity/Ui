@@ -1,7 +1,7 @@
 .container {
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   margin: 0;
   background: var(--bg-primary, #ffffff);
 }
@@ -12,22 +12,22 @@
   gap: 10px;
   padding: 10px 14px;
   background: var(--bg-primary, #ffffff);
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .labelInput {
   flex: 1;
   min-width: 0;
   padding: 6px 10px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm, 6px);
   font-size: 13px;
   background: var(--bg-primary, #fff);
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .labelInput::placeholder {
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .radiusWrap {
@@ -35,13 +35,13 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
 }
 
 .slider {
   width: 80px;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
 }
 
 .mapInteractiveWrap {
@@ -70,7 +70,7 @@
 
 .centerPinSvg {
   display: block;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .mapImg {
@@ -86,8 +86,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary, #f8f9fa);
-  color: var(--text-tertiary, #6b7280);
+  background: var(--bg-secondary);
+  color: var(--text-tertiary, var(--text-muted));
   font-size: 12px;
   padding: 12px;
 }
@@ -100,7 +100,7 @@
   gap: 12px;
   padding: 16px 20px;
   background: var(--bg-primary, #ffffff);
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
 }
 
 .saveButton {
@@ -109,7 +109,7 @@
   font-weight: 600;
   font-family: inherit;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;
@@ -130,8 +130,8 @@
   font-size: 14px;
   font-weight: 500;
   font-family: inherit;
-  color: var(--text-primary, #111827);
-  background: var(--bg-tertiary, #f3f4f6);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
   border: none;
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;
@@ -139,7 +139,7 @@
 }
 
 .cancelButton:hover:not(:disabled) {
-  background: var(--bg-secondary, #e5e7eb);
+  background: var(--bg-secondary, var(--border-primary));
 }
 
 .cancelButton:disabled {
@@ -155,7 +155,7 @@
   flex-direction: column;
   border: none;
   border-radius: 0;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
 }
 
 .stretchEmbed .mapInteractiveWrap {
@@ -190,5 +190,5 @@
 }
 
 .welcomeMapEmbed .toolbar {
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
 }

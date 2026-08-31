@@ -816,7 +816,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         }
         .viz-source-modal-row span,
         .viz-source-modal-query span {
-          color: var(--text-tertiary, #6b7280);
+          color: var(--text-tertiary, var(--text-muted));
           font-size: 0.72rem;
           font-weight: 700;
           letter-spacing: 0.04em;

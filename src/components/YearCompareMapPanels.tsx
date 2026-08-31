@@ -137,7 +137,7 @@ export default function YearCompareMapPanels({
                 <div key={String(label)} className="year-compare-legend-item">
                   <span
                     className="year-compare-legend-swatch"
-                    style={{ backgroundColor: seriesColors![label] ?? "#ad35fa" }}
+                    style={{ backgroundColor: seriesColors![label] ?? "var(--brand-primary)" }}
                   />
                   <span>{label}</span>
                 </div>

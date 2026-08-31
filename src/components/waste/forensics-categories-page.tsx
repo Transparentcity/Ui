@@ -150,11 +150,11 @@ export function ForensicsCategoriesPage() {
             {/* Band header: section label + right-aligned column headers. */}
             <div
               className="flex items-center px-3 py-[10px] border-t border-b"
-              style={{ background: "#f8f9fa", borderColor: "#e5e7eb" }}
+              style={{ background: "var(--bg-secondary)", borderColor: "var(--border-primary)" }}
             >
               <span
                 className="flex-1 text-[12px] font-bold uppercase"
-                style={{ color: "#6b7280", letterSpacing: "0.06em" }}
+                style={{ color: "var(--text-muted)", letterSpacing: "0.06em" }}
               >
                 Analysis Categories
               </span>
@@ -199,17 +199,17 @@ export function ForensicsCategoriesPage() {
                   key={key}
                   href={`/waste/categories/${key}`}
                   className="group flex flex-col md:flex-row md:items-start gap-2 px-3 py-4 no-underline border-b hover:bg-gray-50/60 transition-colors"
-                  style={{ borderColor: "#f3f4f6" }}
+                  style={{ borderColor: "var(--bg-tertiary)" }}
                 >
                   {/* Left: label + description + (optional) headline metric */}
                   <div className="flex-1 min-w-0">
                     <h3
-                      className="text-[#111827]"
+                      className="text-[var(--text-primary)]"
                       style={{ ...HEADING_FONT, fontSize: "15.5px" }}
                     >
                       {meta.label}
                     </h3>
-                    <p className="text-[13px] mt-0.5" style={{ color: "#6b7280" }}>
+                    <p className="text-[13px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                       {meta.description}
                     </p>
                     {headline && (
@@ -247,7 +247,7 @@ export function ForensicsCategoriesPage() {
                   <div className="flex items-center md:items-start shrink-0 gap-x-4 md:gap-x-0">
                     <span
                       className="md:w-[110px] text-right text-[15px] font-bold tabular-nums"
-                      style={{ ...DATA_FONT, color: "#111827" }}
+                      style={{ ...DATA_FONT, color: "var(--text-primary)" }}
                     >
                       {counts.total}
                     </span>
@@ -259,13 +259,13 @@ export function ForensicsCategoriesPage() {
                     </span>
                     <span
                       className="md:w-[190px] text-right text-[15px] font-bold tabular-nums"
-                      style={{ ...DATA_FONT, color: "#111827" }}
+                      style={{ ...DATA_FONT, color: "var(--text-primary)" }}
                     >
                       {counts.amount > 0 ? formatDollar(counts.amount) : ""}
                     </span>
                     <span
                       className="md:w-[96px] flex items-center justify-end gap-1 text-[13px] font-semibold shrink-0"
-                      style={{ color: "#ad35fa" }}
+                      style={{ color: "var(--brand-primary)" }}
                     >
                       Analyze
                       <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />

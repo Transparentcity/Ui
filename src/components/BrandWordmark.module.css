@@ -19,7 +19,7 @@
 }
 
 .brace {
-  fill: var(--text-primary, #111827);
+  fill: var(--text-primary);
 }
 
 .wordmark {
@@ -31,11 +31,11 @@
 }
 
 .plain {
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .accent {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .sm .logomark {

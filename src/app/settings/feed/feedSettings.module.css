@@ -61,13 +61,13 @@
 }
 
 .categoryPill:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   color: var(--text-primary);
 }
 
 .categoryPillActive {
-  background: var(--brand-primary, #ad35fa);
-  border-color: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #fff;
 }
 
@@ -113,7 +113,7 @@
   font-weight: 500;
   border: none;
   border-radius: 8px;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s;
@@ -176,7 +176,7 @@
 .toggleCheckbox {
   width: 18px;
   height: 18px;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   cursor: pointer;
 }
 
@@ -220,7 +220,7 @@
 }
 
 .textInput:focus {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 @keyframes fadeInUp {

@@ -262,7 +262,7 @@ function WasteShellInner({
         <div className="flex items-center gap-3 min-w-0">
           <div
             className="w-10 h-10 rounded-lg flex items-center justify-center text-xl shrink-0"
-            style={{ backgroundColor: "#f3f4f6" }}
+            style={{ backgroundColor: "var(--bg-tertiary)" }}
           >
             {selectedCityEmoji ? (
               <span aria-hidden>{selectedCityEmoji}</span>
@@ -319,7 +319,7 @@ function WasteShellInner({
         <div className="min-w-0">
           <p
             className="text-[11.5px] font-bold uppercase"
-            style={{ color: "#ad35fa", letterSpacing: "0.06em" }}
+            style={{ color: "var(--brand-primary)", letterSpacing: "0.06em" }}
           >
             WASTE DETECTION
           </p>
@@ -334,7 +334,7 @@ function WasteShellInner({
             {title}
           </h1>
           {description && (
-            <p className="text-[13.5px]" style={{ color: "#6b7280" }}>
+            <p className="text-[13.5px]" style={{ color: "var(--text-muted)" }}>
               {description}
             </p>
           )}

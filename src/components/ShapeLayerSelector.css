@@ -18,7 +18,7 @@
   width: 100%;
   padding: 10px 14px;
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -58,7 +58,7 @@
 
 .shape-layer-selector-arrow {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-left: 8px;
 }
 
@@ -69,7 +69,7 @@
   right: 0;
   margin-top: 4px;
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   overflow: hidden;
@@ -82,7 +82,7 @@
   padding: 12px 14px;
   background: white;
   border: none;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--bg-tertiary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -102,7 +102,7 @@
 }
 
 .shape-layer-option.selected {
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
   font-weight: 500;
 }
 
@@ -113,7 +113,7 @@
 
 .shape-layer-check {
   margin-left: auto;
-  color: #ad35fa;
+  color: var(--brand-primary);
   font-weight: bold;
 }
 
@@ -127,36 +127,36 @@
 [data-theme="dark"] .shape-layer-selector-toggle,
 .dark .shape-layer-selector-toggle {
   background: #1f2937;
-  border-color: #374151;
+  border-color: var(--text-secondary);
   color: #f9fafb;
 }
 
 [data-theme="dark"] .shape-layer-selector-toggle:hover:not(:disabled),
 .dark .shape-layer-selector-toggle:hover:not(:disabled) {
-  background: #374151;
+  background: var(--text-secondary);
   border-color: #4b5563;
 }
 
 [data-theme="dark"] .shape-layer-selector-menu,
 .dark .shape-layer-selector-menu {
   background: #1f2937;
-  border-color: #374151;
+  border-color: var(--text-secondary);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .shape-layer-option,
 .dark .shape-layer-option {
   background: #1f2937;
-  border-bottom-color: #374151;
+  border-bottom-color: var(--text-secondary);
   color: #f9fafb;
 }
 
 [data-theme="dark"] .shape-layer-option:hover:not(:disabled),
 .dark .shape-layer-option:hover:not(:disabled) {
-  background: #374151;
+  background: var(--text-secondary);
 }
 
 [data-theme="dark"] .shape-layer-option.selected,
 .dark .shape-layer-option.selected {
-  background: #374151;
+  background: var(--text-secondary);
 }

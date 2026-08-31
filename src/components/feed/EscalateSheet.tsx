@@ -94,7 +94,7 @@ export default function EscalateSheet({ open, headline, isOfficial, onClose, onS
             rows={3}
           />
           {wordCount > 0 && (
-            <div style={{ fontSize: 12, color: wordCount >= 140 ? "var(--error, #ef4444)" : "var(--text-tertiary)", textAlign: "right", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: wordCount >= 140 ? "var(--error)" : "var(--text-tertiary)", textAlign: "right", marginTop: 2 }}>
               {wordCount}/150 words{wordCount >= 140 ? " — approaching limit" : ""}
             </div>
           )}

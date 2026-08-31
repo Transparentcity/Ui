@@ -39,7 +39,7 @@ const SEV_CLASS: Record<string, string> = {
 
 const SEV_DOT: Record<string, string> = {
   critical: "#FF6B5A",
-  high: "#f59e0b",
+  high: "var(--warning)",
   medium: "#71B2CA",
   low: "#9ca3af",
 };

@@ -357,7 +357,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: 1px solid var(--bg-primary, #ffffff);
 }
 
@@ -532,7 +532,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 11px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   transition: color 0.15s ease, background 0.15s ease;
   line-height: 1;
@@ -702,7 +702,7 @@
 
 .progressBar {
   height: 3px;
-  background: #ad35fa;
+  background: var(--brand-primary);
   border-radius: 2px;
   transition: width 0.3s ease;
   flex: 1;
@@ -730,7 +730,7 @@
 .createIcon {
   font-size: 16px;
   font-weight: bold;
-  color: #ad35fa;
+  color: var(--brand-primary);
   flex-shrink: 0;
   line-height: 1;
 }

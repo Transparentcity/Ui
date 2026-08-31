@@ -1023,7 +1023,7 @@ export default function UserManagement({
                             className={styles.roleBadge}
                             style={{
                               background: "rgba(173, 53, 250, 0.1)",
-                              color: "#ad35fa",
+                              color: "var(--brand-primary)",
                               cursor: "default",
                               position: "relative",
                             }}

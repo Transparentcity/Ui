@@ -45,8 +45,8 @@ export function WasteSeverityFilter({
               // One pill system: active is always neutral-900, regardless of
               // severity; counts are plain text, not bubble chips.
               isActive
-                ? "bg-[#111827] text-white border-[#111827]"
-                : "bg-white text-[#374151] border-[#e5e7eb] hover:bg-gray-50"
+                ? "bg-[var(--text-primary)] text-white border-[var(--text-primary)]"
+                : "bg-white text-[var(--text-secondary)] border-[var(--border-primary)] hover:bg-gray-50"
             )}
           >
             {pill.label}

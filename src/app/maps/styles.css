@@ -38,7 +38,7 @@
 }
 
 .retry-button:hover {
-  background: #7c3aed;
+  background: var(--brand-primary-hover);
 }
 
 /* Auth Prompt */
@@ -120,7 +120,7 @@
 }
 
 .create-map-link:hover {
-  background: #7c3aed;
+  background: var(--brand-primary-hover);
   transform: translateY(-1px);
 }
 
@@ -284,7 +284,7 @@
 }
 
 .action-button.view:hover {
-  background: #7c3aed;
+  background: var(--brand-primary-hover);
 }
 
 .action-button.publish,
@@ -309,7 +309,7 @@
 
 .action-button.delete {
   background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: var(--error);
 }
 
 .action-button.delete:hover {

@@ -92,23 +92,23 @@ export interface CategoryMeta {
 const CATEGORY_MAP: Record<string, CategoryMeta> = {
   "Police":           { icon: "Shield",      color: "#dc2626", label: "Police" },
   "Fire Dept":        { icon: "Flame",       color: "#ea580c", label: "Fire Dept" },
-  "Public Works":     { icon: "Wrench",      color: "#6b7280", label: "Public Works" },
-  "311":              { icon: "Wrench",      color: "#6b7280", label: "311" },
+  "Public Works":     { icon: "Wrench",      color: "var(--text-muted)", label: "Public Works" },
+  "311":              { icon: "Wrench",      color: "var(--text-muted)", label: "311" },
   "Building Dept":    { icon: "Building2",   color: "#2563eb", label: "Building Dept" },
   "Parks & Rec":      { icon: "Trees",       color: "#16a34a", label: "Parks & Rec" },
   "Transit":          { icon: "Bus",         color: "#0d9488", label: "Transit" },
   "Spending":         { icon: "DollarSign",  color: "#d97706", label: "Spending" },
   "Controller":       { icon: "DollarSign",  color: "#d97706", label: "Spending" },
-  "Business":         { icon: "Store",       color: "#7c3aed", label: "Business" },
+  "Business":         { icon: "Store",       color: "var(--brand-primary-hover)", label: "Business" },
   "Public Health":    { icon: "Heart",       color: "#db2777", label: "Public Health" },
   "Education":        { icon: "GraduationCap", color: "#4f46e5", label: "Education" },
-  "District Attorney":{ icon: "Scale",       color: "#7c3aed", label: "Justice" },
+  "District Attorney":{ icon: "Scale",       color: "var(--brand-primary-hover)", label: "Justice" },
   "Utilities":        { icon: "Droplets",    color: "#0284c7", label: "Utilities" },
-  "City Hall":        { icon: "Landmark",    color: "#6b7280", label: "City Hall" },
+  "City Hall":        { icon: "Landmark",    color: "var(--text-muted)", label: "City Hall" },
 };
 
 /** Fallback category for unknown topics. */
-const DEFAULT_CATEGORY: CategoryMeta = { icon: "Landmark", color: "#6b7280", label: "City Hall" };
+const DEFAULT_CATEGORY: CategoryMeta = { icon: "Landmark", color: "var(--text-muted)", label: "City Hall" };
 
 /** Look up category metadata by category key. */
 export function getCategoryMeta(categoryKey: string): CategoryMeta {

@@ -314,7 +314,7 @@
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
@@ -531,7 +531,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.12);
   padding: 4px 8px;
   border-radius: 6px;

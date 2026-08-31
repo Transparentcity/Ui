@@ -28,7 +28,7 @@
   align-items: center;
   gap: 10px;
   padding: 14px 18px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-primary);
   background: #f8f9fb;
   border-radius: 10px 10px 0 0;
   flex-shrink: 0;
@@ -48,14 +48,14 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6b7280;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .headerTitle {
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -64,7 +64,7 @@
 
 .headerMeta {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   background: #f0f0f0;
   border-radius: 4px;
   padding: 2px 6px;
@@ -77,22 +77,22 @@
   border: none;
   cursor: pointer;
   font-size: 16px;
-  color: #6b7280;
+  color: var(--text-muted);
   padding: 4px 8px;
   border-radius: 4px;
   flex-shrink: 0;
   line-height: 1;
 }
 .closeBtn:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* Tabs */
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-primary);
   padding: 0 18px;
   flex-shrink: 0;
   background: #f8f9fb;
@@ -104,13 +104,13 @@
   border-bottom: 2px solid transparent;
   cursor: pointer;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   padding: 8px 14px;
   margin-bottom: -1px;
   font-weight: 500;
 }
 .tab:hover {
-  color: #111827;
+  color: var(--text-primary);
 }
 .tabActive {
   color: #2563eb;
@@ -138,7 +138,7 @@
 
 .loadingText,
 .emptyText {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 14px;
   margin: 0;
 }
@@ -171,7 +171,7 @@
 
 /* Individual message block */
 .messageBlock {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -192,7 +192,7 @@
   gap: 8px;
   padding: 8px 12px;
   background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .messageBlock[data-role="system"] .messageHeader {
@@ -224,7 +224,7 @@
   margin-left: auto;
 }
 .toggleBtn:hover {
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
 }
 
 .messageContent {
@@ -248,7 +248,7 @@
 
 /* Tool calls */
 .toolBlock {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -273,7 +273,7 @@
   font-size: 12px;
   font-weight: 700;
   font-family: "SF Mono", monospace;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .toolFailed {
@@ -287,7 +287,7 @@
 
 .toolMs {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-left: auto;
 }
 
@@ -310,7 +310,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .toolPre {
@@ -321,7 +321,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   max-height: 300px;
   overflow-y: auto;

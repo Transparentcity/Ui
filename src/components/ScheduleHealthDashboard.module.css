@@ -27,14 +27,14 @@
 .subtitle {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .refreshBtn {
   padding: 0.4rem 0.85rem;
   border-radius: 6px;
-  border: 1px solid var(--border-primary, #e5e7eb);
-  background: var(--bg-secondary, #f8f9fa);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
   color: var(--text-primary, #222);
   cursor: pointer;
   font-size: 0.85rem;
@@ -59,7 +59,7 @@
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
   font-size: 0.75rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   margin-bottom: 1rem;
 }
 
@@ -78,7 +78,7 @@
 
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   background: var(--bg-primary, #fff);
 }
@@ -95,13 +95,13 @@
   padding: 0.5rem 0.6rem;
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   color: var(--text-primary, #222);
 }
 
 .table th {
   font-weight: 600;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   white-space: nowrap;
 }
 
@@ -125,7 +125,7 @@
   gap: 0.3rem 0.35rem;
   margin-top: 0.45rem;
   padding-top: 0.4rem;
-  border-top: 1px solid var(--border-primary, #e5e7eb);
+  border-top: 1px solid var(--border-primary);
 }
 
 .structurePill {
@@ -175,9 +175,9 @@
 }
 
 .structurePillNeutral {
-  background: var(--bg-secondary, #f3f4f6);
-  border-color: var(--border-primary, #e5e7eb);
-  color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, var(--bg-tertiary));
+  border-color: var(--border-primary);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .launchedRow {
@@ -213,7 +213,7 @@
   background: transparent;
   cursor: pointer;
   font-size: 0.75rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   line-height: 1;
   vertical-align: middle;
 }
@@ -300,27 +300,27 @@
   height: 6px;
   border-radius: 3px;
   overflow: hidden;
-  background: var(--bg-tertiary, #e5e7eb);
+  background: var(--bg-tertiary, var(--border-primary));
   margin-bottom: 0.2rem;
 }
 
 .freshBarFill {
   height: 100%;
-  background: #10b981;
+  background: var(--success);
   transition: width 0.2s ease;
 }
 
 .freshBarFillWarn {
-  background: #f59e0b;
+  background: var(--warning);
 }
 
 .freshBarFillBad {
-  background: #ef4444;
+  background: var(--error);
 }
 
 .freshText {
   font-size: 0.68rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -338,7 +338,7 @@
   border-radius: 4px;
   padding: 0.1rem 0.4rem;
   font-size: 0.65rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   cursor: pointer;
   line-height: 1.4;
   transition: border-color 0.15s, color 0.15s;
@@ -356,7 +356,7 @@
 
 .reRunStatus {
   font-size: 0.65rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -364,16 +364,16 @@
 
 .reRunError {
   font-size: 0.65rem;
-  color: #ef4444;
+  color: var(--error);
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
 
 .detailRow td {
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   padding: 0.75rem 0.6rem;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .detailInner {
@@ -392,7 +392,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .miniTable {
@@ -404,14 +404,14 @@
 .miniTable th,
 .miniTable td {
   padding: 0.35rem 0.4rem;
-  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  border-bottom: 1px solid var(--border-primary);
   text-align: left;
   color: var(--text-primary, #222);
 }
 
 .miniTable th {
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .linkBtn {
@@ -437,7 +437,7 @@
 }
 
 .metricTableWrap {
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
 }
 
@@ -447,7 +447,7 @@
 }
 
 .metricTableWrap .miniTable thead th {
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
 }
 
 :global([data-theme="dark"]) .metricTableWrap,
@@ -458,7 +458,7 @@
 .empty {
   padding: 2rem;
   text-align: center;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
   font-size: 0.9rem;
 }
 

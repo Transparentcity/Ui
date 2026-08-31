@@ -48,7 +48,7 @@
 .dragBar {
   width: 40px;
   height: 4px;
-  background: var(--border-primary, #e5e7eb);
+  background: var(--border-primary);
   border-radius: 2px;
 }
 
@@ -124,7 +124,7 @@
 
 .filterSelect {
   padding: 5px 10px;
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   font-size: 12px;
   background: var(--bg-primary, #fff);
@@ -136,7 +136,7 @@
 
 .filterSelect:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.15));
 }
 
@@ -174,11 +174,11 @@
 }
 
 .stateContainer[data-error="true"] {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .stateContainer[data-error="true"] i {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 /* Anomalies List */
@@ -190,7 +190,7 @@
 
 /* Metric Group */
 .metricGroup {
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
   background: var(--bg-primary, #fff);
@@ -219,18 +219,18 @@
   align-items: center;
   padding: 3px 8px;
   background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-primary, #e5e7eb);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm, 6px);
   font-size: 11px;
   font-weight: 500;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s;
 }
 
 .expandBtn:hover {
   background: var(--brand-primary-light, rgba(173, 53, 250, 0.1));
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 /* Anomaly Card */
@@ -242,7 +242,7 @@
   padding: 10px 12px;
   background: var(--bg-primary, #fff);
   border: none;
-  border-left: 4px solid var(--error, #ef4444);
+  border-left: 4px solid var(--error);
   cursor: pointer;
   text-align: left;
   transition: background-color 0.15s;
@@ -253,7 +253,7 @@
 }
 
 .anomalyCard[data-is-positive="false"] {
-  border-left-color: var(--success, #10b981);
+  border-left-color: var(--success);
 }
 
 .sparklineContainer {
@@ -280,11 +280,11 @@
 }
 
 .anomalyText i {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .anomalyCard[data-is-positive="false"] .anomalyText i {
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .anomalyStats {
@@ -313,7 +313,7 @@
   padding: 6px 10px;
   background: var(--bg-secondary, #f9fafb);
   border: none;
-  border-left: 3px solid var(--error, #ef4444);
+  border-left: 3px solid var(--error);
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;
   text-align: left;
@@ -327,15 +327,15 @@
 }
 
 .subAnomalyCard[data-is-positive="false"] {
-  border-left-color: var(--success, #10b981);
+  border-left-color: var(--success);
 }
 
 .subAnomalyCard i {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .subAnomalyCard[data-is-positive="false"] i {
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .subAnomalyDate {
@@ -372,7 +372,7 @@
   padding: 12px 48px 12px 12px; /* Extra padding on right for close button */
   background: var(--bg-primary, #fff);
   border: none;
-  border-left: 4px solid var(--error, #ef4444);
+  border-left: 4px solid var(--error);
   cursor: pointer;
   text-align: left;
   transition: background-color 0.15s;
@@ -383,7 +383,7 @@
 }
 
 .collapsedCard[data-is-positive="false"] {
-  border-left-color: var(--success, #10b981);
+  border-left-color: var(--success);
 }
 
 .collapsedSparkline {
@@ -431,11 +431,11 @@
 }
 
 .collapsedText i {
-  color: var(--error, #ef4444);
+  color: var(--error);
 }
 
 .collapsedCard[data-is-positive="false"] .collapsedText i {
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .collapsedDate {
@@ -446,7 +446,7 @@
 
 .collapsedActions {
   flex-shrink: 0;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-size: 14px;
 }
 

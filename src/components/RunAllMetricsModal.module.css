@@ -31,7 +31,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color, var(--border-primary));
   background: linear-gradient(to right, rgba(173, 53, 250, 0.03), transparent);
 }
 
@@ -48,7 +48,7 @@
 
 .title::before {
   content: "▶";
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-size: 14px;
 }
 
@@ -56,7 +56,7 @@
   background: none;
   border: none;
   font-size: 22px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   cursor: pointer;
   padding: 6px 10px;
   line-height: 1;
@@ -65,7 +65,7 @@
 }
 
 .closeButton:hover {
-  background: var(--bg-hover, #f3f4f6);
+  background: var(--bg-hover, var(--bg-tertiary));
   color: var(--text-primary, #222222);
 }
 
@@ -86,7 +86,7 @@
 }
 
 .cityInfo strong {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .section {
@@ -99,7 +99,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .dateInputs {
@@ -117,13 +117,13 @@
 .inputGroup label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .input,
 .select {
   padding: 10px 14px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
@@ -135,7 +135,7 @@
 .input:focus,
 .select:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px rgba(173, 53, 250, 0.15);
 }
 
@@ -153,38 +153,38 @@
   cursor: pointer;
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   transition: all 0.15s ease;
 }
 
 .radioLabel:hover {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   background: rgba(173, 53, 250, 0.02);
 }
 
 .radioLabel input[type="radio"] {
   margin: 0;
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   width: 16px;
   height: 16px;
 }
 
 .radioLabel input[type="radio"]:checked + span {
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   font-weight: 500;
 }
 
 .hint {
   margin-left: auto;
   font-size: 11px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   font-style: italic;
 }
 
 .selectAllRow {
   margin-bottom: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color, var(--border-primary));
 }
 
 .checkboxLabel {
@@ -198,7 +198,7 @@
 }
 
 .checkboxLabel input[type="checkbox"] {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   width: 16px;
   height: 16px;
 }
@@ -206,13 +206,13 @@
 .metricList {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 10px;
   background: var(--bg-primary, #ffffff);
 }
 
 .categoryGroup {
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color, var(--border-primary));
 }
 
 .categoryGroup:last-child {
@@ -224,7 +224,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
@@ -232,11 +232,11 @@
 }
 
 .categoryLabel:hover {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
 }
 
 .categoryLabel input[type="checkbox"] {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   width: 15px;
   height: 15px;
 }
@@ -248,9 +248,9 @@
 
 .categoryCount {
   font-size: 11px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   font-weight: normal;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -279,7 +279,7 @@
 }
 
 .metricLabel input[type="checkbox"] {
-  accent-color: var(--brand-primary, #ad35fa);
+  accent-color: var(--brand-primary);
   width: 14px;
   height: 14px;
 }
@@ -306,8 +306,8 @@
 .toggleResultsBtn {
   padding: 6px 12px;
   background: transparent;
-  color: var(--brand-primary, #ad35fa);
-  border: 1px solid var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
+  border: 1px solid var(--brand-primary);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
@@ -355,14 +355,14 @@
 
 .progressBar {
   height: 10px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: 5px;
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, var(--brand-primary, #ad35fa), #c76bff);
+  background: linear-gradient(90deg, var(--brand-primary), #c76bff);
   transition: width 0.3s ease;
   border-radius: 5px;
 }
@@ -375,7 +375,7 @@
 
 .statusMessage {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, var(--text-muted));
 }
 
 .successMessage {
@@ -415,13 +415,13 @@
 .resultsList {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 10px;
   background: var(--bg-primary, #ffffff);
 }
 
 .resultCategory {
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color, var(--border-primary));
 }
 
 .resultCategory:last-child {
@@ -433,7 +433,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -444,7 +444,7 @@
 
 .resultCategoryCount {
   font-size: 11px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
   font-weight: normal;
 }
 
@@ -501,9 +501,9 @@
 .resultPeriod {
   font-size: 11px;
   padding: 2px 6px;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-radius: 4px;
-  color: var(--text-tertiary, #6b7280);
+  color: var(--text-tertiary, var(--text-muted));
 }
 
 .resultErrorText {
@@ -518,8 +518,8 @@
 .secondaryButton {
   padding: 11px 22px;
   background: transparent;
-  color: var(--brand-primary, #ad35fa);
-  border: 1px solid var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
+  border: 1px solid var(--brand-primary);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -537,16 +537,16 @@
   justify-content: flex-end;
   gap: 12px;
   padding: 18px 24px;
-  border-top: 1px solid var(--border-color, #e5e7eb);
-  background: var(--bg-secondary, #f8f9fa);
+  border-top: 1px solid var(--border-color, var(--border-primary));
+  background: var(--bg-secondary);
   border-radius: 0 0 16px 16px;
 }
 
 .cancelButton {
   padding: 11px 22px;
   background: transparent;
-  color: var(--text-secondary, #6b7280);
-  border: 1px solid var(--border-color, #e5e7eb);
+  color: var(--text-secondary, var(--text-muted));
+  border: 1px solid var(--border-color, var(--border-primary));
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -556,14 +556,14 @@
 }
 
 .cancelButton:hover {
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   border-color: var(--border-dark, #d1d5db);
   color: var(--text-primary, #222222);
 }
 
 .primaryButton {
   padding: 11px 24px;
-  background: linear-gradient(135deg, var(--brand-primary, #ad35fa), #9b2de0);
+  background: linear-gradient(135deg, var(--brand-primary), #9b2de0);
   color: white;
   border: none;
   border-radius: 8px;

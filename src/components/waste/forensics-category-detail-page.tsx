@@ -65,7 +65,7 @@ function SummaryCell({
       className={`p-4 ${wide ? "flex-[2]" : "flex-1"} ${
         divider ? "border-l" : ""
       }`}
-      style={divider ? { borderColor: "#f3f4f6" } : undefined}
+      style={divider ? { borderColor: "var(--bg-tertiary)" } : undefined}
     >
       <p
         className="text-[11px] font-bold uppercase"
@@ -202,7 +202,7 @@ export function ForensicsCategoryDetailPage({
             <SummaryCell
               label="Findings"
               value={String(categoryFindings.length)}
-              color="#111827"
+              color="var(--text-primary)"
             />
             <SummaryCell
               label="Critical"
@@ -227,7 +227,7 @@ export function ForensicsCategoryDetailPage({
             <SummaryCell
               label="Exposure"
               value={formatDollar(aggregateAmount(categoryFindings) || null)}
-              color="#111827"
+              color="var(--text-primary)"
               divider
               wide
             />

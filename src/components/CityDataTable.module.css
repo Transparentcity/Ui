@@ -279,8 +279,8 @@
 }
 
 .statusUnknown {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 :global([data-theme="dark"]) .statusError,

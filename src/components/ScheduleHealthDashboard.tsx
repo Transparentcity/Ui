@@ -90,7 +90,7 @@ function executionPresentation(
       run.metrics_completed != null && run.metrics_total != null
         ? `${run.metrics_completed}/${run.metrics_total} ran`
         : st;
-    return { label: detail, dotColor: "#ef4444", running: false };
+    return { label: detail, dotColor: "var(--error)", running: false };
   }
   const failed = run.metrics_failed ?? 0;
   const total = run.metrics_total ?? 0;
@@ -98,18 +98,18 @@ function executionPresentation(
   if (total > 0 && failed > 0) {
     return {
       label: `${done}/${total} ran (${failed} failed)`,
-      dotColor: "#f59e0b",
+      dotColor: "var(--warning)",
       running: false,
     };
   }
   if (total > 0 && done >= total && failed === 0) {
     let label = `${done}/${total} ran`;
     if (slotOverdue) label += " · slot overdue";
-    return { label, dotColor: "#10b981", running: false };
+    return { label, dotColor: "var(--success)", running: false };
   }
   return {
     label: `${done}/${total || "?"} ran`,
-    dotColor: "#10b981",
+    dotColor: "var(--success)",
     running: false,
   };
 }
@@ -154,9 +154,9 @@ const BUCKET_ORDER: Record<CityFreshnessMetricRow["bucket"], number> = {
 };
 
 const BUCKET_COLOR: Record<CityFreshnessMetricRow["bucket"], string> = {
-  current: "#10b981",
-  slightly_stale: "#f59e0b",
-  stale: "#ef4444",
+  current: "var(--success)",
+  slightly_stale: "var(--warning)",
+  stale: "var(--error)",
   no_data: "#9ca3af",
 };
 
@@ -454,7 +454,7 @@ function MetricHealthTable({
   };
 
   if (sorted.length === 0) {
-    return <p style={{ fontSize: "0.72rem", margin: "0.25rem 0", color: "var(--text-secondary, #6b7280)" }}>No metrics.</p>;
+    return <p style={{ fontSize: "0.72rem", margin: "0.25rem 0", color: "var(--text-secondary, var(--text-muted))" }}>No metrics.</p>;
   }
   return (
     <div className={styles.metricTableWrap}>
@@ -491,7 +491,7 @@ function MetricHealthTable({
               execStatus.isError ||
               charts === 0;
             const bucketColor = BUCKET_COLOR[m.bucket];
-            const runDateColor = execStatus.isError ? "#ef4444" : "#10b981";
+            const runDateColor = execStatus.isError ? "var(--error)" : "var(--success)";
 
             const override = reviewOverrides.get(m.metric_id);
             const isReviewed = override !== undefined
@@ -515,12 +515,12 @@ function MetricHealthTable({
                 <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.metric_name}>
                   {m.metric_name}
                 </td>
-                <td style={{ whiteSpace: "nowrap", color: "var(--text-secondary, #6b7280)" }}>
+                <td style={{ whiteSpace: "nowrap", color: "var(--text-secondary, var(--text-muted))" }}>
                   {m.category ?? <span style={{ color: "#9ca3af" }}>—</span>}
                 </td>
                 <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m.template_name ?? undefined}>
                   {m.template_name ? (
-                    <span style={{ color: "var(--text-secondary, #6b7280)" }}>{m.template_name}</span>
+                    <span style={{ color: "var(--text-secondary, var(--text-muted))" }}>{m.template_name}</span>
                   ) : (
                     <span style={{ color: "#9ca3af" }}>—</span>
                   )}
@@ -529,7 +529,7 @@ function MetricHealthTable({
                   {m.most_recent_data_date ? (
                     fmtShortDate(m.most_recent_data_date)
                   ) : (
-                    <span style={{ color: "#ef4444", fontWeight: 600 }}>No data</span>
+                    <span style={{ color: "var(--error)", fontWeight: 600 }}>No data</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
@@ -538,7 +538,7 @@ function MetricHealthTable({
                       {Math.round(m.days_old)}d
                     </span>
                   ) : (
-                    <span style={{ color: "#6b7280" }}>—</span>
+                    <span style={{ color: "var(--text-muted)" }}>—</span>
                   )}
                 </td>
                 <td
@@ -553,30 +553,30 @@ function MetricHealthTable({
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   {charts === 0 ? (
-                    <span style={{ color: "#ef4444", fontWeight: 600 }}>0</span>
+                    <span style={{ color: "var(--error)", fontWeight: 600 }}>0</span>
                   ) : (
                     <span>{charts.toLocaleString()}</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
                   {hasDist ? (
-                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                    <span style={{ color: "var(--success)", fontWeight: 600 }}>✓</span>
                   ) : (
-                    <span style={{ color: "#6b7280" }}>—</span>
+                    <span style={{ color: "var(--text-muted)" }}>—</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
                   {hasMap ? (
-                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                    <span style={{ color: "var(--success)", fontWeight: 600 }}>✓</span>
                   ) : (
-                    <span style={{ color: "#6b7280" }}>—</span>
+                    <span style={{ color: "var(--text-muted)" }}>—</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
                   {hasPrecise ? (
-                    <span style={{ color: "#10b981", fontWeight: 600 }}>✓</span>
+                    <span style={{ color: "var(--success)", fontWeight: 600 }}>✓</span>
                   ) : (
-                    <span style={{ color: "#6b7280" }}>—</span>
+                    <span style={{ color: "var(--text-muted)" }}>—</span>
                   )}
                 </td>
                 <td style={{ whiteSpace: "nowrap", textAlign: "center" }}>
@@ -595,7 +595,7 @@ function MetricHealthTable({
                     checked={isReviewed}
                     disabled={isSaving}
                     onChange={(e) => handleReviewToggle(m, e.target.checked)}
-                    style={{ cursor: "pointer", accentColor: "#10b981" }}
+                    style={{ cursor: "pointer", accentColor: "var(--success)" }}
                     title="Mark as reviewed"
                   />
                 </td>
@@ -774,15 +774,15 @@ export default function ScheduleHealthDashboard({
 
       <div className={styles.legend}>
         <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#10b981" }} />
+          <span className={styles.dot} style={{ background: "var(--success)" }} />
           All ran
         </span>
         <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#f59e0b" }} />
+          <span className={styles.dot} style={{ background: "var(--warning)" }} />
           Partial / overdue slot
         </span>
         <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#ef4444" }} />
+          <span className={styles.dot} style={{ background: "var(--error)" }} />
           Failed / cancelled
         </span>
         <span className={styles.legendItem}>

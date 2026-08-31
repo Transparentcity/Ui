@@ -16,9 +16,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
 }
 
 const CATEGORY_ACCENT: Record<string, string> = {
-  getting_around: "#10b981",
+  getting_around: "var(--success)",
   public_safety: "#8b5cf6",
-  housing_health: "#f59e0b",
+  housing_health: "var(--warning)",
   city_services: "#6366f1",
   your_government: "#ec4899",
 }

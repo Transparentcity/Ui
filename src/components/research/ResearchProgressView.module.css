@@ -32,7 +32,7 @@
 .progressPercent {
   font-size: 18px;
   font-weight: 700;
-  color: #ad35fa;
+  color: var(--brand-primary);
 }
 
 .progressBar {
@@ -45,7 +45,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #ad35fa, #764ba2);
+  background: linear-gradient(90deg, var(--brand-primary), #764ba2);
   transition: width 0.3s ease;
 }
 
@@ -60,7 +60,7 @@
   padding: var(--space-md);
   background: var(--bg-secondary);
   border-radius: 6px;
-  border-left: 3px solid #ad35fa;
+  border-left: 3px solid var(--brand-primary);
 }
 
 .agendaSection h3 {
@@ -84,7 +84,7 @@
   background: var(--bg-primary);
   border-radius: 4px;
   border: 1px solid var(--border-primary);
-  border-left: 3px solid #ad35fa;
+  border-left: 3px solid var(--brand-primary);
 }
 
 .agendaItemHeader {
@@ -321,8 +321,8 @@
 
 .sessionButton:hover {
   background: var(--bg-tertiary);
-  border-color: #ad35fa;
-  color: #ad35fa;
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 /* Iteration Groups */

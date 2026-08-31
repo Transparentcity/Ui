@@ -63,7 +63,7 @@ function InlineEmbed({ type, id }: { type: string; id: string }) {
       margin: "12px 0",
       borderRadius: "8px",
       overflow: "hidden",
-      border: "1px solid var(--border-color, #e5e7eb)",
+      border: "1px solid var(--border-color, var(--border-primary))",
       background: "var(--bg-primary, #ffffff)",
     }}>
       <div style={{
@@ -72,7 +72,7 @@ function InlineEmbed({ type, id }: { type: string; id: string }) {
         justifyContent: "space-between",
         padding: "8px 12px",
         background: "var(--bg-secondary, #f9fafb)",
-        borderBottom: collapsed ? "none" : "1px solid var(--border-color, #e5e7eb)",
+        borderBottom: collapsed ? "none" : "1px solid var(--border-color, var(--border-primary))",
         fontSize: "13px",
       }}>
         <span>{icon} {label}</span>
@@ -84,7 +84,7 @@ function InlineEmbed({ type, id }: { type: string; id: string }) {
               border: "none",
               cursor: "pointer",
               fontSize: "12px",
-              color: "var(--text-secondary, #6b7280)",
+              color: "var(--text-secondary, var(--text-muted))",
               padding: "2px 4px",
             }}
             title={collapsed ? "Expand" : "Collapse"}

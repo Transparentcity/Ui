@@ -15,7 +15,7 @@
   justify-content: center;
   gap: 14px;
   background: linear-gradient(90deg, rgba(173, 53, 250, 0.1), rgba(173, 53, 250, 0.04));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   padding: 7px 16px;
   font-size: 11px;
   font-weight: 600;
@@ -170,7 +170,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 !important;
-  background: var(--bg-secondary, #f8f9fa);
+  background: var(--bg-secondary);
 }
 
 /* Full-bleed container for CityView (map + overlays manage their own spacing). */
@@ -405,7 +405,7 @@
   font-size: 15px;
   font-weight: 600;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -421,7 +421,7 @@
 }
 
 .settingsSaveBtn:disabled {
-  background: var(--text-tertiary, #6b7280);
+  background: var(--text-tertiary, var(--text-muted));
   cursor: not-allowed;
 }
 
@@ -470,7 +470,7 @@
 
 .settingsTextarea:focus {
   outline: none;
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px var(--brand-primary-light, rgba(173, 53, 250, 0.12));
 }
 
@@ -495,7 +495,7 @@
   font-size: 14px;
   font-weight: 600;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -505,7 +505,7 @@
 }
 
 .settingsGenerateBtn:disabled {
-  background: var(--text-tertiary, #6b7280);
+  background: var(--text-tertiary, var(--text-muted));
   cursor: not-allowed;
 }
 
@@ -531,7 +531,7 @@
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -551,7 +551,7 @@
 .settingsLinkBtn {
   font-size: 13px;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -575,7 +575,7 @@
 }
 
 .settingsInlineInput:focus {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 /* Compact profile identity block */
@@ -596,7 +596,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--brand-primary, #ad35fa);
+  background: var(--brand-primary);
   border: 2px solid var(--border-primary);
   overflow: hidden;
   display: flex;
@@ -609,7 +609,7 @@
 }
 
 .settingsAvatarLabel:hover .settingsAvatarCircle {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
 }
 
 .settingsAvatarOverlay {
@@ -655,7 +655,7 @@
 }
 
 .settingsNameInput:focus {
-  border-color: var(--brand-primary, #ad35fa);
+  border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px var(--brand-primary-light, rgba(173, 53, 250, 0.1));
 }
 
@@ -695,7 +695,7 @@
   font: inherit;
   font-size: inherit;
   font-weight: 600;
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
   background: none;
   border: none;
   cursor: pointer;

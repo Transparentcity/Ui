@@ -43,7 +43,7 @@ export default function ShareButton({
         fontWeight: 500,
         color: "var(--text-secondary)",
         background: "var(--bg-secondary, #f5f5f5)",
-        border: "1px solid var(--border-primary, #e5e7eb)",
+        border: "1px solid var(--border-primary)",
         borderRadius: 8,
         cursor: "pointer",
         transition: "all 0.15s ease",

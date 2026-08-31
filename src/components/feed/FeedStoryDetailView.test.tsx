@@ -91,7 +91,7 @@ function makeStory(
     type_label: "Context",
     actor: "City Hall",
     category_icon: "Landmark",
-    category_color: "#6b7280",
+    category_color: "var(--text-muted)",
     neighborhood_label: "San Francisco · City-wide",
     subline: "Today",
     image_url_resolved: null,

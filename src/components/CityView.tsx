@@ -489,7 +489,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
           <path 
             d={currentYearDailyPath} 
             fill="none" 
-            stroke="#ad35fa" 
+            stroke="var(--brand-primary)" 
             strokeWidth={1}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -519,7 +519,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
           <path 
             d={currentYearAvgPath} 
             fill="none" 
-            stroke="#ad35fa" 
+            stroke="var(--brand-primary)" 
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -534,7 +534,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
             cx={currentYearLastPoint.x} 
             cy={currentYearLastPoint.y} 
             r={3} 
-            fill="#ad35fa"
+            fill="var(--brand-primary)"
             style={{ cursor: "pointer" }}
             onClick={() => toggleYear(currentYear)}
           />
@@ -609,7 +609,7 @@ const YTDSparkline = React.memo(function YTDSparkline({
             style={{ 
               width: "24px", 
               height: "3px", 
-              backgroundColor: "#ad35fa",
+              backgroundColor: "var(--brand-primary)",
               borderRadius: "2px"
             }} 
           />

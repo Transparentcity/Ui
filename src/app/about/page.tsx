@@ -12,7 +12,7 @@ export const metadata = {
 const headingStyle = {
   fontSize: "1.25rem",
   fontWeight: 600,
-  color: "var(--text-primary, #111827)",
+  color: "var(--text-primary)",
   marginTop: "2rem",
   marginBottom: "0.75rem",
 } as const;
@@ -20,7 +20,7 @@ const headingStyle = {
 const paragraphStyle = {
   fontSize: "1rem",
   lineHeight: 1.6,
-  color: "var(--text-secondary, #374151)",
+  color: "var(--text-secondary)",
   marginBottom: "1.5rem",
 } as const;
 
@@ -43,7 +43,7 @@ export default function AboutPage() {
           style={{
             fontSize: "1.75rem",
             fontWeight: 700,
-            color: "var(--text-primary, #111827)",
+            color: "var(--text-primary)",
             marginBottom: "1rem",
           }}
         >
@@ -90,7 +90,7 @@ export default function AboutPage() {
           you&rsquo;ll hear us mention named{" "}
           <Link
             href="/about/seymour"
-            style={{ color: "#ad35fa", textDecoration: "none", fontWeight: 500 }}
+            style={{ color: "var(--brand-primary)", textDecoration: "none", fontWeight: 500 }}
           >
             Seymour
           </Link>
@@ -100,10 +100,10 @@ export default function AboutPage() {
           of the data. Let us know what you think and how we can improve.
         </p>
 
-        <p style={{ fontSize: "0.9375rem", color: "var(--text-tertiary, #6b7280)" }}>
+        <p style={{ fontSize: "0.9375rem", color: "var(--text-tertiary, var(--text-muted))" }}>
           <a
             href="mailto:seymour@transparent.city?subject=Hello%20from%20the%20About%20page"
-            style={{ color: "#ad35fa", textDecoration: "none", fontWeight: 500 }}
+            style={{ color: "var(--brand-primary)", textDecoration: "none", fontWeight: 500 }}
           >
             Drop us a note →
           </a>

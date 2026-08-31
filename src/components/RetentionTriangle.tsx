@@ -67,7 +67,7 @@ export default function RetentionTriangle({ matrix }: RetentionTriangleProps) {
                       style={
                         rate != null
                           ? {
-                              background: `color-mix(in srgb, var(--brand-primary, #ad35fa) ${cellOpacity(rate) * 100}%, transparent)`,
+                              background: `color-mix(in srgb, var(--brand-primary) ${cellOpacity(rate) * 100}%, transparent)`,
                             }
                           : undefined
                       }

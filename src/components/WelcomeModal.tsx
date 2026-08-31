@@ -1318,15 +1318,15 @@ export default function WelcomeModal({
           <label style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
             <div style={{
               width: 72, height: 72, borderRadius: "50%",
-              background: profileAvatarPreview ? "transparent" : "#ad35fa",
+              background: profileAvatarPreview ? "transparent" : "var(--brand-primary)",
               overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28, fontWeight: 700, color: "#fff", border: "3px solid #e5e7eb",
+              fontSize: 28, fontWeight: 700, color: "#fff", border: "3px solid var(--border-primary)",
             }}>
               {profileAvatarPreview
                 ? <img src={profileAvatarPreview} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 : initials}
             </div>
-            <span style={{ fontSize: 13, color: "#ad35fa", fontWeight: 600 }}>
+            <span style={{ fontSize: 13, color: "var(--brand-primary)", fontWeight: 600 }}>
               {profileAvatarFile ? "Photo selected" : "Upload photo"}
             </span>
             <input
@@ -1371,7 +1371,7 @@ export default function WelcomeModal({
         <button
           type="button"
           className={styles.skipLink || styles.textButton}
-          style={{ marginTop: "12px", background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 14 }}
+          style={{ marginTop: "12px", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 14 }}
           onClick={handleProfileSkip}
         >
           Skip for now

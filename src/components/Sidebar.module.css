@@ -118,7 +118,7 @@
 
 /* Government mode: small "g" in center of braces – light grey when not yet approved */
 .logoGovG {
-  fill: var(--text-tertiary, #6b7280);
+  fill: var(--text-tertiary, var(--text-muted));
   transition: fill 0.2s ease;
 }
 
@@ -129,7 +129,7 @@
 
 /* Darker when approved (verified government email) */
 .logoGovGApproved {
-  fill: var(--text-secondary, #6b7280);
+  fill: var(--text-secondary, var(--text-muted));
   transition: fill 0.2s ease;
 }
 

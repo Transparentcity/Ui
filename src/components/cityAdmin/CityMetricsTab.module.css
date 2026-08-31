@@ -55,7 +55,7 @@
 }
 
 .sectionBadgeWarning {
-  background: var(--color-warning, #f59e0b);
+  background: var(--color-warning, var(--warning));
   color: white;
 }
 
@@ -138,7 +138,7 @@
 }
 
 .statusFailed {
-  background: var(--color-error, #ef4444);
+  background: var(--color-error, var(--error));
 }
 
 .statusNone {
@@ -218,7 +218,7 @@
   border-radius: 9px;
   font-size: 10px;
   font-weight: 600;
-  background: var(--bg-tertiary, #f3f4f6);
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: 1px solid var(--border-primary);
 }
@@ -396,7 +396,7 @@
 }
 
 .actionBtnWarning {
-  border-color: var(--color-warning, #f59e0b);
+  border-color: var(--color-warning, var(--warning));
   color: var(--color-warning-text, #b45309);
 }
 
@@ -405,8 +405,8 @@
 }
 
 .actionBtnDanger {
-  border-color: var(--color-error, #ef4444);
-  color: var(--color-error, #ef4444);
+  border-color: var(--color-error, var(--error));
+  color: var(--color-error, var(--error));
 }
 
 .actionBtnDanger:hover {
@@ -470,7 +470,7 @@
 
 .dangerBtn {
   padding: 8px 16px;
-  background: var(--color-error, #ef4444);
+  background: var(--color-error, var(--error));
   color: white;
   border: none;
   border-radius: 6px;
@@ -571,8 +571,8 @@
 }
 
 .rowActionBtnDanger {
-  border-color: var(--color-error, #ef4444);
-  color: var(--color-error, #ef4444);
+  border-color: var(--color-error, var(--error));
+  color: var(--color-error, var(--error));
 }
 
 .rowActionBtnDanger:hover {

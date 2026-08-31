@@ -17,7 +17,7 @@
 
 .alertButton:hover {
   background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary);
 }
 
 .alertButton:disabled {
@@ -32,7 +32,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: var(--error, #ef4444);
+  background: var(--error);
   color: #fff;
   font-size: 11px;
   font-weight: 600;

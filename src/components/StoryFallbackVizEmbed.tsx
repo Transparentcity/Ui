@@ -45,7 +45,7 @@ export function StoryFallbackVizEmbed({
               height: iframeHeight,
               objectFit: "cover",
               display: "block",
-              background: "#f8f9fa",
+              background: "var(--bg-secondary)",
             }}
           />
           {showImageCaption && (imageCaption ?? "").trim() ? (
@@ -65,7 +65,7 @@ export function StoryFallbackVizEmbed({
               style={{
                 border: "none",
                 borderRadius: 8,
-                background: "#f8f9fa",
+                background: "var(--bg-secondary)",
                 display: "block",
               }}
             />
