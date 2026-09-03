@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# weekly QA reports (regenerated each run; uploaded as CI artifacts, not committed)
+scripts/weekly-qa/report-latest.html
+scripts/weekly-qa/reports/*.html
