@@ -234,10 +234,15 @@ async function main() {
     if (!found) {
       missingTargets.push(target.label);
     } else {
+      // The sitemap API stopped returning a `slug` field (regression observed
+      // since ~2026-07-23 — every card URL in state.json from that point on
+      // was built as ".../c//metrics/..."). Fall back to the canonical slug
+      // we already maintain in TARGET_CITIES so URLs stay correct even if the
+      // API's `slug` field is absent.
       resolvedCities.push({
         ...target,
         cityId:   found.id,
-        slug:     found.slug || "",
+        slug:     found.slug || target.slugPatterns[0],
         cityName: found.name,
       });
     }
