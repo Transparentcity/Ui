@@ -23,7 +23,6 @@
 .flock-report h3 { font-size: 1.1rem; margin: 2rem 0 0.5rem; }
 .flock-report p { margin: 0 0 1.25rem; color: var(--text-primary); }
 .flock-report a { color: var(--brand-primary-hover); text-underline-offset: 3px; }
-.flock-report .fr-secnum { display: block; font-size: 0.9rem; font-weight: 700; color: var(--brand-primary); letter-spacing: 0.06em; margin-bottom: 0.6rem; }
 
 /* cover */
 .flock-report .fr-cover { background: linear-gradient(150deg, var(--brand-primary) 0%, var(--brand-primary-hover) 100%); color: #fff;
@@ -48,7 +47,6 @@
 
 /* parts, abstract, callouts, big stats */
 .flock-report .fr-part { max-width: 1000px; margin: 7rem auto 1rem; background: var(--brand-primary-light); border-radius: 16px; padding: 3.5rem 3.5rem 3rem; }
-.flock-report .fr-part small { display: block; font-size: 0.85rem; font-weight: 700; color: var(--brand-primary-hover); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.8rem; }
 .flock-report .fr-part h2 { font-size: 3rem; margin: 0 0 1rem; line-height: 1.02; }
 .flock-report .fr-part p { max-width: 560px; font-size: 1.1rem; color: var(--text-secondary); margin: 0; }
 .flock-report .fr-abstract { background: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: var(--radius); padding: 1.9rem 2.25rem; margin: 3rem 0; font-size: 1.08rem; }
@@ -65,7 +63,9 @@
 .flock-report .fr-toc { margin: 4rem 0 1rem; }
 .flock-report .fr-toc ol { list-style: none; margin: 0; padding: 0; column-count: 2; column-gap: 3rem; }
 .flock-report .fr-toc li { font-size: 0.95rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border-primary); break-inside: avoid; }
-.flock-report .fr-toc li b { color: var(--brand-primary); margin-right: 0.6rem; font-size: 0.8rem; }
+.flock-report .fr-toc li a { color: var(--text-primary); text-decoration: none; }
+.flock-report .fr-toc li a:hover { color: var(--brand-primary-hover); text-decoration: underline; }
+.flock-report .fr-toc li b { color: var(--brand-primary); margin-right: 0.6rem; font-size: 0.85rem; }
 
 /* tables */
 .flock-report .fr-tablebox { overflow-x: auto; border: 1px solid var(--border-primary); border-radius: var(--radius); margin: 1.5rem 0 0.4rem; }
@@ -111,8 +111,39 @@
 .flock-report .fr-refs li { margin-bottom: 0.5rem; }
 .flock-report code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; background: var(--bg-tertiary); border: 1px solid var(--border-primary); padding: 1px 6px; border-radius: 6px; }
 .flock-report .fr-footer { margin-top: 5rem; padding-top: 1.4rem; border-top: 1px solid var(--border-primary); font-size: 0.85rem; color: var(--text-muted); }
+.flock-report .fr-version { margin-top: 5rem; padding: 1.5rem 1.75rem; border: 1px solid var(--border-primary); border-radius: var(--radius); background: var(--bg-secondary); font-size: 0.9rem; color: var(--text-secondary); }
+.flock-report .fr-version h3 { margin: 0 0 0.6rem; font-size: 1rem; }
+.flock-report .fr-version p { margin: 0 0 0.6rem; color: var(--text-secondary); }
+.flock-report .fr-version ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.flock-report .fr-downloads { list-style: none; padding: 0; margin: 1rem 0 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.6rem; }
+.flock-report .fr-downloads li { border: 1px solid var(--border-primary); border-radius: var(--radius-md); padding: 0.7rem 0.9rem; font-size: 0.9rem; }
+.flock-report .fr-downloads li span { display: block; color: var(--text-muted); font-size: 0.8rem; margin-top: 0.15rem; }
+.flock-report .fr-tablebox.compact table { min-width: 0; }
+.flock-report .fr-cover .fr-meta { font-size: 0.9rem; color: rgba(255, 255, 255, 0.85); margin: 1.2rem 0 0; }
 @media (max-width: 640px) {
+  .flock-report .fr-cover h1 br { display: none; }
   .flock-report .fr-cover, .flock-report .fr-part { padding: 2rem 1.5rem; }
   .flock-report .fr-toc ol { column-count: 1; }
   .flock-report h2 { margin-top: 4.5rem; }
+}
+
+/* Print edition: the PDF is printed from this page so there is one source of truth. */
+@media print {
+  html, body { height: auto !important; overflow: visible !important; }
+  body > header, body > footer, body > nav, .tsqd-parent-container, .flock-report .fr-toc { display: none !important; }
+  .flock-report { padding: 0; font-size: 11pt; }
+  .flock-report .fr-cover { border-radius: 12pt; margin: 0 0 24pt; padding: 0.55in 0.6in; min-height: 8.6in;
+    justify-content: space-between; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .flock-report .fr-cover h1 { font-size: 60pt; }
+  .flock-report .fr-findings { page-break-after: always; margin: 0; }
+  .flock-report .fr-kfgrid { grid-template-columns: repeat(2, 1fr); gap: 10pt; }
+  .flock-report .fr-kfc, .flock-report .fr-figwrap, .flock-report .fr-cell, .flock-report .fr-tablebox, .flock-report .fr-callout, .flock-report .fr-bigstat, .flock-report tr { break-inside: avoid; }
+  .flock-report .fr-part { height: 8.6in; margin: 0; display: flex; flex-direction: column; justify-content: center;
+    page-break-before: always; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .flock-report h2 { break-before: page; padding-top: 0.3in; font-size: 18pt; }
+  .flock-report .fr-part h2, .flock-report .fr-findings h2, .flock-report h2#story, .flock-report h2#about { break-before: auto; padding-top: 0; }
+  .flock-report .fr-grid7 { grid-template-columns: repeat(2, 1fr); gap: 10pt; }
+  .flock-report table { min-width: 0; font-size: 8.5pt; }
+  .flock-report a { color: inherit; text-decoration: none; }
+  .flock-report .fr-downloads li a::after { content: " (transparent.city" attr(href) ")"; color: var(--text-muted); font-size: 0.8em; }
 }

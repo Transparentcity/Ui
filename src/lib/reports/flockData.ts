@@ -168,7 +168,15 @@ export const FLOCK_DATA = {
       "pct_effect": -14.2,
       "n_permutations": 360,
       "perm_p_two_sided": 0.1833
-    }
+    },
+    "winsorized": {
+      "beta": -0.2027,
+      "se_cluster": 0.1162,
+      "pct_effect": -18.3,
+      "n_permutations": 840,
+      "perm_p_two_sided": 0.1476
+    },
+    "levels_note": "coefficient in thefts per month, OLS with city and month fixed effects"
   },
   "annual": {
     "sf": {
@@ -363,5 +371,88 @@ export const FLOCK_DATA = {
         "pct": -67.2
       }
     ]
+  },
+  "s2_no_ramp": {
+    "sf": {
+      "pre_mean": 744.1,
+      "post_mean": 517.7,
+      "pct_change": -30.4,
+      "controls_pct_change": {
+        "chicago": -28.5,
+        "nyc": -10.2,
+        "seattle": -28.3
+      }
+    },
+    "oakland": {
+      "pre_mean": 944.4,
+      "post_mean": 662.1,
+      "pct_change": -29.9,
+      "controls_pct_change": {
+        "chicago": -28.5,
+        "nyc": -10.2,
+        "seattle": -28.3
+      }
+    },
+    "austin": {
+      "pre_mean": 577.2,
+      "post_mean": 454.1,
+      "pct_change": -21.3,
+      "controls_pct_change": {
+        "chicago": -27.1,
+        "nyc": -12.1,
+        "seattle": -23.8
+      }
+    },
+    "denver": {
+      "pre_mean": 942.3,
+      "post_mean": 643.1,
+      "pct_change": -31.8,
+      "controls_pct_change": {
+        "chicago": -28.5,
+        "nyc": -10.2,
+        "seattle": -28.3
+      }
+    }
+  },
+  "denver_on_sensitivity": {
+    "2024-02": {
+      "s2_pct_change": -43.4,
+      "s2_controls": {
+        "chicago": -36.4,
+        "nyc": -12.1,
+        "seattle": -30.8
+      },
+      "s3_pct_effect": -18.8,
+      "s3_perm_p": 0.1286
+    },
+    "2024-06": {
+      "s2_pct_change": -48.8,
+      "s2_controls": {
+        "chicago": -34.2,
+        "nyc": -11.8,
+        "seattle": -37.1
+      },
+      "s3_pct_effect": -17.2,
+      "s3_perm_p": 0.169
+    }
+  },
+  "austin_on_sensitivity": {
+    "2024-04": {
+      "s2_pct_change": -38.6,
+      "s2_controls": {
+        "chicago": -36.6,
+        "nyc": -12.6,
+        "seattle": -34.6
+      }
+    }
+  },
+  "populations": {
+    "sf": 808988,
+    "oakland": 436504,
+    "austin": 979882,
+    "denver": 716577,
+    "chicago": 2664452,
+    "nyc": 8258035,
+    "seattle": 755078
   }
 } as const;
