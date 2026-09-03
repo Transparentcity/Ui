@@ -1482,7 +1482,20 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-08-28"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "🚗 Traffic Crashes",
+      "metricKey": "cincinnati_traffic_crashes",
+      "metricId": 520,
+      "cardUrl": "https://transparent.city/c//metrics/cincinnati_traffic_crashes",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-03"
     }
   ],
-  "lastRunDate": "2026-08-28"
+  "lastRunDate": "2026-09-03"
 }
