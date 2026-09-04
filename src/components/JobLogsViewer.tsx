@@ -13,9 +13,10 @@ import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import Loader from "./Loader";
 import ScheduledJobsPanel from "./ScheduledJobsPanel";
 import JobListPanel from "./JobListPanel";
+import WeeklyJobTimeline from "./WeeklyJobTimeline";
 import styles from "./JobLogsViewer.module.css";
 
-type TabId = "logs" | "scheduled";
+type TabId = "logs" | "scheduled" | "timeline";
 
 interface TabConfig {
   id: TabId;
@@ -26,6 +27,7 @@ interface TabConfig {
 const TABS: TabConfig[] = [
   { id: "logs", label: "Job Logs", icon: "📋" },
   { id: "scheduled", label: "Scheduled Jobs", icon: "🗓" },
+  { id: "timeline", label: "Weekly Timeline", icon: "📅" },
 ];
 
 export default function JobLogsViewer() {
@@ -43,6 +45,7 @@ export default function JobLogsViewer() {
   const jobIdParam = searchParams.get("job_id");
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     if (tabParam === "scheduled") return "scheduled";
+    if (tabParam === "timeline") return "timeline";
     return "logs";
   });
 
@@ -52,6 +55,7 @@ export default function JobLogsViewer() {
   // Sync tab from URL (e.g. /home?tab=logs&job_id=xxx)
   useEffect(() => {
     if (tabParam === "scheduled") setActiveTab("scheduled");
+    else if (tabParam === "timeline") setActiveTab("timeline");
     else if (tabParam === "logs" || jobIdParam) setActiveTab("logs");
   }, [tabParam, jobIdParam]);
 
@@ -198,6 +202,8 @@ export default function JobLogsViewer() {
               const base = pathname || "/home";
               if (tab.id === "scheduled") {
                 router.replace(`${base}?tab=scheduled`, { scroll: false });
+              } else if (tab.id === "timeline") {
+                router.replace(`${base}?tab=timeline`, { scroll: false });
               } else {
                 router.replace(`${base}?tab=logs`, { scroll: false });
               }
@@ -219,6 +225,7 @@ export default function JobLogsViewer() {
             getAccessTokenSilently={getAccessTokenSilently}
             token={token}
             initialJobId={jobIdParam || undefined}
+            customSchedules={customSchedules}
           />
         )}
         {activeTab === "scheduled" && (
@@ -229,6 +236,14 @@ export default function JobLogsViewer() {
             onRefresh={loadScheduleSummary}
             getAccessTokenSilently={getAccessTokenSilently}
             token={token}
+          />
+        )}
+        {activeTab === "timeline" && (
+          <WeeklyJobTimeline
+            token={token}
+            getAccessTokenSilently={getAccessTokenSilently}
+            customSchedules={customSchedules}
+            onViewJob={handleViewJob}
           />
         )}
       </div>

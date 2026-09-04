@@ -64,6 +64,7 @@ export default function ScheduledJobsPanel({
     cron_expression: string;
     question: string;
     feed_producer_mode: boolean;
+    all_launched_cities: boolean;
     city_ids: string;
     story_types: string;
     test_user_id: string;
@@ -81,12 +82,19 @@ export default function ScheduledJobsPanel({
   const [cityFilterId, setCityFilterId] = useState<string>("");
   const [cityDirectory, setCityDirectory] = useState<CityListItem[]>([]);
 
+  // Use effective_city_ids from the API (migration 136): covers global jobs like
+  // district_feed_stories that target all launched cities, not just those with an
+  // explicit city_ids array in job_config.
   const cityIdsReferencedBySchedules = useMemo(() => {
     const ids = new Set<number>();
     for (const j of customSchedules) {
-      const cfg = (j.job_config || {}) as Record<string, unknown>;
-      for (const id of cityIdsFromJobConfig(cfg)) {
-        ids.add(id);
+      const effective = j.effective_city_ids;
+      if (effective && effective.length > 0) {
+        for (const id of effective) ids.add(id);
+      } else {
+        // Fallback for legacy entries that don't yet have effective_city_ids
+        const cfg = (j.job_config || {}) as Record<string, unknown>;
+        for (const id of cityIdsFromJobConfig(cfg)) ids.add(id);
       }
     }
     return Array.from(ids).sort((a, b) => a - b);
@@ -138,8 +146,11 @@ export default function ScheduledJobsPanel({
       if (statusFilter !== "all" && job.status !== statusFilter) return false;
       if (jobTypeFilter !== "all" && job.job_type !== jobTypeFilter) return false;
       if (filterByCity) {
-        const cfg = (job.job_config || {}) as Record<string, unknown>;
-        const jobCities = cityIdsFromJobConfig(cfg);
+        // Prefer effective_city_ids (covers global jobs); fall back to job_config
+        const jobCities: number[] =
+          job.effective_city_ids && job.effective_city_ids.length > 0
+            ? job.effective_city_ids
+            : cityIdsFromJobConfig((job.job_config || {}) as Record<string, unknown>);
         if (!jobCities.includes(cityIdNum)) return false;
       }
       if (q) {
@@ -157,9 +168,6 @@ export default function ScheduledJobsPanel({
     cityFilterId,
   ]);
 
-  /** When true, prompt text tracks city IDs + story types (until user edits the textarea). */
-  const [feedProducerUsesLiveTemplate, setFeedProducerUsesLiveTemplate] =
-    useState(false);
 
   /** Autocomplete for feed_producer city_ids (synced with editForm.city_ids CSV). */
   const [feedProducerCityQuery, setFeedProducerCityQuery] = useState("");
@@ -181,22 +189,6 @@ export default function ScheduledJobsPanel({
       .catch(() => setDistrictDefaultPrompt(null));
   }, [token]);
 
-  useEffect(() => {
-    if (!editForm) return;
-    if (editForm.job_type !== "feed_producer" && editForm.job_type !== "feed_stories") {
-      return;
-    }
-    if (!feedProducerUsesLiveTemplate) return;
-    const ids = parseCityIdsFromCsv(editForm.city_ids);
-    const types = parseStoryTypesFromCsv(editForm.story_types);
-    const next = buildStandardFeedProducerDefaultPrompt(ids, types) ?? "";
-    setEditForm((f) => (f ? { ...f, question: next } : f));
-  }, [
-    editForm?.city_ids,
-    editForm?.story_types,
-    feedProducerUsesLiveTemplate,
-    editForm?.job_type,
-  ]);
 
   const getStatusColor = (status: string): string => {
     switch (status) {
@@ -254,12 +246,10 @@ export default function ScheduledJobsPanel({
           cityIdsFromJobConfig(cfgRec),
           storyTypesFromJobConfig(cfgRec),
         ) ?? "";
-      setFeedProducerUsesLiveTemplate(true);
     } else if (job.job_type === "district_feed_stories" && !explicitStored) {
       // Prefill the server's built-in template so admins edit the default
       // rather than starting from a blank override.
       initialPromptText = districtDefaultPrompt?.template ?? "";
-      setFeedProducerUsesLiveTemplate(false);
     } else {
       initialPromptText =
         typeof cfg.prompt === "string"
@@ -267,7 +257,6 @@ export default function ScheduledJobsPanel({
           : typeof cfg.question === "string"
             ? cfg.question
             : "";
-      setFeedProducerUsesLiveTemplate(false);
     }
 
     setEditForm({
@@ -284,6 +273,7 @@ export default function ScheduledJobsPanel({
       cron_expression: job.cron_expression || "",
       question: initialPromptText,
       feed_producer_mode: Boolean(cfg.feed_producer_mode),
+      all_launched_cities: Boolean(cfg.all_launched_cities),
       city_ids: Array.isArray(cfg.city_ids) ? cfg.city_ids.join(", ") : (cfg.city_ids || ""),
       story_types: Array.isArray(cfg.story_types) ? cfg.story_types.join(", ") : (cfg.story_types || ""),
       test_user_id: cfg.user_id != null ? String(cfg.user_id) : "",
@@ -294,7 +284,6 @@ export default function ScheduledJobsPanel({
   const closeEdit = () => {
     setEditJob(null);
     setEditForm(null);
-    setFeedProducerUsesLiveTemplate(false);
     setFeedProducerCityQuery("");
     setFeedProducerCityHighlight(0);
     setFeedProducerCityFocused(false);
@@ -452,13 +441,16 @@ export default function ScheduledJobsPanel({
       }
 
       newCfg.feed_producer_mode = editForm.feed_producer_mode;
+      newCfg.all_launched_cities = editForm.all_launched_cities || undefined;
 
-      const parsedCityIds = editForm.city_ids
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map(Number)
-        .filter((n) => !isNaN(n));
+      const parsedCityIds = editForm.all_launched_cities
+        ? []
+        : editForm.city_ids
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map(Number)
+            .filter((n) => !isNaN(n));
       newCfg.city_ids = parsedCityIds.length > 0 ? parsedCityIds : undefined;
 
       const parsedStoryTypes = editForm.story_types
@@ -641,11 +633,11 @@ export default function ScheduledJobsPanel({
                 value={cityFilterId}
                 onChange={(e) => setCityFilterId(e.target.value)}
                 disabled={cityIdsReferencedBySchedules.length === 0}
-                aria-label="Filter by city ID in job config"
+                aria-label="Filter by city"
                 title={
                   cityIdsReferencedBySchedules.length === 0
-                    ? "No schedules include city_ids or city_id in job config"
-                    : "Show schedules whose job config lists this city"
+                    ? "No schedules target any city"
+                    : "Show schedules that target this city (including global jobs like District Feed Stories)"
                 }
               >
                 <option value="">All cities</option>
@@ -900,7 +892,6 @@ export default function ScheduledJobsPanel({
                   const nowFeed =
                     nextType === "feed_producer" || nextType === "feed_stories";
                   if (nowFeed && !wasFeed) {
-                    setFeedProducerUsesLiveTemplate(true);
                     const ids = parseCityIdsFromCsv(editForm.city_ids);
                     const types = parseStoryTypesFromCsv(editForm.story_types);
                     setEditForm({
@@ -910,9 +901,6 @@ export default function ScheduledJobsPanel({
                         buildStandardFeedProducerDefaultPrompt(ids, types) ?? "",
                     });
                     return;
-                  }
-                  if (!nowFeed) {
-                    setFeedProducerUsesLiveTemplate(false);
                   }
                   setEditForm({ ...editForm, job_type: nextType });
                 }}
@@ -963,7 +951,26 @@ export default function ScheduledJobsPanel({
               </div>
             )}
 
-            {editForm.job_type === "feed_producer" && cityDirectory.length > 0 && (
+            {editForm.job_type === "feed_producer" && (
+              <div className={styles.formRow}>
+                <label className={styles.toggleLabel}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.all_launched_cities}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, all_launched_cities: e.target.checked, city_ids: e.target.checked ? "" : editForm.city_ids })
+                    }
+                    aria-label="Run for all launched cities"
+                  />
+                  <span>
+                    <strong>All launched cities</strong>{" "}
+                    — automatically runs for every city where <code>is_launched = true</code>; no manual city list needed
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {editForm.job_type === "feed_producer" && !editForm.all_launched_cities && cityDirectory.length > 0 && (
               <div className={styles.formRow}>
                 <label className={styles.label} id="feed-producer-cities-label">
                   Cities{" "}
@@ -1222,17 +1229,10 @@ export default function ScheduledJobsPanel({
                   Clear the field and save to drop <code>prompt</code> and let the server build the default again
                   from city IDs and story types at run time.
                 </p>
-                {feedProducerUsesLiveTemplate && (
-                  <p className={styles.promptVariablesNote} style={{ color: "#0369a1" }}>
-                    Prompt is <strong>linked</strong> to City IDs and Story types — change those fields to refresh
-                    the opening lines, or edit this text to detach.
-                  </p>
-                )}
                 <textarea
                   className={styles.promptInput}
                   value={editForm.question}
                   onChange={(e) => {
-                    setFeedProducerUsesLiveTemplate(false);
                     setEditForm({ ...editForm, question: e.target.value });
                   }}
                   rows={12}
@@ -1240,21 +1240,6 @@ export default function ScheduledJobsPanel({
                   placeholder="Add city IDs above to generate the default template, or type a custom prompt…"
                   aria-label="Feed producer prompt"
                 />
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  style={{ marginTop: "0.5rem" }}
-                  onClick={() => {
-                    if (!editForm) return;
-                    setFeedProducerUsesLiveTemplate(true);
-                    const ids = parseCityIdsFromCsv(editForm.city_ids);
-                    const types = parseStoryTypesFromCsv(editForm.story_types);
-                    const next = buildStandardFeedProducerDefaultPrompt(ids, types) ?? "";
-                    setEditForm({ ...editForm, question: next });
-                  }}
-                >
-                  Reset prompt from city IDs &amp; story types
-                </button>
               </div>
             )}
 

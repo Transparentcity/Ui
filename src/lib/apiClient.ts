@@ -2321,6 +2321,10 @@ export interface Job {
   result?: any;
   job_metadata?: Record<string, any>;
   user_id?: string | null;
+  // Hierarchy (migration 136)
+  parent_job_id?: string | null;
+  city_id?: number | null;
+  custom_scheduled_job_id?: number | null;
 }
 
 export interface JobsListResponse {
@@ -2334,7 +2338,10 @@ export async function listJobs(
   status?: string,
   job_id?: string,
   job_type?: string,
-  schedule_key?: string
+  schedule_key?: string,
+  custom_scheduled_job_id?: number,
+  city_id?: number,
+  parent_job_id?: string
 ): Promise<JobsListResponse> {
   const params = new URLSearchParams();
   params.append("limit", limit.toString());
@@ -2342,6 +2349,10 @@ export async function listJobs(
   if (job_id) params.append("job_id", job_id);
   if (job_type) params.append("job_type", job_type);
   if (schedule_key) params.append("schedule_key", schedule_key);
+  if (custom_scheduled_job_id != null)
+    params.append("custom_scheduled_job_id", custom_scheduled_job_id.toString());
+  if (city_id != null) params.append("city_id", city_id.toString());
+  if (parent_job_id) params.append("parent_job_id", parent_job_id);
 
   const query = params.toString();
   const path = `/api/jobs${query ? `?${query}` : ""}`;
@@ -2578,6 +2589,8 @@ export interface CustomScheduledJob {
   max_concurrent_cities?: number | null;
   per_city_concurrency?: number | null;
   status: CustomScheduleStatus;
+  /** Effective runtime city scope computed by the backend (migration 136). */
+  effective_city_ids?: number[];
   last_run_at?: string | null;
   last_run_status?: string | null;
   last_run_job_id?: string | null;
@@ -2597,6 +2610,60 @@ export interface ScheduledJobsAllResponse {
 
 export function getAllScheduledJobs(token: string): Promise<ScheduledJobsAllResponse> {
   return request<ScheduledJobsAllResponse>("/api/jobs/schedules/all", "GET", undefined, token);
+}
+
+// ─── Weekly timeline ──────────────────────────────────────────────────────────
+
+export interface WeeklyTimelineActual {
+  job_id: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  status: string;
+}
+
+export interface WeeklyTimelineEntry {
+  schedule_id: number;
+  schedule_name: string;
+  job_type: string;
+  timezone: string;
+  effective_city_ids: number[];
+  scheduled_start: string;
+  estimated_duration_seconds: number | null;
+  sample_count: number;
+  actual: WeeklyTimelineActual | null;
+}
+
+export interface WeeklyTimelineResponse {
+  status: string;
+  week_start: string;
+  week_end: string;
+  week_offset: number;
+  entries: WeeklyTimelineEntry[];
+}
+
+export function getWeeklyTimeline(
+  token: string,
+  options?: {
+    week_offset?: number;
+    workflow_id?: number;
+    city_id?: number;
+  }
+): Promise<WeeklyTimelineResponse> {
+  const params = new URLSearchParams();
+  if (options?.week_offset != null)
+    params.append("week_offset", options.week_offset.toString());
+  if (options?.workflow_id != null)
+    params.append("workflow_id", options.workflow_id.toString());
+  if (options?.city_id != null)
+    params.append("city_id", options.city_id.toString());
+  const qs = params.toString();
+  return request<WeeklyTimelineResponse>(
+    `/api/jobs/schedules/weekly-timeline${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
 }
 
 export interface PlaceRefreshLastRunResponse {

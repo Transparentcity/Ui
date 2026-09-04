@@ -75,6 +75,8 @@ export default function UserManagement({
   const [editCityLeadLoading, setEditCityLeadLoading] = useState(false);
   const [editCityLeadDirty, setEditCityLeadDirty] = useState(false);
   const [addCityLeadCityId, setAddCityLeadCityId] = useState<number | "">("");
+  const [addCityLeadCityQuery, setAddCityLeadCityQuery] = useState("");
+  const [addCityLeadCityOpen, setAddCityLeadCityOpen] = useState(false);
 
   // Newsletter subscription state
   const [editNewsletterSubs, setEditNewsletterSubs] = useState<NewsletterSubscription[]>([]);
@@ -257,6 +259,8 @@ export default function UserManagement({
     setEditCityLeadCityIds(user.city_lead_city_ids || []);
     setEditCityLeadDirty(false);
     setAddCityLeadCityId("");
+    setAddCityLeadCityQuery("");
+    setAddCityLeadCityOpen(false);
     setEditNewsletterSubs([]);
     setEditNewsletterDirty(false);
     setAddSubCityId("");
@@ -287,6 +291,8 @@ export default function UserManagement({
     setEditCityLeadDirty(false);
     setEditCityLeadLoading(false);
     setAddCityLeadCityId("");
+    setAddCityLeadCityQuery("");
+    setAddCityLeadCityOpen(false);
     setEditNewsletterSubs([]);
     setEditNewsletterDirty(false);
     setEditNewsletterLoading(false);
@@ -470,6 +476,31 @@ export default function UserManagement({
     const q = String(addSubCityQuery).toLowerCase();
     return formatCityDisplayName(c).toLowerCase().includes(q);
   }).slice(0, 50);
+
+  const filteredCityLeadCities = safeCities.filter((c) => {
+    if (editCityLeadCityIds.includes(c.city_id)) return false;
+    const q = addCityLeadCityQuery.trim().toLowerCase();
+    if (!q) return true;
+    return formatCityDisplayName(c).toLowerCase().includes(q);
+  }).slice(0, 50);
+
+  const handleSelectCityLeadCity = (city: CityListItem) => {
+    setAddCityLeadCityId(city.city_id);
+    setAddCityLeadCityQuery(formatCityDisplayName(city));
+    setAddCityLeadCityOpen(false);
+  };
+
+  const handleAddCityLeadCity = () => {
+    if (addCityLeadCityId === "") return;
+    const next = Array.from(
+      new Set([...editCityLeadCityIds, Number(addCityLeadCityId)]),
+    ).sort((a, b) => a - b);
+    setEditCityLeadCityIds(next);
+    setEditCityLeadDirty(true);
+    setAddCityLeadCityId("");
+    setAddCityLeadCityQuery("");
+    setAddCityLeadCityOpen(false);
+  };
 
   const handleSelectSubCity = (city: CityListItem) => {
     setAddSubCityId(city.city_id);
@@ -1278,38 +1309,42 @@ export default function UserManagement({
                 ) : (
                   <>
                     <div className={styles.cityLeadRow}>
-                      <select
-                        value={addCityLeadCityId}
-                        onChange={(e) =>
-                          setAddCityLeadCityId(
-                            e.target.value === "" ? "" : Number(e.target.value),
-                          )
-                        }
-                        className={styles.formSelect}
-                      >
-                        <option value="">Add a city…</option>
-                        {safeCities
-                          .filter((c) => !editCityLeadCityIds.includes(c.city_id))
-                          .slice(0, 500)
-                          .map((c) => (
-                            <option key={c.city_id} value={c.city_id}>
-                              {formatCityDisplayName(c)}
-                            </option>
-                          ))}
-                      </select>
+                      <div className={styles.autocompleteWrapper} style={{ flex: 1 }}>
+                        <input
+                          type="text"
+                          value={addCityLeadCityQuery}
+                          onChange={(e) => {
+                            setAddCityLeadCityQuery(e.target.value);
+                            setAddCityLeadCityId("");
+                            setAddCityLeadCityOpen(true);
+                          }}
+                          onFocus={() => setAddCityLeadCityOpen(true)}
+                          onBlur={() => {
+                            setTimeout(() => setAddCityLeadCityOpen(false), 200);
+                          }}
+                          placeholder="Search city…"
+                          className={styles.formInput}
+                          autoComplete="off"
+                        />
+                        {addCityLeadCityOpen && filteredCityLeadCities.length > 0 && (
+                          <ul className={styles.autocompleteDropdown}>
+                            {filteredCityLeadCities.map((c) => (
+                              <li
+                                key={c.city_id}
+                                className={styles.autocompleteOption}
+                                onMouseDown={() => handleSelectCityLeadCity(c)}
+                              >
+                                {formatCityDisplayName(c)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                       <button
                         type="button"
                         className={styles.addCityBtn}
                         disabled={addCityLeadCityId === ""}
-                        onClick={() => {
-                          if (addCityLeadCityId === "") return;
-                          const next = Array.from(
-                            new Set([...editCityLeadCityIds, Number(addCityLeadCityId)]),
-                          ).sort((a, b) => a - b);
-                          setEditCityLeadCityIds(next);
-                          setEditCityLeadDirty(true);
-                          setAddCityLeadCityId("");
-                        }}
+                        onClick={handleAddCityLeadCity}
                       >
                         Add
                       </button>

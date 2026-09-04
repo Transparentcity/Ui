@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Job, getJob, JobStats, listJobs } from "@/lib/apiClient";
+import { Job, getJob, JobStats, listJobs, CustomScheduledJob, listCities, CityListItem } from "@/lib/apiClient";
 import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import type { Job as WebSocketJob } from "@/lib/useJobWebSocket";
 import Loader from "./Loader";
@@ -40,6 +40,8 @@ interface JobListPanelProps {
   token: string | null;
   /** When set (e.g. from URL ?job_id=), select and load this job on mount */
   initialJobId?: string;
+  /** Custom scheduled jobs for the Workflow filter (passed from JobLogsViewer) */
+  customSchedules?: CustomScheduledJob[];
 }
 
 export default function JobListPanel({
@@ -47,6 +49,7 @@ export default function JobListPanel({
   getAccessTokenSilently,
   token,
   initialJobId,
+  customSchedules = [],
 }: JobListPanelProps) {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -55,8 +58,11 @@ export default function JobListPanel({
   const [filterType, setFilterType] = useState<string>("");
   const [filterFeedStories, setFilterFeedStories] = useState<boolean>(false);
   const [scheduleFilter, setScheduleFilter] = useState<string>("");
+  /** Workflow filter: the id of a CustomScheduledJob, or "" for all */
+  const [workflowFilter, setWorkflowFilter] = useState<string>("");
   const [filteredByTypeJobs, setFilteredByTypeJobs] = useState<Job[] | null>(null);
   const [filteredJobsLoading, setFilteredJobsLoading] = useState(false);
+  const [cityDirectory, setCityDirectory] = useState<CityListItem[]>([]);
   const selectedJobRef = useRef<Job | null>(null);
   const initialJobIdAppliedRef = useRef(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -107,6 +113,18 @@ export default function JobListPanel({
     ])
   );
 
+  // Fetch city directory once so we can display names instead of IDs
+  useEffect(() => {
+    if (!token) return;
+    listCities(token).then(setCityDirectory).catch(() => {});
+  }, [token]);
+
+  const cityName = (cityId: number | null | undefined): string | null => {
+    if (!cityId) return null;
+    const row = cityDirectory.find((c) => c.city_id === cityId);
+    return row?.city_name ?? null;
+  };
+
   const fetchJobs = useCallback(async () => {
     if (!token) {
       setFilteredByTypeJobs(null);
@@ -115,13 +133,17 @@ export default function JobListPanel({
     setFilteredJobsLoading(true);
     try {
       const currentToken = token || (await getAccessTokenSilently());
+      const workflowId = workflowFilter !== "" ? parseInt(workflowFilter, 10) : undefined;
       const res = await listJobs(
         currentToken,
         100,
         filterStatus || undefined,
         undefined,
         undefined,
-        scheduleFilter || undefined
+        scheduleFilter || undefined,
+        workflowId,
+        undefined, // city_id (future)
+        undefined  // parent_job_id (future)
       );
       const list = (res.jobs || []).map((j) => ({
         ...j,
@@ -134,7 +156,7 @@ export default function JobListPanel({
     } finally {
       setFilteredJobsLoading(false);
     }
-  }, [scheduleFilter, token, getAccessTokenSilently, filterStatus]);
+  }, [scheduleFilter, workflowFilter, token, getAccessTokenSilently, filterStatus]);
 
   useEffect(() => {
     if (token) {
@@ -378,6 +400,25 @@ export default function JobListPanel({
       {error && <div className={styles.error}>{error}</div>}
 
       <div className={styles.filters}>
+        {customSchedules.length > 0 && (
+          <div className={styles.filterGroup}>
+            <label>Workflow:</label>
+            <select
+              value={workflowFilter}
+              onChange={(e) => setWorkflowFilter(e.target.value)}
+              className={styles.filterSelect}
+              disabled={filteredJobsLoading}
+              title="Filter by logical scheduled workflow (CustomScheduledJob)"
+            >
+              <option value="">All workflows</option>
+              {customSchedules.map((sched) => (
+                <option key={sched.id} value={String(sched.id)}>
+                  {sched.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className={styles.filterGroup}>
           <label>Schedule:</label>
           <select
@@ -470,7 +511,14 @@ export default function JobListPanel({
                     </div>
                     <span className={styles.jobStatus}>{job.status}</span>
                   </div>
-                  <div className={styles.jobItemDescription}>{job.description}</div>
+                  <div className={styles.jobItemDescription}>
+                    {job.description}
+                    {job.city_id && cityName(job.city_id) && (
+                      <span style={{ marginLeft: "6px", fontSize: "11px", color: "var(--text-secondary, #6b7280)", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", padding: "1px 5px" }}>
+                        {cityName(job.city_id)}
+                      </span>
+                    )}
+                  </div>
                   <div className={styles.jobItemMeta}>
                     <span>{formatDate(job.created_at)}</span>
                     {job.status === "running" && (
@@ -573,6 +621,31 @@ export default function JobListPanel({
                     <h4>Error Message</h4>
                     <div className={styles.errorMessage}>
                       {selectedJob.error_message}
+                    </div>
+                  </div>
+                )}
+
+                {(selectedJob.city_id || selectedJob.parent_job_id) && (
+                  <div className={styles.detailSection}>
+                    <h4>Hierarchy</h4>
+                    <div className={styles.detailGrid}>
+                      {selectedJob.city_id && (
+                        <div className={styles.detailItem}>
+                          <span className={styles.detailLabel}>City</span>
+                          <span className={styles.detailValue}>
+                            {cityName(selectedJob.city_id) ?? selectedJob.city_id}
+                            <span style={{ color: "var(--text-secondary, #6b7280)", fontSize: "12px" }}> #{selectedJob.city_id}</span>
+                          </span>
+                        </div>
+                      )}
+                      {selectedJob.parent_job_id && (
+                        <div className={styles.detailItem}>
+                          <span className={styles.detailLabel}>Parent job</span>
+                          <span className={styles.detailValue} style={{ fontFamily: "monospace", fontSize: "12px" }}>
+                            {selectedJob.parent_job_id}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
