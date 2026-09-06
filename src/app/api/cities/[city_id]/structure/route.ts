@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
+import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
 
-// Use the same API base URL as the apiClient
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+/**
+ * City structure for anonymous and authenticated callers.
+ *
+ * Tries the public structure endpoint first (embeds, public map pages), then
+ * the authenticated endpoints when the browser sent a Bearer token. Reached via
+ * the `fallback` rewrite ordering in next.config.ts; a plain rewrite array
+ * would shadow this dynamic route and send callers straight to the backend,
+ * which answers anonymous requests with 401.
+ */
 
 export async function GET(
   req: Request,
@@ -20,6 +28,7 @@ export async function GET(
 
   // Prefer the public structure endpoint (embeds / anonymous). Do not fall back to
   // /api/cities/... without a Bearer token — that always 401s and looked like "login is broken".
+  const BACKEND_API_URL = getUpstreamApiBaseUrl();
   const publicUrl = `${BACKEND_API_URL}/api/public/cities/${cityId}/structure`;
   const authHeader = req.headers.get("authorization");
 
