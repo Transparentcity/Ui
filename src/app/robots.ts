@@ -33,6 +33,13 @@ const AI_ANSWER_ENGINE_BOTS = [
   "Claude-Web", // Anthropic on-demand
 ];
 
+// Paths under a disallowed prefix that crawlers must still be able to fetch.
+// Story social-card images live under /api, and X's Twitterbot checks
+// robots.txt before fetching twitter:image, so a blanket /api disallow leaves
+// link previews without a thumbnail. Longest-match wins, so this Allow beats
+// the /api Disallow for every group that carries it.
+const HUMAN_ALLOW = ["/", "/api/feed/public/story-image/"];
+
 const HUMAN_DISALLOW = [
   // App / auth
   "/home",
@@ -72,7 +79,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        allow: HUMAN_ALLOW,
         disallow: HUMAN_DISALLOW,
       },
       ...AI_TRAINING_BOTS.map((userAgent) => ({
@@ -81,7 +88,7 @@ export default function robots(): MetadataRoute.Robots {
       })),
       ...AI_ANSWER_ENGINE_BOTS.map((userAgent) => ({
         userAgent,
-        allow: "/",
+        allow: HUMAN_ALLOW,
         disallow: HUMAN_DISALLOW,
       })),
     ],
