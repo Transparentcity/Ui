@@ -25,6 +25,7 @@ import AdminStoryProvenance from "@/components/feed/AdminStoryProvenance";
 import CitySignupCTA from "../../CitySignupCTA";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
+import { resolveStorySocialImage } from "@/lib/feed/storyCardImage";
 import { slugify } from "@/lib/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 import { enrichStory } from "@/lib/feed/mockFeedData";
@@ -72,6 +73,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const lede = (story.description ?? story.summary ?? "").trim();
     const descSnippet = lede.length > 0 ? lede.slice(0, 160) : headline.slice(0, 160);
     const canonical = `/c/${slug}/stories/${hash}`;
+    // Stories without a chart or map get a generated headline card so link
+    // previews still carry a large image instead of a bare summary card.
+    const social = resolveStorySocialImage(story, slug, hash);
     return {
       title: headline || "Story",
       description: descSnippet,
@@ -81,13 +85,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description: descSnippet,
         url: canonical,
         type: "article",
-        ...(story.image_url ? { images: [{ url: story.image_url }] } : {}),
+        images: [{ url: social.url, alt: headline || "Story" }],
       },
       twitter: {
-        card: story.image_url ? "summary_large_image" : "summary",
+        card: social.card,
         title: headline || "Story",
         description: descSnippet,
-        ...(story.image_url ? { images: [story.image_url] } : {}),
+        images: [social.url],
       },
       other: {
         "article:section": cityName,
