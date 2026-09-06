@@ -1,15 +1,37 @@
 import { NextResponse } from "next/server";
+
 import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
 
 /**
- * City structure for anonymous and authenticated callers.
+ * Proxy for GET /api/cities/{city_id}/structure.
  *
- * Tries the public structure endpoint first (embeds, public map pages), then
- * the authenticated endpoints when the browser sent a Bearer token. Reached via
- * the `fallback` rewrite ordering in next.config.ts; a plain rewrite array
- * would shadow this dynamic route and send callers straight to the backend,
- * which answers anonymous requests with 401.
+ * Two kinds of callers reach this path through the same-origin /api proxy:
+ *
+ * - Anonymous map embeds (ProgressiveMapView, the public /m/[hash] page) send
+ *   no Authorization header. The backend's /api/cities/{id}/structure always
+ *   401s without a Bearer token, so they are served from the anonymous
+ *   /api/public/cities/{id}/structure endpoint, which returns the map-relevant
+ *   subset (district_fields, geographic_structures).
+ *
+ * - Signed-in callers (getCityStructure, getCityLeaders, getCityShapefiles in
+ *   src/lib/api/cities.ts) need the full payload: leaders, shapefiles,
+ *   mappings, query_configs, status. Only the authenticated endpoints return
+ *   those, so an Authorization header routes to them first. The public
+ *   endpoint is a last resort so a stale token on a public page still gets
+ *   the map basics rather than a hard failure.
+ *
+ * The catch-all `/api/:path*` rewrite in next.config.ts is a `fallback`
+ * rewrite so this dynamic handler is matched before the proxy. Moving it back
+ * to a plain (afterFiles) rewrite would shadow this file.
  */
+
+// Authenticated endpoints, in preference order.
+function authedUrls(base: string, cityId: string, search: string): string[] {
+  return [
+    `${base}/api/cities/${cityId}/structure${search}`,
+    `${base}/api/template-metrics/cities/${cityId}/structure${search}`,
+  ];
+}
 
 export async function GET(
   req: Request,
@@ -18,7 +40,6 @@ export async function GET(
   const resolvedParams = await params;
   const cityId = resolvedParams.city_id;
 
-
   if (!cityId || isNaN(parseInt(cityId, 10))) {
     return NextResponse.json(
       { error: "Invalid city_id parameter" },
@@ -26,10 +47,13 @@ export async function GET(
     );
   }
 
-  // Prefer the public structure endpoint (embeds / anonymous). Do not fall back to
-  // /api/cities/... without a Bearer token — that always 401s and looked like "login is broken".
-  const BACKEND_API_URL = getUpstreamApiBaseUrl();
-  const publicUrl = `${BACKEND_API_URL}/api/public/cities/${cityId}/structure`;
+  // Never getApiBaseUrl() here: in production it resolves to the site origin
+  // and this handler would call itself through the proxy.
+  const base = getUpstreamApiBaseUrl();
+  // Preserve caller query params (e.g. ?include_shapefiles=false).
+  const search = new URL(req.url).search;
+  const publicUrl = `${base}/api/public/cities/${cityId}/structure${search}`;
+
   const authHeader = req.headers.get("authorization");
 
   // Carried with Authorization so a proxy session reaches the backend as the
@@ -52,31 +76,30 @@ export async function GET(
     return fetch(url, { method: "GET", headers, cache: "no-store" });
   };
 
+  // Authenticated endpoints first when the browser sent a token (full
+  // payload), then the anonymous public endpoint. Anonymous callers go
+  // straight to the public endpoint; the authed ones would only 401.
+  const attempts: Array<{ url: string; withAuth: boolean }> = authHeader
+    ? [
+        ...authedUrls(base, cityId, search).map((url) => ({
+          url,
+          withAuth: true,
+        })),
+        { url: publicUrl, withAuth: false },
+      ]
+    : [{ url: publicUrl, withAuth: false }];
+
   let lastError = "";
   let lastStatus = 500;
 
   try {
-    let backendRes = await tryFetch(publicUrl, false);
-    if (backendRes.ok) {
-      return NextResponse.json(await backendRes.json());
-    }
-    lastError = await backendRes.text().catch(() => "");
-    lastStatus = backendRes.status;
-
-    // Only if the browser sent Authorization, try authenticated fallbacks (admin / template).
-    if (authHeader) {
-      const authedUrls = [
-        `${BACKEND_API_URL}/api/cities/${cityId}/structure`,
-        `${BACKEND_API_URL}/api/template-metrics/cities/${cityId}/structure`,
-      ];
-      for (const endpoint of authedUrls) {
-        backendRes = await tryFetch(endpoint, true);
-        if (backendRes.ok) {
-          return NextResponse.json(await backendRes.json());
-        }
-        lastError = await backendRes.text().catch(() => "");
-        lastStatus = backendRes.status;
+    for (const attempt of attempts) {
+      const backendRes = await tryFetch(attempt.url, attempt.withAuth);
+      if (backendRes.ok) {
+        return NextResponse.json(await backendRes.json());
       }
+      lastError = await backendRes.text().catch(() => "");
+      lastStatus = backendRes.status;
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
