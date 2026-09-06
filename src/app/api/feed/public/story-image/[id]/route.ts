@@ -9,7 +9,11 @@ import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
  * first and drops the thumbnail when that fails. This handler gives HEAD an
  * explicit 200 that mirrors GET's headers (Content-Type, Cache-Control,
  * Content-Length when known) without sending a body.
-
+ *
+ * Note: the catch-all `/api/:path*` rewrite in next.config.ts lives in the
+ * `fallback` phase so that dynamic filesystem routes like this one are
+ * matched first. Moving it back to a plain (afterFiles) rewrite would shadow
+ * this file and proxy the request straight to the backend.
  */
 
 const HASH_RE = /^[A-Za-z0-9_-]{1,64}$/;
