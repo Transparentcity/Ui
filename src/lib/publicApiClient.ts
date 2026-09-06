@@ -413,6 +413,8 @@ export type PublicFeedStory = {
   cta_label?: string | null;
   story_date: string;
   published_at?: string | null;
+  /** Last edit or regeneration time; versions the social-card image URL. */
+  updated_at?: string | null;
   short_hash?: string | null;
   public_url?: string | null;
   /** Long-form HTML for the canonical public story page (feed-producer stories). */

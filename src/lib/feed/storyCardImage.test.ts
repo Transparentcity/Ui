@@ -6,7 +6,9 @@ import {
   headlineFontSize,
   resolveStorySocialImage,
   storyCardImagePath,
+  storyImageVersion,
   truncateHeadline,
+  versionedStoryImageUrl,
 } from "./storyCardImage";
 
 describe("resolveStorySocialImage", () => {
@@ -21,6 +23,20 @@ describe("resolveStorySocialImage", () => {
       card: "summary_large_image",
       generated: false,
     });
+  });
+
+  it("versions the backend image URL by the story's last update", () => {
+    const r = resolveStorySocialImage(
+      {
+        image_url: "/api/feed/public/story-image/AvhaOxL5",
+        updated_at: "2026-08-31T23:09:27.081774",
+        published_at: "2026-08-30T06:26:20.434419",
+      },
+      "oakland",
+      "AvhaOxL5",
+    );
+    expect(r.generated).toBe(false);
+    expect(r.url).toMatch(/^\/api\/feed\/public\/story-image\/AvhaOxL5\?v=[0-9a-z]+$/);
   });
 
   it("falls back to the generated headline card when there is no image", () => {
@@ -76,5 +92,38 @@ describe("formatCardDate", () => {
     expect(formatCardDate("2026-09-05")).toBe("Sep 5, 2026");
     expect(formatCardDate("not a date")).toBe("");
     expect(formatCardDate(null)).toBe("");
+  });
+});
+
+describe("versionedStoryImageUrl", () => {
+  const image_url = "/api/feed/public/story-image/AvhaOxL5";
+
+  it("derives a stable token from updated_at, falling back to published_at", () => {
+    const a = storyImageVersion({ updated_at: "2026-08-31T23:09:27Z" });
+    const b = storyImageVersion({ updated_at: "2026-08-31T23:09:27Z" });
+    const c = storyImageVersion({ published_at: "2026-08-30T06:26:20Z" });
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a).toMatch(/^[0-9a-z]+$/);
+    expect(storyImageVersion({})).toBe("");
+    expect(storyImageVersion({ updated_at: "garbage" })).toBe("");
+  });
+
+  it("changes the URL when the story is updated", () => {
+    const before = versionedStoryImageUrl({ image_url, updated_at: "2026-08-31T23:09:27Z" });
+    const after = versionedStoryImageUrl({ image_url, updated_at: "2026-09-06T10:00:00Z" });
+    expect(before).not.toBe(after);
+    expect(before.startsWith(`${image_url}?v=`)).toBe(true);
+  });
+
+  it("leaves the URL bare when no timestamp is available", () => {
+    expect(versionedStoryImageUrl({ image_url })).toBe(image_url);
+  });
+
+  it("does not touch external or already-parameterised URLs", () => {
+    const ext = "https://res.cloudinary.com/x/image/upload/s--sig--/photo.jpg";
+    expect(versionedStoryImageUrl({ image_url: ext, updated_at: "2026-08-31T23:09:27Z" })).toBe(ext);
+    const q = `${image_url}?raw=1`;
+    expect(versionedStoryImageUrl({ image_url: q, updated_at: "2026-08-31T23:09:27Z" })).toBe(q);
   });
 });
