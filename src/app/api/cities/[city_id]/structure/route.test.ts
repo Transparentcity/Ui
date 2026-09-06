@@ -11,6 +11,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/apiBase", () => ({
+  getUpstreamApiBaseUrl: () => "https://api.example.test",
+}));
+
 import { GET } from "./route";
 
 function structureRequest(headers: Record<string, string> = {}): Request {
@@ -86,5 +90,73 @@ describe("city structure proxy identity forwarding", () => {
     const authed = headersFor(1);
     expect(authed.get("Authorization")).toBe("Bearer test-token");
     expect(authed.has("X-Impersonate-User-Id")).toBe(false);
+  });
+});
+
+/**
+ * Anonymous callers (public map pages, embeds) must be served from the
+ * backend's public structure endpoint. Before the rewrite ordering fix in
+ * next.config.ts this handler was shadowed by the catch-all /api proxy, so
+ * anonymous requests reached the backend directly and got 401.
+ */
+describe("city structure anonymous access", () => {
+  const paramsFor = (city_id: string) => ({ params: Promise.resolve({ city_id }) });
+
+  it("serves anonymous callers from the public endpoint", async () => {
+    fetchMock.mockResolvedValue(ok());
+
+    const res = await GET(structureRequest(), { params });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ districts: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.example.test/api/public/cities/57260/structure"
+    );
+  });
+
+  it("does not try authenticated endpoints without Authorization", async () => {
+    fetchMock.mockResolvedValue(notFound());
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await GET(structureRequest(), { params });
+
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("tries the authenticated endpoints in order after the public one", async () => {
+    fetchMock
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValue(ok());
+
+    const res = await GET(structureRequest({ authorization: "Bearer test-token" }), {
+      params,
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      "https://api.example.test/api/public/cities/57260/structure",
+      "https://api.example.test/api/cities/57260/structure",
+      "https://api.example.test/api/template-metrics/cities/57260/structure",
+    ]);
+  });
+
+  it("rejects a non-numeric city id before calling upstream", async () => {
+    const res = await GET(structureRequest(), paramsFor("abc"));
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 with details when upstream is unreachable", async () => {
+    fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await GET(structureRequest(), { params });
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).details).toBe("ECONNREFUSED");
   });
 });
