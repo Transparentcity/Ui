@@ -75,11 +75,20 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     // Proxy all /api/* calls to the backend, avoiding browser CORS issues.
-    // Next.js filesystem API routes (geocode, research, cityreadiness, etc.)
-    // take priority over rewrites automatically, so the catch-all is safe.
+    // Static Next.js filesystem API routes (geocode, research, cityreadiness,
+    // etc.) take priority over rewrites automatically, so the catch-all is safe.
     const apiBase =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+    // Rewrites in this list run before *dynamic* filesystem routes, so a
+    // dynamic route handler like /api/feed/public/story-image/[id] would be
+    // shadowed by the catch-all. Point that path at itself first so Next
+    // resolves it to the local handler (which adds HEAD support for social
+    // crawlers) instead of proxying it to the backend.
     return [
+      {
+        source: "/api/feed/public/story-image/:id",
+        destination: "/api/feed/public/story-image/:id",
+      },
       { source: "/api/:path*", destination: `${apiBase}/api/:path*` },
     ];
   },
