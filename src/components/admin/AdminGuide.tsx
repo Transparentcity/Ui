@@ -33,6 +33,9 @@ const MENU_USAGE: Record<string, "useful" | "rarely"> = {
 
 const BRAND = "#ad35fa";
 
+/** Deep link to an admin panel inside the single-page app. */
+const view = (v: string) => `/home?view=${v}`;
+
 function sections(g: CityGuide): Array<{ id: string; label: string; hook: string }> {
   return [
     { id: "start", label: "Start here", hook: "your first 20 minutes" },
@@ -303,11 +306,11 @@ function MenuMockup() {
         <span>Admin guide</span>
         <span className={`${styles.tag} ${styles.tagHi}`}>you are here</span>
       </div>
-      <div className={styles.mi}>
+      <Link href="/sitemap" className={styles.mi}>
         {ADMIN_SITEMAP_ICON}
         <span>Sitemap</span>
         <Tag kind="rarely" />
-      </div>
+      </Link>
       <div className={styles.mi}>
         {ADMIN_API_DOCS_ICON}
         <span>API Documentation</span>
@@ -317,11 +320,11 @@ function MenuMockup() {
         <div key={group.label}>
           <div className={styles.menuGrp}>{group.label}</div>
           {group.items.map((item) => (
-            <div key={item.view} className={styles.mi}>
+            <Link key={item.view} href={view(item.view)} className={styles.mi}>
               {item.icon}
               <span>{item.label}</span>
               <Tag kind={MENU_USAGE[item.view] ?? "rarely"} />
-            </div>
+            </Link>
           ))}
         </div>
       ))}
@@ -334,6 +337,9 @@ function MenuMockup() {
 
 export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
   const totalMetrics = g.metricRows.reduce((n, r) => n + r.count, 0);
+  const cityHref = `/home?city_id=${g.cityId}`;
+  const districtHref =
+    g.homeDistrict != null ? `${cityHref}&district=${g.homeDistrict}` : cityHref;
 
   return (
     <div className={styles.shell}>
@@ -452,9 +458,9 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={styles.prose}>
             <h3>The left nav, top to bottom</h3>
             <ul className={styles.plain}>
-              <li><strong>New Chat.</strong> A conversation with Seymour. The door to most of your powers.</li>
-              <li><strong>My Places.</strong> Cities, districts and saved spots you follow. Add your own neighborhood as a pin with a radius you drag to fit.</li>
-              <li><strong>Feed.</strong> Every story on the platform, all cities. Useful for seeing what good looks like elsewhere.</li>
+              <li><strong><Link href={view("chat")}>New Chat</Link>.</strong> A conversation with Seymour. The door to most of your powers.</li>
+              <li><strong><Link href={cityHref}>My Places</Link>.</strong> Cities, districts and saved spots you follow. Add your own neighborhood as a pin with a radius you drag to fit.</li>
+              <li><strong><Link href={view("feed")}>Feed</Link>.</strong> Every story on the platform, all cities. Useful for seeing what good looks like elsewhere.</li>
               <li><strong>Research reports.</strong> Long-form investigations, started from a chat.</li>
               <li><strong>Recent chats</strong> and <strong>Suggested questions.</strong> Your history, and starter prompts that adapt to the city you are viewing.</li>
               <li><strong>Job sessions.</strong> Chats started by scheduled jobs. This is how you read what Seymour was thinking when it wrote a story overnight.</li>
@@ -550,10 +556,10 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
                 <tr><th>Tab</th><th>What it shows</th><th>Who sees it</th></tr>
               </thead>
               <tbody>
-                <tr><td><b>Overview</b></td><td>The briefing: map, what moved this week, new stories, and the &ldquo;accountable here&rdquo; list of officials. What a resident gets.</td><td>Everyone</td></tr>
-                <tr><td><b>All metrics</b></td><td>Every active metric with a year-to-date comparison, grouped by category.</td><td>Admins (residents reach it via a toggle)</td></tr>
-                <tr><td><b>Map</b></td><td>Metrics on a map, by {g.unit} or neighborhood, with a timeline slider.</td><td>Admins</td></tr>
-                <tr><td><b>Alerts</b></td><td>Anomalies: sudden spikes or drops, citywide or by {g.unit}. Story ideas start here.</td><td>Admins</td></tr>
+                <tr><td><b><Link href={cityHref}>Overview</Link></b></td><td>The briefing: map, what moved this week, new stories, and the &ldquo;accountable here&rdquo; list of officials. What a resident gets.</td><td>Everyone</td></tr>
+                <tr><td><b><Link href={cityHref}>All metrics</Link></b></td><td>Every active metric with a year-to-date comparison, grouped by category.</td><td>Admins (residents reach it via a toggle)</td></tr>
+                <tr><td><b><Link href={cityHref}>Map</Link></b></td><td>Metrics on a map, by {g.unit} or neighborhood, with a timeline slider.</td><td>Admins</td></tr>
+                <tr><td><b><Link href={districtHref}>Alerts</Link></b></td><td>Anomalies: sudden spikes or drops, citywide or by {g.unit}. Story ideas start here.</td><td>Admins</td></tr>
               </tbody>
             </table>
           </div>
@@ -634,8 +640,8 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               and reports back. Then ask it to confirm the numbers make sense. Worth doing every time.
             </p>
             <p>
-              <strong>Through the panel.</strong> Admin menu → <b>City Data</b> → {g.cityName} →{" "}
-              <b>Metrics</b>:
+              <strong>Through the panel.</strong> Admin menu →{" "}
+              <Link href={view("city-data")}>City Data</Link> → {g.cityName} → <b>Metrics</b>:
             </p>
             <ul className={styles.plain}>
               <li><strong>Metrics.</strong> Status, last run and record counts. Click one for its chart and an Execute button.</li>
@@ -644,8 +650,9 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               <li><strong>Inactive &amp; Cleanup.</strong> Failed or switched-off metrics. Safe to leave alone.</li>
             </ul>
             <p>
-              The platform-wide <b>Metrics</b> panel shows all cities together. Good for cross-city views,
-              but do not edit templates there: it changes every city that uses them.
+              The platform-wide <Link href={view("metrics-admin")}>Metrics</Link> panel shows all cities
+              together. Good for cross-city views, but do not edit templates there: it changes every city
+              that uses them.
             </p>
           </div>
           <div className={styles.callout}>
@@ -687,7 +694,8 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               {g.cityName}, with the chart.&rdquo; It appears on the dashboard within a minute.
             </p>
             <p>
-              <strong>The Feed panel</strong> is the editorial desk. Filter to {g.cityName} and you see each
+              <strong><Link href={view("feed-admin")}>The Feed panel</Link></strong> is the editorial desk.
+              Filter to {g.cityName} and you see each
               story&apos;s views, likes and accuracy score. From there you can edit a headline, delete a
               story, or ask Seymour for a factual fix.
             </p>
@@ -720,7 +728,9 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               <code>/c/{g.citySlug}/newsletter/&lt;date&gt;</code>.
             </p>
             <p>
-              <strong>The tab to use is Workbench</strong>, which generates a sample on demand so you can
+              <strong>The tab to use is{" "}
+              <Link href={view("newsletter-admin")}>Workbench</Link></strong>, which generates a sample on
+              demand so you can
               read what next Sunday would look like. What you control is mostly the inputs: the more good
               stories {g.cityName} has by Saturday, the better the email.
             </p>
@@ -738,13 +748,15 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           </div>
           <div className={styles.prose}>
             <p>
-              <strong>Datasets.</strong> The catalog pulled from {g.cityName}&apos;s portal:{" "}
+              <strong><Link href={view("datasets-admin")}>Datasets</Link>.</strong> The catalog pulled from{" "}
+              {g.cityName}&apos;s portal:{" "}
               {g.datasetsCount} today, each with its department, row count and fetch status. Seymour picks
               from this list when it builds a metric. If a dataset you know exists is missing, ask it to find
               and add it. An error here is often a portal-side change worth reporting.
             </p>
             <p>
-              <strong>City Data → {g.cityName}</strong> is the per-city control panel. The tab that matters
+              <strong><Link href={view("city-data")}>City Data</Link> → {g.cityName}</strong> is the
+              per-city control panel. The tab that matters
               is <b>Structure</b>: {g.unitPlural} as map shapes, neighborhoods, and elected officials. It
               powers &ldquo;accountable here&rdquo; and every {g.unit} breakdown, so if a boundary or name is
               wrong, this is where it gets fixed, and telling us is genuinely useful.
@@ -770,10 +782,10 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
                 <tr><th>Item</th><th>What it is</th><th>When you would open it</th></tr>
               </thead>
               <tbody>
-                <tr><td><b>Job Logs</b></td><td>Every background job, with status and error messages. You can also create a recurring one, such as a weekly research prompt that produces stories.</td><td>When something you asked for did not appear.</td></tr>
+                <tr><td><b><Link href={view("job-logs")}>Job Logs</Link></b></td><td>Every background job, with status and error messages. You can also create a recurring one, such as a weekly research prompt that produces stories.</td><td>When something you asked for did not appear.</td></tr>
                 <tr><td><b>Research reports</b></td><td>Deep, multi-source investigations. Seymour asks a few narrowing questions, then produces a report you can turn into stories or pull into your own writing.</td><td>When a question is bigger than one chat can answer.</td></tr>
-                <tr><td><b>Users</b></td><td>Every account, role and city assignment.</td><td>If a local official signs up and needs verifying. Ask Adam first.</td></tr>
-                <tr><td><b>Settings</b></td><td>Dark mode, newsletter and alert subscriptions.</td><td>Worth doing once: subscribe yourself to your city&apos;s newsletter and alerts.</td></tr>
+                <tr><td><b><Link href={view("user-management")}>Users</Link></b></td><td>Every account, role and city assignment.</td><td>If a local official signs up and needs verifying. Ask Adam first.</td></tr>
+                <tr><td><b><Link href="/home">Settings</Link></b></td><td>Dark mode, newsletter and alert subscriptions.</td><td>Worth doing once: subscribe yourself to your city&apos;s newsletter and alerts.</td></tr>
               </tbody>
             </table>
           </div>

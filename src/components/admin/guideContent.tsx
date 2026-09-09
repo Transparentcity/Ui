@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
@@ -54,6 +55,8 @@ export interface CityGuide {
   portal: string;
   /** Date the snapshot figures were taken. */
   snapshotDate: string;
+  /** The reader's own district, when known, for deep links. */
+  homeDistrict?: number;
   /** Opening paragraph. Written to the person, not to a generic admin. */
   lede: ReactNode;
   /** Optional second paragraph under the masthead. */
@@ -88,6 +91,7 @@ const OAKLAND: CityGuide = {
   metricsCount: 15,
   portal: "Socrata",
   snapshotDate: "September 9, 2026",
+  homeDistrict: 4,
   lede: (
     <>
       Welcome, and thank you. Several fixes here exist because you found them. This guide is built around
@@ -106,7 +110,8 @@ const OAKLAND: CityGuide = {
       title: "See what your call already changed",
       body: (
         <>
-          Open Oakland from <b>My Places</b>, then the <b>All metrics</b> tab. Three measures did not exist
+          Open <Link href="/home?city_id=57223">Oakland</Link> from <b>My Places</b>, then the{" "}
+          <Link href="/home?city_id=57223">All metrics</Link> tab. Three measures did not exist
           before you and Adam talked: <b>Pothole Reports</b>, <b>Pothole Closure Rate</b>, and{" "}
           <b>Average Days to Close a 311 Request</b>. Each took about a minute, by asking.
         </>
@@ -116,7 +121,7 @@ const OAKLAND: CityGuide = {
       title: "Ask your question, then push on the answer",
       body: (
         <>
-          Click <b>New Chat</b> and type:{" "}
+          Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
           <i>
             &ldquo;Show Oakland pothole closure rate and average days to close by council district for the
             last 12 months, as a table and a map.&rdquo;
@@ -130,7 +135,8 @@ const OAKLAND: CityGuide = {
       title: "Look at your own district",
       body: (
         <>
-          Pick <b>District 4</b> and read the <b>Alerts</b> tab: this week&apos;s statistical outliers,
+          Pick <Link href="/home?city_id=57223&amp;district=4">District 4</Link> and read the{" "}
+          <b>Alerts</b> tab: this week&apos;s statistical outliers,
           things that moved more than three standard deviations from their own history. Raw signal, not
           reporting. Some is noise; the useful ones are leads.
         </>
@@ -141,7 +147,7 @@ const OAKLAND: CityGuide = {
       body: (
         <>
           Click the <b>green circle</b> at the bottom left. That is the full toolset, and where this guide
-          lives in the app. Look, then come back here.
+          lives in the app (<Link href="/admin/guide">Admin guide</Link>). Look, then come back here.
         </>
       ),
     },
@@ -298,7 +304,8 @@ const MIAMI: CityGuide = {
       title: "Find Miami and see what it has",
       body: (
         <>
-          Open Miami from <b>My Places</b>, then the <b>All metrics</b> tab. Thirteen metrics across crime,
+          Open <Link href="/home?city_id=56533">Miami</Link> from <b>My Places</b>, then the{" "}
+          <Link href="/home?city_id=56533">All metrics</Link> tab. Thirteen metrics across crime,
           permits, 911 calls and traffic crashes, each with a year-to-date comparison. That table is the raw
           material for everything else.
         </>
@@ -308,7 +315,7 @@ const MIAMI: CityGuide = {
       title: "Ask a question, then push on the answer",
       body: (
         <>
-          Click <b>New Chat</b> and type:{" "}
+          Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
           <i>
             &ldquo;Traffic calls for service in Miami are up 16 percent this year. Where is that increase
             concentrated? Show a map by commission district.&rdquo;
@@ -333,8 +340,8 @@ const MIAMI: CityGuide = {
       title: "Open the admin menu, then read the stories",
       body: (
         <>
-          Click the <b>green circle</b> at the bottom left for the full toolset. Then, back on the Miami
-          dashboard, read <b>New stories</b>. Seymour generated those from anomalies, and they are what the
+          Click the <b>green circle</b> at the bottom left for the full toolset. Then, back on the{" "}
+          <Link href="/home?city_id=56533">Miami dashboard</Link>, read <b>New stories</b>. Seymour generated those from anomalies, and they are what the
           Sunday newsletter is built from.
         </>
       ),
