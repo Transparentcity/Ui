@@ -6,6 +6,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import {
   ADMIN_MENU_GROUPS,
   ADMIN_API_DOCS_ICON,
+  ADMIN_GUIDE_ICON,
   ADMIN_SITEMAP_ICON,
 } from "@/lib/adminMenuItems";
 import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
@@ -82,6 +83,10 @@ export default function UserMenuPanel({
     <>
       {isAdmin && (
         <>
+          <Link href="/admin/guide" className={styles.item} id="admin-guide-menu-item" role="menuitem" onClick={onClose}>
+            <MenuIcon>{ADMIN_GUIDE_ICON}</MenuIcon>
+            <span>Admin guide</span>
+          </Link>
           <Link href="/sitemap" className={styles.item} id="sitemap-menu-item" role="menuitem" onClick={onClose}>
             <MenuIcon>{ADMIN_SITEMAP_ICON}</MenuIcon>
             <span>Sitemap</span>
