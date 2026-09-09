@@ -8641,6 +8641,133 @@ export function getProductAnalyticsOverview(
   );
 }
 
+// ---------------------------------------------------------------------------
+// City lead (city manager) activity
+// ---------------------------------------------------------------------------
+
+export interface CityLeadCity {
+  city_id: number;
+  name: string | null;
+  slug: string | null;
+}
+
+/**
+ * Presence for one city lead.
+ *
+ * `active_days` is days on which the platform saw at least one event from
+ * this user. It is NOT a login count — nothing in the stack records logins —
+ * so do not label it that way in the UI.
+ */
+export interface CityLeadPresence {
+  active_days: number;
+  sessions: number;
+  events: number;
+  first_seen: string | null;
+  last_seen: string | null;
+  daily: { date: string; events: number; sessions: number }[];
+}
+
+export interface CityLeadFeatureUse {
+  events: { event_name: string; count: number }[];
+  views: { view: string; count: number }[];
+  top_paths: { path: string; count: number }[];
+}
+
+export interface CityLeadChatSession {
+  session_id: string;
+  title: string | null;
+  model_key: string | null;
+  created_at: string | null;
+  last_message_at: string | null;
+  message_count: number;
+  user_turn_count: number;
+  cost_usd: number;
+  tokens: number;
+  llm_calls: number;
+  shared_publicly: boolean;
+  public_hash: string | null;
+}
+
+export interface CityLeadChats {
+  session_count: number;
+  message_count: number;
+  cost_usd: number;
+  sessions: CityLeadChatSession[];
+}
+
+export interface CityLeadSpend {
+  total_cost_usd: number;
+  total_tokens: number;
+  by_context: {
+    context: string;
+    calls: number;
+    tokens: number;
+    cost_usd: number;
+  }[];
+}
+
+export interface CityLeadAuditEntry {
+  occurred_at: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  summary: string | null;
+  city_id: number | null;
+  acted_as_city_lead: boolean;
+}
+
+export interface CityLeadProduced {
+  /** False when admin_audit_log does not exist yet in this environment. */
+  available: boolean;
+  total: number;
+  by_action: { action: string; count: number }[];
+  entries: CityLeadAuditEntry[];
+}
+
+export interface CityLeadActivity {
+  user_id: number;
+  email: string;
+  name: string;
+  cities: CityLeadCity[];
+  presence: CityLeadPresence;
+  feature_use: CityLeadFeatureUse;
+  chats: CityLeadChats;
+  llm_spend: CityLeadSpend;
+  produced: CityLeadProduced;
+  chat_summary?: string | null;
+}
+
+export interface CityLeadActivityResponse {
+  window_days: number;
+  since: string;
+  generated_at: string;
+  lead_count: number;
+  leads: CityLeadActivity[];
+}
+
+/**
+ * Activity rollup for every city lead. Admin only.
+ *
+ * `summarize` costs one model call per lead, so leave it off for the table
+ * and turn it on only when the summaries are actually being shown.
+ */
+export function getCityLeadActivity(
+  token: string,
+  options?: { days?: number; userId?: number; summarize?: boolean }
+): Promise<CityLeadActivityResponse> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.append("days", String(options.days));
+  if (options?.userId != null) params.append("user_id", String(options.userId));
+  if (options?.summarize) params.append("summarize", "true");
+  const qs = params.toString();
+  return request<CityLeadActivityResponse>(
+    `/api/admin/city-lead-activity${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export interface TokenUsageDailyRow {
   date: string;
   tokens: number;

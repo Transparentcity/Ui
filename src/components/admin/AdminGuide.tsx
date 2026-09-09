@@ -892,6 +892,21 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           </div>
         </section>
 
+        {/* Said plainly and in the product itself, because the team reads
+            these chats. Burying it in a terms page would not be telling you. */}
+        <section className={styles.section}>
+          <div className={styles.sectionhead}>
+            <h2>What we can see</h2>
+            <p className={styles.why}>
+              During the pilot the Transparent City team gets a weekly summary
+              of how the city managers are using this: which days you were
+              here, what you opened, what your chats with Seymour were about,
+              and what you changed. We read the chats to find where the
+              product is failing you. Ask us anything about it.
+            </p>
+          </div>
+        </section>
+
         <footer className={styles.footer}>
           <span>Transparent City · guide for the {g.cityName} city manager</span>
           <span>Questions: Adam or Rob, any time</span>

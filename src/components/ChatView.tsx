@@ -22,6 +22,7 @@ import {
   PREFERRED_DEFAULT_MODEL_KEY,
   pickDefaultModelKey,
 } from "@/lib/modelDefaults";
+import { recordProductEvent } from "@/lib/productAnalytics";
 
 interface Message {
   id: string;
@@ -483,6 +484,14 @@ export default function ChatView({
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    // Count the ask, not its content: the transcript already lives in
+    // chat_sessions, and this event is read alongside anonymous traffic.
+    recordProductEvent("chat_message_sent", {
+      session_id_ref: currentSessionId ?? null,
+      model_key: selectedModel,
+      is_first_message: messages.length === 0,
+      message_length: userMessageText.length,
+    });
     setMessage("");
     // Reset textarea height
     if (textareaRef.current) {
