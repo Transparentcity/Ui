@@ -14,7 +14,7 @@ const FREE_FEATURES = [
 const PAID_FEATURES = [
   "Everything in the free month",
   "Ongoing weekly briefings",
-  "Anomaly alerts when trends shift",
+  "Alerts when we publish a story about your area",
   "Dashboard access for your city",
   "Priority support",
 ];

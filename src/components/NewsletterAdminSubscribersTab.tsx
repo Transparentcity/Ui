@@ -13,11 +13,13 @@ import {
   getNewsletterPendingDetail,
   listCities,
   listUsers,
+  previewPlaceStoryAlerts,
   updateUser,
   type AdminNewsletterHistoryItem,
   type AdminUserNewsletterOverview,
   type CityListItem,
   type NewsletterSubscription,
+  type PlaceStoryAlertPreviewResponse,
   type User,
 } from "@/lib/apiClient";
 import Loader from "@/components/Loader";
@@ -164,6 +166,7 @@ function formatFollowedDistrictLabels(
 export default function NewsletterAdminSubscribersTab() {
   const { getAccessTokenSilently } = useAuth0();
   const [users, setUsers] = useState<User[]>([]);
+  const [initialUsers, setInitialUsers] = useState<User[]>([]);
   const [cities, setCities] = useState<CityListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +207,7 @@ export default function NewsletterAdminSubscribersTab() {
         getAvailableModels(token).catch(() => []),
       ]);
       setUsers(u.items);
+      setInitialUsers(u.items);
       setCities(c.filter((x) => x.is_active !== false));
       const flat = modelGroups
         .flatMap((g) =>
@@ -221,6 +225,40 @@ export default function NewsletterAdminSubscribersTab() {
   useEffect(() => {
     loadBase();
   }, [loadBase]);
+
+  // The default list is capped at the 200 newest accounts. Search through the
+  // server so older users remain discoverable instead of filtering only that
+  // truncated client-side page.
+  useEffect(() => {
+    const query = search.trim();
+    if (!query) {
+      setUsers(initialUsers);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const response = await listUsers(token, {
+          q: query,
+          page: 1,
+          page_size: 200,
+        });
+        if (!cancelled) setUsers(response.items);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to search newsletter users:", err);
+          setError("Failed to search users");
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search, initialUsers, getAccessTokenSilently]);
 
   // After the user list loads, background-fetch overview summaries for all users
   // so Location and Subscription columns populate without requiring a manual expand.
@@ -626,6 +664,31 @@ function UserNewsletterRow({
       ? cachedOverview.saved_places_count
       : null;
 
+  const { getAccessTokenSilently } = useAuth0();
+  const [alertPreview, setAlertPreview] = useState<PlaceStoryAlertPreviewResponse | null>(null);
+  const [alertPreviewBusy, setAlertPreviewBusy] = useState(false);
+
+  const handlePlaceAlertPreview = async (send: boolean) => {
+    try {
+      setAlertPreviewBusy(true);
+      const token = await getAccessTokenSilently();
+      const result = await previewPlaceStoryAlerts({ user_id: user.id, send }, token);
+      setAlertPreview(result);
+      if (send && result.sent) {
+        toast.success("Place alert preview sent to your email");
+      } else if (result.skip_reason === "no_passing_stories") {
+        toast.message("No judged place stories (accuracy > 2) in the last 7 days");
+      } else if (send && !result.sent) {
+        toast.error(result.skip_reason || "Failed to send preview");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to preview place alert");
+    } finally {
+      setAlertPreviewBusy(false);
+    }
+  };
+
   return (
     <>
       <tr className={styles.rowClickable} onClick={onToggle}>
@@ -742,7 +805,7 @@ function UserNewsletterRow({
                       }}
                     >
                       <div>
-                        <strong style={{ color: "var(--text-primary)" }}>Anomaly alerts</strong>
+                        <strong style={{ color: "var(--text-primary)" }}>Alerts</strong>
                         <div>{commBool(cp.anomaly_alerts)}</div>
                       </div>
                       <div>
@@ -812,6 +875,57 @@ function UserNewsletterRow({
                           {effectiveSubscriberPromptText(overview)}
                         </div>
                       </div>
+                    ) : null}
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>
+                      Place story alert
+                    </div>
+                    <p className={styles.muted} style={{ marginBottom: 10, fontSize: 12 }}>
+                      Preview the weekly place-research email from this user&apos;s existing
+                      judged stories (accuracy &gt; 2). Send delivers to your inbox, not theirs.
+                    </p>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className={styles.primaryBtn}
+                        disabled={alertPreviewBusy}
+                        onClick={() => void handlePlaceAlertPreview(false)}
+                      >
+                        {alertPreviewBusy ? "Loading…" : "Preview"}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.secondaryBtn}
+                        disabled={alertPreviewBusy}
+                        onClick={() => void handlePlaceAlertPreview(true)}
+                      >
+                        Send to me
+                      </button>
+                    </div>
+                    {alertPreview?.subject ? (
+                      <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-secondary)" }}>
+                        <strong style={{ color: "var(--text-primary)" }}>Subject:</strong>{" "}
+                        {alertPreview.subject}
+                        {alertPreview.stories.length > 0
+                          ? ` · ${alertPreview.stories.length} stor${alertPreview.stories.length === 1 ? "y" : "ies"}`
+                          : ""}
+                      </div>
+                    ) : null}
+                    {alertPreview?.html ? (
+                      <iframe
+                        title="Place story alert preview"
+                        srcDoc={alertPreview.html}
+                        style={{
+                          width: "100%",
+                          minHeight: 420,
+                          marginTop: 10,
+                          border: "1px solid var(--border-primary)",
+                          borderRadius: 8,
+                          background: "#fff",
+                        }}
+                      />
                     ) : null}
                   </div>
 

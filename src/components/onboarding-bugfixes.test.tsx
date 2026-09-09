@@ -29,7 +29,7 @@ function buildPreferencesData(opts: {
     extra: {
       selected_category_ids: opts.selectedCategoryIds,
       communication_preferences: {
-        anomaly_alerts: false,
+        anomaly_alerts: true,
         personalized_email: opts.weeklyNewsletterOptIn,
         weekly_digest: opts.weeklyNewsletterOptIn,
       },

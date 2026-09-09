@@ -35,6 +35,8 @@ import {
   listNewsletterEvalResults,
   listNewsletterPending,
   runNewsletterEvalBatch,
+  getNewsletterEvalSettings,
+  updateNewsletterEvalSettings,
   type CityListItem,
   type ModelGroupInfo,
   type ModelInfo,
@@ -142,6 +144,74 @@ interface CustomPersonaDraft {
 interface PromptVariantDraft {
   label: string;
   template: string | null; // null = current default template
+}
+
+// ---------------------------------------------------------------------------
+// Auto-correct toggle (operator setting, default on)
+// ---------------------------------------------------------------------------
+function NewsletterAutoCorrectToggle() {
+  const { getAccessTokenSilently } = useAuth0();
+  const [settings, setSettings] = useState<{
+    auto_correct: boolean;
+    auto_correct_env_override: boolean | null;
+    updated_at: string | null;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getAccessTokenSilently()
+      .then((tok) => getNewsletterEvalSettings(tok))
+      .then(setSettings)
+      .catch(() => {/* silently ignore on load */});
+  }, [getAccessTokenSilently]);
+
+  const handleChange = async (checked: boolean) => {
+    setSaving(true);
+    try {
+      const tok = await getAccessTokenSilently();
+      const updated = await updateNewsletterEvalSettings(tok, { auto_correct: checked });
+      setSettings(updated);
+    } catch (err) {
+      console.error("Failed to update newsletter eval auto-correct setting", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pinned = settings?.auto_correct_env_override != null;
+  const title = pinned
+    ? `Pinned ${settings?.auto_correct_env_override ? "on" : "off"} by the NEWSLETTER_EVAL_AUTO_CORRECT environment variable — the stored setting is ignored until that is removed`
+    : "When a newsletter draft fails the accuracy gate, Seymour fixes the flagged claims and the draft is re-judged. Applies to production inline eval and Workbench cells.";
+
+  return (
+    <div style={{ marginTop: 10, borderTop: "1px solid var(--border, #e5e7eb)", paddingTop: 10 }}>
+      <label
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 13,
+          opacity: settings ? 1 : 0.5,
+          cursor: pinned ? "not-allowed" : "pointer",
+        }}
+        title={title}
+      >
+        <input
+          type="checkbox"
+          checked={!!settings?.auto_correct}
+          disabled={!settings || saving || pinned}
+          onChange={(e) => void handleChange(e.target.checked)}
+        />
+        Auto-correct failing newsletters
+        {saving && <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>…</span>}
+        {pinned && (
+          <span style={{ fontSize: 10, color: "var(--text-tertiary)", marginLeft: 2 }}>
+            (env-pinned)
+          </span>
+        )}
+      </label>
+    </div>
+  );
 }
 
 export default function NewsletterAdminLibraryTab({
@@ -1122,6 +1192,9 @@ export default function NewsletterAdminLibraryTab({
               {launching ? "Starting…" : "Run eval batch"}
             </button>
           </div>
+
+          {/* Auto-correct setting */}
+          <NewsletterAutoCorrectToggle />
         </div>
       )}
 

@@ -95,10 +95,6 @@ interface BriefingHomeProps {
   /** Full metrics table, shown when "All metrics" is selected in the header.
    *  Parent owns the element (mount/visibility) so it isn't mounted twice. */
   fullDashboardSlot?: React.ReactNode;
-  /** Global platform admin. Week Replay is feature-flagged to admins only
-   *  while it's still being validated (data-correctness and perf fixes are
-   *  recent) — everyone else keeps the static MiniScopeMap hero. */
-  isAdmin?: boolean;
 }
 
 function storyTimestamp(story: EnrichedFeedStory): number {
@@ -390,7 +386,6 @@ export default function BriefingHome({
   onBrowseAllChange,
   onDistrictSelect,
   fullDashboardSlot,
-  isAdmin = false,
 }: BriefingHomeProps) {
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
   const queryClient = useQueryClient();
@@ -792,51 +787,36 @@ export default function BriefingHome({
         {/* Full-width scope map. Place scope gets the Week Replay animation
             (play button → 7-day time-lapse); city/district scopes keep the
             lightweight static scope map — no week-events fan-out — unless a
-            ?replay=1 deep link explicitly asks for the replay. Feature-flagged
-            to admins only for now — everyone else always gets MiniScopeMap.
+            ?replay=1 deep link explicitly asks for the replay.
             Show a shimmer skeleton immediately while sketch is loading so
             the map slot is visible right away rather than suddenly popping in. */}
         {isPlaceScope ? (
           /* Place scope: render as soon as we have coordinates */
           (placeLat != null && placeLng != null) && (
-            isAdmin && (isPlaceScope || replayAutoPlay) ? (
-              <WeekReplayMap
-                cityId={cityId}
-                sketch={sketch}
-                selectedDistrict={district}
-                isPlaceScope={isPlaceScope}
-                placeDistrict={placeDistrict}
-                placeLat={placeLat}
-                placeLng={placeLng}
-                placeRadiusM={placeRadiusM}
-                selectedPlaceId={selectedPlaceId}
-                placeName={isPlaceScope ? scopeLabel : null}
-                scopeLabel={scopeLabel}
-                onOpenScopeSelector={onOpenScopeSelector}
-                onEventMetricClick={onMetricClick}
-                autoPlay={replayAutoPlay}
-                getShareUrl={getWeekReplayShareUrl}
-                shareTitle={weekReplayShareTitle}
-                className={styles.heroMapBanner}
-              />
-            ) : (
-              <MiniScopeMap
-                sketch={sketch}
-                selectedDistrict={district}
-                isPlaceScope
-                placeDistrict={placeDistrict}
-                placeLat={placeLat}
-                placeLng={placeLng}
-                placeRadiusM={placeRadiusM}
-                onClick={onOpenScopeSelector}
-                className={styles.heroMapBanner}
-              />
-            )
+            <WeekReplayMap
+              cityId={cityId}
+              sketch={sketch}
+              selectedDistrict={district}
+              isPlaceScope={isPlaceScope}
+              placeDistrict={placeDistrict}
+              placeLat={placeLat}
+              placeLng={placeLng}
+              placeRadiusM={placeRadiusM}
+              selectedPlaceId={selectedPlaceId}
+              placeName={isPlaceScope ? scopeLabel : null}
+              scopeLabel={scopeLabel}
+              onOpenScopeSelector={onOpenScopeSelector}
+              onEventMetricClick={onMetricClick}
+              autoPlay={replayAutoPlay}
+              getShareUrl={getWeekReplayShareUrl}
+              shareTitle={weekReplayShareTitle}
+              className={styles.heroMapBanner}
+            />
           )
         ) : (
           /* City / district scope: show skeleton immediately, swap in real map once sketch arrives */
           sketch && sketch.districts.length > 0 ? (
-            isAdmin && replayAutoPlay ? (
+            replayAutoPlay ? (
               <WeekReplayMap
                 cityId={cityId}
                 sketch={sketch}

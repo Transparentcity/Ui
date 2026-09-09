@@ -24,8 +24,8 @@ import { emitSavedCitiesChanged, SAVED_CITIES_CHANGED_EVENT } from "@/lib/uiEven
 import { getPresetMetricDateRange, type MetricDateRange } from "@/lib/dateRange";
 // AnomalyResult import removed – anomalies section hidden
 import { useAuth0 } from "@auth0/auth0-react";
-import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type BatchComparisonsResponse, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
-import { useMetricComparisons, useBatchComparisons, usePlaceBatchComparisons, metricKeys } from "@/lib/hooks/useMetrics";
+import { getAdminMetricTimeSeries, getAdminMetricTimeSeriesDetail, type ComparisonType, type ComparisonResponse } from "@/lib/apiClient";
+import { useBatchComparisons, usePlaceBatchComparisons, metricKeys } from "@/lib/hooks/useMetrics";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Loader from "@/components/Loader";
@@ -3062,7 +3062,6 @@ export default function CityView({
               setSelectedPlaceId(null);
             }}
             fullDashboardSlot={isBriefingActive ? fullDashboardEl : null}
-            isAdmin={isGlobalAdmin}
           />
           {/* Selector modal (bar-less) — the hero card above triggers it */}
           {isBriefingActive && renderDistrictNavigation(true)}

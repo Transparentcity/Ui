@@ -303,7 +303,7 @@ export default function DashboardPage() {
   const [profileSaveMsg, setProfileSaveMsg] = useState<string | null>(null);
   
   // Editable preference state
-  const [editableAnomalyAlerts, setEditableAnomalyAlerts] = useState(false);
+  const [editableAnomalyAlerts, setEditableAnomalyAlerts] = useState(true);
   const [editableWeeklyDigest, setEditableWeeklyDigest] = useState(false);
   const [editableMonthlyReport, setEditableMonthlyReport] = useState(false);
   const [editableReportScope, setEditableReportScope] = useState<"district" | "city">("district");
@@ -1674,7 +1674,7 @@ export default function DashboardPage() {
       const commPrefs = prefs.extra?.communication_preferences || {};
       const { newsletterDescription, newsletterFrequency, newsletterPersonaSelections } =
         readNewsletterPreferenceFields(prefs.extra);
-      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
+      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? true);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
@@ -1850,7 +1850,7 @@ export default function DashboardPage() {
       const { newsletterDescription, newsletterFrequency, newsletterPersonaSelections } =
         readNewsletterPreferenceFields(refreshed.extra);
       
-      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? false);
+      setEditableAnomalyAlerts(commPrefs.anomaly_alerts ?? true);
       setEditableWeeklyDigest(commPrefs.weekly_digest ?? false);
       setEditableMonthlyReport(commPrefs.monthly_report ?? false);
       setEditableReportScope(commPrefs.report_scope || "district");
@@ -2762,22 +2762,20 @@ export default function DashboardPage() {
 
                   {/* Communication preferences */}
                   <section className={styles.settingsSection} id="settings-newsletter-section">
-                    <h3 className={styles.settingsSectionTitle}>{isAdmin ? "Communication preferences" : "Newsletter"}</h3>
+                    <h3 className={styles.settingsSectionTitle}>Communication preferences</h3>
                     <div className={styles.settingsSectionCard}>
-                      {isAdmin && (
                       <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
                         <div className={styles.settingsRowLabel}>
-                          <div className={styles.settingsRowTitle}>Anomaly alerts</div>
-                          <div className={styles.settingsRowDescription}>Get notified when significant changes are detected</div>
+                          <div className={styles.settingsRowTitle}>Alerts</div>
+                          <div className={styles.settingsRowDescription}>Email when we publish a new story about a saved place</div>
                         </div>
                         <div className={styles.settingsRowControl}>
                           <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer", userSelect: "none", fontSize: "13px", color: "var(--text-secondary)" }}>
-                            <input type="checkbox" checked={editableAnomalyAlerts} onChange={(e) => setEditableAnomalyAlerts(e.target.checked)} aria-label="Toggle anomaly alerts" />
+                            <input type="checkbox" checked={editableAnomalyAlerts} onChange={(e) => setEditableAnomalyAlerts(e.target.checked)} aria-label="Toggle alerts" />
                             {editableAnomalyAlerts ? "On" : "Off"}
                           </label>
                         </div>
                       </label>
-                      )}
                       <label className={styles.settingsRow} style={{ cursor: "pointer" }}>
                         <div className={styles.settingsRowLabel}>
                           <div className={styles.settingsRowTitle}>Weekly newsletter</div>

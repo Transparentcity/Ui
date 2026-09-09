@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   adminGenerateSharedNewsletter,
   adminGenerateUnifiedNewsletterForCity,
+  adminGenerateSharedEdition,
   adminQueueNewsletterPendingForUser,
   adminQueueUnifiedNewsletterForUser,
   listCities,
@@ -27,6 +28,7 @@ import {
   typeaheadAdminUsers,
   getAdminUserNewsletterOverview,
   getAvailableModels,
+  setNewsletterPendingOverrideEligible,
   type AdminUserNewsletterOverview,
   type CityListItem,
   type NewsletterPendingListItem,
@@ -65,6 +67,10 @@ const TABS: { id: TabId; label: string }[] = [
 const RECENT_SENDS_PAGE_SIZE = 20;
 
 type QueuePanelTab = "pending" | "recent";
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 const DEFAULT_WEEKLY_PROMPT = `**This newsletter is for:** {city_name} ({district_label}). All data and comparisons must be for this city only.
 
@@ -354,8 +360,8 @@ export default function NewsletterAdmin() {
       const token = await getAccessTokenSilently();
       const citiesList = await listCities(token);
       setCities(citiesList);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load data");
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to load data"));
     } finally {
       setLoading(false);
     }
@@ -399,8 +405,8 @@ export default function NewsletterAdmin() {
       }
       setGenCityId(null);
       await loadData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to generate shared newsletter");
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to generate shared newsletter"));
     } finally {
       setGenerating(false);
     }
@@ -433,8 +439,10 @@ export default function NewsletterAdmin() {
         token
       );
       setTestResult(result.html);
-    } catch (err: any) {
-      setTestResult(`<p style="color:red;">Error: ${err?.message || "Generation failed"}</p>`);
+    } catch (err: unknown) {
+      setTestResult(
+        `<p style="color:red;">Error: ${errorMessage(err, "Generation failed")}</p>`
+      );
     } finally {
       setTestGenerating(false);
     }
@@ -559,6 +567,58 @@ export default function NewsletterAdmin() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Accuracy hold override button
+// ---------------------------------------------------------------------------
+function OverrideHoldButton({
+  sendId,
+  onOverrideSet,
+}: {
+  sendId: number;
+  onOverrideSet: () => void;
+}) {
+  const { getAccessTokenSilently } = useAuth0();
+  const [busy, setBusy] = useState(false);
+
+  const handleClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const tok = await getAccessTokenSilently();
+      await setNewsletterPendingOverrideEligible(tok, sendId);
+      onOverrideSet();
+      toast.success("Override set — draft will send on next run");
+    } catch (err) {
+      toast.error(`Override failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={handleClick}
+      style={{
+        fontSize: 10,
+        padding: "2px 7px",
+        borderRadius: 4,
+        border: "1px solid #fbbf24",
+        background: "#fffbeb",
+        color: "#92400e",
+        cursor: busy ? "not-allowed" : "pointer",
+        fontWeight: 600,
+        opacity: busy ? 0.6 : 1,
+      }}
+      title="Mark as manually eligible — bypasses the accuracy hold for this draft"
+    >
+      {busy ? "…" : "Override"}
+    </button>
+  );
+}
+
 // ===========================================================================
 // Dashboard: admin review queue (pending sends)
 // ===========================================================================
@@ -595,6 +655,57 @@ function newsletterScopeLabel(item: NewsletterPendingListItem): string {
   }
 
   return dt || geographicNewsletterScopeLabel(item.district);
+}
+
+/** Scope cell content for a pending row, including "shared × N" badge on canonical rows. */
+function NewsletterScopeCell({ item }: { item: NewsletterPendingListItem }) {
+  const scope = newsletterScopeLabel(item);
+  // Canonical shared-edition rows have settings_key + no canonical_pending_id.
+  const isCanonical = !!item.settings_key && !item.canonical_pending_id;
+  const n = item.shared_recipient_count;
+  return (
+    <span>
+      {scope}
+      {isCanonical && n != null && n > 1 && (
+        <span
+          style={{
+            marginLeft: 5,
+            display: "inline-block",
+            background: "#d1fae5",
+            border: "1px solid #6ee7b7",
+            borderRadius: 3,
+            padding: "1px 5px",
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#065f46",
+            whiteSpace: "nowrap",
+          }}
+          title={`Shared edition — one Seymour run sent to ${n} matching recipients`}
+        >
+          shared \u00d7{n}
+        </span>
+      )}
+      {item.canonical_pending_id != null && (
+        <span
+          style={{
+            marginLeft: 5,
+            display: "inline-block",
+            background: "#ede9fe",
+            border: "1px solid #c4b5fd",
+            borderRadius: 3,
+            padding: "1px 5px",
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#5b21b6",
+            whiteSpace: "nowrap",
+          }}
+          title="Sibling of a shared edition — content generated from a single Seymour run"
+        >
+          shared
+        </span>
+      )}
+    </span>
+  );
 }
 
 const SELECTION_SLOT_LABELS: Record<string, string> = {
@@ -1134,6 +1245,8 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const [previewPublicUrl, setPreviewPublicUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewModels, setPreviewModels] = useState<ModelInfo[]>([]);
+  /** Canonical shared-edition IDs whose sibling rows are currently expanded. */
+  const [expandedSharedEditions, setExpandedSharedEditions] = useState<Set<number>>(new Set());
 
   // Recent sends (paginated)
   const [recentSends, setRecentSends] = useState<NewsletterSendItem[]>([]);
@@ -1505,6 +1618,33 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
     }
   };
 
+  /** Draft (or reuse) one shared city/district edition via the unified path (opus-4.8). */
+  const handleSearchGenerateSharedEdition = async () => {
+    if (!searchSelection || searchSelection.kind !== "city") return;
+    setSearchGenBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const modelKey = searchGenModelKey.trim() || null;
+      const res = await adminGenerateSharedEdition(
+        {
+          city_id: searchSelection.cityId,
+          district: searchGenDistrict === "0" ? 0 : Number(searchGenDistrict),
+          model_key: modelKey,
+        },
+        token
+      );
+      if (res.job_id) notifyJobCreated(res.job_id);
+      toast.success(
+        "Shared edition generation queued. The draft appears in Pending Review as one collapsed row (shared × N) when ready."
+      );
+      await Promise.all([loadAll(), loadSearchResults(searchSelection)]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Could not queue shared edition");
+    } finally {
+      setSearchGenBusy(false);
+    }
+  };
+
   useEffect(() => {
     getAccessTokenSilently()
       .then((token) => getAvailableModels(token))
@@ -1820,7 +1960,12 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     className={styles.linkBtn}
                     onClick={() =>
                       setSelected(
-                        new Set(pending.filter((p) => !p.draft_failed).map((p) => p.id))
+                        // Select canonical / personalized rows; siblings auto-send with their canonical
+                        new Set(
+                          pending
+                            .filter((p) => !p.draft_failed && p.canonical_pending_id == null)
+                            .map((p) => p.id)
+                        )
                       )
                     }
                   >
@@ -1878,86 +2023,242 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                             </td>
                           </tr>
                         )}
-                        {pending.map((row) => (
-                          <Fragment key={row.id}>
-                            <tr
-                              className={row.draft_failed ? undefined : styles.rowClickable}
-                              onClick={
-                                row.draft_failed ? undefined : () => handlePreview(row.id)
-                              }
-                            >
-                              <td className={styles.td} onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="checkbox"
-                                  checked={selected.has(row.id)}
-                                  onChange={(e) => toggleSelect(row.id, e.target.checked)}
-                                  aria-label={`Select ${row.recipient_email}`}
-                                />
-                              </td>
-                              <td className={styles.td}>{emailUsername(row.recipient_email)}</td>
-                              <td className={styles.td} style={{ fontSize: 12 }}>
-                                {newsletterScopeLabel(row)}
-                              </td>
-                              <td className={styles.td}>
-                                {row.draft_failed ? (
-                                  <div style={{ display: "grid", gap: 4 }}>
-                                    <span
-                                      className={`${styles.badge} ${styles.badgeRed}`}
-                                      style={{ justifySelf: "start" }}
-                                    >
-                                      Generation failed
-                                    </span>
-                                    <div
-                                      className={styles.headline}
-                                      title={row.send_error ?? undefined}
-                                      style={{ fontSize: 12, color: "var(--text-secondary)" }}
-                                    >
-                                      {row.send_error || "No draft was produced."}
+                        {(() => {
+                          // Pre-group siblings by their canonical ID so we can
+                          // render them collapsed under the canonical row.
+                          const siblingsByCanonical: Record<number, NewsletterPendingListItem[]> = {};
+                          for (const r of pending) {
+                            if (r.canonical_pending_id != null) {
+                              (siblingsByCanonical[r.canonical_pending_id] ??= []).push(r);
+                            }
+                          }
+                          return pending.map((row) => {
+                            // Sibling rows are rendered inline under their canonical — skip here.
+                            if (row.canonical_pending_id != null) return null;
+
+                            const isSharedCanonical = !!row.settings_key;
+                            const siblings = isSharedCanonical ? (siblingsByCanonical[row.id] ?? []) : [];
+                            const recipientCount = row.shared_recipient_count ?? (siblings.length + 1);
+                            const hasMultiple = isSharedCanonical && recipientCount > 1;
+                            const isSharedExpanded = expandedSharedEditions.has(row.id);
+
+                            return (
+                              <Fragment key={row.id}>
+                                <tr
+                                  className={row.draft_failed ? undefined : styles.rowClickable}
+                                  onClick={
+                                    row.draft_failed ? undefined : () => handlePreview(row.id)
+                                  }
+                                >
+                                  <td className={styles.td} onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selected.has(row.id)}
+                                      onChange={(e) => toggleSelect(row.id, e.target.checked)}
+                                      aria-label={`Select ${row.recipient_email}`}
+                                    />
+                                  </td>
+                                  <td className={styles.td}>
+                                    {hasMultiple ? (
+                                      <button
+                                        type="button"
+                                        style={{
+                                          background: "none",
+                                          border: "none",
+                                          padding: 0,
+                                          cursor: "pointer",
+                                          color: "var(--text-primary)",
+                                          fontWeight: 500,
+                                          fontSize: 13,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedSharedEditions((prev) => {
+                                            const next = new Set(prev);
+                                            if (next.has(row.id)) next.delete(row.id);
+                                            else next.add(row.id);
+                                            return next;
+                                          });
+                                        }}
+                                        title={isSharedExpanded ? "Collapse recipient list" : `Expand to see all ${recipientCount} recipients`}
+                                      >
+                                        <span style={{ fontSize: 10 }}>{isSharedExpanded ? "▼" : "▶"}</span>
+                                        {recipientCount} recipients
+                                      </button>
+                                    ) : (
+                                      emailUsername(row.recipient_email)
+                                    )}
+                                  </td>
+                                  <td className={styles.td} style={{ fontSize: 12 }}>
+                                    <NewsletterScopeCell item={row} />
+                                  </td>
+                                  <td className={styles.td}>
+                                    {row.draft_failed ? (
+                                      <div style={{ display: "grid", gap: 4 }}>
+                                        <span
+                                          className={`${styles.badge} ${styles.badgeRed}`}
+                                          style={{ justifySelf: "start" }}
+                                        >
+                                          Generation failed
+                                        </span>
+                                        <div
+                                          className={styles.headline}
+                                          title={row.send_error ?? undefined}
+                                          style={{ fontSize: 12, color: "var(--text-secondary)" }}
+                                        >
+                                          {row.send_error || "No draft was produced."}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className={styles.headline}>{row.subject || "\u2014"}</div>
+                                    )}
+                                  </td>
+                                  <td className={styles.td} style={{ textAlign: "center" }}>
+                                    {row.eval_held ? (
+                                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                        <span
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: 3,
+                                            background: "#fef3c7",
+                                            border: "1px solid #fbbf24",
+                                            borderRadius: 4,
+                                            padding: "1px 6px",
+                                            fontSize: 10,
+                                            fontWeight: 600,
+                                            color: "#92400e",
+                                            letterSpacing: "0.04em",
+                                          }}
+                                          title={`Accuracy gate: score ${row.eval_accuracy?.toFixed(1)} < 4.0 \u2014 held from Sunday send`}
+                                        >
+                                          \u26a0 HELD
+                                        </span>
+                                        {row.eval_score != null && (
+                                          <ScoreBadge
+                                            score={row.eval_score}
+                                            title={row.eval_verdict ?? undefined}
+                                            size={18}
+                                          />
+                                        )}
+                                      </div>
+                                    ) : row.eval_score != null ? (
+                                      <ScoreBadge
+                                        score={row.eval_score}
+                                        title={row.eval_verdict ?? undefined}
+                                        size={22}
+                                      />
+                                    ) : (
+                                      <span style={{ color: "var(--text-tertiary, #9ca3af)", fontSize: 11 }}>\u2014</span>
+                                    )}
+                                  </td>
+                                  <td className={styles.td} style={{ fontSize: 12 }}>
+                                    {modelLabel(row)}
+                                  </td>
+                                  <td className={styles.td}>
+                                    <LlmUsagePill usage={row.llm_usage} />
+                                  </td>
+                                  <td className={styles.td} onClick={(e) => e.stopPropagation()}>
+                                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                      {row.session_id?.trim() && (
+                                        <JobSessionDebugLink sessionId={row.session_id} />
+                                      )}
+                                      {!row.draft_failed && (
+                                        <button
+                                          type="button"
+                                          className={styles.linkBtn}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePreview(row.id);
+                                          }}
+                                        >
+                                          {expandedId === row.id ? "Hide" : "Preview"}
+                                        </button>
+                                      )}
+                                      {row.eval_held && !row.eval_manual_eligible && (
+                                        <OverrideHoldButton
+                                          sendId={row.id}
+                                          onOverrideSet={() => {
+                                            setPending((prev) =>
+                                              prev.map((r) =>
+                                                r.id === row.id || r.canonical_pending_id === row.id
+                                                  ? { ...r, eval_manual_eligible: true, eval_held: false }
+                                                  : r
+                                              )
+                                            );
+                                          }}
+                                        />
+                                      )}
+                                      {row.eval_manual_eligible && row.eval_accuracy != null && row.eval_accuracy < 4 && (
+                                        <span
+                                          style={{
+                                            fontSize: 10,
+                                            color: "#065f46",
+                                            background: "#d1fae5",
+                                            border: "1px solid #6ee7b7",
+                                            borderRadius: 4,
+                                            padding: "1px 6px",
+                                            fontWeight: 600,
+                                          }}
+                                          title="Manually overridden \u2014 will send despite failing accuracy gate"
+                                        >
+                                          \u2713 OVERRIDE
+                                        </span>
+                                      )}
                                     </div>
-                                  </div>
-                                ) : (
-                                  <div className={styles.headline}>{row.subject || "\u2014"}</div>
-                                )}
-                              </td>
-                              <td className={styles.td} style={{ textAlign: "center" }}>
-                                {row.eval_score != null ? (
-                                  <ScoreBadge
-                                    score={row.eval_score}
-                                    title={row.eval_verdict ?? undefined}
-                                    size={22}
-                                  />
-                                ) : (
-                                  <span style={{ color: "var(--text-tertiary, #9ca3af)", fontSize: 11 }}>—</span>
-                                )}
-                              </td>
-                              <td className={styles.td} style={{ fontSize: 12 }}>
-                                {modelLabel(row)}
-                              </td>
-                              <td className={styles.td}>
-                                <LlmUsagePill usage={row.llm_usage} />
-                              </td>
-                              <td className={styles.td} onClick={(e) => e.stopPropagation()}>
-                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                  {row.session_id?.trim() && (
-                                    <JobSessionDebugLink sessionId={row.session_id} />
-                                  )}
-                                  {!row.draft_failed && (
-                                    <button
-                                      type="button"
-                                      className={styles.linkBtn}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handlePreview(row.id);
-                                      }}
+                                  </td>
+                                </tr>
+
+                                {/* Sibling rows — only rendered when this canonical is expanded */}
+                                {isSharedExpanded && siblings.map((sibling) => (
+                                  <tr
+                                    key={sibling.id}
+                                    style={{
+                                      background: "var(--surface-secondary, #f9fafb)",
+                                      borderLeft: "3px solid #6ee7b7",
+                                    }}
+                                  >
+                                    <td className={styles.td} onClick={(e) => e.stopPropagation()}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selected.has(sibling.id)}
+                                        onChange={(e) => toggleSelect(sibling.id, e.target.checked)}
+                                        aria-label={`Select ${sibling.recipient_email}`}
+                                      />
+                                    </td>
+                                    <td
+                                      className={styles.td}
+                                      style={{ paddingLeft: 20, color: "var(--text-secondary)", fontSize: 12 }}
                                     >
-                                      {expandedId === row.id ? "Hide" : "Preview"}
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          </Fragment>
-                        ))}
+                                      \u21b3 {emailUsername(sibling.recipient_email)}
+                                    </td>
+                                    <td className={styles.td} style={{ fontSize: 11, color: "var(--text-tertiary, #9ca3af)" }}>
+                                      shared copy
+                                    </td>
+                                    <td className={styles.td} style={{ fontSize: 11, color: "var(--text-tertiary, #9ca3af)" }}>
+                                      same as above
+                                    </td>
+                                    <td className={styles.td} style={{ textAlign: "center" }}>
+                                      {sibling.eval_accuracy != null && (
+                                        <span style={{ fontSize: 10, color: "var(--text-tertiary, #9ca3af)" }}>
+                                          {sibling.eval_accuracy.toFixed(1)}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className={styles.td} />
+                                    <td className={styles.td}>
+                                      <LlmUsagePill usage={sibling.llm_usage} />
+                                    </td>
+                                    <td className={styles.td} />
+                                  </tr>
+                                ))}
+                              </Fragment>
+                            );
+                          });
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -2373,13 +2674,27 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     }
                     style={{ background: "var(--brand-primary-alt, #6d28d9)" }}
                   >
-                    {searchGenBusy ? "Queuing…" : "Draft (unified)"}
+                    {searchGenBusy ? "Queuing…" : "Draft all in city"}
                   </button>
+                  {searchSelection.kind === "city" && (
+                    <button
+                      type="button"
+                      className={styles.primaryBtn}
+                      disabled={searchGenBusy || searchGenDefaultsLoading}
+                      onClick={() => void handleSearchGenerateSharedEdition()}
+                      title={`Generate the shared ${searchGenDistrict === "0" ? "citywide" : `District ${searchGenDistrict}`} edition with opus-4.8. Same-cycle reuse: if this edition already exists this Friday cycle the canonical is reused, not regenerated.`}
+                      style={{ background: "#0d7c3d" }}
+                    >
+                      {searchGenBusy
+                        ? "Queuing…"
+                        : `Draft this edition${searchGenDistrict !== "0" ? ` (D${searchGenDistrict})` : " (citywide)"}`}
+                    </button>
+                  )}
                 </div>
               </div>
               <p className={styles.muted} style={{ margin: "10px 0 0", fontSize: 12 }}>
                 {searchSelection.kind === "city"
-                  ? "Legacy queues shared drafts for the selected district group. Unified runs draft assembly for all subscribers in this city’s pipeline."
+                  ? `Legacy queues shared drafts for the selected district group. "Draft all in city" runs full assembly for every subscriber. "Draft this edition" generates one shared opus-4.8 edition for the ${searchGenDistrict === "0" ? "citywide" : `District ${searchGenDistrict}`} scope and fans it out to matching no-place / no-prefs subscribers.`
                   : searchGenDefaultsLoading
                     ? "Loading this subscriber’s home city and district…"
                     : searchGenCityId

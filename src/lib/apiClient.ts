@@ -4412,6 +4412,44 @@ export function getAdminUserNewsletterOverview(
   );
 }
 
+export interface PlaceStoryAlertPreviewStory {
+  id: number;
+  headline: string;
+  description: string;
+  short_hash: string | null;
+  user_place_id: number | null;
+  place_label: string;
+  eval_accuracy: number | null;
+  public_url: string | null;
+}
+
+export interface PlaceStoryAlertPreviewResponse {
+  sent: boolean;
+  skipped: boolean;
+  skip_reason: string | null;
+  subject: string | null;
+  html: string | null;
+  story_ids: number[];
+  stories: PlaceStoryAlertPreviewStory[];
+}
+
+export function previewPlaceStoryAlerts(
+  body: {
+    user_id?: number;
+    auth0_user_id?: string;
+    place_id?: number;
+    send?: boolean;
+  },
+  token: string
+): Promise<PlaceStoryAlertPreviewResponse> {
+  return request<PlaceStoryAlertPreviewResponse>(
+    "/api/admin/newsletter/place-story-alerts/preview",
+    "POST",
+    body,
+    token
+  );
+}
+
 export interface AdminNewsletterHistoryItem {
   id: number | string;
   to_email: string;
@@ -5538,6 +5576,18 @@ export interface NewsletterPendingListItem {
   eval_verdict?: string | null;
   /** newsletter_eval_results.id for the imported auto-eval row, when present. */
   eval_result_id?: number | null;
+  /** Denormalized accuracy score from the inline production eval (migration 137). */
+  eval_accuracy?: number | null;
+  /** When true, the Sunday accuracy gate is bypassed for this draft. */
+  eval_manual_eligible?: boolean;
+  /** Derived: true when eval_accuracy < 4 and not manually overridden. Draft is held. */
+  eval_held?: boolean;
+  /** Shared-edition fingerprint (city_id|district|place|instructions). Set on shared editions; null for personalized. */
+  settings_key?: string | null;
+  /** Points at the Seymour-generated canonical row; null = this IS the canonical (or personalized). */
+  canonical_pending_id?: number | null;
+  /** Total recipients sharing this edition (canonical + siblings). Only set on canonical rows. */
+  shared_recipient_count?: number | null;
 }
 
 export function listNewsletterPending(
@@ -5566,7 +5616,60 @@ export function listNewsletterPending(
   );
 }
 
-/** Admin typeahead: users by email or name prefix. */
+/** Set eval_manual_eligible = true on a pending send (bypasses accuracy hold). */
+export function setNewsletterPendingOverrideEligible(
+  token: string,
+  sendId: number
+): Promise<{ id: number; eval_accuracy: number | null; eval_manual_eligible: boolean; override_set: boolean }> {
+  return request(
+    `/api/admin/newsletter/pending/${sendId}/override-eligible`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+/** Clear eval_manual_eligible (revert to accuracy gate). */
+export function clearNewsletterPendingOverrideEligible(
+  token: string,
+  sendId: number
+): Promise<{ id: number; eval_accuracy: number | null; eval_manual_eligible: boolean; override_set: boolean }> {
+  return request(
+    `/api/admin/newsletter/pending/${sendId}/override-eligible`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
+/** Get newsletter eval operator settings (auto_correct toggle). */
+export function getNewsletterEvalSettings(token: string): Promise<{
+  auto_correct: boolean;
+  auto_correct_stored: boolean;
+  auto_correct_default: boolean;
+  auto_correct_env_override: boolean | null;
+  updated_at: string | null;
+  updated_by: string | null;
+}> {
+  return request(`/api/admin/newsletter/eval/settings`, "GET", undefined, token);
+}
+
+/** Update newsletter eval operator settings. */
+export function updateNewsletterEvalSettings(
+  token: string,
+  settings: { auto_correct: boolean }
+): Promise<{
+  auto_correct: boolean;
+  auto_correct_stored: boolean;
+  auto_correct_default: boolean;
+  auto_correct_env_override: boolean | null;
+  updated_at: string | null;
+  updated_by: string | null;
+}> {
+  return request(`/api/admin/newsletter/eval/settings`, "PUT", settings, token);
+}
+
+
 export interface AdminUserTypeaheadItem {
   id: number;
   auth0_id: string | null;
@@ -5892,6 +5995,26 @@ export function adminGenerateUnifiedNewsletterForCity(
   token: string
 ): Promise<{ job_id: string }> {
   return request("/api/admin/newsletter-unified-generate", "POST", payload, token);
+}
+
+/**
+ * Admin: generate (or reuse) the shared citywide / district edition.
+ *
+ * Uses the shared-edition model (claude-opus-4.8 or the active job config override).
+ * Same-cycle reuse applies: if the edition already exists this Friday cycle the
+ * canonical row is reused and only missing member rows are inserted.
+ */
+export function adminGenerateSharedEdition(
+  payload: {
+    city_id: number;
+    /** District number; 0 = citywide. */
+    district?: number;
+    /** Override the shared-edition model; omit for default (opus-4.8). */
+    model_key?: string | null;
+  },
+  token: string
+): Promise<{ job_id: string }> {
+  return request("/api/admin/newsletter-shared-edition-generate", "POST", payload, token);
 }
 
 /** Stored shared (non-personalized) LLM newsletter editions — `newsletter_editions` table. */

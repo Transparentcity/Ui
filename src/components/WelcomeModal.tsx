@@ -171,7 +171,7 @@ export default function WelcomeModal({
   const [repFollowed, setRepFollowed] = useState(true);
 
   // Preferences state — two opt-ins: alerts + custom weekly newsletter
-  const alertsOptIn = false; // anomaly alerts not available at launch
+  const alertsOptIn = true;
   const [weeklyNewsletterOptIn, setWeeklyNewsletterOptIn] = useState(true);
   const [showDigestNudge, setShowDigestNudge] = useState(false);
   const [newsletterDescription, setNewsletterDescription] = useState("");
@@ -944,13 +944,17 @@ export default function WelcomeModal({
         { lat: latitude, lng: longitude },
         true,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("GPS error:", err);
-      if (err.code === 1) {
+      const code =
+        typeof err === "object" && err !== null && "code" in err
+          ? Number((err as { code: unknown }).code)
+          : null;
+      if (code === 1) {
         setError("Location access denied. Please enter your city manually.");
-      } else if (err.code === 2) {
+      } else if (code === 2) {
         setError("Could not determine your location. Please enter your city.");
-      } else if (err.code === 3) {
+      } else if (code === 3) {
         setError("Location request timed out. Please try again.");
       } else {
         setError("Failed to get your location. Please enter your city.");
@@ -1929,7 +1933,10 @@ export default function WelcomeModal({
             currentExtra as Record<string, unknown>
           );
 
-          const preferencesData: any = {
+          const preferencesData: {
+            has_completed_onboarding: boolean;
+            extra: Record<string, unknown>;
+          } = {
             has_completed_onboarding: true,
             extra: {
               ...extraBase,
