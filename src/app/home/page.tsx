@@ -1,5 +1,6 @@
 "use client";
 
+import { isDeepLinkableView, shouldLeaveAdminView } from "@/lib/homeDeepLink";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
@@ -141,6 +142,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import { listInbox, getPlaceMetrics } from "@/lib/apiClient";
 
 type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "research" | "research-new" | "feed";
+
 
 // Mobile breakpoint (matches CSS media query)
 const MOBILE_BREAKPOINT = 768;
@@ -548,10 +550,12 @@ export default function DashboardPage() {
     const placeId = placeIdRaw ? parseInt(placeIdRaw, 10) : NaN;
     const wantsNav = Number.isFinite(cityId);
 
-    // `?view=feed|inbox` lets the shared rail (rendered on /waste) land the
-    // user on a specific SPA view. Only the two rail destinations are honored.
+    // `?view=` lets the shared rail (rendered on /waste) and the admin guide
+    // land the user on a specific SPA view. Admin panels are included so the
+    // guide can link to them; the effect below bounces non-admins back out,
+    // and every admin panel already renders behind its own isAdmin check.
     const viewParam = params.get("view");
-    const wantsView = viewParam === "feed" || viewParam === "inbox";
+    const wantsView = isDeepLinkableView(viewParam);
 
     if (!wantsEmailPrefs && !wantsAddPlace && !wantsNav && !wantsView) return;
 
@@ -1065,6 +1069,13 @@ export default function DashboardPage() {
       setIsCurrentSessionJobSession(false);
     }
   }, [isCheckingAdmin, chatEnabled, currentView]);
+
+  // A deep link to an admin panel must not strand a non-admin on a blank pane.
+  useEffect(() => {
+    if (!isCheckingAdmin && shouldLeaveAdminView(currentView, isAdmin)) {
+      setCurrentView("feed");
+    }
+  }, [isCheckingAdmin, isAdmin, currentView]);
 
   // Research UI: government-verified users and platform admins
   const canAccessResearch =

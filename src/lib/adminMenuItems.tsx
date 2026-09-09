@@ -161,6 +161,14 @@ export const ADMIN_SITEMAP_ICON = (
   </svg>
 );
 
+/** Book icon for the in-app admin guide link. */
+export const ADMIN_GUIDE_ICON = (
+  <svg {...iconProps}>
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </svg>
+);
+
 export const ADMIN_API_DOCS_ICON = (
   <svg {...iconProps}>
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
