@@ -210,9 +210,8 @@ function SchematicFigure({ g }: { g: CityGuide }) {
         </svg>
       </div>
       <figcaption className={styles.figcaption}>
-        Solid arrows are data moving. Dashed purple arrows are Seymour acting on a stage. Everything in the
-        middle and bottom rows is visible to you in the admin menu; everything in the bottom row is visible
-        to the public.
+        Solid arrows are data moving; dashed purple arrows are Seymour acting on a stage. Everything in the
+        bottom row is public.
       </figcaption>
     </figure>
   );
@@ -289,8 +288,8 @@ function ScreenMockup({ g }: { g: CityGuide }) {
         </div>
       </div>
       <p className={styles.fine}>
-        A sketch of the home screen as an admin. The green circle at the bottom left is the admin menu. The
-        four tabs across the top (Overview, All metrics, Map, Alerts) only appear for admins.
+        The home screen as an admin. The green circle at the bottom left is the admin menu; the four tabs
+        across the top only appear for admins.
       </p>
     </div>
   );
@@ -398,8 +397,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>Start here</span>
             <h2>Your first 20 minutes</h2>
             <p className={styles.why}>
-              The fastest way to understand this is to make it answer a question you already have. This
-              sequence touches every major piece once.
+              The fastest way to understand this is to make it answer a question you already have.
             </p>
           </div>
           <ol className={styles.steps}>
@@ -418,12 +416,6 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               you from changing another one. Nothing in this guide asks you to.
             </p>
           </div>
-          {g.caveats && (
-            <div className={`${styles.callout} ${styles.calloutWarn}`}>
-              <div className={styles.t}>{g.caveats.title}</div>
-              <p>{g.caveats.body}</p>
-            </div>
-          )}
         </section>
 
         {/* How it fits together */}
@@ -432,18 +424,16 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>The whole machine</span>
             <h2>How it fits together</h2>
             <p className={styles.why}>
-              Data flows left to right, from {g.cityName}&apos;s open-data portal to a resident&apos;s inbox.
-              Seymour does the work at every stage. Scheduled jobs keep it moving without anyone asking. You
-              steer.
+              Data flows left to right, from the city&apos;s open-data portal to a resident&apos;s inbox.
+              Seymour does the work at every stage, scheduled jobs keep it moving, and you steer.
             </p>
           </div>
           <SchematicFigure g={g} />
           <div className={styles.prose}>
             <p>
-              <strong>The key idea:</strong> nothing reaches a resident that did not start as a metric. If
-              you want {g.cityName}&apos;s feed and newsletter to be richer, the lever is more and better
-              metrics. If you want them to be more accurate, the lever is checking stories before Sunday.
-              Both are conversations with Seymour.
+              <strong>The key idea:</strong> nothing reaches a resident that did not start as a metric. A
+              richer feed and newsletter means more metrics; a more accurate one means checking stories
+              before Sunday. Both are conversations with Seymour.
             </p>
           </div>
         </section>
@@ -462,15 +452,13 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={styles.prose}>
             <h3>The left nav, top to bottom</h3>
             <ul className={styles.plain}>
-              <li><strong>Feed.</strong> Every story on the platform, all cities, newest first. Useful for seeing what good looks like in the older cities.</li>
-              <li><strong>New Chat.</strong> Opens a conversation with Seymour. This is the door to most of your powers.</li>
-              <li><strong>Search Cities.</strong> Jump to any city. You will mostly ignore this.</li>
-              <li><strong>My Places.</strong> Cities, districts and saved spots you follow. {g.cityName} is here, and you can add your own neighborhood with a pin and a radius you set.</li>
-              <li><strong>Research reports.</strong> Long-form investigations Seymour has run. You can start new ones from a chat.</li>
-              <li><strong>Recent chats.</strong> Your past conversations. Nothing is lost when you close one.</li>
-              <li><strong>Suggested questions.</strong> Starter prompts that adapt to the city you are looking at. Click one to send it.</li>
-              <li><strong>Job sessions.</strong> Chats started by scheduled background jobs rather than a person. This is how you read what Seymour was thinking when it wrote a story overnight.</li>
-              <li><strong>The green circle.</strong> Your avatar. Click it for the admin menu below, plus Settings and Logout.</li>
+              <li><strong>New Chat.</strong> A conversation with Seymour. The door to most of your powers.</li>
+              <li><strong>My Places.</strong> Cities, districts and saved spots you follow. Add your own neighborhood as a pin with a radius you drag to fit.</li>
+              <li><strong>Feed.</strong> Every story on the platform, all cities. Useful for seeing what good looks like elsewhere.</li>
+              <li><strong>Research reports.</strong> Long-form investigations, started from a chat.</li>
+              <li><strong>Recent chats</strong> and <strong>Suggested questions.</strong> Your history, and starter prompts that adapt to the city you are viewing.</li>
+              <li><strong>Job sessions.</strong> Chats started by scheduled jobs. This is how you read what Seymour was thinking when it wrote a story overnight.</li>
+              <li><strong>The green circle.</strong> Your avatar. Click it for the admin menu, Settings and Logout.</li>
             </ul>
           </div>
           <h3>The admin menu (the green circle)</h3>
@@ -486,12 +474,8 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
                 <dd>Everything Seymour <em>produces</em> on a schedule: stories, the newsletter, replies to reader email, and the logs of the jobs that made them.</dd>
               </div>
               <div>
-                <dt>Tagged &ldquo;useful&rdquo;</dt>
-                <dd>The panels you will actually open in your first weeks. The rest are platform-wide tools that are safe to ignore.</dd>
-              </div>
-              <div>
                 <dt>Prefer the chat</dt>
-                <dd>Most of what these panels do, Seymour can do for you in plain English. The panels are for when you want the full list, one exact button, or to check what a job did.</dd>
+                <dd>Most of what these panels do, Seymour can do in plain English. They are for when you want the full list, one exact button, or to check what a job did. The ones tagged useful are the only ones you are likely to open.</dd>
               </div>
             </dl>
           </div>
@@ -503,30 +487,22 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>The main tool</span>
             <h2>Seymour, the agent</h2>
             <p className={styles.why}>
-              Seymour is the AI agent that runs Transparent City. It answers questions, but it also builds
-              things: metrics, maps, stories, research reports. Talking to it is the primary interface.
+              Seymour answers questions, but it also builds things: metrics, maps, stories, research
+              reports. Talking to it is the primary interface.
             </p>
           </div>
           <div className={styles.prose}>
             <p>
-              <strong>What it is.</strong> A conversational agent with about 90 tools behind it. When you ask
-              something, it decides which to use: query {g.cityName}&apos;s open-data portal, pull a
-              metric&apos;s history, run anomaly detection, draw a chart or map, create a story. You watch
-              each step unfold in the chat, so you can follow its reasoning and catch mistakes.
+              <strong>What it is.</strong> A conversational agent with about 90 tools behind it: query the
+              open-data portal, pull a metric&apos;s history, run anomaly detection, draw a chart or map,
+              write a story. You watch each step in the chat, so you can follow its reasoning and catch
+              mistakes. It always charts what it is discussing; if you get a number without a picture, ask
+              for the chart.
             </p>
             <p>
-              <strong>Its house rule is show, don&apos;t tell.</strong> It is instructed to always chart or
-              map the data it is discussing. If it gives you a number without a picture, ask for the chart.
-            </p>
-            <p>
-              <strong>Two modes of question.</strong> Analysis questions (&ldquo;what is happening with
-              X?&rdquo;) are safe and cheap to ask as often as you like. Build questions (&ldquo;create a
-              metric for X&rdquo;) change what residents see. Handle with care covers which builds to be
-              careful with.
-            </p>
-            <p>
-              <strong>You cannot break it by asking.</strong> Nothing in a normal question damages anything.
-              The risky verbs are delete, clear, and re-create, and they are all listed further down.
+              <strong>You cannot break it by asking.</strong> Analysis questions damage nothing, so ask as
+              many as you like. The risky verbs are delete, clear and re-create, and they are all listed
+              under Handle with care.
             </p>
           </div>
           <h3>Good questions to start with</h3>
@@ -545,17 +521,16 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={styles.callout}>
             <div className={styles.t}>How to get better answers</div>
             <p>
-              Name the city and the time window. Ask for the chart or map explicitly. If it grabs the wrong
-              dataset, tell it the dataset name from the Datasets panel. Long questions are fine, and
-              follow-ups in the same chat keep the context. If an answer looks wrong, say so and ask it to
-              check.
+              Name the city and the time window, and ask for the chart explicitly. If it grabs the wrong
+              dataset, name the right one. Long questions are fine. If an answer looks wrong, say so and ask
+              it to check.
             </p>
           </div>
           <div className={`${styles.callout} ${styles.calloutWarn}`}>
             <div className={styles.t}>It will do what you ask, including destructive things</div>
             <p>
-              Seymour can delete a metric, clear its data, or restructure the city if you tell it to. There
-              is no confirmation step. Read Handle with care before asking it to remove or rebuild anything.
+              Seymour can delete a metric, clear its data, or restructure the city if you tell it to, with
+              no confirmation. Read Handle with care first.
             </p>
           </div>
         </section>
@@ -566,8 +541,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>What residents see</span>
             <h2>The {g.cityName} dashboard</h2>
             <p className={styles.why}>
-              This is the public product. Residents see the Overview. As an admin you also get three more
-              tabs and a gear icon that opens {g.cityName}&apos;s settings without leaving the page.
+              This is the public product. Residents see the Overview; as an admin you get three more tabs.
             </p>
           </div>
           <div className={styles.tablewrap}>
@@ -576,28 +550,24 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
                 <tr><th>Tab</th><th>What it shows</th><th>Who sees it</th></tr>
               </thead>
               <tbody>
-                <tr><td><b>Overview</b></td><td>The briefing: map, what moved this week, new stories, and the &ldquo;accountable here&rdquo; list of elected officials. This is what a resident gets.</td><td>Everyone</td></tr>
-                <tr><td><b>All metrics</b></td><td>Every active metric with a year-to-date comparison, grouped by category. Click any metric for its detail page with charts, {g.unit} breakdowns and maps.</td><td>Admins (residents reach it via a toggle)</td></tr>
-                <tr><td><b>Map</b></td><td>{g.cityName}&apos;s metrics on a map, by {g.unit} or neighborhood, with a timeline slider.</td><td>Admins</td></tr>
-                <tr><td><b>Alerts</b></td><td>Anomalies across {g.cityName}&apos;s metrics: sudden spikes or drops, citywide or by {g.unit}. Story ideas start here.</td><td>Admins</td></tr>
+                <tr><td><b>Overview</b></td><td>The briefing: map, what moved this week, new stories, and the &ldquo;accountable here&rdquo; list of officials. What a resident gets.</td><td>Everyone</td></tr>
+                <tr><td><b>All metrics</b></td><td>Every active metric with a year-to-date comparison, grouped by category.</td><td>Admins (residents reach it via a toggle)</td></tr>
+                <tr><td><b>Map</b></td><td>Metrics on a map, by {g.unit} or neighborhood, with a timeline slider.</td><td>Admins</td></tr>
+                <tr><td><b>Alerts</b></td><td>Anomalies: sudden spikes or drops, citywide or by {g.unit}. Story ideas start here.</td><td>Admins</td></tr>
               </tbody>
             </table>
           </div>
           <div className={styles.prose}>
             <p>
-              <strong>Scope it to where you live.</strong> The dashboard can be filtered to a {g.unit}, or to
-              a saved place: a pin with a radius you set yourself. Drag the radius to match your actual
-              neighborhood rather than a default circle.
+              <strong>Scope it to where you live.</strong> Filter the dashboard to a {g.unit}, or to a saved
+              place: a pin with a radius you set. Drag it to match your actual neighborhood rather than a
+              default circle.
             </p>
             <p>
-              <strong>The gear icon next to the city name.</strong> It opens a drawer with{" "}
-              {g.cityName}&apos;s admin settings: city information, structure, metrics, datasets and
-              newsletters, without leaving the dashboard.
-            </p>
-            <p>
-              <strong>Metric detail pages.</strong> Clicking a metric opens a full page with time series,{" "}
-              {g.unit} comparisons, a map, and source attribution. Admins also get a row of actions there:
-              execute (re-run now), edit, view anomalies, view maps, clear data, delete.
+              <strong>Metric detail pages.</strong> Clicking a metric opens time series, {g.unit}{" "}
+              comparisons, a map and source attribution, plus admin actions: execute, edit, view anomalies,
+              view maps, clear data, delete. The gear icon by the city name opens the same settings as the
+              City Data panel, without leaving the page.
             </p>
           </div>
           <h3>What {g.cityName} tracks today</h3>
@@ -623,8 +593,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             </table>
           </div>
           <p className={styles.fine}>
-            Snapshot from {g.snapshotDate}. {g.cityName} also has {g.datasetsCount} datasets catalogued from
-            its {g.portal} open-data portal.
+            Snapshot from {g.snapshotDate}.
           </p>
         </section>
 
@@ -634,61 +603,57 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>Growing {g.cityName}</span>
             <h2>Metrics and templates</h2>
             <p className={styles.why}>
-              A metric is a number we compute from a city dataset on a schedule and track over time.
-              Templates are metric definitions shared across every city, so {g.cityName}&apos;s version is
-              directly comparable to San Francisco&apos;s.
+              A metric is a number computed from a city dataset on a schedule and tracked over time.
+              Templates are definitions shared across cities, so {g.cityName}&apos;s version is comparable
+              to San Francisco&apos;s.
             </p>
           </div>
           <div className={styles.prose}>
             <p>
-              <strong>Why templates matter.</strong> Every city publishes its data differently, with
-              different vendors and no common definitions. A template says &ldquo;count of X, by day, by
-              district&rdquo; once, and Seymour maps that onto each city&apos;s own fields. That is what
-              makes cross-city comparison possible, and it is why filling in templates usually beats
-              inventing one-off metrics.
+              <strong>Why templates matter.</strong> Every city publishes differently, with different
+              vendors and no common definitions. A template says &ldquo;count of X, by day, by
+              district&rdquo; once, and Seymour maps it onto each city&apos;s own fields. That is what makes
+              cross-city comparison possible.
             </p>
             <p>
               <strong>Where {g.cityName} stands.</strong> {g.standing}
             </p>
           </div>
           <div className={styles.pipe} aria-label="How a metric goes from idea to dashboard">
-            <Stage l="Ask" h="Say what you want" d="In plain English, in a chat. A template name or a description both work." />
-            <Stage l="Map" h="Seymour finds the data" d="It searches the portal, matches fields, writes the query. This runs as a background job." />
-            <Stage l="Run" h="It computes history" d="Check status, last run and last data date in the Metrics tab." />
+            <Stage l="Ask" h="Say what you want" d="In plain English. A template name or a description both work." />
+            <Stage l="Map" h="Seymour finds the data" d="It searches the portal, matches fields, writes the query." />
+            <Stage l="Run" h="It computes history" d="Check status and last data date in the Metrics tab." />
             <Stage l="Show" h="Turn it on" d="Show on Dashboard and the ordering are controlled in Display Settings." />
-            <Stage l="Watch" h="Anomalies and stories" d="Once it has history, spikes get detected and stories can be written about them." />
+            <Stage l="Watch" h="Anomalies and stories" d="Spikes get detected; stories follow." />
           </div>
           <h3>Two ways to do it</h3>
           <div className={styles.prose}>
             <p>
               <strong>Through Seymour (recommended).</strong> &ldquo;Create a 311 metric for just potholes in{" "}
               {g.cityName}&rdquo; is a complete instruction. It finds the dataset, handles the messy field,
-              and reports back. Then ask it to confirm the numbers make sense. That check is worth doing
-              every time.
+              and reports back. Then ask it to confirm the numbers make sense. Worth doing every time.
             </p>
             <p>
-              <strong>Through the panel.</strong> Admin menu → <b>City Data</b> → search {g.cityName} → click
-              into it → <b>Metrics</b> tab. Four sub-sections:
+              <strong>Through the panel.</strong> Admin menu → <b>City Data</b> → {g.cityName} →{" "}
+              <b>Metrics</b>:
             </p>
             <ul className={styles.plain}>
-              <li><strong>Metrics.</strong> Every metric with status, last run, last data date, record counts. Click one for its chart and an Execute button.</li>
-              <li><strong>Templates.</strong> The shared catalog, with a badge showing how many are not yet set up here. You can try one at a time, or all the missing ones at once.</li>
-              <li><strong>Display Settings.</strong> Which metrics appear on the public dashboard and in what order. The most visible change you can make, and instantly reversible.</li>
-              <li><strong>Inactive &amp; Cleanup.</strong> Metrics that failed or were turned off. Safe to leave alone.</li>
+              <li><strong>Metrics.</strong> Status, last run and record counts. Click one for its chart and an Execute button.</li>
+              <li><strong>Templates.</strong> The shared catalog, badged with how many are not set up here yet.</li>
+              <li><strong>Display Settings.</strong> What appears on the public dashboard, and in what order. The most visible change you can make, and instantly reversible.</li>
+              <li><strong>Inactive &amp; Cleanup.</strong> Failed or switched-off metrics. Safe to leave alone.</li>
             </ul>
             <p>
-              <strong>The platform-wide Metrics panel</strong> (admin menu → Metrics) shows all cities
-              together with filters. Good for cross-city views. Do not edit templates there: a template edit
-              changes every city that uses it.
+              The platform-wide <b>Metrics</b> panel shows all cities together. Good for cross-city views,
+              but do not edit templates there: it changes every city that uses them.
             </p>
           </div>
           <div className={styles.callout}>
             <div className={styles.t}>How metrics stay fresh</div>
             <p>
-              Each metric has a schedule and re-runs on its own. If one shows &ldquo;No data&rdquo; or a last
-              data date weeks old, the city&apos;s dataset has probably lagged or changed shape. Ask Seymour
-              to check freshness, or open the metric and hit Execute. If it keeps failing, that is a real
-              finding: the city&apos;s feed broke.
+              Metrics re-run on a schedule. If one shows &ldquo;No data&rdquo; or a stale date, the city&apos;s
+              dataset has probably lagged or changed shape. Ask Seymour to check freshness, or hit Execute.
+              If it keeps failing, that is a real finding: the city&apos;s feed broke.
             </p>
           </div>
         </section>
@@ -700,38 +665,31 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <h2>Stories and the Feed</h2>
             <p className={styles.why}>
               A story is a short, sourced piece Seymour writes about something notable in the data, with a
-              chart or map. Stories appear on the dashboard, get their own public page, and feed the
-              newsletter. Think of them as leads, not finished reporting.
+              chart. Stories appear on the dashboard, get a public page, and feed the newsletter. Think of
+              them as leads, not finished reporting.
             </p>
           </div>
           <div className={styles.pipe} aria-label="How stories get made">
             <Stage l="Input" h="Metrics" d="Anything with enough history." />
-            <Stage l="Detect" h="Anomalies" d="Moves beyond three standard deviations from a metric's own history. Visible under Alerts." />
-            <Stage l="Write" h="Seymour drafts" d="Headline, summary, article, chart. Scheduled jobs do this overnight; you can also ask in chat." />
-            <Stage l="Judge" h="Accuracy check" d="A second model scores the draft against its own trace. 4 or higher is newsletter-eligible." />
+            <Stage l="Detect" h="Anomalies" d="Moves beyond three standard deviations from a metric's own history." />
+            <Stage l="Write" h="Seymour drafts" d="Headline, chart, article. Overnight by job, or on demand in chat." />
+            <Stage l="Judge" h="Accuracy check" d="A second model scores it. 4 or higher is newsletter-eligible." />
             <Stage l="Publish" h="Dashboard, page, newsletter" d={`Public URL: /c/${g.citySlug}/stories/…`} />
           </div>
           <div className={styles.prose}>
             <p>
               <strong>There is noise in the alerts.</strong> A weekly spike in a small number is often
-              nothing. That is expected: the alerts are a wide net, and your judgment is the filter. The ones
-              worth keeping are the ones you would want to ask a department about.
+              nothing. The alerts are a wide net and your judgment is the filter. The ones worth keeping are
+              the ones you would want to ask a department about.
             </p>
             <p>
-              <strong>Making a story yourself.</strong> In chat: &ldquo;Write a story about [finding] in{" "}
-              {g.cityName}, with the chart.&rdquo; Or from a research report: &ldquo;Generate feed stories
-              from this research.&rdquo; It appears on the dashboard within a minute.
+              <strong>Making one yourself.</strong> In chat: &ldquo;Write a story about [finding] in{" "}
+              {g.cityName}, with the chart.&rdquo; It appears on the dashboard within a minute.
             </p>
             <p>
-              <strong>The Feed admin panel</strong> (admin menu → Feed) is the editorial desk. Filter by city
-              to {g.cityName}. For each story you see views, likes, clicks, the accuracy score, and which job
-              or chat created it. From there you can edit a headline, delete a story, force one into the
-              newsletter, or ask Seymour to make a minimal factual fix.
-            </p>
-            <p>
-              <strong>Seymour&apos;s Inbox</strong> (admin menu → Seymour&apos;s Inbox) is different: reader
-              email. When someone replies to a newsletter, it lands here and Seymour can draft a reply for you
-              to approve.
+              <strong>The Feed panel</strong> is the editorial desk. Filter to {g.cityName} and you see each
+              story&apos;s views, likes and accuracy score. From there you can edit a headline, delete a
+              story, or ask Seymour for a factual fix.
             </p>
           </div>
           <div className={styles.callout}>
@@ -750,28 +708,21 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>The weekly product</span>
             <h2>The Sunday newsletter</h2>
             <p className={styles.why}>
-              Every Sunday, subscribers in {g.cityName} get an email built from that week&apos;s eligible
-              stories and the metrics that moved, personalized for readers who saved a specific neighborhood.
+              Every Sunday, subscribers get an email built from that week&apos;s eligible stories and the
+              metrics that moved.
             </p>
           </div>
           <div className={styles.prose}>
             <p>
               <strong>How it is assembled.</strong> A weekly job scores the week&apos;s stories, picks a
-              slate, and asks Seymour to write the edition. Readers with no saved places get the shared
-              edition. Readers who saved a neighborhood get their own version with that place&apos;s numbers.
-              Editions are archived publicly at <code>/c/{g.citySlug}/newsletter/&lt;date&gt;</code>.
+              slate, and asks Seymour to write the edition. Readers who saved a neighborhood get their own
+              version with that place&apos;s numbers. Editions are archived at{" "}
+              <code>/c/{g.citySlug}/newsletter/&lt;date&gt;</code>.
             </p>
-            <p><strong>The Newsletters panel</strong> (admin menu → Newsletters) has tabs:</p>
-            <ul className={styles.plain}>
-              <li><strong>Dashboard.</strong> Subscriber count, sends this week, stories scored today, unsent drafts.</li>
-              <li><strong>Workbench.</strong> The scored candidates for the coming edition, and a button to generate a sample right now so you can read what next Sunday would look like. This is the tab to use.</li>
-              <li><strong>Queue and Sends.</strong> Pending sends awaiting review, and the log of what went out.</li>
-              <li><strong>Subscribers.</strong> Who is signed up, by city and frequency.</li>
-              <li><strong>Prompts.</strong> The instructions Seymour follows when writing. Editing these changes the voice for every city, so leave them unless you have talked to Adam.</li>
-            </ul>
             <p>
-              <strong>What you control.</strong> Mostly the inputs: the more good stories {g.cityName} has by
-              Saturday, the better the Sunday email.
+              <strong>The tab to use is Workbench</strong>, which generates a sample on demand so you can
+              read what next Sunday would look like. What you control is mostly the inputs: the more good
+              stories {g.cityName} has by Saturday, the better the email.
             </p>
           </div>
         </section>
@@ -782,30 +733,26 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>Under the hood</span>
             <h2>Data and city structure</h2>
             <p className={styles.why}>
-              Where {g.cityName}&apos;s numbers come from, and how the city is divided up. You will read
-              these panels often and change them rarely.
+              Where the numbers come from, and how the city is divided up. Read often, change rarely.
             </p>
           </div>
           <div className={styles.prose}>
             <p>
-              <strong>Datasets</strong> (admin menu → Datasets). The catalog of open-data sources pulled from{" "}
-              {g.cityName}&apos;s portal: {g.datasetsCount} today, each with its portal ID, department,
-              category, row count, update frequency and fetch status. When Seymour builds a metric, it picks
-              from this list. If a dataset you know exists is missing, ask Seymour to find and add it. If one
-              shows an error, that is often a portal-side change worth reporting.
+              <strong>Datasets.</strong> The catalog pulled from {g.cityName}&apos;s portal:{" "}
+              {g.datasetsCount} today, each with its department, row count and fetch status. Seymour picks
+              from this list when it builds a metric. If a dataset you know exists is missing, ask it to find
+              and add it. An error here is often a portal-side change worth reporting.
             </p>
-            <p><strong>City Data → {g.cityName}</strong> is the per-city control panel with five tabs:</p>
-            <ul className={styles.plain}>
-              <li><strong>Data.</strong> City information, statistics, and buttons to reload datasets and metadata.</li>
-              <li><strong>Structure.</strong> {g.cityName}&apos;s geography and government: {g.unitPlural} as map shapes, neighborhoods, and elected officials with titles and districts. This is what powers &ldquo;accountable here&rdquo; and every {g.unit} breakdown. If a boundary or a name is wrong, this is where it gets fixed, and telling us is genuinely useful.</li>
-              <li><strong>Metrics.</strong> Covered above.</li>
-              <li><strong>Datasets.</strong> The same catalog, filtered to this city.</li>
-              <li><strong>Newsletters.</strong> This city&apos;s editions and subscriber settings.</li>
-            </ul>
             <p>
-              <strong>The Structure tab has powerful buttons.</strong> Refresh structure data re-reads what is
-              already saved, which is safe. Re-create structure from query configs deletes the{" "}
-              {g.unitPlural} and officials and downloads them again, which is not, unless you mean it.
+              <strong>City Data → {g.cityName}</strong> is the per-city control panel. The tab that matters
+              is <b>Structure</b>: {g.unitPlural} as map shapes, neighborhoods, and elected officials. It
+              powers &ldquo;accountable here&rdquo; and every {g.unit} breakdown, so if a boundary or name is
+              wrong, this is where it gets fixed, and telling us is genuinely useful.
+            </p>
+            <p>
+              <strong>One warning on that tab.</strong> Refresh structure data re-reads what is saved, which
+              is safe. Re-create structure from query configs deletes the {g.unitPlural} and officials and
+              downloads them again, which is not, unless you mean it.
             </p>
           </div>
         </section>
@@ -815,7 +762,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={styles.secHead}>
             <span className={styles.eyebrow}>For completeness</span>
             <h2>Everything else in the menu</h2>
-            <p className={styles.why}>Platform-wide tools. Good to know they exist. None is required for city work.</p>
+            <p className={styles.why}>Platform-wide tools. None is required for city work.</p>
           </div>
           <div className={styles.tablewrap}>
             <table>
@@ -823,13 +770,10 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
                 <tr><th>Item</th><th>What it is</th><th>When you would open it</th></tr>
               </thead>
               <tbody>
-                <tr><td><b>Job Logs</b></td><td>Every background job: metric runs, story generation, newsletter sends. Status, progress, error messages, and the schedules that trigger them. You can also create a recurring job, for example a weekly research prompt that produces stories.</td><td>When something you asked for did not appear, or to see what ran overnight.</td></tr>
-                <tr><td><b>Research reports</b></td><td>Deep, multi-source investigations. Start one from chat. Seymour asks a few narrowing questions, works for a while, then produces a report you can turn into stories or pull into your own writing.</td><td>When a question is bigger than one chat can answer.</td></tr>
-                <tr><td><b>Dashboard</b> (Data group)</td><td>Product analytics: active users, signup funnel, retention, daily model cost.</td><td>Curiosity.</td></tr>
-                <tr><td><b>Users</b></td><td>Every account, role, verification status, and city assignments.</td><td>If a local official signs up and needs verifying. Ask Adam first.</td></tr>
-                <tr><td><b>Sitemap</b></td><td>Every public URL the site generates, per city.</td><td>To find the public link for a page you want to share.</td></tr>
-                <tr><td><b>API Documentation</b></td><td>The backend&apos;s interactive API reference.</td><td>Only if you want to script something.</td></tr>
-                <tr><td><b>Settings</b></td><td>Your own preferences: dark mode, newsletter and alert subscriptions, and a way to send yourself a sample newsletter.</td><td>Worth doing once: subscribe yourself to your city&apos;s newsletter and alerts.</td></tr>
+                <tr><td><b>Job Logs</b></td><td>Every background job, with status and error messages. You can also create a recurring one, such as a weekly research prompt that produces stories.</td><td>When something you asked for did not appear.</td></tr>
+                <tr><td><b>Research reports</b></td><td>Deep, multi-source investigations. Seymour asks a few narrowing questions, then produces a report you can turn into stories or pull into your own writing.</td><td>When a question is bigger than one chat can answer.</td></tr>
+                <tr><td><b>Users</b></td><td>Every account, role and city assignment.</td><td>If a local official signs up and needs verifying. Ask Adam first.</td></tr>
+                <tr><td><b>Settings</b></td><td>Dark mode, newsletter and alert subscriptions.</td><td>Worth doing once: subscribe yourself to your city&apos;s newsletter and alerts.</td></tr>
               </tbody>
             </table>
           </div>
@@ -842,19 +786,18 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <h2>What to handle with care</h2>
             <p className={styles.why}>
               This is a two-person project and the guardrails you would expect are not all there yet. Here is
-              the honest map of what is reversible and what is not. Most things are.
+              what is reversible and what is not. Most of it is.
             </p>
           </div>
           <div className={styles.safety}>
             <div className={styles.box}>
               <h4><span className={styles.dot} style={{ background: "var(--success)" }} />Do freely</h4>
               <ul>
-                <li>Ask Seymour any analysis question</li>
-                <li>Create metrics for your city</li>
-                <li>Execute (re-run) one of your metrics</li>
+                <li>Ask any analysis question</li>
+                <li>Create metrics, and re-run them</li>
                 <li>Create stories, run anomaly detection</li>
                 <li>Generate a sample newsletter</li>
-                <li>Reorder or hide metrics in Display Settings (instantly public, instantly reversible)</li>
+                <li>Reorder or hide metrics in Display Settings</li>
                 <li>Read any panel, any city</li>
               </ul>
             </div>
@@ -883,14 +826,13 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={`${styles.callout} ${styles.calloutDanger}`}>
             <div className={styles.t}>Seymour does not ask twice</div>
             <p>
-              &ldquo;Delete that metric&rdquo; will delete it, with its history. If you want to hide
-              something, use Display Settings. If you want to test whether a metric is broken, use Execute,
-              not Clear.
+              &ldquo;Delete that metric&rdquo; will delete it, with its history. To hide something, use
+              Display Settings. To test whether a metric is broken, use Execute, not Clear.
             </p>
           </div>
           <p className={styles.fine}>
-            Every metric change is written to an audit log with your name on it, so nothing is anonymous and
-            most things can be reconstructed. Rebuilding lost data is still slow. When in doubt, text Adam.
+            Every metric change is logged with your name on it, so most things can be reconstructed.
+            Rebuilding lost data is still slow. When in doubt, text Adam.
           </p>
         </section>
 
@@ -899,9 +841,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={styles.secHead}>
             <span className={styles.eyebrow}>Where to start</span>
             <h2>What to dig into</h2>
-            <p className={styles.why}>
-              Concrete places to point this, each answerable with the tools above.
-            </p>
+            <p className={styles.why}>Concrete places to point this, each answerable with the tools above.</p>
           </div>
           <ul className={styles.checklist}>
             {g.challenge.map((c) => (
