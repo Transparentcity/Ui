@@ -50,19 +50,62 @@ describe("shouldFireDaily", () => {
   });
 
   it("falls back to sessionStorage when localStorage refuses writes", () => {
-    const setItem = vi
-      .spyOn(Storage.prototype, "setItem")
-      .mockImplementation(function (this: Storage, key: string, value: string) {
-        if (this === localStorage) throw new Error("QuotaExceededError");
-        // Write through to the real backing store for sessionStorage.
-        setItem.getMockImplementation();
-        Object.defineProperty(this, key, { value, configurable: true });
+    const realLocal = window.localStorage;
+    // Safari private mode shape: present, readable, throws on write.
+    Object.defineProperty(window, "localStorage", {
+      value: {
+        getItem: () => null,
+        setItem: () => {
+          throw new DOMException("QuotaExceededError");
+        },
+        removeItem: () => {},
+        clear: () => {},
+        key: () => null,
+        length: 0,
+      },
+      configurable: true,
+    });
+
+    try {
+      expect(shouldFireDaily("tc_fp_user_active_7")).toBe(true);
+      // The mark must have landed in sessionStorage instead.
+      expect(sessionStorage.getItem(`tc_fp_user_active_7:${utcDateKey()}`)).toBe("1");
+      // And the cap must still hold on the second call.
+      expect(shouldFireDaily("tc_fp_user_active_7")).toBe(false);
+    } finally {
+      Object.defineProperty(window, "localStorage", {
+        value: realLocal,
+        configurable: true,
       });
+    }
+  });
 
-    // Should still report "first time today" rather than throwing.
-    expect(() => shouldFireDaily("tc_fp_user_active_7")).not.toThrow();
+  it("fires rather than throwing when no storage works at all", () => {
+    const realLocal = window.localStorage;
+    const realSession = window.sessionStorage;
+    const throwing = {
+      getItem: () => {
+        throw new DOMException("SecurityError");
+      },
+      setItem: () => {
+        throw new DOMException("SecurityError");
+      },
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+    };
+    Object.defineProperty(window, "localStorage", { value: throwing, configurable: true });
+    Object.defineProperty(window, "sessionStorage", { value: throwing, configurable: true });
 
-    setItem.mockRestore();
+    try {
+      // Over-reporting beats losing the day entirely, so it fires every time.
+      expect(shouldFireDaily("tc_fp_user_active_7")).toBe(true);
+      expect(shouldFireDaily("tc_fp_user_active_7")).toBe(true);
+    } finally {
+      Object.defineProperty(window, "localStorage", { value: realLocal, configurable: true });
+      Object.defineProperty(window, "sessionStorage", { value: realSession, configurable: true });
+    }
   });
 });
 

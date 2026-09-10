@@ -604,8 +604,16 @@ export default function DashboardPage() {
   // Record which in-app view is on screen. This whole page is one route with
   // a `?view=` param, so without this every working session shows up in the
   // event log as a single "/home" page view and nothing more.
+  //
+  // Guarded on the view actually changing. The city ids are read for context,
+  // so they have to be effect dependencies, but switching city while staying
+  // on one view is not a new view: firing on that would inflate the per-view
+  // counts by however many cities the person happened to click through.
+  const lastTrackedViewRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
+    if (lastTrackedViewRef.current === currentView) return;
+    lastTrackedViewRef.current = currentView;
     recordAppView(currentView, {
       city_id: activeCityId ?? selectedCityId ?? null,
     });
