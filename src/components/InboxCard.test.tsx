@@ -88,7 +88,7 @@ describe("InboxCard", () => {
       />
     );
     expect(screen.getByText("Citywide Edition")).toBeInTheDocument();
-    expect(screen.getByLabelText("Citywide editions are public")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Citywide editions are public")).not.toBeInTheDocument();
   });
 
   it("does not show Citywide Edition for private items", () => {
