@@ -50,6 +50,7 @@ const TARGET_CITIES = [
   { label: "NYC",        slugPatterns: ["new-york-city", "new-york", "nyc"], canonicalSlug: "new-york-city" },
   { label: "Austin",     slugPatterns: ["austin"], canonicalSlug: "austin" },
   { label: "Seattle",    slugPatterns: ["seattle"], canonicalSlug: "seattle" },
+  { label: "Miami",      slugPatterns: ["miami"], canonicalSlug: "miami" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -729,6 +730,22 @@ export function buildFactCheckSection(candidates = []) {
   return h;
 }
 
+/**
+ * Best-guess dashboard slug for a city the sitemap returned.
+ *
+ * The sitemap API stopped returning `slug`, so there is nothing authoritative
+ * to read for a city that is not already in TARGET_CITIES. Every launched city
+ * to date slugs as its lowercased, hyphenated name, so derive that and label it
+ * as a guess wherever it is shown.
+ */
+function likelySlug(name) {
+  return (name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function buildHtml({ title, runDate, totalCards, totalFailures, passing, failures, resolvedOutages, resolvedLags, missingTargets, extraLaunched, factCheckCandidates = [], state }) {
   const ts = runDate.toLocaleString("en-US", {
     timeZone:   "America/Los_Angeles",
@@ -777,7 +794,7 @@ function buildHtml({ title, runDate, totalCards, totalFailures, passing, failure
     h += `<p class="note">⚠ Could not resolve in sitemap: ${esc(missingTargets.join(", "))}. Check slugs in TARGET_CITIES.</p>`;
   }
   if (extraLaunched.length > 0) {
-    h += `<p class="note">ℹ New launched cities not in target list: ${esc(extraLaunched.map((c) => `${c.name} (${c.slug})`).join(", "))} — consider adding to TARGET_CITIES.</p>`;
+    h += `<p class="note">ℹ New launched cities not in target list: ${esc(extraLaunched.map((c) => `${c.name} (likely canonicalSlug "${likelySlug(c.name)}")`).join(", "))} — consider adding to TARGET_CITIES.</p>`;
   }
 
   // Passing cities.
