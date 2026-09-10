@@ -73,8 +73,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const lede = (story.description ?? story.summary ?? "").trim();
     const descSnippet = lede.length > 0 ? lede.slice(0, 160) : headline.slice(0, 160);
     const canonical = `/c/${slug}/stories/${hash}`;
-    // Stories without a chart or map get a generated headline card so link
-    // previews still carry a large image instead of a bare summary card.
+    // Link previews always point at the story's own card-image route, which
+    // serves the chart or map when there is one and a generated headline card
+    // when there is not. Never the backend /api image URL: robots.txt
+    // disallows /api and X's crawler drops the thumbnail.
     const social = resolveStorySocialImage(story, slug, hash);
     return {
       title: headline || "Story",

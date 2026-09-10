@@ -8,24 +8,25 @@ import {
   storyCardImagePath,
   storyImageVersion,
   truncateHeadline,
-  versionedStoryImageUrl,
+  upstreamStoryImageUrl,
 } from "./storyCardImage";
 
 describe("resolveStorySocialImage", () => {
-  it("uses the backend image when present and keeps the large card", () => {
-    const r = resolveStorySocialImage(
+  it("points every story at its own card-image route, never at /api", () => {
+    const withImage = resolveStorySocialImage(
       { image_url: "/api/feed/public/story-image/O5LjXq8T" },
       "seattle",
       "O5LjXq8T",
     );
-    expect(r).toEqual({
-      url: "/api/feed/public/story-image/O5LjXq8T",
+    expect(withImage).toEqual({
+      url: "/c/seattle/stories/O5LjXq8T/card-image",
       card: "summary_large_image",
       generated: false,
     });
+    expect(withImage.url.startsWith("/api")).toBe(false);
   });
 
-  it("versions the backend image URL by the story's last update", () => {
+  it("versions the card URL by the story's last update", () => {
     const r = resolveStorySocialImage(
       {
         image_url: "/api/feed/public/story-image/AvhaOxL5",
@@ -35,11 +36,17 @@ describe("resolveStorySocialImage", () => {
       "oakland",
       "AvhaOxL5",
     );
-    expect(r.generated).toBe(false);
-    expect(r.url).toMatch(/^\/api\/feed\/public\/story-image\/AvhaOxL5\?v=[0-9a-z]+$/);
+    expect(r.url).toMatch(/^\/c\/oakland\/stories\/AvhaOxL5\/card-image\?v=[0-9a-z]+$/);
+
+    const later = resolveStorySocialImage(
+      { image_url: "/api/feed/public/story-image/AvhaOxL5", updated_at: "2026-09-06T10:00:00Z" },
+      "oakland",
+      "AvhaOxL5",
+    );
+    expect(later.url).not.toBe(r.url);
   });
 
-  it("falls back to the generated headline card when there is no image", () => {
+  it("marks stories with no backend image as generated", () => {
     for (const image_url of [null, undefined, "", "   "]) {
       const r = resolveStorySocialImage({ image_url }, "new-york-city", "lHBaq1hn");
       expect(r.url).toBe("/c/new-york-city/stories/lHBaq1hn/card-image");
@@ -95,9 +102,7 @@ describe("formatCardDate", () => {
   });
 });
 
-describe("versionedStoryImageUrl", () => {
-  const image_url = "/api/feed/public/story-image/AvhaOxL5";
-
+describe("storyImageVersion", () => {
   it("derives a stable token from updated_at, falling back to published_at", () => {
     const a = storyImageVersion({ updated_at: "2026-08-31T23:09:27Z" });
     const b = storyImageVersion({ updated_at: "2026-08-31T23:09:27Z" });
@@ -108,22 +113,34 @@ describe("versionedStoryImageUrl", () => {
     expect(storyImageVersion({})).toBe("");
     expect(storyImageVersion({ updated_at: "garbage" })).toBe("");
   });
+});
 
-  it("changes the URL when the story is updated", () => {
-    const before = versionedStoryImageUrl({ image_url, updated_at: "2026-08-31T23:09:27Z" });
-    const after = versionedStoryImageUrl({ image_url, updated_at: "2026-09-06T10:00:00Z" });
-    expect(before).not.toBe(after);
-    expect(before.startsWith(`${image_url}?v=`)).toBe(true);
+describe("upstreamStoryImageUrl", () => {
+  const origin = "https://api.transparent.city";
+
+  it("hangs backend-relative paths off the API origin, query and all", () => {
+    expect(upstreamStoryImageUrl("/api/feed/public/story-image/AvhaOxL5", origin)).toBe(
+      `${origin}/api/feed/public/story-image/AvhaOxL5`,
+    );
+    expect(upstreamStoryImageUrl("/api/time-series/public/3890858/image?period=month", origin)).toBe(
+      `${origin}/api/time-series/public/3890858/image?period=month`,
+    );
   });
 
-  it("leaves the URL bare when no timestamp is available", () => {
-    expect(versionedStoryImageUrl({ image_url })).toBe(image_url);
+  it("does not double the slash when the origin has a trailing one", () => {
+    expect(upstreamStoryImageUrl("/api/feed/public/story-image/x", `${origin}/`)).toBe(
+      `${origin}/api/feed/public/story-image/x`,
+    );
   });
 
-  it("does not touch external or already-parameterised URLs", () => {
+  it("passes absolute http(s) URLs through untouched", () => {
     const ext = "https://res.cloudinary.com/x/image/upload/s--sig--/photo.jpg";
-    expect(versionedStoryImageUrl({ image_url: ext, updated_at: "2026-08-31T23:09:27Z" })).toBe(ext);
-    const q = `${image_url}?raw=1`;
-    expect(versionedStoryImageUrl({ image_url: q, updated_at: "2026-08-31T23:09:27Z" })).toBe(q);
+    expect(upstreamStoryImageUrl(ext, origin)).toBe(ext);
+  });
+
+  it("returns empty for missing, relative, or protocol-relative values", () => {
+    for (const value of [null, undefined, "", "   ", "photo.jpg", "//evil.example/x.png"]) {
+      expect(upstreamStoryImageUrl(value, origin)).toBe("");
+    }
   });
 });

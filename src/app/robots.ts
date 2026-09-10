@@ -34,10 +34,11 @@ const AI_ANSWER_ENGINE_BOTS = [
 ];
 
 // Paths under a disallowed prefix that crawlers must still be able to fetch.
-// Story social-card images live under /api, and X's Twitterbot checks
-// robots.txt before fetching twitter:image, so a blanket /api disallow leaves
-// link previews without a thumbnail. Longest-match wins, so this Allow beats
-// the /api Disallow for every group that carries it.
+// Backend story images live under /api, and an Allow only beats the /api
+// Disallow for crawlers that resolve robots rules longest-match-wins. X's
+// Twitterbot does not appear to, so social-card images are served from
+// /c/{slug}/stories/{hash}/card-image instead (see lib/feed/storyCardImage).
+// This Allow stays for crawlers that index the images embedded in feed pages.
 const HUMAN_ALLOW = ["/", "/api/feed/public/story-image/"];
 
 const HUMAN_DISALLOW = [
