@@ -65,6 +65,23 @@ function loadState() {
   }
 }
 
+/**
+ * Rebuild the cardUrl on every stored outage/lag from the resolved city list.
+ *
+ * Entries whose city is no longer a QA target are left untouched — there is no
+ * slug to rebuild them from, and silently rewriting them would be worse than
+ * leaving the last known value in place.
+ */
+function refreshStateUrls(state, resolvedCities) {
+  const slugByLabel = new Map(resolvedCities.map((c) => [c.label, c.slug]));
+
+  for (const entry of [...state.knownOutages, ...state.knownLags]) {
+    const slug = slugByLabel.get(entry.city);
+    if (!slug || !entry.metricKey) continue;
+    entry.cardUrl = `${SITE_BASE}/c/${slug}/metrics/${entry.metricKey}`;
+  }
+}
+
 function saveState(state) {
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + "\n");
 }
@@ -325,6 +342,16 @@ async function main() {
       (l) => !(l.metricId === r.metricId && l.city === r.city)
     );
   }
+
+  // 4b. Refresh stored card URLs.
+  //
+  // An entry's cardUrl is written once, when the outage or lag is first
+  // recorded, and was never updated afterwards. Entries first recorded while
+  // the sitemap API was omitting `slug` therefore kept a permanently broken
+  // ".../c//metrics/..." link, and would have kept it until the underlying
+  // metric recovered. Rebuild every URL each run from the resolved city so a
+  // stale link self-heals rather than persisting in the appendices.
+  refreshStateUrls(state, resolvedCities);
 
   // 5. Build report.
   const failures      = cityReports.filter((cr) => cr.report.failures.length > 0);
