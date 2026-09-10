@@ -1,10 +1,19 @@
 /**
  * Social-card image selection for story pages.
  *
- * Stories with a backend-rendered chart or map use that image. Stories
- * without one fall back to a generated headline card served from
- * /c/{slug}/stories/{hash}/card-image so link previews on X and elsewhere
- * still get a large image instead of a bare summary card.
+ * Every story's og:image / twitter:image points at
+ * `/c/{slug}/stories/{hash}/card-image`. That route serves the backend's
+ * chart or map when the story has one, and a generated headline card when it
+ * does not, so a link preview always carries a large image.
+ *
+ * Why the meta tags never point at the backend image directly: those images
+ * live under `/api/...`, and robots.txt disallows `/api`. The narrower
+ * `Allow: /api/feed/public/story-image/` only helps crawlers that resolve
+ * robots rules longest-match-wins, and X's Twitterbot kept serving image-less
+ * cards with that Allow in place. Serving the image from the story's own path
+ * takes robots.txt out of the picture. It also gives X a URL it has never
+ * cached a failure against, and covers story images on other backend paths
+ * (e.g. /api/time-series/...) that the Allow line never matched.
  */
 
 export const STORY_CARD_WIDTH = 1200;
@@ -19,15 +28,12 @@ export type StoryCardSource = {
   published_at?: string | null;
 };
 
-/** Path prefix of story images served by this site (proxied to the backend). */
-const STORY_IMAGE_PREFIX = "/api/feed/public/story-image/";
-
 export type StorySocialImage = {
-  /** Path or URL for og:image / twitter:image (relative paths resolve via metadataBase). */
+  /** Path for og:image / twitter:image (resolved against metadataBase). */
   url: string;
-  /** Twitter card type. Always large: either the real image or the generated fallback. */
+  /** Twitter card type. Always large: either the story image or the generated card. */
   card: "summary_large_image";
-  /** True when the URL is the generated headline card rather than a story image. */
+  /** True when the route will draw a headline card rather than a story image. */
   generated: boolean;
 };
 
@@ -36,8 +42,8 @@ export function storyCardImagePath(slug: string, hash: string): string {
 }
 
 /**
- * Version token for a story's image URL, derived from the story's last update.
- * Returns "" when no usable timestamp exists.
+ * Version token for a story's card image, derived from the story's last
+ * update. Returns "" when no usable timestamp exists.
  */
 export function storyImageVersion(story: StoryCardSource): string {
   const raw = story.updated_at || story.published_at || "";
@@ -47,29 +53,41 @@ export function storyImageVersion(story: StoryCardSource): string {
 }
 
 /**
- * Add a version query to our own story-image URLs so social crawlers see a
- * new image URL whenever the story is updated. X caches a card's image by
- * URL, including failures: posts scraped while the image was unreachable
- * kept an image-less card even after the image URL started working. A fresh
- * URL forces a fresh fetch on re-scrape. External image URLs are left alone
- * (they may be signed).
+ * Social image for a story: always the card-image route, versioned by the
+ * story's last update so crawlers refetch after an edit. X caches a card's
+ * image by URL, including failures, so a stale token would keep an old
+ * image-less card alive.
  */
-export function versionedStoryImageUrl(story: StoryCardSource): string {
-  const real = (story.image_url ?? "").trim();
-  if (!real) return "";
-  if (!real.startsWith(STORY_IMAGE_PREFIX) || real.includes("?")) return real;
-  const v = storyImageVersion(story);
-  return v ? `${real}?v=${v}` : real;
-}
-
 export function resolveStorySocialImage(
   story: StoryCardSource,
   slug: string,
   hash: string,
 ): StorySocialImage {
-  const real = versionedStoryImageUrl(story);
-  if (real) return { url: real, card: "summary_large_image", generated: false };
-  return { url: storyCardImagePath(slug, hash), card: "summary_large_image", generated: true };
+  const path = storyCardImagePath(slug, hash);
+  const version = storyImageVersion(story);
+  return {
+    url: version ? `${path}?v=${version}` : path,
+    card: "summary_large_image",
+    generated: (story.image_url ?? "").trim() === "",
+  };
+}
+
+/**
+ * Absolute URL of the backend image behind a story's `image_url`, for the
+ * card-image route to fetch. Backend-relative paths (`/api/feed/public/...`,
+ * `/api/time-series/...`) hang off the API origin; absolute http(s) URLs are
+ * used as-is. Anything else returns "" and the caller draws a headline card.
+ */
+export function upstreamStoryImageUrl(
+  imageUrl: string | null | undefined,
+  apiOrigin: string,
+): string {
+  const raw = (imageUrl ?? "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  // "//host/path" is protocol-relative, not a backend path: don't guess.
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "";
+  return `${apiOrigin.replace(/\/+$/, "")}${raw}`;
 }
 
 /** Trim to the card's length budget on a word boundary where possible. */
