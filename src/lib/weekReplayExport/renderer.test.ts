@@ -506,6 +506,35 @@ describe("renderExportFrame", () => {
     expect(ctx.countOf("strokeRect")).toBe(0);
   });
 
+  it("marks each event on the ribbon as a tick at its playback time", () => {
+    const scene = makeScene();
+    const ctx = new RecordingContext();
+    renderExportFrame(ctx.asContext(), scene, scene.timeline.durationMs * 0.5);
+
+    const { map } = scene.layout;
+    const ribbonX = 24;
+    const ribbonW = map.w - 48;
+    const ribbonH = 14;
+    const ribbonY = map.h - ribbonH - 22;
+    const duration = scene.timeline.durationMs;
+    const keyIds = new Set(scene.keyMoments.map((m) => m.event.id));
+
+    const ticks = ctx.calls.filter((c) => {
+      if (c.method !== "fillRect") return false;
+      const [, ry, rw, rh] = c.args as number[];
+      return Math.abs(ry - ribbonY) < 0.01 && Math.abs(rh - ribbonH) < 0.01 && rw <= 2.5;
+    });
+    expect(ticks).toHaveLength(scene.events.length);
+
+    for (const e of scene.events) {
+      const tickW = keyIds.has(e.id) ? 2 : 1;
+      const expectedX = ribbonX + (e.playMs / duration) * ribbonW - tickW / 2;
+      expect(
+        ticks.some((c) => Math.abs((c.args as number[])[0] - expectedX) < 0.01),
+      ).toBe(true);
+    }
+  });
+
   it("renders an empty week without throwing", () => {
     const scene = makeScene({
       events: [],

@@ -8,9 +8,9 @@
  * the live DOM unit, and it is why the exported video matches on any machine.
  *
  * The visual language tracks WeekReplayMap deliberately: same dot colors and
- * sizes, same night scrim and weekend wash, same day/night ribbon, same
- * callout copy. A viewer who just watched the web unit should recognize the
- * video as the same thing rather than a redesign of it.
+ * sizes, same night scrim and weekend wash, same day/night ribbon with event
+ * ticks, same callout copy. A viewer who just watched the web unit should
+ * recognize the video as the same thing rather than a redesign of it.
  */
 
 import {
@@ -555,10 +555,12 @@ function drawKeyCallout(
 }
 
 /**
- * Day/night/weekend ribbon along the bottom of the map, with the playhead.
+ * Day/night/weekend ribbon along the bottom of the map, with the playhead
+ * and a tick for every event.
  *
  * Same rhythm the map washes itself with, laid out across the whole week, so
- * time of day and day of week stay readable without a separate scrubber.
+ * time of day, day of week, and when events actually landed stay readable
+ * without a separate scrubber.
  */
 function drawRibbon(
   ctx: CanvasRenderingContext2D,
@@ -570,6 +572,7 @@ function drawRibbon(
   const y = map.h - h - 22;
   const x = 24;
   const w = map.w - 48;
+  const duration = scene.timeline.durationMs;
 
   ctx.save();
   roundRectPath(ctx, x, y, w, h, h / 2);
@@ -589,15 +592,35 @@ function drawRibbon(
   }
   ctx.restore();
 
-  const f = scene.timeline.durationMs
-    ? Math.min(1, playMs / scene.timeline.durationMs)
-    : 0;
+  const f = duration ? Math.min(1, playMs / duration) : 0;
   ctx.save();
   roundRectPath(ctx, x, y, w, h, h / 2);
   ctx.clip();
   ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
   ctx.fillRect(x, y, f * w, h);
   ctx.restore();
+
+  // Event rug. Always the whole week, so clusters of activity read at a
+  // glance against the bands rather than appearing with the playhead.
+  if (duration > 0 && scene.events.length) {
+    const keyIds = new Set(scene.keyMoments.map((m) => m.event.id));
+    ctx.save();
+    roundRectPath(ctx, x, y, w, h, h / 2);
+    ctx.clip();
+    const drawTick = (e: ExportEvent, isKey: boolean) => {
+      const tickW = isKey ? 2 : 1;
+      const tx = x + (e.playMs / duration) * w - tickW / 2;
+      ctx.fillStyle = isKey ? BRAND : e.color;
+      ctx.fillRect(tx, y, tickW, h);
+    };
+    for (const e of scene.events) {
+      if (!keyIds.has(e.id)) drawTick(e, false);
+    }
+    for (const e of scene.events) {
+      if (keyIds.has(e.id)) drawTick(e, true);
+    }
+    ctx.restore();
+  }
 
   ctx.beginPath();
   ctx.arc(x + f * w, y + h / 2, h * 0.72, 0, Math.PI * 2);

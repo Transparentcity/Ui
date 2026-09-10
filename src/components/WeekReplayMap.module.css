@@ -1245,6 +1245,43 @@
   background: #ad35fa;
 }
 
+/* Event rug: one hairline per event, keyed to playback time. The white
+   hairline keeps metric colors readable on both the gray track and the
+   purple fill. Key-moment ticks sit a pixel taller, white with a purple
+   ring, so they still read against the playhead. */
+.scrubberTicks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  bottom: -1px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.scrubberTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.7);
+}
+
+.scrubberTick[data-key="true"] {
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #ad35fa;
+  z-index: 1;
+}
+
+.scrubberTick[data-muted="true"] {
+  opacity: 0.16;
+}
+
 /* Day/night/weekend ribbon under the progress track. Colors are fixed rather
    than themed: the contrast that matters is between the bands themselves,
    and the strip's own background keeps them legible on either theme. */

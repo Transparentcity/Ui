@@ -21,8 +21,9 @@
  * - the handful of key events each pause playback for a couple of seconds
  *   with a callout on the map, then fade out before the next one;
  * - the map dims through the night and warms over weekends, and the scrubber
- *   carries the same day/night/weekend ribbon, so time of day and day of week
- *   are readable without looking away from the dots.
+ *   carries the same day/night/weekend ribbon plus a tick for every event, so
+ *   time of day, day of week, and when things actually happened are readable
+ *   without looking away from the dots.
  *
  * Sound is synthesized in the browser from the same event list (see
  * weekReplayAudio): dots land as soft struck notes placed east to west in the
@@ -1020,6 +1021,25 @@ export default function WeekReplayMap({
     return centers;
   }, [dayBoundaries]);
 
+  /**
+   * One tick per event on the scrubber, in playback time so holds stretch
+   * the same way the playhead and day labels do. Key-moment ticks render
+   * last so they sit on top of the denser routine marks.
+   */
+  const eventTicks = useMemo(() => {
+    if (!prepared || !duration) return [];
+    const keyIds = new Set(prepared.keyMoments.map((m) => m.event.id));
+    const ticks = prepared.events.map((e) => ({
+      id: e.id,
+      f: Math.min(1, Math.max(0, e.playMs / duration)),
+      color: eventColor(e),
+      isKey: keyIds.has(e.id),
+      metricId: e.metric_id,
+    }));
+    ticks.sort((a, b) => Number(a.isKey) - Number(b.isKey));
+    return ticks;
+  }, [prepared, duration, eventColor]);
+
   // ── Bar chart: metrics, busiest first ─────────────────────────────────
   /**
    * One row per metric, ranked by how much of the week it accounts for.
@@ -1921,6 +1941,27 @@ export default function WeekReplayMap({
                   className={styles.scrubberFill}
                   style={{ width: `${duration ? (playMs / duration) * 100 : 0}%` }}
                 />
+                {/* Rug of the week's events. Always drawn — the point is to
+                    read clusters of activity against quiet stretches at a
+                    glance, not to watch each tick appear. */}
+                <div className={styles.scrubberTicks} aria-hidden="true">
+                  {eventTicks.map((t) => (
+                    <span
+                      key={t.id}
+                      className={styles.scrubberTick}
+                      data-key={t.isKey ? "true" : undefined}
+                      data-muted={
+                        highlightMetricId != null && t.metricId !== highlightMetricId
+                          ? "true"
+                          : undefined
+                      }
+                      style={{
+                        left: `${t.f * 100}%`,
+                        background: t.isKey ? undefined : t.color,
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
               {/* Day/night/weekend ribbon: the same rhythm the map washes
                   itself with, laid out across the whole week. */}

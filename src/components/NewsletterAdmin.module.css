@@ -322,6 +322,27 @@
   background: var(--bg-secondary);
 }
 
+.chevron {
+  display: inline-block;
+  width: 0.75em;
+  margin-right: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.nestedRow td:first-child {
+  padding-left: 28px;
+}
+
+.nestedRow {
+  background: var(--bg-secondary);
+}
+
 @media (max-width: 768px) {
   .hideNarrow {
     display: none !important;
