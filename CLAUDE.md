@@ -32,9 +32,14 @@ The abbreviated forms (`/c/sf`, `/c/nyc`) do not exist.
 | NYC         | https://transparent.city/c/new-york-city     |
 | Austin      | https://transparent.city/c/austin            |
 | Seattle     | https://transparent.city/c/seattle           |
+| Miami       | https://transparent.city/c/miami             |
 
 Confirm the live list before each run:
-`curl -s https://api.transparent.city/api/public/cities/sitemap | jq '[.[] | select(.is_launched) | .slug]'`
+`curl -s https://api.transparent.city/api/public/cities/sitemap | jq '[.[] | select(.is_launched) | .name]'`
+
+The sitemap API no longer returns a `slug` field, so this lists names, not slugs.
+Map each name to its slug using the table above; `TARGET_CITIES` in
+`scripts/weekly-qa/index.mjs` carries the canonical slug for each city.
 
 ### QA appendix state
 
