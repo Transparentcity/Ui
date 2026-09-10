@@ -271,6 +271,7 @@ export async function GET(): Promise<Response> {
   const entries = dedupeByLoc([
     { loc: `${origin}/`, changefreq: "weekly", priority: 1.0 },
     { loc: `${origin}/sitemap`, changefreq: "daily", priority: 0.8 },
+    { loc: `${origin}/reports/flock`, changefreq: "yearly", priority: 0.7 },
     ...cityEntries,
     ...getPageEntries,
     ...methodologyEntries,

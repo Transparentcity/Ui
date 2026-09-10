@@ -1,0 +1,24 @@
+{
+ "austin_clean_off_window": {
+  "austin": {
+   "pre_mean": 388.8,
+   "post_mean": 339.3,
+   "pct": -12.7
+  },
+  "chicago": {
+   "pre_mean": 1559.2,
+   "post_mean": 1506.7,
+   "pct": -3.4
+  },
+  "nyc": {
+   "pre_mean": 1156.2,
+   "post_mean": 1106.9,
+   "pct": -4.3
+  },
+  "seattle": {
+   "pre_mean": 543.8,
+   "post_mean": 505.9,
+   "pct": -7.0
+  }
+ }
+}
