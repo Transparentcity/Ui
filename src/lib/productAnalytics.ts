@@ -146,14 +146,49 @@ export function utcDateKey(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** True the first time per UTC day for a given storage key prefix. */
+/**
+ * True the first time per UTC day for a given storage key prefix.
+ *
+ * The mark lives in localStorage, not sessionStorage. sessionStorage is
+ * per-tab, so a user who opened three tabs produced three "daily" active
+ * pings and looked three times as engaged as they were. Anything counting
+ * distinct active days off these events was reading inflated numbers.
+ *
+ * Falls back to sessionStorage, then to firing, when localStorage is
+ * unavailable (Safari private mode, storage disabled). Over-reporting is a
+ * better failure than dropping a day of activity entirely.
+ */
 export function shouldFireDaily(storageKey: string): boolean {
   if (typeof window === "undefined") return false;
-  const today = utcDateKey();
-  const fullKey = `${storageKey}:${today}`;
-  if (sessionStorage.getItem(fullKey) === "1") return false;
-  sessionStorage.setItem(fullKey, "1");
+  const fullKey = `${storageKey}:${utcDateKey()}`;
+
+  for (const storage of dailyCapStorages()) {
+    try {
+      if (storage.getItem(fullKey) === "1") return false;
+      storage.setItem(fullKey, "1");
+      return true;
+    } catch {
+      // Storage present but refusing writes — try the next one.
+    }
+  }
+
   return true;
+}
+
+/** Storages to consult for the daily cap, most durable first. */
+function dailyCapStorages(): Storage[] {
+  const storages: Storage[] = [];
+  try {
+    if (window.localStorage) storages.push(window.localStorage);
+  } catch {
+    /* blocked — fall through to sessionStorage */
+  }
+  try {
+    if (window.sessionStorage) storages.push(window.sessionStorage);
+  } catch {
+    /* blocked — the caller fires uncapped */
+  }
+  return storages;
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +274,24 @@ export function recordProductEvent(
   token?: string
 ): void {
   void _send(eventName, ctx, token);
+}
+
+/**
+ * Record a move to a different in-app view.
+ *
+ * The logged-in product is effectively one route (`/home`) with a `?view=`
+ * param, so path-based analytics collapse an entire working session into a
+ * single `/home` row. Without this event there is no way to tell whether
+ * someone spent their time in chat, on a dashboard, or in an admin panel.
+ *
+ * Not daily-capped: the sequence of views is the point.
+ */
+export function recordAppView(
+  view: string,
+  ctx: ProductEventContext = {}
+): void {
+  if (!view) return;
+  recordProductEvent("app_view", { view, ...ctx });
 }
 
 /**
