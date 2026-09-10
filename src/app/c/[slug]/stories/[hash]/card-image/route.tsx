@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 
+import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
 import { getPublicFeedStoryByHash } from "@/lib/publicApiClient";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import {
@@ -8,23 +9,53 @@ import {
   formatCardDate,
   headlineFontSize,
   truncateHeadline,
+  upstreamStoryImageUrl,
 } from "@/lib/feed/storyCardImage";
 
 export const runtime = "edge";
 
 /**
- * Generated social-card image for stories that have no chart or map.
+ * Social-card image for a story: the backend's chart or map when the story
+ * has one, a generated headline card when it does not.
  *
- * Referenced from the story page's og:image / twitter:image only when the
- * backend supplied no image_url (see resolveStorySocialImage). Deliberately a
- * plain route handler rather than the opengraph-image file convention: that
- * convention overrides config metadata for every story, including the ones
- * that have a real image.
+ * Every story's og:image / twitter:image points here rather than at the
+ * backend image URL, which sits under the /api prefix that robots.txt
+ * disallows (see src/lib/feed/storyCardImage.ts). Upstream trouble falls back
+ * to the headline card, so a preview never lands on a broken image.
+ *
+ * Deliberately a plain route handler rather than the opengraph-image file
+ * convention: that convention overrides config metadata for every story.
  */
 
 type RouteContext = { params: Promise<{ slug: string; hash: string }> };
 
 const HASH_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Card images are versioned by the story's last update (?v=...), so they can
+ * sit in caches for a while; the CDN keeps serving one while it revalidates.
+ */
+const CARD_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+
+/**
+ * Stream the backend's story image through this route. Returns null on any
+ * doubt (upstream error, non-image body, network failure) so the caller draws
+ * the headline card instead.
+ */
+async function proxyStoryImage(url: string): Promise<Response | null> {
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, { headers: { Accept: "image/*" }, cache: "no-store" });
+  } catch {
+    return null;
+  }
+  const contentType = upstream.headers.get("content-type") ?? "";
+  if (!upstream.ok || !contentType.startsWith("image/") || !upstream.body) return null;
+  return new Response(upstream.body, {
+    status: 200,
+    headers: { "content-type": contentType, "cache-control": CARD_CACHE_CONTROL },
+  });
+}
 
 function titleCaseSlug(slug: string): string {
   return slug
@@ -38,27 +69,29 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
   const { slug, hash } = await context.params;
   if (!HASH_RE.test(hash)) return new Response("Invalid story hash", { status: 400 });
 
-  let headline = "";
-  let cityName = titleCaseSlug(slug);
-  let dateLabel = "";
-  let found = false;
-
+  let story: Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"] | null = null;
   try {
-    const { story } = await getPublicFeedStoryByHash(hash);
-    found = true;
-    headline = improveGenericHeadline(story.headline ?? "", {
-      summary: story.summary,
-      description: story.description,
-      cityName: story.city_name,
-    });
-    if (story.city_name) cityName = story.city_name;
-    dateLabel = formatCardDate(story.published_at ?? story.story_date);
+    story = (await getPublicFeedStoryByHash(hash)).story;
   } catch {
-    // Unknown or unreachable story: still return a branded card so the
-    // preview never falls back to a broken image.
+    story = null;
   }
 
-  if (!found) return new Response("Story not found", { status: 404 });
+  if (!story) return new Response("Story not found", { status: 404 });
+
+  // Stories with a chart or map show it; the rest get the headline card.
+  const imageUrl = upstreamStoryImageUrl(story.image_url, getUpstreamApiBaseUrl());
+  if (imageUrl) {
+    const proxied = await proxyStoryImage(imageUrl);
+    if (proxied) return proxied;
+  }
+
+  const headline = improveGenericHeadline(story.headline ?? "", {
+    summary: story.summary,
+    description: story.description,
+    cityName: story.city_name,
+  });
+  const cityName = story.city_name || titleCaseSlug(slug);
+  const dateLabel = formatCardDate(story.published_at ?? story.story_date);
 
   const text = truncateHeadline(headline || `City data from ${cityName}`);
   const fontSize = headlineFontSize(text);
@@ -164,9 +197,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     {
       width: STORY_CARD_WIDTH,
       height: STORY_CARD_HEIGHT,
-      headers: {
-        "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
-      },
+      headers: { "Cache-Control": CARD_CACHE_CONTROL },
     },
   );
 }
