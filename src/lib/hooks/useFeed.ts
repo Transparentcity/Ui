@@ -155,7 +155,11 @@ export function useCityFeedStories(
  * Cache time: 5 minutes
  */
 export function useFeedStoryDetail(storyId: number | null) {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const {
+    getAccessTokenSilently,
+    isAuthenticated,
+    isLoading: authLoading,
+  } = useAuth0();
 
   return useQuery({
     queryKey: feedKeys.detail(storyId),
@@ -175,7 +179,9 @@ export function useFeedStoryDetail(storyId: number | null) {
 
       return getPublicFeedStory(storyId);
     },
-    enabled: !!storyId,
+    // Auth0 initially reports unauthenticated while restoring its session.
+    // Wait so private email links do not briefly hit the public endpoint.
+    enabled: !!storyId && !authLoading,
     staleTime: 5 * 60 * 1000, // 5 minutes
     // List view seeds this cache so the modal can paint immediately; still refresh
     // from the server so detail-only fields stay correct.

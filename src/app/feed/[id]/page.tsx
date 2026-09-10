@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
@@ -31,10 +31,17 @@ export default function FeedDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isAuthenticated, getAccessTokenSilently } = useAuth0();
+  const {
+    isAuthenticated,
+    isLoading: authLoading,
+    getAccessTokenSilently,
+    loginWithRedirect,
+  } = useAuth0();
   const storyId = Number(params.id);
   const [detailNarrative, setDetailNarrative] = useState<DetailNarrative | null>(null);
   const [placeShareOpen, setPlaceShareOpen] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
   const trackEngagement = useTrackFeedEngagement();
 
   const { data: storyResponse, isLoading, error } = useFeedStoryDetail(
@@ -121,7 +128,24 @@ export default function FeedDetailPage() {
     runSharePublicUrl(story, trackEngagement);
   };
 
-  if (isLoading) {
+  const handleSignIn = async () => {
+    setSigningIn(true);
+    setSignInError(null);
+    try {
+      const returnTo =
+        window.location.pathname + window.location.search + window.location.hash;
+      await loginWithRedirect({ appState: { returnTo } });
+    } catch (signInFailure) {
+      setSigningIn(false);
+      setSignInError(
+        signInFailure instanceof Error
+          ? signInFailure.message
+          : "Sign in could not be started. Please try again.",
+      );
+    }
+  };
+
+  if (authLoading || isLoading) {
     return (
       <div className={styles.detailContainer}>
         <button
@@ -141,6 +165,41 @@ export default function FeedDetailPage() {
   if (error || !story || !rawStory) {
     const errorStatus = (error as { status?: number } | null)?.status;
     const isNotFound = !error || errorStatus === 404;
+    if (!isAuthenticated && isNotFound) {
+      return (
+        <div className={styles.detailContainer}>
+          <button
+            type="button"
+            className={styles.detailBack}
+            onClick={handleBack}
+          >
+            {"\u2190"} Back
+          </button>
+          <div className={styles.emptyState}>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+              Sign in to view this story
+            </h1>
+            <p>
+              Stories about your saved places are private to your account.
+            </p>
+            <button
+              type="button"
+              onClick={handleSignIn}
+              disabled={signingIn}
+              className="mt-4 inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-wait disabled:opacity-60"
+            >
+              <LogIn className="h-4 w-4" aria-hidden />
+              {signingIn ? "Opening sign in\u2026" : "Sign in"}
+            </button>
+            {signInError && (
+              <p className="mt-3 text-sm text-red-600" role="alert">
+                {signInError}
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={styles.detailContainer}>
         <button
