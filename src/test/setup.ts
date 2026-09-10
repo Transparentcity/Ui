@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { Blob as NodeBlob } from "node:buffer";
 import { afterEach, beforeEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -62,6 +63,36 @@ function installStorage(name: "localStorage" | "sessionStorage"): void {
 
 installStorage("localStorage");
 installStorage("sessionStorage");
+
+/**
+ * Blob polyfill for the test environment.
+ *
+ * jsdom's Blob predates `Blob.stream()`, and undici's Response requires that
+ * method when it is handed a Blob body. Which Blob wins as the global depends
+ * on the Node version: under Node 22 jsdom's does, so a plain
+ * `new Response(new Blob(["x"]))` throws "object.stream is not a function",
+ * while under Node 24+ Node's own Blob wins and the same line is fine.
+ *
+ * Install Node's Blob whenever the global lacks `stream()` so a test behaves
+ * the same way on every Node version rather than only on the one it happened
+ * to be written under.
+ */
+function installBlob(): void {
+  const current = globalThis.Blob as typeof Blob | undefined;
+  if (typeof current?.prototype?.stream === "function") return;
+
+  const targets = [globalThis, typeof window === "undefined" ? null : window];
+  for (const target of targets) {
+    if (!target) continue;
+    Object.defineProperty(target, "Blob", {
+      value: NodeBlob,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
+installBlob();
 
 /**
  * Reset storage between tests, tolerating suites that swap in their own
