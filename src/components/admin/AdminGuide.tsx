@@ -178,9 +178,9 @@ function SchematicFigure({ g }: { g: CityGuide }) {
           {arrow(640, 80, 640, 170, "detects", 648, 130, { accent: true, dashed: true, anchor: "start" })}
           {arrow(810, 80, 810, 170, "writes, judges", 818, 130, { accent: true, dashed: true, anchor: "start" })}
 
-          {box(20, 172, 130, 78, "Open-data portal", `${g.portal}, run by`, `the City of ${g.cityName}`)}
+          {box(20, 172, 130, 78, "Open-data portal", `${g.portal},`, "run by the city")}
           {arrow(150, 211, 228, 211, "fetched", 189, 202)}
-          {box(230, 172, 140, 78, "Datasets", `${g.datasetsCount} catalogued`, "Datasets panel")}
+          {box(230, 172, 140, 78, "Datasets", `${g.datasetsCount.toLocaleString()} catalogued`, "Datasets panel")}
           {arrow(370, 211, 398, 211)}
           {box(400, 172, 140, 78, "Metrics", `${g.metricsCount} live today`, "shared templates")}
           {arrow(540, 211, 568, 211)}
