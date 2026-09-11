@@ -73,6 +73,10 @@ export interface CityGuide {
   challenge: GuideStep[];
   /** Closing line under that list. */
   challengeOutro: ReactNode;
+  /** Optional city-specific caution shown in the "handle with care" section. */
+  careNote?: ReactNode;
+  /** Optional framing line above the "what to dig into" list. */
+  challengeIntro?: ReactNode;
   cheatSheet: GuideCheatRow[];
 }
 
@@ -458,7 +462,287 @@ const MIAMI: CityGuide = {
   ],
 };
 
-export const CITY_GUIDES: CityGuide[] = [OAKLAND, MIAMI];
+const SAN_FRANCISCO: CityGuide = {
+  cityId: 57260,
+  citySlug: "san-francisco",
+  cityName: "San Francisco",
+  cityEmoji: "🌉",
+  personFirst: "Ishaan",
+  roleChip: "City manager · Ishaan",
+  mayor: "Mayor Daniel Lurie",
+  unit: "supervisorial district",
+  unitPlural: "supervisorial districts",
+  unitCount: 11,
+  datasetsCount: 1222,
+  metricsCount: 76,
+  portal: "Socrata",
+  snapshotDate: "September 11, 2026",
+  lede: (
+    <>
+      San Francisco is the city Adam and Rob built first, and the deepest one on Transparent City:
+      76 live metrics over 1,222 catalogued datasets, and the source of most templates the other
+      nine cities run. So it does not need building out. What it needs is someone looking at it
+      closely: finding the things that are not working, and adding the things you are curious about.
+    </>
+  ),
+  welcome: (
+    <>
+      Nothing here needs a technical background. Almost all of it is typing a question in plain
+      English and reading what comes back. If a section starts to feel like source code, skip it.
+    </>
+  ),
+  firstSteps: [
+    {
+      title: "See what San Francisco already tracks",
+      body: (
+        <>
+          Open <Link href="/home?city_id=57260">San Francisco</Link> from <b>My Places</b>, then the{" "}
+          <Link href="/home?city_id=57260">All metrics</Link> tab. Seventy-six measures, from 911
+          response times to permit timelines to contract spending, each with a year-to-date
+          comparison. Skim the whole list once. It is the raw material for everything else.
+        </>
+      ),
+    },
+    {
+      title: "Ask a question, then push on the answer",
+      body: (
+        <>
+          Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
+          <i>
+            &ldquo;Show San Francisco 311 SLA compliance by supervisorial district for the last 12
+            months, as a table and a map.&rdquo;
+          </i>{" "}
+          Then keep going in the same chat: <i>&ldquo;Now show the three worst-performing request
+          types.&rdquo;</i> Follow-ups keep the context, so you can interrogate a number the way you
+          would a colleague.
+        </>
+      ),
+    },
+    {
+      title: "Find something that looks wrong",
+      body: (
+        <>
+          Ask: <i>&ldquo;Which San Francisco metrics have data older than a month?&rdquo;</i> You will
+          get a list. Some of those are honest source lag, some are broken feeds. Telling the two
+          apart is the single most valuable thing you can do in your first week.
+        </>
+      ),
+    },
+    {
+      title: "Open the admin menu",
+      body: (
+        <>
+          Click the <b>green circle</b> at the bottom left. That is the full toolset, and where this
+          guide lives in the app (<Link href="/admin/guide">Admin guide</Link>). Look, then come back
+          here.
+        </>
+      ),
+    },
+  ],
+  promptsIntro: (
+    <>Analysis questions are safe and cheap to ask as often as you like. Copy one, change a word, send it.</>
+  ),
+  prompts: [
+    {
+      text: "List every San Francisco metric whose most recent data is more than 30 days old, with its source dataset and update frequency. For each, say whether the lag looks normal for that source.",
+      note: "The data-quality sweep. Start here.",
+    },
+    {
+      text: "Show San Francisco 311 SLA compliance rate by supervisorial district for the last 12 months. Which districts are consistently below the citywide average?",
+      note: "Service equity, using a metric the city publishes about itself.",
+    },
+    {
+      text: "Which San Francisco datasets have we catalogued but never used in a metric? Rank them by how useful they would be to a resident.",
+      note: "1,222 datasets, 76 metrics. There is a lot of unused material.",
+    },
+    {
+      text: "Compare San Francisco's permit timelines to every other launched city. Where does San Francisco sit, and is the gap growing or shrinking?",
+      note: "Cross-city comparison works because the metrics come from shared templates.",
+    },
+    {
+      text: "Run anomaly detection on all San Francisco metrics for the last 90 days and show me the three most significant, with the chart for each.",
+      note: "The raw feed of story leads.",
+    },
+  ],
+  metricRows: [
+    {
+      category: "Safety and emergency response",
+      metrics: (
+        <>
+          EMS and ambulance response times · Fire calls and fatalities · Traffic, pedestrian and
+          bicycle collisions · Overdose deaths and Narcan reversals · ShotSpotter · Police
+          misconduct
+        </>
+      ),
+      count: 18,
+    },
+    {
+      category: "Housing and permits",
+      metrics: (
+        <>
+          Permit timelines, over-the-counter and full review · Residential permits filed, issued and
+          completed · Housing units completed · Demolitions · Eviction notices
+        </>
+      ),
+      count: 11,
+    },
+    {
+      category: "Crime and prosecution",
+      metrics: (
+        <>
+          Violent, property and drug crime · Homicides · Total police incidents · Arrests
+          presented to the DA · Charges filed, convictions, and both rates
+        </>
+      ),
+      count: 10,
+    },
+    {
+      category: "Economy",
+      metrics: (
+        <>
+          Business registrations, openings, closures and expirations · Retail · Restaurant permit
+          days · SFO passengers and landings
+        </>
+      ),
+      count: 9,
+    },
+    {
+      category: "911 and city operations",
+      metrics: (
+        <>
+          All 911 calls · Priority A, B and C response times · Drug, overdose and homeless-related
+          calls
+        </>
+      ),
+      count: 9,
+    },
+    {
+      category: "Streets and 311",
+      metrics: (
+        <>
+          311 service requests · Illegal dumping · Abandoned vehicles · Graffiti · Muni
+          complaints · Noise · Autonomous vehicle complaints
+        </>
+      ),
+      count: 7,
+    },
+    {
+      category: "Spending and contracts",
+      metrics: (
+        <>
+          Vendor payments and transactions · Contract award value · Active supplier contracts ·
+          Sole-source share
+        </>
+      ),
+      count: 5,
+    },
+    {
+      category: "Traffic enforcement",
+      metrics: <>Traffic stops and citations · Speed camera citations and warnings</>,
+      count: 4,
+    },
+    {
+      category: "Environment and service levels",
+      metrics: <>Rodent and pest complaints · Beach fecal coliform · 311 SLA compliance rate</>,
+      count: 3,
+    },
+  ],
+  standing: (
+    <>
+      San Francisco is the reference city. When a metric is written well here, it becomes a template
+      the other cities inherit, so a fix you make can propagate to nine other places. The flip side
+      is that a change here ripples too, which is why adding and flagging are easy calls and
+      rearranging what already exists is worth a conversation first.
+    </>
+  ),
+  challenge: [
+    {
+      title: "Separate real lag from broken feeds",
+      body: (
+        <>
+          Seventeen of the 76 metrics have data more than five weeks old. Some of that is honest:
+          collision records and SFO traffic genuinely report on a delay. Some is not. Vendor payments
+          have not moved since January, and overdose-related 911 calls stopped in March. Work down
+          the list and decide which is which, then fix or flag each one.
+        </>
+      ),
+    },
+    {
+      title: "Find the rest of the bookkeeping bugs",
+      body: (
+        <>
+          Here is one to start from: metrics are filed under 14 category strings but only 12 real
+          categories, because &ldquo;City Ops&rdquo; and &ldquo;city ops&rdquo; are stored separately,
+          as are the two spellings of housing and homelessness. That splits groups on the dashboard
+          for no reason. Send them over as you find them rather than fixing them in place.
+        </>
+      ),
+    },
+    {
+      title: "Read it cold and tell us what is confusing",
+      body: (
+        <>
+          Seventy-six metrics is more than anyone reads. Open the public page cold and see whether the
+          first screen answers the questions people actually have. Where it does not, say so. The
+          dashboard order is deliberate, so this one is a note to Adam rather than a change to make.
+        </>
+      ),
+    },
+    {
+      title: "Check the numbers against the city's own",
+      body: (
+        <>
+          Pick two or three metrics and compare them to what the department publishes in its own
+          reports. If they disagree, find out why. A number that cannot be reconciled with the
+          official source is worse than no number, and this is the fastest way to build trust in the
+          whole platform.
+        </>
+      ),
+    },
+    {
+      title: "Add something you are curious about",
+      body: (
+        <>
+          There are 1,222 catalogued datasets behind 76 metrics, so there is a lot nobody has looked
+          at. New metrics are cheap and additive, and they take nothing away from what is already
+          there. If you want to see something, build it and watch it run for a week.
+        </>
+      ),
+    },
+  ],
+  challengeIntro: (
+    <>
+      Two kinds of work are useful here, and both are additive: finding what is broken, and building
+      something new. Neither means rearranging what is already on the page.
+    </>
+  ),
+  challengeOutro: (
+    <>
+      When you find something, ask Seymour to write it up, or just send it to Adam. Either is useful.
+    </>
+  ),
+  careNote: (
+    <>
+      One more, specific to this city. San Francisco is the one Adam and Rob built from scratch, and
+      its metrics are the templates the other nine inherit. Adding things is welcome, and so is
+      telling us what looks broken. Reworking what is already there, including the dashboard order,
+      is worth a message first, because a change here can ripple everywhere else.
+    </>
+  ),
+  cheatSheet: [
+    { goal: "See what exists", say: "List all active San Francisco metrics with their last run status and last data date." },
+    { goal: "Find stale data", say: "Which San Francisco metrics have data older than 30 days, and what is the likely cause for each?" },
+    { goal: "Check a category", say: "List the categories San Francisco metrics are filed under, and flag any that look like duplicates." },
+    { goal: "By district", say: "Break San Francisco 311 SLA compliance out by supervisorial district, as a map and a table." },
+    { goal: "Find what to add", say: "Which San Francisco datasets are catalogued but not used by any metric? Which three would make the best new metrics?" },
+    { goal: "Build one", say: "Create a San Francisco metric for [thing] from dataset [name], and confirm the numbers look right." },
+    { goal: "Compare cities", say: "Rank every launched city by year-to-date change in [metric] and highlight San Francisco." },
+    { goal: "Check a claim", say: "The city says [claim]. Does the data support that? Show the chart and the source dataset." },
+    { goal: "Write it up", say: "Write a story about [finding] in San Francisco. Include the chart and cite the dataset." },
+  ],
+};
+
+export const CITY_GUIDES: CityGuide[] = [OAKLAND, MIAMI, SAN_FRANCISCO];
 
 /** Guide shown when a viewer has no city-lead assignment we recognize. */
 export const DEFAULT_GUIDE = OAKLAND;
