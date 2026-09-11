@@ -73,6 +73,10 @@ export interface CityGuide {
   challenge: GuideStep[];
   /** Closing line under that list. */
   challengeOutro: ReactNode;
+  /** Optional city-specific caution shown in the "handle with care" section. */
+  careNote?: ReactNode;
+  /** Optional framing line above the "what to dig into" list. */
+  challengeIntro?: ReactNode;
   cheatSheet: GuideCheatRow[];
 }
 
@@ -475,10 +479,10 @@ const SAN_FRANCISCO: CityGuide = {
   snapshotDate: "September 11, 2026",
   lede: (
     <>
-      San Francisco is the deepest city on Transparent City. It has 76 live metrics against
-      1,222 catalogued datasets, and most of the templates the other cities use were written here
-      first. So the job is different from a new city: less building it out, more keeping it honest
-      and making it more useful to the people who read it.
+      San Francisco is the city Adam and Rob built first, and the deepest one on Transparent City:
+      76 live metrics over 1,222 catalogued datasets, and the source of most templates the other
+      nine cities run. So it does not need building out. What it needs is someone looking at it
+      closely: finding the things that are not working, and adding the things you are curious about.
     </>
   ),
   welcome: (
@@ -647,8 +651,8 @@ const SAN_FRANCISCO: CityGuide = {
     <>
       San Francisco is the reference city. When a metric is written well here, it becomes a template
       the other cities inherit, so a fix you make can propagate to nine other places. The flip side
-      is that a bad number here spreads too. That is why the work in this city leans toward quality
-      rather than quantity.
+      is that a change here ripples too, which is why adding and flagging are easy calls and
+      rearranging what already exists is worth a conversation first.
     </>
   ),
   challenge: [
@@ -664,23 +668,23 @@ const SAN_FRANCISCO: CityGuide = {
       ),
     },
     {
-      title: "Merge the split categories",
+      title: "Find the rest of the bookkeeping bugs",
       body: (
         <>
-          Metrics are filed under 14 different category strings, but only 12 real categories. &ldquo;City
-          Ops&rdquo; and &ldquo;city ops&rdquo; are stored separately, and so are the two spellings of
-          housing and homelessness. That splits groups apart on the dashboard for no reason. Ask
-          Seymour to list the categories in use and reconcile them.
+          Here is one to start from: metrics are filed under 14 category strings but only 12 real
+          categories, because &ldquo;City Ops&rdquo; and &ldquo;city ops&rdquo; are stored separately,
+          as are the two spellings of housing and homelessness. That splits groups on the dashboard
+          for no reason. Send them over as you find them rather than fixing them in place.
         </>
       ),
     },
     {
-      title: "Fix what a resident sees first",
+      title: "Read it cold and tell us what is confusing",
       body: (
         <>
-          Seventy-six metrics is more than anyone reads. The dashboard order is yours to set in
-          Display Settings, and it is the most visible change you can make. Open the public page as a
-          resident would and ask whether the first screen answers the questions people actually have.
+          Seventy-six metrics is more than anyone reads. Open the public page cold and see whether the
+          first screen answers the questions people actually have. Where it does not, say so. The
+          dashboard order is deliberate, so this one is a note to Adam rather than a change to make.
         </>
       ),
     },
@@ -696,20 +700,33 @@ const SAN_FRANCISCO: CityGuide = {
       ),
     },
     {
-      title: "Close a coverage gap",
+      title: "Add something you are curious about",
       body: (
         <>
-          There are 1,222 catalogued datasets behind 76 metrics. Ask what San Francisco publishes that
-          nobody has turned into a measure yet, especially on the things people complain about most.
-          Then build one and watch it run for a week.
+          There are 1,222 catalogued datasets behind 76 metrics, so there is a lot nobody has looked
+          at. New metrics are cheap and additive, and they take nothing away from what is already
+          there. If you want to see something, build it and watch it run for a week.
         </>
       ),
     },
   ],
+  challengeIntro: (
+    <>
+      Two kinds of work are useful here, and both are additive: finding what is broken, and building
+      something new. Neither means rearranging what is already on the page.
+    </>
+  ),
   challengeOutro: (
     <>
-      When you find something, ask Seymour to write it up. It lands in the San Francisco feed and
-      feeds the Sunday newsletter.
+      When you find something, ask Seymour to write it up, or just send it to Adam. Either is useful.
+    </>
+  ),
+  careNote: (
+    <>
+      One more, specific to this city. San Francisco is the one Adam and Rob built from scratch, and
+      its metrics are the templates the other nine inherit. Adding things is welcome, and so is
+      telling us what looks broken. Reworking what is already there, including the dashboard order,
+      is worth a message first, because a change here can ripple everywhere else.
     </>
   ),
   cheatSheet: [

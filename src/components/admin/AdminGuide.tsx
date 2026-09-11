@@ -835,6 +835,12 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               </ul>
             </div>
           </div>
+          {g.careNote && (
+            <div className={`${styles.callout} ${styles.calloutWarn}`}>
+              <div className={styles.t}>Before you rearrange anything</div>
+              <p>{g.careNote}</p>
+            </div>
+          )}
           <div className={`${styles.callout} ${styles.calloutDanger}`}>
             <div className={styles.t}>Seymour does not ask twice</div>
             <p>
@@ -853,7 +859,9 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
           <div className={styles.secHead}>
             <span className={styles.eyebrow}>Where to start</span>
             <h2>What to dig into</h2>
-            <p className={styles.why}>Concrete places to point this, each answerable with the tools above.</p>
+            <p className={styles.why}>
+              {g.challengeIntro ?? "Concrete places to point this, each answerable with the tools above."}
+            </p>
           </div>
           <ul className={styles.checklist}>
             {g.challenge.map((c) => (
