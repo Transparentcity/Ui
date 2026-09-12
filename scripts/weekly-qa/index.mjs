@@ -2,7 +2,7 @@
 /**
  * Weekly Transparent City dashboard QA.
  *
- * Two-pass audit for each of the 9 launched city dashboards:
+ * Two-pass audit for each launched city dashboard in TARGET_CITIES:
  *
  *  Pass 1 – API  : fetches metric YTD comparisons, runs arithmetic / data-quality
  *                  checks, and updates the known-outages / known-lags appendix.
@@ -25,6 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { fileURLToPath, pathToFileURL } from "url";
 import { dirname, join } from "path";
 import { chromium } from "playwright";
+import { assessLag } from "./lag.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const STATE_FILE     = join(__dirname, "state.json");
@@ -532,37 +533,35 @@ async function auditCityApi(city, state, runDateStr, resolvedOutages, resolvedLa
     }
 
     // Check 5: Data lag vs city consensus.
-    if (curEnd && consensusEnd && curEnd !== consensusEnd) {
+    // Evaluated even when the metric is level with or ahead of the city, so a
+    // known lag that has caught up is resolved instead of staying on record.
+    if (curEnd && consensusEnd) {
       const lagDays  = daysBetween(curEnd, consensusEnd);
-      if (lagDays !== null && lagDays > 7) {
-        const knownLag = state.knownLags.find((l) => l.metricId === m.id && l.city === city.label);
-        if (knownLag) {
-          const [, maxLag] = knownLag.normalLagRange || [0, 30];
-          if (lagDays > maxLag + 7) {
-            failures.push(failure(city, m,
-              `Data lag exceeds normal range — possible stalled feed (${lagDays}d lag, expected ≤${maxLag}d)`,
-              `Metric ends: ${fmtDate(curEnd)} | City consensus: ${fmtDate(consensusEnd)}`
-            ));
-          }
-          if (lagDays <= 3) {
-            resolvedLags.push({ city: city.label, metricId: m.id, metricName: name, cardUrl });
-          }
-        } else {
-          failures.push(failure(city, m,
-            `Data lag detected (${lagDays}d behind city consensus) — added to Appendix B`,
-            `Metric ends: ${fmtDate(curEnd)} | City consensus: ${fmtDate(consensusEnd)}`
-          ));
-          state.knownLags.push({
-            city:           city.label,
-            metricName:     name,
-            metricKey:      m.metric_key,
-            metricId:       m.id,
-            cardUrl,
-            normalLagRange: [Math.max(0, lagDays - 4), lagDays + 4],
-            source:         "unconfirmed",
-            addedDate:      runDateStr,
-          });
-        }
+      const knownLag = state.knownLags.find((l) => l.metricId === m.id && l.city === city.label);
+      const lag      = assessLag(lagDays, knownLag);
+
+      if (lag.kind === "new") {
+        failures.push(failure(city, m,
+          `Data lag detected (${lagDays}d behind city consensus) — added to Appendix B`,
+          `Metric ends: ${fmtDate(curEnd)} | City consensus: ${fmtDate(consensusEnd)}`
+        ));
+        state.knownLags.push({
+          city:           city.label,
+          metricName:     name,
+          metricKey:      m.metric_key,
+          metricId:       m.id,
+          cardUrl,
+          normalLagRange: lag.normalLagRange,
+          source:         "unconfirmed",
+          addedDate:      runDateStr,
+        });
+      } else if (lag.kind === "stalled") {
+        failures.push(failure(city, m,
+          `Data lag exceeds normal range — possible stalled feed (${lagDays}d lag, expected ≤${lag.maxLag}d)`,
+          `Metric ends: ${fmtDate(curEnd)} | City consensus: ${fmtDate(consensusEnd)}`
+        ));
+      } else if (lag.kind === "resolved") {
+        resolvedLags.push({ city: city.label, metricId: m.id, metricName: name, cardUrl });
       }
     }
 
