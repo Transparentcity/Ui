@@ -93,6 +93,24 @@ export interface TimeSeriesChartProps {
   parentProvidesTitle?: boolean;
   /** Override automatic compact layout for dense multi-group YTD charts. */
   layoutDensity?: "auto" | "default" | "compact";
+  /**
+   * Anomaly overlay – renders a ±2σ band, comparison mean line, and recent-period highlight
+   * on top of the live time series without needing a pre-computed chart_payload.
+   */
+  anomalyOverlay?: {
+    /** Historical mean (center of the ±2σ band). */
+    comparisonMean: number;
+    /** Standard deviation (half-width of the ±2σ band). */
+    stddev: number;
+    /** Start of the recent (flagged) period — ISO date string (YYYY-MM-DD). */
+    recentStart?: string;
+    /** End of the recent (flagged) period — ISO date string (YYYY-MM-DD). */
+    recentEnd?: string;
+    /** % change label shown in the legend (e.g. +23%). */
+    pctChange?: number;
+    /** True = anomaly was flagged (affects highlight colour). */
+    isAnomaly?: boolean;
+  };
 }
 
 /**
@@ -839,6 +857,7 @@ export default function TimeSeriesChart({
   embeddedMode = false,
   parentProvidesTitle = false,
   layoutDensity = "auto",
+  anomalyOverlay,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -1509,6 +1528,99 @@ export default function TimeSeriesChart({
       }
     }
 
+    // Anomaly overlay: ±2σ band, comparison mean, recent-period highlight
+    if (anomalyOverlay && periodType !== "ytd") {
+      const { comparisonMean, stddev, pctChange, isAnomaly } = anomalyOverlay;
+
+      // Collect all x-axis dates from the main series for the band span
+      const allDates: string[] = [];
+      for (const points of aggregatedByGroup.values()) {
+        for (const pt of points) {
+          if (pt.time_period && !allDates.includes(pt.time_period)) {
+            allDates.push(pt.time_period);
+          }
+        }
+      }
+      allDates.sort();
+
+      if (allDates.length > 0 && stddev > 0) {
+        const upper = allDates.map(() => comparisonMean + 2 * stddev);
+        const lower = allDates.map(() => Math.max(comparisonMean - 2 * stddev, 0));
+
+        // Invisible lower bound (anchor for fill)
+        traces.push({
+          x: allDates,
+          y: lower,
+          type: "scatter",
+          mode: "lines",
+          line: { color: "rgba(0,0,0,0)", width: 0 },
+          showlegend: false,
+          hoverinfo: "skip",
+          name: "__anomaly_lower__",
+        });
+
+        // Upper bound fills to the lower → shaded ±2σ band
+        traces.push({
+          x: allDates,
+          y: upper,
+          type: "scatter",
+          mode: "lines",
+          line: { color: "rgba(74,116,99,0.35)", width: 1 },
+          fill: "tonexty",
+          fillcolor: "rgba(74,116,99,0.12)",
+          name: "Normal Range (\u00b12\u03c3)",
+          showlegend: true,
+          hoverinfo: "skip",
+        });
+      }
+
+      // Comparison mean as a horizontal dashed line
+      if (allDates.length > 0) {
+        const changeLabel =
+          pctChange !== undefined
+            ? ` (${pctChange >= 0 ? "+" : ""}${Math.round(pctChange)}%)`
+            : "";
+        traces.push({
+          x: [allDates[0], allDates[allDates.length - 1]],
+          y: [comparisonMean, comparisonMean],
+          type: "scatter",
+          mode: "lines",
+          name: `Historical Mean${changeLabel}`,
+          line: { color: "rgba(74,116,99,0.85)", width: 1.5, dash: "dash" },
+          showlegend: true,
+          hoverinfo: "skip",
+        });
+      }
+
+      // Recent-period highlight: a different-colored marker set
+      if (anomalyOverlay.recentStart && anomalyOverlay.recentEnd) {
+        const rs = anomalyOverlay.recentStart;
+        const re = anomalyOverlay.recentEnd;
+        const recentPts: Array<{ x: string; y: number }> = [];
+        for (const points of aggregatedByGroup.values()) {
+          for (const pt of points) {
+            if (pt.time_period >= rs && pt.time_period <= re) {
+              recentPts.push({ x: pt.time_period, y: pt.numeric_value });
+            }
+          }
+        }
+        if (recentPts.length > 0) {
+          recentPts.sort((a, b) => a.x.localeCompare(b.x));
+          const highlightColor = isAnomaly ? "#f04e23" : "#ad35fa";
+          traces.push({
+            x: recentPts.map((p) => p.x),
+            y: recentPts.map((p) => p.y),
+            type: "scatter",
+            mode: "markers",
+            name: "Recent Period",
+            marker: { color: highlightColor, size: 9, symbol: "circle" },
+            showlegend: true,
+            hoverinfo: "skip",
+          });
+        }
+      }
+    }
+
     return traces;
   }, [
     aggregatedByGroup,
@@ -1519,6 +1631,7 @@ export default function TimeSeriesChart({
     staleness_days,
     useCompactLayout,
     showPriorYear,
+    anomalyOverlay,
   ]);
 
   const chartTitleText =
@@ -1880,7 +1993,7 @@ export default function TimeSeriesChart({
           color: hoverTextColor,
         },
       },
-      showlegend: hasGroups && traces.length > 1,
+      showlegend: (hasGroups && traces.length > 1) || !!anomalyOverlay,
       legend: {
         orientation: "h" as const,
         x: 0.5,
@@ -1896,7 +2009,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, anomalyOverlay]);
 
   const config = {
     responsive: true,
