@@ -1,0 +1,231 @@
+.queueStrip {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 0.85rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+}
+
+.queueRow {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1.4fr) minmax(0, 1.1fr) auto;
+  gap: 0.4rem 0.65rem;
+  align-items: center;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+.queueRow:last-child {
+  border-bottom: none;
+}
+
+.queueRowBudget {
+  background: rgba(173, 53, 250, 0.05);
+}
+
+.queueRank {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-secondary, #888);
+}
+
+.queueName {
+  display: block;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-primary, #222);
+}
+
+.queueMeta {
+  display: block;
+  margin-top: 0.08rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary, #777);
+}
+
+.queueReason {
+  min-width: 0;
+}
+
+.queueActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.queueHint {
+  margin: 0.15rem 0 0.55rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #666);
+}
+
+@media (max-width: 720px) {
+  .queueRow {
+    grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+  }
+
+  .queueReason {
+    display: none;
+  }
+}
+
+.demand {
+  font-weight: 700;
+  color: var(--brand-primary, #ad35fa);
+}
+
+.sectionLabel {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #666);
+}
+
+.runMeta {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.notes {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-primary, #222);
+}
+
+.cityBlock {
+  padding: 0.45rem 0.15rem 0.55rem;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+.cityBlock:last-child {
+  border-bottom: none;
+}
+
+.cityRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.65rem;
+}
+
+.gateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.6rem, 1fr));
+  gap: 0.28rem;
+  margin-top: 0.45rem;
+}
+
+.gate {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+}
+
+.gatePass {
+  color: #4a7463;
+}
+
+.gateFail {
+  color: #b91c1c;
+}
+
+.mark {
+  width: 0.7rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.issues {
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  color: #b45309;
+}
+
+.learningList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.learningCard {
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem 0.6rem;
+  background: var(--bg-primary, #fff);
+}
+
+.learningHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+}
+
+.learningTitle {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-primary, #222);
+}
+
+.learningBody {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-secondary, #666);
+}
+
+.learningActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.45rem;
+}
+
+:global([data-theme="dark"]) .queueStrip,
+:global(.dark) .queueStrip,
+:global([data-theme="dark"]) .learningCard,
+:global(.dark) .learningCard {
+  border-color: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:global([data-theme="dark"]) .queueRow,
+:global(.dark) .queueRow {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="dark"]) .queueRowBudget,
+:global(.dark) .queueRowBudget {
+  background: rgba(173, 53, 250, 0.12);
+}
+
+:global([data-theme="dark"]) .cityBlock,
+:global(.dark) .cityBlock {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="dark"]) .gatePass,
+:global(.dark) .gatePass {
+  color: #34d399;
+}
+
+:global([data-theme="dark"]) .gateFail,
+:global(.dark) .gateFail {
+  color: #fca5a5;
+}

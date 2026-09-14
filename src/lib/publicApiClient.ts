@@ -180,6 +180,8 @@ export type PublicCitySitemapItem = {
   emoji?: string | null;
   datasets_count: number;
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
 };
 
 export function listPublicCitiesForSitemap(): Promise<PublicCitySitemapItem[]> {
@@ -213,6 +215,9 @@ export type PublicCityDetail = {
   mayor?: { name: string } | null;
   mayor_subscriber_count?: number;
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
+  beta_access?: boolean;
   official_district_shape_layer_id?: number | null;
   geographic_unit_label?: string | null;
   geographic_unit_label_plural?: string | null;
@@ -231,6 +236,16 @@ export function getPublicCityDetail(
   return requestPublic<PublicCityDetail>(
     `/api/public/cities/${cityId}?include_metrics=${includeMetrics ? "true" : "false"}`
   );
+}
+
+export function requestBetaAccess(
+  cityId: number,
+  email: string
+): Promise<{ ok: boolean; message: string; status?: string }> {
+  return requestPublicPost("/api/public/beta/request", {
+    city_id: cityId,
+    email,
+  });
 }
 
 // Public city metric ordering (admin-defined default order, no auth required)

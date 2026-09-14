@@ -94,9 +94,9 @@ describe("sendPasswordlessEmailLink", () => {
   });
 
   it("posts to local proxy route and stores a matching auth0-spa-js transaction", async () => {
-    const fetchSpy = vi
-      .fn()
-      .mockResolvedValue(new Response("{}", { status: 200 }));
+    const fetchSpy = vi.fn().mockImplementation(
+      () => Promise.resolve(new Response("{}", { status: 200 }))
+    );
     global.fetch = fetchSpy as unknown as typeof fetch;
 
     await sendPasswordlessEmailLink({
@@ -141,10 +141,17 @@ describe("sendPasswordlessEmailLink", () => {
   });
 
   it("surfaces Auth0 error descriptions", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: "bad_email", error_description: "Email invalid" }),
-        { status: 400 }
+    // Fresh Response per call: persistPasswordlessSignupContext fires a
+    // fire-and-forget analytics fetch that would otherwise consume a shared body.
+    const fetchSpy = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            error: "bad_email",
+            error_description: "Email invalid",
+          }),
+          { status: 400 }
+        )
       )
     );
     global.fetch = fetchSpy as unknown as typeof fetch;

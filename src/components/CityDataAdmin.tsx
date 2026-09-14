@@ -51,6 +51,8 @@ interface CityData {
   portal_type?: string | null;
   is_active: boolean;
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
   datasets_count?: number;
   vector_db_points?: number;
   vector_db_size_mb?: number;
@@ -175,7 +177,7 @@ export default function CityDataAdmin({
     main_portal_url: "",
     all_portal_urls: "",
     is_active: false,
-    is_launched: false,
+    launch_status: "not_launched" as "not_launched" | "dark_launched" | "launched",
   });
 
   const [structureFormData, setStructureFormData] = useState({
@@ -362,7 +364,9 @@ export default function CityDataAdmin({
         main_portal_url: cityData.main_portal_url || "",
         all_portal_urls: JSON.stringify(cityData.all_portal_urls || [], null, 2),
         is_active: cityData.is_active || false,
-        is_launched: cityData.is_launched || false,
+        launch_status:
+          cityData.launch_status ||
+          (cityData.is_launched ? "launched" : "not_launched"),
       });
     }
   }, [cityData]);
@@ -423,7 +427,7 @@ export default function CityDataAdmin({
         main_portal_url: formData.main_portal_url.trim() || null,
         all_portal_urls: allUrls,
         is_active: formData.is_active,
-        is_launched: formData.is_launched,
+        launch_status: formData.launch_status,
       };
 
       await updateCityMutation.mutateAsync({ cityId, data: updateData });
@@ -1110,21 +1114,39 @@ export default function CityDataAdmin({
                       fontWeight: 600,
                     }}
                   >
-                    Launched
+                    Launch status
                   </th>
                   <td style={{ padding: "12px", borderBottom: "1px solid var(--border-primary)" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.is_launched}
-                        onChange={(e) => setFormData({ ...formData, is_launched: e.target.checked })}
-                      />
-                      <span style={{ color: formData.is_launched ? "var(--color-success, #16a34a)" : "var(--text-secondary)" }}>
-                        {formData.is_launched
-                          ? "Launched — metrics and city structure visible publicly"
-                          : "Not launched — metrics hidden from public pages"}
-                      </span>
-                    </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {(
+                        [
+                          ["not_launched", "Not launched — coming soon stub, schedules off"],
+                          ["dark_launched", "Dark launch (beta) — schedules on, gated public page"],
+                          ["launched", "Launched — public homepage, sitemap, newsletters"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <label key={value} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name="launch_status"
+                            checked={formData.launch_status === value}
+                            onChange={() => setFormData({ ...formData, launch_status: value })}
+                          />
+                          <span
+                            style={{
+                              color:
+                                formData.launch_status === "launched" && value === "launched"
+                                  ? "var(--color-success, #16a34a)"
+                                  : formData.launch_status === "dark_launched" && value === "dark_launched"
+                                    ? "var(--color-warning, #b45309)"
+                                    : "var(--text-secondary)",
+                            }}
+                          >
+                            {label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               </tbody>
