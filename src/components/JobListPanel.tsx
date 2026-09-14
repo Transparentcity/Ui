@@ -20,6 +20,7 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   determine_portal_types: "Determine portal type",
   load_city_data: "Load city data",
   restructure_city: "Restructure city",
+  city_expansion: "City expansion",
 };
 
 /** Filter by schedule_key (job_metadata). Matches backend run_schedule keys. */

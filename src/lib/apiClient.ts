@@ -193,6 +193,8 @@ export interface CityAdminData {
   is_active: boolean;
   /** Gates public metric visibility; editable from the city admin form. */
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
   datasets_count?: number;
   vector_db_points?: number;
   vector_db_size_mb?: number;
@@ -933,6 +935,8 @@ export interface CityListItem {
   district_fields?: string[];
   is_active?: boolean;
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
   population_source_type?: string | null;
   population_source_name?: string | null;
   population_data_year?: number | null;
@@ -2523,6 +2527,13 @@ export interface CityHealthAttentionSummary {
   cities_total: number;
   cities_needing_attention: number;
   launched_needing_attention: number;
+  dark_needing_attention?: number;
+  not_launched_needing_attention?: number;
+  by_launch_status?: {
+    launched?: number;
+    dark_launched?: number;
+    not_launched?: number;
+  };
   total_issues: number;
   by_category: Record<CityHealthAttentionCategory, number>;
   by_severity: Record<string, number>;
@@ -2532,6 +2543,8 @@ export interface CityScheduleHealth {
   city_id: number;
   city_name: string;
   is_launched: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
   freshness: CityFreshness;
   freshness_metrics: CityFreshnessMetricRow[];
   schedules: Record<string, CityScheduleSlot>;
@@ -2557,6 +2570,151 @@ export function getCityScheduleHealth(
     `/api/jobs/schedules/city-health${q ? `?${q}` : ""}`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export type CityExpansionMode = "onboard" | "tighten" | "learn";
+export type CityExpansionRunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "skipped"
+  | "partial";
+export type CityExpansionLearningKind =
+  | "platform"
+  | "template_metric"
+  | "shape_layer"
+  | "adapter"
+  | "prompt";
+export type CityExpansionLearningStatus = "proposed" | "applied" | "rejected";
+
+export interface CityExpansionQueueItem {
+  city_id: number | null;
+  city_name: string;
+  mode: CityExpansionMode | string;
+  reason: string;
+  portal_type?: string | null;
+  domain?: string | null;
+  country?: string | null;
+  population?: number | null;
+  user_demand?: number;
+  demand_sources?: Record<string, number>;
+  portal_support?: "supported" | "partial" | "unknown" | string;
+  queue_score?: number;
+  support_rank?: number;
+  rank?: number;
+  in_today_budget?: boolean;
+}
+
+export interface CityExpansionBudget {
+  max_new: number;
+  max_tighten: number;
+}
+
+export interface CityExpansionCityScorecard {
+  id: number;
+  city_id: number;
+  city_name: string;
+  mode: CityExpansionMode | string;
+  phase?: string | null;
+  status: string;
+  issues: string[];
+  notes?: string | null;
+  passed: boolean;
+  promoted: boolean;
+  result?: string | null;
+  launch_status?: string | null;
+  checks: Record<string, boolean>;
+  gate_issues: string[];
+  finished_at?: string | null;
+}
+
+export interface CityExpansionRun {
+  id: number;
+  status: CityExpansionRunStatus | string;
+  created_by?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  notes?: string | null;
+  summary?: Record<string, unknown> | null;
+  cities: CityExpansionCityScorecard[];
+}
+
+export interface CityExpansionLearning {
+  id: number;
+  city_id?: number | null;
+  city_name?: string | null;
+  kind: CityExpansionLearningKind | string;
+  title: string;
+  body?: string | null;
+  status: CityExpansionLearningStatus | string;
+  extra?: Record<string, unknown> | null;
+  created_at?: string | null;
+}
+
+export interface CityExpansionHistory {
+  queue: CityExpansionQueueItem[];
+  budget?: CityExpansionBudget;
+  runs: CityExpansionRun[];
+  learnings: CityExpansionLearning[];
+}
+
+export function getCityExpansionHistory(
+  token: string
+): Promise<CityExpansionHistory> {
+  return request<CityExpansionHistory>(
+    "/api/admin/city-expansion/history",
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface CityExpansionRunRequest {
+  max_new?: number;
+  max_tighten?: number;
+  city_id?: number | null;
+  city_name?: string | null;
+  domain?: string | null;
+  portal_type?: string | null;
+  country?: string | null;
+  population?: number | null;
+}
+
+export interface CityExpansionRunResponse {
+  status?: string;
+  job_id?: string;
+  message?: string;
+  run_id?: number;
+  work_count?: number;
+  promoted_dark_launch?: number[];
+  results?: Array<Record<string, unknown>>;
+  learnings?: Array<Record<string, unknown>>;
+}
+
+export function startCityExpansionRun(
+  token: string,
+  body: CityExpansionRunRequest = {}
+): Promise<CityExpansionRunResponse> {
+  return request<CityExpansionRunResponse>(
+    "/api/admin/city-expansion/runs",
+    "POST",
+    body,
+    token
+  );
+}
+
+export function updateCityExpansionLearning(
+  token: string,
+  learningId: number,
+  status: CityExpansionLearningStatus
+): Promise<{ id: number; status: string; title: string }> {
+  return request(
+    `/api/admin/city-expansion/learnings/${learningId}`,
+    "PATCH",
+    { status },
     token
   );
 }
@@ -4241,6 +4399,10 @@ export interface User {
   } | null;
   gifts_sent_count?: number;
   gift_quota?: number;
+  home_city_id?: number | null;
+  home_city_name?: string | null;
+  cities_count?: number;
+  custom_places_count?: number;
 }
 
 export interface UpdateUserGovernmentStatusRequest {

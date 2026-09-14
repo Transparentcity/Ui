@@ -12,6 +12,7 @@ import type {
   CityHealthSuggestedAction,
   CityScheduleHealth,
 } from "@/lib/apiClient";
+import { resolveLaunchStatus, type LaunchStatus } from "@/lib/launchStatus";
 
 const CATEGORIES: CityHealthAttentionCategory[] = [
   "jobs",
@@ -348,12 +349,23 @@ export function ensureCitiesAttention(
   };
   let needing = 0;
   let launchedNeeding = 0;
+  let darkNeeding = 0;
+  let notLaunchedNeeding = 0;
+  const by_launch_status: Record<LaunchStatus, number> = {
+    launched: 0,
+    dark_launched: 0,
+    not_launched: 0,
+  };
   for (const c of withAttention) {
     const a = c.attention!;
+    const status = resolveLaunchStatus(c);
+    by_launch_status[status] += 1;
     by_severity[a.severity] = (by_severity[a.severity] ?? 0) + 1;
     if (a.total_issues > 0) {
       needing += 1;
-      if (c.is_launched) launchedNeeding += 1;
+      if (status === "launched") launchedNeeding += 1;
+      else if (status === "dark_launched") darkNeeding += 1;
+      else notLaunchedNeeding += 1;
     }
     for (const key of CATEGORIES) {
       by_category[key] += a.issue_counts[key] ?? 0;
@@ -365,6 +377,9 @@ export function ensureCitiesAttention(
       cities_total: withAttention.length,
       cities_needing_attention: needing,
       launched_needing_attention: launchedNeeding,
+      dark_needing_attention: darkNeeding,
+      not_launched_needing_attention: notLaunchedNeeding,
+      by_launch_status,
       total_issues: Object.values(by_category).reduce((a, b) => a + b, 0),
       by_category,
       by_severity,

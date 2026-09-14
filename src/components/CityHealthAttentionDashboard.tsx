@@ -15,6 +15,12 @@ import {
   retryMissingShapeLayers,
 } from "@/lib/apiClient";
 import { ensureCitiesAttention } from "@/lib/cityHealthAttention";
+import {
+  LAUNCH_STATUS_LABEL,
+  resolveLaunchStatus,
+  type LaunchStatus,
+} from "@/lib/launchStatus";
+import LaunchStatusBadge from "./LaunchStatusBadge";
 import Loader from "./Loader";
 import styles from "./CityHealthAttentionDashboard.module.css";
 
@@ -44,7 +50,19 @@ const SEV_DOT: Record<string, string> = {
   low: "#9ca3af",
 };
 
-type ScopeFilter = "launched" | "all";
+type ScopeFilter = "all" | LaunchStatus;
+
+const LAUNCH_SCOPES: { id: ScopeFilter; label: string }[] = [
+  { id: "all", label: "All stages" },
+  { id: "launched", label: "Launched" },
+  { id: "dark_launched", label: "Dark" },
+  { id: "not_launched", label: "Coming soon" },
+];
+
+function matchesLaunchScope(city: CityScheduleHealth, scope: ScopeFilter): boolean {
+  if (scope === "all") return true;
+  return resolveLaunchStatus(city) === scope;
+}
 
 type ActionKey = string;
 
@@ -105,7 +123,7 @@ export default function CityHealthAttentionDashboard({
   onViewJob,
   onRefresh,
 }: Props) {
-  const [scope, setScope] = useState<ScopeFilter>("launched");
+  const [scope, setScope] = useState<ScopeFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CityHealthAttentionCategory | null>(
     null
   );
@@ -120,7 +138,7 @@ export default function CityHealthAttentionDashboard({
 
   const scopedCities = useMemo(() => {
     return enriched.cities
-      .filter((c) => (scope === "launched" ? c.is_launched : true))
+      .filter((c) => matchesLaunchScope(c, scope))
       .filter((c) => (c.attention?.total_issues ?? 0) > 0)
       .map((c) => {
         const attention = c.attention;
@@ -155,7 +173,7 @@ export default function CityHealthAttentionDashboard({
       structure: 0,
     };
     for (const c of enriched.cities) {
-      if (scope === "launched" && !c.is_launched) continue;
+      if (!matchesLaunchScope(c, scope)) continue;
       const counts = c.attention?.issue_counts;
       if (!counts) continue;
       for (const key of CATEGORIES) {
@@ -164,6 +182,19 @@ export default function CityHealthAttentionDashboard({
     }
     return totals;
   }, [enriched.cities, scope]);
+
+  const needingByStatus = useMemo(() => {
+    const counts: Record<LaunchStatus, number> = {
+      launched: 0,
+      dark_launched: 0,
+      not_launched: 0,
+    };
+    for (const c of enriched.cities) {
+      if ((c.attention?.total_issues ?? 0) <= 0) continue;
+      counts[resolveLaunchStatus(c)] += 1;
+    }
+    return counts;
+  }, [enriched.cities]);
 
   const needingCount = scopedCities.length;
   const totalIssues = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
@@ -246,27 +277,28 @@ export default function CityHealthAttentionDashboard({
         <div className={styles.titleBlock}>
           <h3 className={styles.title}>Needs attention</h3>
           <p className={styles.subtitle}>
-            Incomplete or failing metrics, grouped by cause: job runs, data freshness,
-            district wiring, map fields, and city structure. Act here, or start agent
-            cleanup.
+            Incomplete or failing metrics across launched, dark, and coming-soon
+            cities. Grouped by cause: job runs, data freshness, district wiring,
+            map fields, and city structure.
           </p>
         </div>
         <div className={styles.controls}>
-          <div className={styles.toggle} role="group" aria-label="City scope">
-            <button
-              type="button"
-              className={`${styles.toggleBtn} ${scope === "launched" ? styles.toggleBtnActive : ""}`}
-              onClick={() => setScope("launched")}
-            >
-              Launched
-            </button>
-            <button
-              type="button"
-              className={`${styles.toggleBtn} ${scope === "all" ? styles.toggleBtnActive : ""}`}
-              onClick={() => setScope("all")}
-            >
-              All cities
-            </button>
+          <div className={styles.toggle} role="group" aria-label="Launch stage">
+            {LAUNCH_SCOPES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`${styles.toggleBtn} ${scope === item.id ? styles.toggleBtnActive : ""}`}
+                onClick={() => setScope(item.id)}
+              >
+                {item.label}
+                {item.id !== "all" ? (
+                  <span className={styles.toggleCount}>
+                    {needingByStatus[item.id]}
+                  </span>
+                ) : null}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -310,12 +342,12 @@ export default function CityHealthAttentionDashboard({
           {needingCount} {needingCount === 1 ? "city" : "cities"} · {totalIssues}{" "}
           {totalIssues === 1 ? "issue" : "issues"}
           {categoryFilter ? ` · filtered to ${categoryFilter}` : ""}
+          {scope !== "all" ? ` · ${LAUNCH_STATUS_LABEL[scope]}` : ""}
         </span>
-        {scope === "launched" && (
-          <span>
-            {enriched.summary.launched_needing_attention} launched cities need attention
-          </span>
-        )}
+        <span>
+          {needingByStatus.launched} launched · {needingByStatus.dark_launched} dark ·{" "}
+          {needingByStatus.not_launched} coming soon
+        </span>
       </div>
 
       {actionError && <p className={styles.actionError}>{actionError}</p>}
@@ -346,13 +378,10 @@ export default function CityHealthAttentionDashboard({
                   >
                     ▶
                   </span>
-                  <span
-                    className={`${styles.cityName} ${
-                      city.is_launched ? styles.cityNameLaunched : ""
-                    }`}
-                  >
+                  <span className={styles.cityName}>
                     {city.city_name}
                   </span>
+                  <LaunchStatusBadge city={city} />
                   <span className={`${styles.sevBadge} ${SEV_CLASS[sev] ?? styles.sevLow}`}>
                     {sev}
                   </span>

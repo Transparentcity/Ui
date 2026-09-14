@@ -81,4 +81,27 @@ describe("cityHealthAttention", () => {
     expect(summary.cities_needing_attention).toBe(1);
     expect(summary.by_category.jobs).toBeGreaterThan(0);
   });
+
+  it("splits needing-attention counts by launch status", () => {
+    const { summary } = ensureCitiesAttention([
+      city({ city_id: 1, launch_status: "launched", is_launched: true }),
+      city({
+        city_id: 2,
+        city_name: "Beta City",
+        launch_status: "dark_launched",
+        is_launched: false,
+        is_dark_launched: true,
+      }),
+      city({
+        city_id: 3,
+        city_name: "Coming Soon",
+        launch_status: "not_launched",
+        is_launched: false,
+      }),
+    ]);
+    expect(summary.launched_needing_attention).toBe(1);
+    expect(summary.dark_needing_attention).toBe(1);
+    expect(summary.not_launched_needing_attention).toBe(1);
+    expect(summary.by_launch_status?.dark_launched).toBe(1);
+  });
 });

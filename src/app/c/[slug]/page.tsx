@@ -27,6 +27,7 @@ import HeroDistrictSelector from "./HeroDistrictSelector";
 import FeaturedStoriesAsync from "./FeaturedStoriesAsync";
 import FeaturedStoriesSkeleton from "./FeaturedStoriesSkeleton";
 import CitySignupCTA from "./CitySignupCTA";
+import CityBetaCurtain from "./CityBetaCurtain";
 import LoggedOutOnly from "./LoggedOutOnly";
 import MobileCitySignupBar from "./MobileCitySignupBar";
 import { slugify, formatLeaderName } from "@/lib/utils";
@@ -75,6 +76,7 @@ export async function generateMetadata({
   let state: string | null | undefined = null;
   let country: string | null | undefined = null;
   let datasetsCount: number | null = null;
+  let isDarkLaunched = false;
 
   try {
     const cities = await listPublicCitiesForSitemap();
@@ -88,6 +90,7 @@ export async function generateMetadata({
       state = match.state;
       country = match.country;
       datasetsCount = match.datasets_count;
+      isDarkLaunched = Boolean(match.is_dark_launched);
     }
   } catch {
     // Keep a reasonable fallback; crawlers will retry.
@@ -153,6 +156,7 @@ export async function generateMetadata({
       description,
       images: [ogImage],
     },
+    ...(isDarkLaunched ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -277,9 +281,13 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
     }
   }
 
-  const hasContent = (city?.datasets_count ?? 0) > 0
-    || (cityDetail?.metrics?.length ?? 0) > 0
-    || !!cityDetail?.main_portal_url;
+  const isDarkLaunched = Boolean(cityDetail?.is_dark_launched) && !cityDetail?.beta_access;
+  const isPubliclyLaunched = cityDetail?.is_launched === true;
+  const hasContent =
+    isPubliclyLaunched &&
+    ((city?.datasets_count ?? 0) > 0 ||
+      (cityDetail?.metrics?.length ?? 0) > 0 ||
+      !!cityDetail?.main_portal_url);
 
   return (
     <CityPageClient>
@@ -337,6 +345,13 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
       {/* Section 2: Dashboard */}
       <div className="container city-dashboard-wrapper">
         {!hasContent ? (
+          isDarkLaunched && city?.id ? (
+            <CityBetaCurtain
+              cityId={city.id}
+              cityName={cityDisplayName}
+              cityEmoji={city.emoji}
+            />
+          ) : (
           <div className="city-coming-soon">
             <div className="city-coming-soon-emoji">🚧</div>
             <h2 className="city-coming-soon-title">
@@ -358,6 +373,7 @@ export default async function CityLandingPage({ params, searchParams }: PageProp
               <span>Help us launch faster &rarr;</span>
             </a>
           </div>
+          )
         ) : city?.id ? (
           <CityDashboardSection
             cityDisplayName={cityDisplayName}

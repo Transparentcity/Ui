@@ -31,6 +31,15 @@ import Loader from "./Loader";
 import styles from "./UserManagement.module.css";
 
 const PAGE_SIZE = 25;
+const USER_LIST_COLUMN_COUNT = 11;
+
+function userListDisplayName(user: User): string {
+  const email = (user.email || "").trim();
+  const name = (user.name || "").trim();
+  if (name && name.toLowerCase() !== email.toLowerCase()) return name;
+  const at = email.indexOf("@");
+  return at > 0 ? email.slice(0, at) : name || email || "—";
+}
 
 interface UserManagementProps {
   currentUserId?: number | null;
@@ -1016,8 +1025,10 @@ export default function UserManagement({
           <table className={styles.table}>
             <thead className={styles.tableHead}>
               <tr>
-                <th className={styles.tableHeaderCell}>Email</th>
                 <th className={styles.tableHeaderCell}>Name</th>
+                <th className={styles.tableHeaderCell}>Home City</th>
+                <th className={styles.tableHeaderCellNumeric}>Cities</th>
+                <th className={styles.tableHeaderCellNumeric}>Places</th>
                 <th className={styles.tableHeaderCell}>Role</th>
                 <th className={styles.tableHeaderCell}>Government</th>
                 <th className={styles.tableHeaderCell}>City Lead Cities</th>
@@ -1030,7 +1041,7 @@ export default function UserManagement({
             <tbody className={styles.tableBody}>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className={styles.tableCell} style={{ textAlign: "center" }}>
+                  <td colSpan={USER_LIST_COLUMN_COUNT} className={styles.tableCell} style={{ textAlign: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                       <Loader size="sm" color="dark" />
                       <span className={styles.loadingText}>Loading users...</span>
@@ -1039,16 +1050,22 @@ export default function UserManagement({
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className={styles.emptyState}>
+                  <td colSpan={USER_LIST_COLUMN_COUNT} className={styles.emptyState}>
                     No users found matching the current filters.
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
+                users.map((user) => {
+                  const homeCityLabel =
+                    user.home_city_name ||
+                    (user.home_city_id != null ? getCityName(user.home_city_id) : null);
+                  return (
                   <tr key={user.id} className={styles.tableRow}>
                     <td className={styles.tableCell}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span className={styles.tableCellText}>{user.email}</span>
+                        <span className={styles.tableCellText} title={user.email || undefined}>
+                          {userListDisplayName(user)}
+                        </span>
                         {user.is_gift_recipient && (
                           <span
                             className={styles.roleBadge}
@@ -1125,8 +1142,14 @@ export default function UserManagement({
                       <div className={styles.tableCellSubtext}>ID: {user.id}</div>
                     </td>
                     <td className={styles.tableCell}>
-                      {user.name || <span style={{ color: "var(--text-tertiary)" }}>N/A</span>}
+                      {homeCityLabel ? (
+                        homeCityLabel
+                      ) : (
+                        <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                      )}
                     </td>
+                    <td className={styles.tableCellNumeric}>{user.cities_count ?? 0}</td>
+                    <td className={styles.tableCellNumeric}>{user.custom_places_count ?? 0}</td>
                     <td className={styles.tableCell}>
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                         <span className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
@@ -1228,7 +1251,8 @@ export default function UserManagement({
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

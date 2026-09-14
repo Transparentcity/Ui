@@ -1,0 +1,53 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.38rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.launched {
+  color: #166534;
+  background: rgba(74, 116, 99, 0.14);
+  border-color: rgba(74, 116, 99, 0.35);
+}
+
+.dark {
+  color: #92400e;
+  background: rgba(180, 83, 9, 0.12);
+  border-color: rgba(180, 83, 9, 0.38);
+}
+
+.comingSoon {
+  color: #4b5563;
+  background: var(--bg-secondary, #f3f4f6);
+  border-color: var(--border-primary, #e5e7eb);
+}
+
+:global([data-theme="dark"]) .launched,
+:global(.dark) .launched {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+:global([data-theme="dark"]) .dark,
+:global(.dark) .dark {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+:global([data-theme="dark"]) .comingSoon,
+:global(.dark) .comingSoon {
+  color: #9ca3af;
+  background: var(--bg-tertiary, #2a2a2a);
+  border-color: var(--bg-tertiary, #2a2a2a);
+}

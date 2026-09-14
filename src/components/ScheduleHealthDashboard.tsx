@@ -25,7 +25,13 @@ import {
 } from "@/lib/apiClient";
 import MetricEditModal from "./MetricEditModal";
 import CityHealthAttentionDashboard from "./CityHealthAttentionDashboard";
+import CityExpansionPanel from "./CityExpansionPanel";
+import LaunchStatusBadge from "./LaunchStatusBadge";
 import { ensureCitiesAttention } from "@/lib/cityHealthAttention";
+import {
+  LAUNCH_STATUS_RANK,
+  resolveLaunchStatus,
+} from "@/lib/launchStatus";
 import {
   BadgeCheck,
   Layers,
@@ -745,8 +751,8 @@ export default function ScheduleHealthDashboard({
         <div className={styles.titleRow}>
           <h3 className={styles.title}>City schedule health</h3>
           <p className={styles.subtitle}>
-            Schedule runs and freshness by period. Use Needs attention above to triage
-            incomplete wiring, mapping, jobs, and city structure. Thresholds:{" "}
+            Schedule runs and freshness by period. Needs attention above covers
+            launched, dark, and coming-soon cities. Thresholds:{" "}
             <code>most_recent_data_date</code> at 2d / 10d / 35d / 400d.
             {lastLoaded && (
               <>
@@ -762,6 +768,8 @@ export default function ScheduleHealthDashboard({
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
+
+      <CityExpansionPanel getAccessTokenSilently={getAccessTokenSilently} />
 
       <CityHealthAttentionDashboard
         cities={cities}
@@ -793,6 +801,15 @@ export default function ScheduleHealthDashboard({
           <span className={styles.dot} style={{ background: "#9ca3af" }} />
           Never run
         </span>
+        <span className={styles.legendItem}>
+          <span className={`${styles.launchSwatch} ${styles.launchedCityName}`}>Launched</span>
+        </span>
+        <span className={styles.legendItem}>
+          <span className={`${styles.launchSwatch} ${styles.darkCityName}`}>Dark</span>
+        </span>
+        <span className={styles.legendItem}>
+          <span className={`${styles.launchSwatch} ${styles.comingSoonCityName}`}>Coming soon</span>
+        </span>
       </div>
 
       {cities.length === 0 ? (
@@ -811,23 +828,35 @@ export default function ScheduleHealthDashboard({
             <tbody>
               {[...cities]
                 .sort((a, b) => {
-                  if (a.is_launched && !b.is_launched) return -1;
-                  if (!a.is_launched && b.is_launched) return 1;
+                  const ra = LAUNCH_STATUS_RANK[resolveLaunchStatus(a)];
+                  const rb = LAUNCH_STATUS_RANK[resolveLaunchStatus(b)];
+                  if (ra !== rb) return ra - rb;
                   return a.city_name.localeCompare(b.city_name);
                 })
                 .map((city) => {
                 const isOpen = expanded.has(city.city_id);
+                const launchStatus = resolveLaunchStatus(city);
+                const rowClass =
+                  launchStatus === "launched"
+                    ? styles.launchedRow
+                    : launchStatus === "dark_launched"
+                      ? styles.darkRow
+                      : styles.comingSoonRow;
+                const nameClass =
+                  launchStatus === "launched"
+                    ? styles.launchedCityName
+                    : launchStatus === "dark_launched"
+                      ? styles.darkCityName
+                      : styles.comingSoonCityName;
                 return (
                   <Fragment key={city.city_id}>
-                    <tr className={city.is_launched ? styles.launchedRow : undefined}>
+                    <tr className={rowClass}>
                       <td className={styles.cityCell}>
                         <div className={styles.cityCellTop}>
-                          <span
-                            className={city.is_launched ? styles.launchedCityName : undefined}
-                            title={city.is_launched ? "Launched" : undefined}
-                          >
+                          <span className={nameClass} title={city.city_name}>
                             {city.city_name}
                           </span>
+                          <LaunchStatusBadge status={launchStatus} />
                           {city.attention && city.attention.total_issues > 0 && (
                             <span
                               className={styles.attentionBadge}
