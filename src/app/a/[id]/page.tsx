@@ -280,6 +280,86 @@ export default function AnomalyChartPage() {
           throw new Error("Invalid response format: missing anomaly data");
         }
 
+        // When chart_payload is absent (slim stats era), build chart_data from the
+        // live time series by loading the active series for the metric/period/district.
+        // The comparison_window and recent window dates from the result are used to
+        // label each point as "recent" or "comparison".
+        if (
+          anomalyData.chart_data.dates.length === 0 &&
+          anomalyData.metric_id &&
+          anomalyData.period_type
+        ) {
+          try {
+            const tsResp = await fetch(
+              `${apiBase}/api/time-series/metric/${anomalyData.metric_id}?period_type=${anomalyData.period_type}&district=${anomalyData.district || 0}`
+            );
+            if (tsResp.ok) {
+              const tsData: any = await tsResp.json();
+              const tsPoints: Array<{ date: string; value: number }> =
+                tsData?.data_points ||
+                (tsData?.dates && tsData?.values
+                  ? tsData.dates.map((d: string, i: number) => ({
+                      date: d,
+                      value: tsData.values[i],
+                    }))
+                  : []);
+
+              if (tsPoints.length > 0) {
+                // Use calculation dates to classify points as recent vs comparison
+                const recentStart = anomalyData.calculation_start_date
+                  ? new Date(anomalyData.calculation_start_date).getTime()
+                  : null;
+                const recentEnd = anomalyData.calculation_end_date
+                  ? new Date(anomalyData.calculation_end_date).getTime()
+                  : null;
+
+                const cmpSize = anomalyData.comparison_window?.size ?? 12;
+                const allDates = tsPoints
+                  .map((p) => ({ ...p, t: new Date(p.date).getTime() }))
+                  .filter((p) => !isNaN(p.t))
+                  .sort((a, b) => a.t - b.t);
+
+                // Find recent points inside the calculation window
+                const recentPts = recentStart && recentEnd
+                  ? allDates.filter((p) => p.t >= recentStart && p.t <= recentEnd)
+                  : allDates.slice(-1);
+
+                const recentFirstT = recentPts.length > 0 ? recentPts[0].t : null;
+                const comparisonPts = recentFirstT
+                  ? allDates
+                      .filter((p) => p.t < recentFirstT)
+                      .slice(-cmpSize)
+                  : allDates.slice(-(cmpSize + 1), -1);
+
+                const dates: string[] = [];
+                const values: number[] = [];
+                const periods: ("recent" | "comparison")[] = [];
+
+                const recentSet = new Set(recentPts.map((p) => p.date));
+                const cmpSet = new Set(comparisonPts.map((p) => p.date));
+
+                for (const pt of allDates) {
+                  if (recentSet.has(pt.date) || cmpSet.has(pt.date)) {
+                    dates.push(pt.date);
+                    values.push(pt.value);
+                    periods.push(recentSet.has(pt.date) ? "recent" : "comparison");
+                  }
+                }
+
+                if (dates.length > 0) {
+                  anomalyData = {
+                    ...anomalyData,
+                    chart_data: { dates, values, periods },
+                  };
+                }
+              }
+            }
+          } catch (tsErr) {
+            // Non-fatal: render with empty chart; stats panel still shows
+            console.warn("Could not load live time series for slim anomaly:", tsErr);
+          }
+        }
+
         // Ensure chart_data is properly formatted
         if (anomalyData.chart_data) {
           setAnomaly(anomalyData);

@@ -244,3 +244,43 @@ export function useAnomalyPlaceTypes(cityId: number | null) {
 
 export type { AnomalyPlaceType };
 
+// ─────────────────────────────────────────────────────────────────────────── //
+// Slim stats hooks (anomaly_stats table)
+// ─────────────────────────────────────────────────────────────────────────── //
+
+/**
+ * Hook to get available periods from anomaly_stats.
+ * Unlike useAvailablePeriods (which reads anomaly_results), this reads the slim
+ * stats table and does not require chart_payload to exist.
+ */
+export function useAvailableStatsPeriods(
+  periodType: string,
+  cityId: number | null,
+  placeType?: string,
+  limit?: number
+) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: [...anomalyKeys.all, "stats-periods", periodType, cityId, placeType] as const,
+    queryFn: async () => {
+      if (!cityId) throw new Error("City ID is required");
+      const token = await getAccessTokenSilently();
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+      const params = new URLSearchParams({
+        period_type: periodType,
+        city_id: String(cityId),
+        ...(placeType ? { place_type: placeType } : {}),
+        limit: String(limit ?? 20),
+      });
+      const resp = await fetch(`${apiBase}/api/anomalies/stats/periods?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`Failed to fetch stats periods: ${resp.status}`);
+      return resp.json() as Promise<{ periods: Array<{ period_date: string; period_label: string; result_count: number; anomaly_count: number }>; count: number }>;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !!cityId && !!periodType,
+  });
+}
+

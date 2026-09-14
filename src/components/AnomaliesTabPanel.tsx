@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth0 } from "@auth0/auth0-react";
-import { useCityAnomalies, useAvailablePeriods, useAnomalyPlaceTypes, type AnomalyResult } from "@/lib/hooks/useAnomalies";
+import { useCityAnomalies, useAvailablePeriods, useAvailableStatsPeriods, useAnomalyPlaceTypes, type AnomalyResult } from "@/lib/hooks/useAnomalies";
 import { getPlaceAnomalies, type PlaceAnomaly } from "@/lib/apiClient";
 import AnomalySparkline from "./AnomalySparkline";
 import Loader from "./Loader";
@@ -434,6 +434,17 @@ export default function AnomaliesTabPanel({
     30
   );
   const availablePeriods = periodType ? periodsData?.periods ?? [] : [];
+
+  // Slim stats periods: used for the "still settling" empty state.
+  // If stats periods exist for the selected period type but none are flagged,
+  // we know detection ran and found nothing (not just "we haven't run yet").
+  const { data: statsPeriodsData } = useAvailableStatsPeriods(
+    periodType || "week",
+    cityId,
+    "citywide",
+    5
+  );
+  const hasStatsForPeriod = (statsPeriodsData?.count ?? 0) > 0;
   const { data: placeTypesData } = useAnomalyPlaceTypes(cityId);
   const anomalyPlaceTypes = placeTypesData?.place_types ?? [];
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -840,11 +851,23 @@ export default function AnomaliesTabPanel({
 
         {!isLoading && !placeAnomaliesLoading && !error && !placeAnomaliesError && filteredAnomalies.length === 0 && (
           <div className={styles.emptyContainer}>
-            <i className="fas fa-check-circle" />
-            <span>No significant anomalies detected</span>
-            <p className={styles.emptySubtext}>
-              Anomalies are detected when data significantly deviates from historical patterns.
-            </p>
+            {hasStatsForPeriod ? (
+              <>
+                <i className="fas fa-check-circle" />
+                <span>No significant anomalies detected</span>
+                <p className={styles.emptySubtext}>
+                  We analyzed this period and the data is within normal range.
+                </p>
+              </>
+            ) : (
+              <>
+                <i className="fas fa-hourglass-half" />
+                <span>Data still settling</span>
+                <p className={styles.emptySubtext}>
+                  Anomaly detection runs after each period becomes stable. Check back once data for this period has finished updating.
+                </p>
+              </>
+            )}
           </div>
         )}
 
