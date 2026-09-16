@@ -1,3 +1,4 @@
+import { PREFERRED_DEFAULT_MODEL_KEY } from "../modelDefaults";
 import { request, API_BASE } from "./request";
 
 // Chat API
@@ -119,7 +120,7 @@ export function sendChatMessage(
 }
 
 export function createNewSession(
-  model_key: string = "claude-sonnet-4.6",
+  model_key: string = PREFERRED_DEFAULT_MODEL_KEY,
   tool_groups?: string[],
   token?: string
 ): Promise<SessionSummary> {

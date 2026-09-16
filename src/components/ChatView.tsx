@@ -455,7 +455,7 @@ export default function ChatView({
         setAvailableModels(models);
         modelsLoadedRef.current = true;
 
-        // Prefer Claude Sonnet 4 if present; otherwise fall back gracefully.
+        // Prefer Claude Sonnet 5 if present; otherwise fall back gracefully.
         const defaultKey = pickDefaultModelKey(models);
         if (defaultKey) {
           setSelectedModel(defaultKey);

@@ -18,7 +18,7 @@ import {
   generateFeedStoriesFromResearch,
   listFeedStories,
 } from "@/lib/apiClient";
-import { pickDefaultModelKey } from "@/lib/modelDefaults";
+import { pickDefaultModelKey, PREFERRED_DEFAULT_MODEL_KEY } from "@/lib/modelDefaults";
 import Loader from "./Loader";
 import ResearchProgressView from "./research/ResearchProgressView";
 import ReportContent from "./ReportContent";
@@ -339,7 +339,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     setIsRegenerating(true);
     try {
       const token = await getAccessTokenSilently();
-      const modelKey = selectedModel || research.model_key || "claude-sonnet-4.6";
+      const modelKey = selectedModel || research.model_key || PREFERRED_DEFAULT_MODEL_KEY;
       
       const response = await regenerateResearch(reportId, { model_key: modelKey }, token);
       
@@ -368,7 +368,7 @@ export default function ResearchView({ reportId, isAdmin = false }: ResearchView
     setIsResynthesizing(true);
     try {
       const token = await getAccessTokenSilently();
-      const modelKey = selectedModel || research.model_key || "claude-sonnet-4.6";
+      const modelKey = selectedModel || research.model_key || PREFERRED_DEFAULT_MODEL_KEY;
       
       const response = await resynthesizeResearch(reportId, { model_key: modelKey }, token);
       
