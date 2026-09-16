@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   choroplethDistrictKeyAliases,
+  choroplethFeatureDisplayName,
+  collectChoroplethFeatureJoinValues,
+  formatChoroplethAreaLabel,
   MAP_BRAND_PURPLE,
   MAP_SERIES_OTHER_COLOR,
   normalizeChoroplethDistrictKey,
   seriesMatchFallbackColor,
+  shapefileDistrictDisplayNames,
 } from "./mapUtils";
 
 describe("normalizeChoroplethDistrictKey", () => {
@@ -67,5 +71,43 @@ describe("choroplethDistrictKeyAliases", () => {
   it("returns empty array for nullish values", () => {
     expect(choroplethDistrictKeyAliases(null)).toEqual([]);
     expect(choroplethDistrictKeyAliases("")).toEqual([]);
+  });
+});
+
+describe("Cincinnati SNA choropleth join", () => {
+  const avondale = {
+    SNA_NAME: "Avondale",
+    SNA_NUMBER: 1,
+    OBJECTID: 99,
+  };
+
+  it("collects both the name identifier and SNA_NUMBER", () => {
+    expect(
+      collectChoroplethFeatureJoinValues(avondale, ["SNA_NAME"])
+    ).toEqual(["Avondale", 1]);
+  });
+
+  it("prefers SNA_NAME as the display label", () => {
+    expect(choroplethFeatureDisplayName(avondale, "SNA_NAME")).toBe("Avondale");
+  });
+
+  it("maps integer comparison ids to neighborhood names", () => {
+    const labels = shapefileDistrictDisplayNames({
+      identifier_field: "SNA_NAME",
+      district_field_names: ["police_district", "SNA_NAME"],
+      geometry: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: avondale,
+            geometry: { type: "Polygon", coordinates: [] },
+          },
+        ],
+      },
+    });
+    expect(formatChoroplethAreaLabel(1, labels)).toBe("Avondale");
+    expect(formatChoroplethAreaLabel("Avondale", labels)).toBe("Avondale");
+    expect(formatChoroplethAreaLabel(2, labels)).toBe("District 2");
   });
 });

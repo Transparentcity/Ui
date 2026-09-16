@@ -9,6 +9,7 @@ import {
   type PublicMetricComparison,
   type PublicShapefileResponse,
 } from "@/lib/publicApiClient";
+import { shapefileDistrictDisplayNames } from "@/lib/mapUtils";
 import DeltaMapView from "./DeltaMapView";
 import DistrictComparisonTable from "./DistrictComparisonTable";
 import MetricSourceAttribution, {
@@ -45,6 +46,13 @@ function hasUsableShapefile(shape: PublicShapefileResponse | null): boolean {
   const fc = shape?.geometry;
   if (!fc || fc.type !== "FeatureCollection") return false;
   return Array.isArray(fc.features) && fc.features.length > 0;
+}
+
+function areaColumnLabelFromShapefile(shape: PublicShapefileResponse): string {
+  const blob = `${shape.structure_type || ""} ${shape.identifier_field || ""}`.toLowerCase();
+  if (blob.includes("ward")) return "Ward";
+  if (blob.includes("neighborhood") || blob.includes("sna")) return "Neighborhood";
+  return "District";
 }
 
 /**
@@ -120,6 +128,14 @@ export default function MetricDistrictChangeSection({
     [bundle]
   );
 
+  const areaLabels = useMemo(
+    () => (bundle ? shapefileDistrictDisplayNames(bundle.shape) : undefined),
+    [bundle]
+  );
+  const areaColumnLabel = bundle
+    ? areaColumnLabelFromShapefile(bundle.shape)
+    : "District";
+
   const formatDateRange = (start: string | null | undefined, end: string | null | undefined) =>
     formatDateRangeFromStrings(start, end, { loading: false });
 
@@ -186,6 +202,8 @@ export default function MetricDistrictChangeSection({
         citywideCurrent={comparison?.current_period_value ?? null}
         citywideComparison={comparison?.comparison_period_value ?? null}
         prefetchedDistricts={prefetched.districtComparisons}
+        areaLabels={areaLabels}
+        areaColumnLabel={areaColumnLabel}
       />
     </section>
   );

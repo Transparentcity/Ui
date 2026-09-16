@@ -307,6 +307,137 @@ export function choroplethDistrictKeyAliases(raw: unknown): string[] {
   return aliases;
 }
 
+/** Numeric geography ids that may be present even when identifier_field is a name. */
+const CHOROPLETH_NUMERIC_GEO_FIELDS = [
+  "SNA_NUMBER",
+  "sna_number",
+  "district_num",
+  "districtnum",
+  "DIST_NUM",
+] as const;
+
+const CHOROPLETH_NAME_FIELDS = [
+  "SNA_NAME",
+  "sna_name",
+  "neighborhood",
+  "NAME",
+  "name",
+] as const;
+
+function addChoroplethJoinValue(values: unknown[], seen: Set<string>, raw: unknown): void {
+  if (raw == null || raw === "") return;
+  const aliases = choroplethDistrictKeyAliases(raw);
+  if (aliases.length === 0) return;
+  const signature = aliases.join("|");
+  if (seen.has(signature)) return;
+  seen.add(signature);
+  values.push(raw);
+}
+
+/**
+ * Every identifier on a shapefile feature that might match a district-comparison
+ * row. Tries city/shapefile candidate keys plus numeric ids such as SNA_NUMBER
+ * so name-identified layers (Cincinnati SNA_NAME) still join integer rows.
+ */
+export function collectChoroplethFeatureJoinValues(
+  props: Record<string, unknown>,
+  candidateKeys: string[]
+): unknown[] {
+  const values: unknown[] = [];
+  const seen = new Set<string>();
+  const lowerToActual = new Map(
+    Object.keys(props).map((k) => [k.toLowerCase(), k] as const)
+  );
+
+  for (const key of candidateKeys) {
+    if (key && props[key] != null) addChoroplethJoinValue(values, seen, props[key]);
+  }
+  for (const key of candidateKeys) {
+    if (!key) continue;
+    const actual = lowerToActual.get(key.toLowerCase());
+    if (actual != null) addChoroplethJoinValue(values, seen, props[actual]);
+  }
+  for (const key of CHOROPLETH_NUMERIC_GEO_FIELDS) {
+    addChoroplethJoinValue(values, seen, props[key]);
+  }
+  return values;
+}
+
+/** Human-readable area name from shapefile properties (e.g. SNA_NAME). */
+export function choroplethFeatureDisplayName(
+  props: Record<string, unknown>,
+  identifierField?: string | null
+): string | undefined {
+  const keys = [
+    identifierField,
+    ...CHOROPLETH_NAME_FIELDS,
+  ].filter((k): k is string => Boolean(k && String(k).trim()));
+  const lowerToActual = new Map(
+    Object.keys(props).map((k) => [k.toLowerCase(), k] as const)
+  );
+
+  const readName = (key: string): string | undefined => {
+    const raw = props[key];
+    if (typeof raw === "string" && /[a-zA-Z]/.test(raw.trim())) return raw.trim();
+    return undefined;
+  };
+
+  for (const key of keys) {
+    const name = readName(key);
+    if (name) return name;
+    const actual = lowerToActual.get(key.toLowerCase());
+    if (actual) {
+      const nameCi = readName(actual);
+      if (nameCi) return nameCi;
+    }
+  }
+  return undefined;
+}
+
+/** Map of join-key aliases → display name for a public metric shapefile. */
+export function shapefileDistrictDisplayNames(shape: {
+  geometry?: GeoJSON.FeatureCollection | null;
+  identifier_field?: string | null;
+  district_field_names?: string[];
+}): Map<string, string> {
+  const labels = new Map<string, string>();
+  const features = shape.geometry?.features ?? [];
+  const candidateKeys = [
+    ...new Set(
+      [
+        ...(shape.district_field_names ?? []),
+        ...(shape.identifier_field ? [shape.identifier_field] : []),
+      ].filter((k): k is string => Boolean(k && String(k).trim()))
+    ),
+  ];
+
+  for (const feature of features) {
+    const props = (feature.properties || {}) as Record<string, unknown>;
+    const name = choroplethFeatureDisplayName(props, shape.identifier_field);
+    if (!name) continue;
+    for (const value of collectChoroplethFeatureJoinValues(props, candidateKeys)) {
+      for (const alias of choroplethDistrictKeyAliases(value)) {
+        labels.set(alias, name);
+      }
+    }
+  }
+  return labels;
+}
+
+export function formatChoroplethAreaLabel(
+  district: number | string,
+  displayNames?: Map<string, string>
+): string {
+  if (displayNames) {
+    for (const alias of choroplethDistrictKeyAliases(district)) {
+      const name = displayNames.get(alias);
+      if (name) return name;
+    }
+  }
+  if (typeof district === "string" && /[a-zA-Z]/.test(district)) return district;
+  return `District ${district}`;
+}
+
 /**
  * Finite WGS84 degrees that are safe to plot and use in Mapbox `fitBounds`.
  * Rejects null-island sentinels and near-pole junk rows (e.g. lat -90) that

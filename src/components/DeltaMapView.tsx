@@ -20,8 +20,12 @@ import {
   CHOROPLETH_FIT_MAX_ZOOM_CITYWIDE,
   CHOROPLETH_FIT_PADDING,
   choroplethDistrictKeyAliases,
+  choroplethFeatureDisplayName,
+  collectChoroplethFeatureJoinValues,
+  formatChoroplethAreaLabel,
 } from "@/lib/mapUtils";
 import Loader from "./Loader";
+import ViewFullMapLink from "./ViewFullMapLink";
 import "./DeltaMapView.css";
 
 // Mapbox access token
@@ -65,33 +69,6 @@ function getBoundsFromGeoJson(
     [minLng, minLat],
     [maxLng, maxLat],
   ];
-}
-
-/**
- * Read district id from feature properties using city district_field names and
- * the shapefile's identifier_field (GeoJSON column). Case-insensitive fallback
- * for sources that normalize property keys differently than city config.
- */
-function resolveDistrictIdFromFeatureProps(
-  props: Record<string, unknown>,
-  candidateKeys: string[]
-): string | number | undefined {
-  for (const key of candidateKeys) {
-    if (key && props[key] != null) {
-      return props[key] as string | number;
-    }
-  }
-  const lowerToActual = new Map(
-    Object.keys(props).map((k) => [k.toLowerCase(), k] as const)
-  );
-  for (const key of candidateKeys) {
-    if (!key) continue;
-    const actual = lowerToActual.get(key.toLowerCase());
-    if (actual != null && props[actual] != null) {
-      return props[actual] as string | number;
-    }
-  }
-  return undefined;
 }
 
 interface DeltaMapViewProps {
@@ -169,7 +146,6 @@ export default function DeltaMapView({
       window.open(response.map_url, "_blank", "noopener,noreferrer");
     } catch (err) {
       console.error("[DeltaMapView] Failed to save map:", err);
-      setError(err instanceof Error ? err.message : "Failed to save map");
     } finally {
       setSavingMap(false);
     }
@@ -234,7 +210,7 @@ export default function DeltaMapView({
         districtMap.set(key, d);
       }
     }
-    const lookupDistrict = (id: string | number) => {
+    const lookupDistrict = (id: unknown) => {
       for (const key of choroplethDistrictKeyAliases(id)) {
         const hit = districtMap.get(key);
         if (hit) return hit;
@@ -254,13 +230,19 @@ export default function DeltaMapView({
     // Enrich features with change data
     const features = shapeData.geometry.features.map((feature) => {
       const props = (feature.properties || {}) as Record<string, unknown>;
-      const districtId = resolveDistrictIdFromFeatureProps(
+      const joinValues = collectChoroplethFeatureJoinValues(
         props,
         districtFieldNames
       );
-
-      const data =
-        districtId === undefined ? undefined : lookupDistrict(districtId);
+      let data: (typeof districtData.districts)[0] | undefined;
+      for (const joinValue of joinValues) {
+        data = lookupDistrict(joinValue);
+        if (data) break;
+      }
+      const displayName = choroplethFeatureDisplayName(
+        props,
+        shapeData.identifier_field
+      );
 
       const changePctRaw = data?.change_percent;
       const changePct =
@@ -276,7 +258,7 @@ export default function DeltaMapView({
           _fill_color: getDeltaMapFillColor(changePct, greenDirection, basemapTheme),
           _current_value: data?.current_value ?? null,
           _comparison_value: data?.comparison_value ?? null,
-          _district: data?.district ?? districtId,
+          _district: displayName ?? data?.district ?? joinValues[0],
         },
       };
     });
@@ -389,10 +371,7 @@ export default function DeltaMapView({
         const feature = e.features[0];
         const props = feature.properties || {};
         const district = (props._district as string | number) || "Unknown";
-        const areaLabel =
-          typeof district === "string" && /[a-zA-Z]/.test(district)
-            ? district
-            : `District ${district}`;
+        const areaLabel = formatChoroplethAreaLabel(district);
         const changePercent = (props._change_percent as number | null) ?? null;
         const currentValue = (props._current_value as number | null) ?? null;
         const comparisonValue = (props._comparison_value as number | null) ?? null;
@@ -526,25 +505,12 @@ export default function DeltaMapView({
         </div>
       </div>
       {canShowLink && (
-        <div className="map-link-row">
-          <button
-            onClick={handleViewFullMap}
-            disabled={savingMap}
-            className="map-link"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: savingMap ? "wait" : "pointer",
-              padding: 0,
-              font: "inherit",
-              color: "inherit",
-              textDecoration: "underline",
-            }}
-          >
-            {savingMap ? "Opening..." : "View full map"}{" "}
-            <i className="fas fa-external-link-alt" />
-          </button>
-        </div>
+        <ViewFullMapLink
+          saving={savingMap}
+          onClick={() => {
+            void handleViewFullMap();
+          }}
+        />
       )}
     </div>
   );

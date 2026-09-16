@@ -7,6 +7,7 @@ import {
 } from "@/lib/publicApiClient";
 import Loader from "./Loader";
 import { yearFromDateString } from "@/lib/formatters";
+import { formatChoroplethAreaLabel } from "@/lib/mapUtils";
 import "./DistrictComparisonTable.css";
 
 interface DistrictComparisonTableProps {
@@ -27,6 +28,10 @@ interface DistrictComparisonTableProps {
   citywideComparison?: number | null;
   /** When set, skips fetch (caller already loaded district comparisons). */
   prefetchedDistricts?: PublicDistrictComparisonsResponse;
+  /** Join-key → display name from the city's shapefile (e.g. 1 → "Avondale"). */
+  areaLabels?: Map<string, string>;
+  /** Column header for the area list. */
+  areaColumnLabel?: string;
 }
 
 type SortField = "district" | "current" | "previous" | "change";
@@ -43,6 +48,8 @@ export default function DistrictComparisonTable({
   citywideCurrent,
   citywideComparison,
   prefetchedDistricts,
+  areaLabels,
+  areaColumnLabel = "District",
 }: DistrictComparisonTableProps) {
   const [data, setData] = useState<PublicDistrictComparisonsResponse | null>(
     prefetchedDistricts ?? null
@@ -95,9 +102,7 @@ export default function DistrictComparisonTable({
   }, [metricId, comparisonType, currentPeriodEnd, prefetchedDistricts]);
 
   const formatAreaLabel = (district: number | string): string =>
-    typeof district === "string" && /[a-zA-Z]/.test(district)
-      ? district
-      : `District ${district}`;
+    formatChoroplethAreaLabel(district, areaLabels);
 
   const sortedDistricts = useMemo(() => {
     if (!data?.districts) return [];
@@ -278,7 +283,7 @@ export default function DistrictComparisonTable({
               className="sortable"
               onClick={() => handleSort("district")}
             >
-              District <SortIcon field="district" />
+              {areaColumnLabel} <SortIcon field="district" />
             </th>
             <th
               className="sortable numeric"
