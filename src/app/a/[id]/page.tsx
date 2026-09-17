@@ -29,7 +29,8 @@ const Plot = dynamic(
 interface AnomalyChartData {
   dates: string[];
   values: number[];
-  periods: ("recent" | "comparison")[];
+  /** "context" = full live series background; "comparison" = historical window; "recent" = flagged period */
+  periods: ("recent" | "comparison" | "context")[];
 }
 
 interface AnomalyMetadata {
@@ -280,6 +281,86 @@ export default function AnomalyChartPage() {
           throw new Error("Invalid response format: missing anomaly data");
         }
 
+        // When chart_payload is absent (slim stats era), build chart_data from the
+        // full live time series. Show the complete series as "context" and mark the
+        // specific comparison/recent windows so the overlay renders correctly.
+        if (
+          anomalyData.chart_data.dates.length === 0 &&
+          anomalyData.metric_id &&
+          anomalyData.period_type
+        ) {
+          try {
+            const tsResp = await fetch(
+              `${apiBase}/api/time-series/metric/${anomalyData.metric_id}?period_type=${anomalyData.period_type}&district=${anomalyData.district || 0}`
+            );
+            if (tsResp.ok) {
+              const tsData: any = await tsResp.json();
+              const tsPoints: Array<{ date: string; value: number }> =
+                tsData?.data_points ||
+                (tsData?.dates && tsData?.values
+                  ? tsData.dates.map((d: string, i: number) => ({
+                      date: d,
+                      value: tsData.values[i],
+                    }))
+                  : []);
+
+              if (tsPoints.length > 0) {
+                const recentStart = anomalyData.calculation_start_date
+                  ? new Date(anomalyData.calculation_start_date).getTime()
+                  : null;
+                const recentEnd = anomalyData.calculation_end_date
+                  ? new Date(anomalyData.calculation_end_date).getTime()
+                  : null;
+
+                const cmpSize = anomalyData.comparison_window?.size ?? 12;
+                const allDates = tsPoints
+                  .map((p) => ({ ...p, t: new Date(p.date).getTime() }))
+                  .filter((p) => !isNaN(p.t))
+                  .sort((a, b) => a.t - b.t);
+
+                // Identify recent and comparison windows
+                const recentPts = recentStart && recentEnd
+                  ? allDates.filter((p) => p.t >= recentStart && p.t <= recentEnd)
+                  : allDates.slice(-1);
+                const recentFirstT = recentPts.length > 0 ? recentPts[0].t : null;
+                const comparisonPts = recentFirstT
+                  ? allDates.filter((p) => p.t < recentFirstT).slice(-cmpSize)
+                  : allDates.slice(-(cmpSize + 1), -1);
+
+                const recentSet = new Set(recentPts.map((p) => p.date));
+                const cmpSet = new Set(comparisonPts.map((p) => p.date));
+
+                // Include ALL points: label as recent / comparison / context
+                const dates: string[] = [];
+                const values: number[] = [];
+                const periods: ("recent" | "comparison" | "context")[] = [];
+
+                for (const pt of allDates) {
+                  dates.push(pt.date);
+                  values.push(pt.value);
+                  if (recentSet.has(pt.date)) {
+                    periods.push("recent");
+                  } else if (cmpSet.has(pt.date)) {
+                    periods.push("comparison");
+                  } else {
+                    periods.push("context");
+                  }
+                }
+
+                if (dates.length > 0) {
+                  anomalyData = {
+                    ...anomalyData,
+                    chart_data: { dates, values, periods },
+                  };
+                }
+              }
+            }
+          } catch (tsErr) {
+            // Non-fatal: render with empty chart; stats panel still shows
+            console.warn("Could not load live time series for slim anomaly:", tsErr);
+          }
+        }
+
         // Ensure chart_data is properly formatted
         if (anomalyData.chart_data) {
           setAnomaly(anomalyData);
@@ -342,6 +423,8 @@ export default function AnomalyChartPage() {
         const recentValues: number[] = [];
         const comparisonDates: Date[] = [];
         const comparisonValues: number[] = [];
+        const contextDates: Date[] = [];
+        const contextValues: number[] = [];
         let mostRecentDate: Date | null = null;
 
         if (anomaly.chart_data) {
@@ -360,6 +443,9 @@ export default function AnomalyChartPage() {
             } else if (periods[i] === "comparison") {
               comparisonDates.push(dateObj);
               comparisonValues.push(values[i]);
+            } else if (periods[i] === "context") {
+              contextDates.push(dateObj);
+              contextValues.push(values[i]);
             }
           }
         }
@@ -392,7 +478,7 @@ export default function AnomalyChartPage() {
           mapEndDate = maxDate.toISOString().split('T')[0];
         }
 
-        return { recentDates, recentValues, comparisonDates, comparisonValues, mostRecentDate, mapStartDate, mapEndDate };
+        return { recentDates, recentValues, comparisonDates, comparisonValues, contextDates, contextValues, mostRecentDate, mapStartDate, mapEndDate };
       })()
     : null;
   
@@ -455,7 +541,7 @@ export default function AnomalyChartPage() {
   const traces = processedData
     ? (() => {
         const traces: any[] = [];
-        const { recentDates, recentValues, comparisonDates, comparisonValues } =
+        const { recentDates, recentValues, comparisonDates, comparisonValues, contextDates, contextValues } =
           processedData;
 
         const isWeekly = anomaly?.period_type === "week";
@@ -476,6 +562,20 @@ export default function AnomalyChartPage() {
 
         const itemNoun = anomaly?.metadata?.item_noun || "";
         const nounText = itemNoun ? ` ${itemNoun}` : "";
+
+        // Context series — full live history as a muted background line (slim stats era)
+        if (contextDates.length > 0) {
+          traces.push({
+            x: chartDates(contextDates),
+            y: contextValues,
+            type: "scatter",
+            mode: "lines",
+            name: "History",
+            line: { color: "rgba(148,163,184,0.7)", width: 1.5 },
+            showlegend: false,
+            hoverinfo: "skip",
+          });
+        }
 
         // Normal range shaded area
         if (comparisonDates.length > 0 && anomaly) {
