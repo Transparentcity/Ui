@@ -59,26 +59,6 @@
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-06-18"
-    },
-    {
-      "city": "Denver",
-      "metricName": "🎨 Graffiti Removal Requests (Denver)",
-      "metricKey": "denver_311_graffiti",
-      "metricId": 540,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_graffiti",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-07-02"
-    },
-    {
-      "city": "Denver",
-      "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
-      "metricKey": "denver_311_abandoned_vehicle",
-      "metricId": 541,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle",
-      "missingWindow": "prior-year YTD",
-      "reason": "reason unconfirmed",
-      "addedDate": "2026-08-28"
     }
   ],
   "knownLags": [
@@ -97,62 +77,10 @@
     },
     {
       "city": "SF",
-      "metricName": "⏱️ Avg Days to Permit — Full Review Commercial (SF)",
-      "metricKey": "sf_days_to_permit_full_review_commercial",
-      "metricId": 497,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_commercial",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
       "metricName": "⏱️ Avg Days to Permit — Full Review Residential (SF)",
       "metricKey": "sf_days_to_permit_full_review_residential",
       "metricId": 496,
       "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_residential",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
-      "metricName": "⏱️ Avg Days to Permit — OTC Commercial (SF)",
-      "metricKey": "sf_days_to_permit_otc_commercial",
-      "metricId": 495,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_commercial",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
-      "metricName": "⏱️ Avg Days to Permit — OTC Residential (SF)",
-      "metricKey": "sf_days_to_permit_otc_residential",
-      "metricId": 494,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_residential",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
-      "metricName": "⏱️ Avg Days to Permit — OTC (SF)",
-      "metricKey": "sf_days_to_permit_otc",
-      "metricId": 492,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc",
       "normalLagRange": [
         27,
         35
@@ -396,32 +324,6 @@
     },
     {
       "city": "Chicago",
-      "metricName": "✈️ Aircraft Noise Complaints (Chicago)",
-      "metricKey": "chicago_311_aircraft_noise",
-      "metricId": 345,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_311_aircraft_noise",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Chicago",
-      "metricName": "🏗️ Building Permits Issued",
-      "metricKey": "chicago_building_permits_issued",
-      "metricId": 292,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_building_permits_issued",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Chicago",
       "metricName": "📦 Property Crime Incidents",
       "metricKey": "chicago_property_crime_fbi_type_ii",
       "metricId": 55,
@@ -448,19 +350,6 @@
     },
     {
       "city": "Detroit",
-      "metricName": "🏚️ Blight Tickets Issued",
-      "metricKey": "detroit_blight_tickets",
-      "metricId": 547,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_blight_tickets",
-      "normalLagRange": [
-        16,
-        24
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Detroit",
       "metricName": "📞 911 Calls (Police Serviced) — Detroit",
       "metricKey": "detroit_911_calls_police_serviced",
       "metricId": 328,
@@ -481,19 +370,6 @@
       "normalLagRange": [
         15,
         23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Detroit",
-      "metricName": "📋🏁 New Residential Construction Permits Completed",
-      "metricKey": "detroit_new_residential_construction_permits_completed",
-      "metricId": 576,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_new_residential_construction_permits_completed",
-      "normalLagRange": [
-        6,
-        14
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
@@ -572,32 +448,6 @@
       "normalLagRange": [
         8,
         16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🏗️ Building Permits Issued",
-      "metricKey": "nyc_building_permits_issued",
-      "metricId": 291,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_building_permits_issued",
-      "normalLagRange": [
-        19,
-        27
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🏢 Business License Registrations",
-      "metricKey": "nyc_business_license_registrations",
-      "metricId": 284,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_business_license_registrations",
-      "normalLagRange": [
-        42,
-        50
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
@@ -720,19 +570,6 @@
       "addedDate": "2026-06-04"
     },
     {
-      "city": "Chicago",
-      "metricName": "📋📥 New Residential Construction Permits Filed",
-      "metricKey": "chicago_new_residential_construction_permits_filed",
-      "metricId": 417,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_filed",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-04"
-    },
-    {
       "city": "SF",
       "metricName": "💀 Homicides",
       "metricKey": "homicides",
@@ -744,58 +581,6 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-11"
-    },
-    {
-      "city": "Chicago",
-      "metricName": "📋🏁 New Residential Construction Permits Completed",
-      "metricKey": "chicago_new_residential_construction_permits_completed",
-      "metricId": 563,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_completed",
-      "normalLagRange": [
-        58,
-        66
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-11"
-    },
-    {
-      "city": "Chicago",
-      "metricName": "🐀 Rodent Baiting / Rat Complaints (Chicago)",
-      "metricKey": "chicago_311_rodent",
-      "metricId": 350,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_311_rodent",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-11"
-    },
-    {
-      "city": "Chicago",
-      "metricName": "💡 Street Light Out Complaints (Chicago)",
-      "metricKey": "chicago_311_street_light_out",
-      "metricId": 351,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_311_street_light_out",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-11"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚓 Arrests Presented to DA",
-      "metricKey": "arrests_arrests_presented_to_da_6",
-      "metricId": 92,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/arrests_arrests_presented_to_da_6",
-      "normalLagRange": [
-        6,
-        14
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
     },
     {
       "city": "SF",
@@ -915,97 +700,6 @@
       "addedDate": "2026-06-18"
     },
     {
-      "city": "Denver",
-      "metricName": "📦 Property Crime Incidents",
-      "metricKey": "denver_property_crime_incidents",
-      "metricId": 353,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_property_crime_incidents",
-      "normalLagRange": [
-        103,
-        111
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "⏱️ Avg Days to Permit — New Residential Construction (Full Plan Review)",
-      "metricKey": "cincinnati_avg_days_permit_new_residential_full_plan_review",
-      "metricId": 615,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_avg_days_permit_new_residential_full_plan_review",
-      "normalLagRange": [
-        10,
-        18
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "📋✅ New Residential Construction Permits Issued",
-      "metricKey": "cincinnati_new_residential_construction_permits_issued",
-      "metricId": 506,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_issued",
-      "normalLagRange": [
-        11,
-        19
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "NYC",
-      "metricName": "💊 Drug Crime Incidents",
-      "metricKey": "nyc_drug_crime_arrests",
-      "metricId": 290,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests",
-      "normalLagRange": [
-        74,
-        82
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "NYC",
-      "metricName": "👮 NYPD Arrests (YTD)",
-      "metricKey": "nyc_nypd_arrests_ytd",
-      "metricId": 558,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd",
-      "normalLagRange": [
-        74,
-        82
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "NYC",
-      "metricName": "📦 Property Crime Incidents",
-      "metricKey": "nyc_property_crime_fbi_type_ii",
-      "metricId": 57,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_property_crime_fbi_type_ii",
-      "normalLagRange": [
-        74,
-        82
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🚨 Violent Crime Incidents",
-      "metricKey": "nyc_violent_crime_fbi_type_i",
-      "metricId": 58,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_fbi_type_i",
-      "normalLagRange": [
-        74,
-        82
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
       "city": "Seattle",
       "metricName": "🏢 Business License Registrations",
       "metricKey": "seattle_business_license_registrations",
@@ -1045,76 +739,11 @@
       "addedDate": "2026-06-25"
     },
     {
-      "city": "SF",
-      "metricName": "🚑 911 Response (minutes) - Priority A",
-      "metricKey": "response_911_response_minutes_danger_to_life_10",
-      "metricId": 94,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_danger_to_life_10",
-      "normalLagRange": [
-        18,
-        26
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 911 Response (minutes) - Priority B",
-      "metricKey": "response_911_response_minutes_danger_to_property_11",
-      "metricId": 95,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_danger_to_property_11",
-      "normalLagRange": [
-        18,
-        26
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 911 Response (minutes) - Priority C",
-      "metricKey": "response_911_response_minutes_no_danger_to_life_or_property_12",
-      "metricId": 104,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_no_danger_to_life_or_property_12",
-      "normalLagRange": [
-        18,
-        26
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
-      "city": "Chicago",
-      "metricName": "🎨 Graffiti Removal Requests (Chicago)",
-      "metricKey": "chicago_311_graffiti",
-      "metricId": 349,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_311_graffiti",
-      "normalLagRange": [
-        19,
-        27
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
       "city": "Chicago",
       "metricName": "📋✅ New Residential Construction Permits Issued",
       "metricKey": "chicago_new_residential_construction_permits_issued",
       "metricId": 504,
       "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_new_residential_construction_permits_issued",
-      "normalLagRange": [
-        19,
-        27
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
-      "city": "Detroit",
-      "metricName": "💊 Drug Crime Incidents",
-      "metricKey": "detroit_drug_crime",
-      "metricId": 340,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_drug_crime",
       "normalLagRange": [
         19,
         27
@@ -1136,19 +765,6 @@
       "addedDate": "2026-06-25"
     },
     {
-      "city": "Detroit",
-      "metricName": "🚨 Violent Crime Incidents",
-      "metricKey": "detroit_violent_crime_fbi_type_i",
-      "metricId": 343,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_violent_crime_fbi_type_i",
-      "normalLagRange": [
-        19,
-        27
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
       "city": "Denver",
       "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
       "metricKey": "denver_311_abandoned_vehicle",
@@ -1157,19 +773,6 @@
       "normalLagRange": [
         16,
         24
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "📋🔨 Demolition Permits Issued",
-      "metricKey": "cincinnati_demolition_permits_issued",
-      "metricId": 587,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_demolition_permits_issued",
-      "normalLagRange": [
-        10,
-        18
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-25"
@@ -1188,32 +791,6 @@
       "addedDate": "2026-06-25"
     },
     {
-      "city": "SF",
-      "metricName": "🛍️ New Retail Registrations",
-      "metricKey": "retail_new_retail_registrations_16",
-      "metricId": 97,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/retail_new_retail_registrations_16",
-      "normalLagRange": [
-        10,
-        18
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-02"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "📋📥 New Residential Construction Permits Filed",
-      "metricKey": "cincinnati_true_new_residential_construction_permits_filed",
-      "metricId": 585,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_true_new_residential_construction_permits_filed",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-02"
-    },
-    {
       "city": "Detroit",
       "metricName": "🏠🔨 Residential Units Demolished",
       "metricKey": "detroit_residential_units_demolished",
@@ -1228,32 +805,6 @@
     },
     {
       "city": "Cincinnati",
-      "metricName": "📦 Property Crime Incidents",
-      "metricKey": "cincinnati_property_crime_incidents",
-      "metricId": 283,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_property_crime_incidents",
-      "normalLagRange": [
-        10,
-        18
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-09"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "🚨 Violent Crime Incidents",
-      "metricKey": "cincinnati_violent_crime_fbi_type1",
-      "metricId": 288,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_violent_crime_fbi_type1",
-      "normalLagRange": [
-        10,
-        18
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-09"
-    },
-    {
-      "city": "Cincinnati",
       "metricName": "🔊 Noise Complaints (311)",
       "metricKey": "cincinnati_noise_complaints_311",
       "metricId": 608,
@@ -1261,32 +812,6 @@
       "normalLagRange": [
         8,
         16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-16"
-    },
-    {
-      "city": "NYC",
-      "metricName": "💀 Homicides",
-      "metricKey": "nyc_homicides",
-      "metricId": 808,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_homicides",
-      "normalLagRange": [
-        101,
-        109
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-16"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🔫 NYPD Shooting Incidents",
-      "metricKey": "nyc_nypd_shooting_incidents",
-      "metricId": 555,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_shooting_incidents",
-      "normalLagRange": [
-        101,
-        109
       ],
       "source": "unconfirmed",
       "addedDate": "2026-07-16"
@@ -1318,19 +843,6 @@
       "addedDate": "2026-07-23"
     },
     {
-      "city": "Detroit",
-      "metricName": "📋🔨 Demolition Permits Issued",
-      "metricKey": "detroit_demolition_permits",
-      "metricId": 387,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_demolition_permits",
-      "normalLagRange": [
-        17,
-        25
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-23"
-    },
-    {
       "city": "Austin",
       "metricName": "🏗️ Austin Code Compliance 311 Requests",
       "metricKey": "austin_311_code_compliance",
@@ -1344,19 +856,6 @@
       "addedDate": "2026-07-23"
     },
     {
-      "city": "Cincinnati",
-      "metricName": "📋🏁 New Residential Construction Permits Completed",
-      "metricKey": "cincinnati_new_residential_construction_permits_completed",
-      "metricId": 584,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_completed",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-30"
-    },
-    {
       "city": "SF",
       "metricName": "⚖️ DA Convictions",
       "metricKey": "convictions_da_convictions_7",
@@ -1365,71 +864,6 @@
       "normalLagRange": [
         8,
         16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-13"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "🏢 Business Licenses",
-      "metricKey": "cincinnati_business_licenses",
-      "metricId": 295,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_business_licenses",
-      "normalLagRange": [
-        7,
-        15
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-13"
-    },
-    {
-      "city": "NYC",
-      "metricName": "📞 911 Calls for Service (NYPD)",
-      "metricKey": "nyc_911_calls_for_service",
-      "metricId": 286,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_911_calls_for_service",
-      "normalLagRange": [
-        28,
-        36
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-13"
-    },
-    {
-      "city": "NYC",
-      "metricName": "💊 Drug Crime Complaints",
-      "metricKey": "nyc_drug_crime_complaints",
-      "metricId": 829,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_complaints",
-      "normalLagRange": [
-        28,
-        36
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-13"
-    },
-    {
-      "city": "NYC",
-      "metricName": "⚠️ Priority Crime Arrests",
-      "metricKey": "nyc_priority_crime_arrests",
-      "metricId": 830,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_priority_crime_arrests",
-      "normalLagRange": [
-        28,
-        36
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-13"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🚨 Violent Crime Arrests",
-      "metricKey": "nyc_violent_crime_arrests",
-      "metricId": 831,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_arrests",
-      "normalLagRange": [
-        28,
-        36
       ],
       "source": "unconfirmed",
       "addedDate": "2026-08-13"
@@ -1459,19 +893,6 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-08-20"
-    },
-    {
-      "city": "SF",
-      "metricName": "🗑️ Illegal Dumping Complaints (311)",
-      "metricKey": "sf_illegal_dumping_complaints_311",
-      "metricId": 834,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_illegal_dumping_complaints_311",
-      "normalLagRange": [
-        16,
-        24
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-28"
     },
     {
       "city": "Cincinnati",
@@ -1513,32 +934,6 @@
       "addedDate": "2026-09-10"
     },
     {
-      "city": "Chicago",
-      "metricName": "⏱️ Avg Days to Close a Pothole (Chicago)",
-      "metricKey": "chicago_pothole_avg_days_to_close",
-      "metricId": 879,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_pothole_avg_days_to_close",
-      "normalLagRange": [
-        35,
-        43
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-10"
-    },
-    {
-      "city": "Chicago",
-      "metricName": "🕳️ Pothole Closure Rate (Chicago)",
-      "metricKey": "chicago_pothole_closure_rate",
-      "metricId": 880,
-      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_pothole_closure_rate",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-10"
-    },
-    {
       "city": "Miami",
       "metricName": "🏢 New Commercial Construction Permits Filed",
       "metricKey": "miami_new_commercial_construction_permits_filed",
@@ -1565,18 +960,18 @@
       "addedDate": "2026-09-10"
     },
     {
-      "city": "Miami",
-      "metricName": "📋✅ New Residential Construction Permits Issued",
-      "metricKey": "miami_new_residential_construction_permits_issued",
-      "metricId": 842,
-      "cardUrl": "https://transparent.city/c/miami/metrics/miami_new_residential_construction_permits_issued",
+      "city": "Oakland",
+      "metricName": "🕳️ Pothole Closure Rate",
+      "metricKey": "oakland_pothole_closure_rate",
+      "metricId": 870,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_pothole_closure_rate",
       "normalLagRange": [
-        4,
-        12
+        10,
+        18
       ],
       "source": "unconfirmed",
-      "addedDate": "2026-09-10"
+      "addedDate": "2026-09-17"
     }
   ],
-  "lastRunDate": "2026-09-10"
+  "lastRunDate": "2026-09-17"
 }
