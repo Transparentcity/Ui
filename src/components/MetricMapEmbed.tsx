@@ -8,7 +8,8 @@ import { getMetricMapPreview, saveMetricMap, type MapPreviewResponse } from "@/l
 import { getMetricMapData, type MapData, type SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
 import YearCompareMapPanels, { DualPeriodMapPanels } from "./YearCompareMapPanels";
-import { buildChoroplethDualPanels } from "@/lib/maps/dualPeriodPanels";
+import ViewFullMapLink from "./ViewFullMapLink";
+import { buildChoroplethDualPanels, type DualPeriodPanelSpec } from "@/lib/maps/dualPeriodPanels";
 import Loader from "./Loader";
 import {
   computeMetricMapEmbedViewSpecs,
@@ -16,6 +17,11 @@ import {
   formatMetricMapViewSpecKey,
   type MetricMapViewSpec,
 } from "@/lib/metricMapEmbedViews";
+import {
+  completeDateRange,
+  metricMapPermalinkKey,
+  type MapPermalinkRange,
+} from "@/lib/metricMapPermalinks";
 import { getMapCaptionTotalCount } from "@/lib/metricMapCaptionTotal";
 import {
   getPlaceRadiusBoundingBox,
@@ -219,6 +225,13 @@ function mapDataToSavedMap(
 
 // ─── Secondary map (always mounted; same shape layers as primary) ────────────
 
+type MetricMapPermalinkTarget = {
+  key: string;
+  start: string;
+  end: string;
+  viewSpec: MetricMapViewSpec;
+};
+
 interface SecondaryMapProps {
   mapData: SavedMap;
   comparisonMapData: SavedMap | null;
@@ -229,6 +242,11 @@ interface SecondaryMapProps {
   yearCompareMap: SavedMap | null;
   periodLabels: { prior: string; current: string };
   onError?: (error: string) => void;
+  permalinkByYear?: Record<string, MapPermalinkRange>;
+  onOpenPermalink?: (target: MetricMapPermalinkTarget) => void;
+  savingPermalinkKey?: string | null;
+  currentRange?: MapPermalinkRange | null;
+  comparisonRange?: MapPermalinkRange | null;
 }
 
 function SecondaryMapSection({
@@ -241,6 +259,11 @@ function SecondaryMapSection({
   yearCompareMap,
   periodLabels,
   onError,
+  permalinkByYear,
+  onOpenPermalink,
+  savingPermalinkKey = null,
+  currentRange = null,
+  comparisonRange = null,
 }: SecondaryMapProps) {
   const subtitle = buildLayerSubtitle(spec.label, spec.kind, true);
 
@@ -248,6 +271,19 @@ function SecondaryMapSection({
     spec.kind === "choropleth"
       ? buildChoroplethDualPanels(mapData, comparisonMapData, spec, periodLabels)
       : null;
+
+  const handleDualPermalink = onOpenPermalink
+    ? (panel: DualPeriodPanelSpec) => {
+        const range = panel.period === "prior" ? comparisonRange : currentRange;
+        if (!range) return;
+        onOpenPermalink({
+          key: `${panel.lockedViewKey}:${panel.period}`,
+          start: range.start,
+          end: range.end,
+          viewSpec: spec,
+        });
+      }
+    : undefined;
 
   return (
     <div className="metric-map-secondary-section">
@@ -260,6 +296,20 @@ function SecondaryMapSection({
           mapBasemapTheme={basemapTheme}
           onError={onError}
           compact
+          permalinkByYear={permalinkByYear}
+          savingPanelKey={savingPermalinkKey}
+          savingKeyPrefix={formatMetricMapViewSpecKey(spec)}
+          onViewFullMap={
+            onOpenPermalink
+              ? (panel, range) =>
+                  onOpenPermalink({
+                    key: metricMapPermalinkKey(spec, panel.year),
+                    start: range.start,
+                    end: range.end,
+                    viewSpec: spec,
+                  })
+              : undefined
+          }
         />
       ) : choroplethDualPanels ? (
         <DualPeriodMapPanels
@@ -269,19 +319,38 @@ function SecondaryMapSection({
           mapBasemapTheme={basemapTheme}
           onError={onError}
           compact
+          savingPanelKey={savingPermalinkKey}
+          onViewFullMap={handleDualPermalink}
         />
       ) : (
-        <ProgressiveMapView
-          key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
-          mapData={mapData}
-          mapHash=""
-          height={height}
-          onError={() => {
-            /* silently ignore secondary map errors */
-          }}
-          mapBasemapTheme={basemapTheme}
-          lockedViewKey={formatMetricMapViewSpecKey(spec)}
-        />
+        <>
+          <ProgressiveMapView
+            key={`metric-map-secondary-${metricId}-${formatMetricMapViewSpecKey(spec)}`}
+            mapData={mapData}
+            mapHash=""
+            height={height}
+            onError={() => {
+              /* silently ignore secondary map errors */
+            }}
+            mapBasemapTheme={basemapTheme}
+            lockedViewKey={formatMetricMapViewSpecKey(spec)}
+          />
+          {onOpenPermalink && currentRange && (
+            <ViewFullMapLink
+              saving={
+                savingPermalinkKey === metricMapPermalinkKey(spec, "current")
+              }
+              onClick={() =>
+                onOpenPermalink({
+                  key: metricMapPermalinkKey(spec, "current"),
+                  start: currentRange.start,
+                  end: currentRange.end,
+                  viewSpec: spec,
+                })
+              }
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -324,7 +393,9 @@ export default function MetricMapEmbed({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapNotAvailable, setMapNotAvailable] = useState(false);
-  const [savingMap, setSavingMap] = useState(false);
+  const [savingPermalinkKey, setSavingPermalinkKey] = useState<string | null>(
+    null
+  );
   /** Tap the legend to minimize it to a compact pill (both desktop and mobile). */
   const [legendCollapsed, setLegendCollapsed] = useState(false);
 
@@ -559,27 +630,38 @@ export default function MetricMapEmbed({
   ]);
 
   // ── Handle "View full map" ────────────────────────────────────────────────────
-  const handleViewFullMap = useCallback(async () => {
-    if (!dateRange?.start || !dateRange?.end || isPlaceScope) return;
+  const openMapPermalink = useCallback(
+    async (target: MetricMapPermalinkTarget, includeComparison = false) => {
+      if (isPlaceScope) return;
 
-    try {
-      setSavingMap(true);
+      try {
+        setSavingPermalinkKey(target.key);
+        const shapeLayerId =
+          target.viewSpec.kind === "choropleth"
+            ? Number(target.viewSpec.shapeLayerId)
+            : undefined;
 
-      const response = await saveMetricMap(metricId, {
-        start_date: dateRange.start,
-        end_date: dateRange.end,
-        district: district || undefined,
-        period_type: selectedPeriod,
-      });
+        const response = await saveMetricMap(metricId, {
+          start_date: target.start,
+          end_date: target.end,
+          district: district || undefined,
+          period_type: selectedPeriod,
+          include_comparison: includeComparison,
+          view_type: target.viewSpec.kind,
+          shape_layer_instance_id: Number.isFinite(shapeLayerId)
+            ? shapeLayerId
+            : undefined,
+        });
 
-      window.open(response.map_url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      console.error("Failed to save map:", err);
-      setError(err instanceof Error ? err.message : "Failed to save map");
-    } finally {
-      setSavingMap(false);
-    }
-  }, [metricId, selectedPeriod, district, dateRange, isPlaceScope]);
+        window.open(response.map_url, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        console.error("Failed to save map:", err);
+      } finally {
+        setSavingPermalinkKey(null);
+      }
+    },
+    [metricId, selectedPeriod, district, isPlaceScope]
+  );
 
   // ── Caption builder ───────────────────────────────────────────────────────────
   const formatDateRange = (start: string | null | undefined, end: string | null | undefined): string =>
@@ -641,6 +723,28 @@ export default function MetricMapEmbed({
     }),
     [comparisonYear, currentYear]
   );
+
+  const currentPermalinkRange = completeDateRange(dateRange);
+  const comparisonPermalinkRange = completeDateRange(comparisonDateRange);
+  const canShowPermalinks = showLink && !isPlaceScope;
+
+  const permalinkByYear = useMemo(() => {
+    if (!canShowPermalinks) return undefined;
+    const out: Record<string, MapPermalinkRange> = {};
+    if (currentYear != null && currentPermalinkRange) {
+      out[String(currentYear)] = currentPermalinkRange;
+    }
+    if (comparisonYear != null && comparisonPermalinkRange) {
+      out[String(comparisonYear)] = comparisonPermalinkRange;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }, [
+    canShowPermalinks,
+    currentYear,
+    comparisonYear,
+    currentPermalinkRange,
+    comparisonPermalinkRange,
+  ]);
 
   /** Merge current + prior points into a year_compare map for side-by-side panels. */
   const yearCompareMap = useMemo((): SavedMap | null => {
@@ -870,6 +974,20 @@ export default function MetricMapEmbed({
             mapBasemapTheme={mapBasemapTheme}
             onError={setError}
             compact
+            permalinkByYear={permalinkByYear}
+            savingPanelKey={savingPermalinkKey}
+            savingKeyPrefix={formatMetricMapViewSpecKey(effectiveSpecs.primary)}
+            onViewFullMap={
+              canShowPermalinks
+                ? (panel, range) =>
+                    openMapPermalink({
+                      key: metricMapPermalinkKey(effectiveSpecs.primary, panel.year),
+                      start: range.start,
+                      end: range.end,
+                      viewSpec: effectiveSpecs.primary,
+                    })
+                : undefined
+            }
           />
         ) : primaryChoroplethDualPanels ? (
           <>
@@ -887,6 +1005,24 @@ export default function MetricMapEmbed({
               mapBasemapTheme={mapBasemapTheme}
               onError={setError}
               compact
+              savingPanelKey={savingPermalinkKey}
+              onViewFullMap={
+                canShowPermalinks
+                  ? (panel) => {
+                      const range =
+                        panel.period === "prior"
+                          ? comparisonPermalinkRange
+                          : currentPermalinkRange;
+                      if (!range) return;
+                      openMapPermalink({
+                        key: `${panel.lockedViewKey}:${panel.period}`,
+                        start: range.start,
+                        end: range.end,
+                        viewSpec: effectiveSpecs.primary,
+                      });
+                    }
+                  : undefined
+              }
             />
           </>
         ) : (
@@ -1024,26 +1160,27 @@ export default function MetricMapEmbed({
       {/* ── Caption ── */}
       {caption && <div className="map-caption">{caption}</div>}
 
-      {/* ── View full map link ── */}
-      {showLink && mapData && (
-        <div className="map-link-row">
-          <button
-            onClick={handleViewFullMap}
-            disabled={savingMap}
-            className="map-link"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: savingMap ? "wait" : "pointer",
-              padding: 0,
-              font: "inherit",
-              color: "inherit",
-              textDecoration: "underline",
-            }}
-          >
-            {savingMap ? "Opening…" : "View full map"} <i className="fas fa-external-link-alt" />
-          </button>
-        </div>
+      {/* ── View full map — single-map mode only; dual/year panels have per-map links ── */}
+      {canShowPermalinks &&
+        mapData &&
+        effectiveSpecs &&
+        !(yearCompareMap && effectiveSpecs.primary.kind === "points") &&
+        !primaryChoroplethDualPanels &&
+        currentPermalinkRange && (
+        <ViewFullMapLink
+          saving={savingPermalinkKey === metricMapPermalinkKey(effectiveSpecs.primary, "current")}
+          onClick={() =>
+            openMapPermalink(
+              {
+                key: metricMapPermalinkKey(effectiveSpecs.primary, "current"),
+                start: currentPermalinkRange.start,
+                end: currentPermalinkRange.end,
+                viewSpec: effectiveSpecs.primary,
+              },
+              true
+            )
+          }
+        />
       )}
 
       {/* ── Secondary maps (additional shape layers) ── */}
@@ -1061,6 +1198,11 @@ export default function MetricMapEmbed({
               yearCompareMap={yearCompareMap}
               periodLabels={periodLabels}
               onError={setError}
+              permalinkByYear={canShowPermalinks ? permalinkByYear : undefined}
+              onOpenPermalink={canShowPermalinks ? openMapPermalink : undefined}
+              savingPermalinkKey={savingPermalinkKey}
+              currentRange={currentPermalinkRange}
+              comparisonRange={comparisonPermalinkRange}
             />
           ))}
         </div>
