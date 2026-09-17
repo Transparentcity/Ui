@@ -1,98 +1,76 @@
 import { Metadata } from "next";
+import { pickAnomalyLookup } from "@/lib/anomalyPageData";
 
 type Props = {
   params: Promise<{ id: string }>;
   children: React.ReactNode;
 };
 
+async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
+  const response = await fetch(url, { next: { revalidate: 60 } });
+  if (!response.ok) return null;
+  return (await response.json()) as Record<string, unknown>;
+}
+
 // Fetch anomaly metadata server-side for SEO
 async function getAnomalyMetadata(id: string): Promise<{
   title: string;
   description: string;
   metricName: string;
+  imageUrl?: string;
 } | null> {
   try {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
-    const response = await fetch(`${apiBase}/api/anomalies/public/result/${id}`, {
-      next: { revalidate: 60 }, // Cache for 1 minute
-    });
+    const [result, stats] = await Promise.all([
+      fetchJson(`${apiBase}/api/anomalies/public/result/${id}`),
+      fetchJson(`${apiBase}/api/anomalies/public/stats/${id}`),
+    ]);
+    const picked = pickAnomalyLookup(result, stats);
+    if (!picked) return null;
+    const data = picked.row;
 
-    if (!response.ok) {
-      // Try transparentSF API format
-      const transparentSFBase = process.env.NEXT_PUBLIC_TRANSPARENTSF_API_BASE_URL || "";
-      if (transparentSFBase) {
-        const sfResponse = await fetch(
-          `${transparentSFBase}/anomaly-analyzer/api/anomaly-details/${id}`,
-          { next: { revalidate: 60 } }
-        );
-        if (!sfResponse.ok) return null;
-        const sfData = await sfResponse.json();
-        if (sfData.status === "error" || !sfData.anomaly) return null;
-        const anomaly = sfData.anomaly;
-        const metricName =
-          anomaly.metadata?.object_name ||
-          anomaly.metadata?.field_name ||
-          "Anomaly";
-        return {
-          title: `${metricName} Anomaly`,
-          description: `Anomaly detection chart for ${metricName}`,
-          metricName,
-        };
-      }
-      return null;
-    }
+    const nested =
+      data.anomaly && typeof data.anomaly === "object"
+        ? (data.anomaly as Record<string, unknown>)
+        : data;
+    const nestedMeta =
+      nested.metadata && typeof nested.metadata === "object"
+        ? (nested.metadata as Record<string, unknown>)
+        : {};
 
-    const data = await response.json();
-    
-    // Handle different response formats
-    let metricName = "Anomaly";
-    let groupField = null;
-    let groupValue = null;
-    let cityName = null;
-    
-    if (data.anomaly) {
-      // TransparentSF format
-      metricName =
-        data.anomaly.metadata?.object_name ||
-        data.anomaly.metadata?.field_name ||
-        "Anomaly";
-      groupField = data.anomaly.metadata?.group_field_name || data.anomaly.group_field;
-      groupValue = data.anomaly.metadata?.group_value || data.anomaly.group_value;
-      cityName = data.anomaly.metadata?.city_name;
-    } else if (data.object_name) {
-      // TransparentCity platform format
-      metricName = data.object_name;
-      groupField = data.group_field;
-      groupValue = data.group_value;
-      cityName = data.city_name;
-    } else if (data.field_name) {
-      metricName = data.field_name;
-      groupField = data.group_field;
-      groupValue = data.group_value;
-      cityName = data.city_name;
-    }
-    
-    if (!data || (data.status === "error" && !data.id)) return null;
+    const metricName = String(
+      nested.metric_name ||
+        nested.object_name ||
+        nestedMeta.object_name ||
+        nested.field_name ||
+        nestedMeta.field_name ||
+        "Anomaly",
+    );
+    const groupField =
+      nested.group_field || nested.place_type || nestedMeta.group_field_name || null;
+    const groupValue =
+      nested.group_value || nested.place_key || nestedMeta.group_value || null;
+    const cityName = nested.city_name || nestedMeta.city_name || null;
 
-    // Build title with city, group info, and date if available
     const parts: string[] = [];
-    
-    if (cityName) {
-      parts.push(cityName);
-    }
-    
-    if (groupField && groupValue) {
+    if (typeof cityName === "string" && cityName) parts.push(cityName);
+    if (groupField && groupValue && groupField !== "citywide") {
       parts.push(`${metricName} - ${groupField}: ${groupValue}`);
     } else {
       parts.push(metricName);
     }
-    
+
     const title = `${parts.join(" • ")} Anomaly`;
+    const imageUrl =
+      picked.source === "stats"
+        ? `${apiBase}/api/anomalies/public/stats/${id}/image`
+        : `${apiBase}/api/anomalies/public/result/${id}/image`;
 
     return {
       title,
-      description: `Anomaly detection chart for ${metricName}${cityName ? ` in ${cityName}` : ""}${groupField && groupValue ? ` - ${groupField}: ${groupValue}` : ""}`,
+      description: `Anomaly detection chart for ${metricName}${cityName ? ` in ${cityName}` : ""}`,
       metricName,
+      imageUrl,
     };
   } catch {
     return null;
@@ -114,6 +92,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = anomalyData.description;
   const url = `https://transparent.city/a/${id}`;
 
+  const imageUrl = anomalyData.imageUrl || "/images/og-anomaly-default.png";
+
   return {
     title,
     description,
@@ -125,7 +105,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "article",
       images: [
         {
-          url: "/images/og-anomaly-default.png", // Default anomaly OG image
+          url: imageUrl,
           width: 1200,
           height: 630,
           alt: anomalyData.title,
@@ -136,7 +116,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       title: anomalyData.title,
       description,
-      images: ["/images/og-anomaly-default.png"],
+      images: [imageUrl],
     },
     alternates: {
       canonical: url,
