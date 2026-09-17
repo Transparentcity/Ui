@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 import type { SavedMap } from "@/lib/apiClient";
 import ProgressiveMapView from "./ProgressiveMapView";
+import ViewFullMapLink from "./ViewFullMapLink";
 import {
   resolveYearComparePanels,
   type YearComparePanel,
 } from "@/lib/maps/yearComparePanels";
 import type { DualPeriodPanelSpec } from "@/lib/maps/dualPeriodPanels";
 import type { ChoroplethBasemapTheme } from "@/lib/mapUtils";
+import type { MapPermalinkRange } from "@/lib/metricMapPermalinks";
 import "./YearCompareMapPanels.css";
 
 type Props = {
@@ -18,6 +20,12 @@ type Props = {
   onError?: (error: string) => void;
   /** Compact chrome for iframe / thumbnail embeds. */
   compact?: boolean;
+  /** Date range keyed by panel year, used to show a per-panel permalink. */
+  permalinkByYear?: Record<string, MapPermalinkRange>;
+  onViewFullMap?: (panel: YearComparePanel, range: MapPermalinkRange) => void;
+  savingPanelKey?: string | null;
+  /** Prefix so primary vs secondary year panels don't share a saving key. */
+  savingKeyPrefix?: string;
 };
 
 function panelMapData(map: SavedMap, panel: YearComparePanel): SavedMap {
@@ -48,6 +56,10 @@ export default function YearCompareMapPanels({
   mapBasemapTheme = "light",
   onError,
   compact = false,
+  permalinkByYear,
+  onViewFullMap,
+  savingPanelKey = null,
+  savingKeyPrefix = "points",
 }: Props) {
   const panels = useMemo(
     () =>
@@ -100,6 +112,14 @@ export default function YearCompareMapPanels({
               mapBasemapTheme={mapBasemapTheme}
               lockedViewKey="points"
             />
+            {onViewFullMap && permalinkByYear?.[panel.year] && (
+              <ViewFullMapLink
+                saving={savingPanelKey === `${savingKeyPrefix}:${panel.year}`}
+                onClick={() =>
+                  onViewFullMap(panel, permalinkByYear[panel.year]!)
+                }
+              />
+            )}
           </section>
         ))}
       </div>
@@ -159,6 +179,8 @@ type DualPeriodMapPanelsProps = {
   mapBasemapTheme?: ChoroplethBasemapTheme;
   onError?: (error: string) => void;
   compact?: boolean;
+  onViewFullMap?: (panel: DualPeriodPanelSpec) => void;
+  savingPanelKey?: string | null;
 };
 
 /** Side-by-side maps for two explicit periods (e.g. choropleth shape layers). */
@@ -168,6 +190,8 @@ export function DualPeriodMapPanels({
   mapBasemapTheme = "light",
   onError,
   compact = false,
+  onViewFullMap,
+  savingPanelKey = null,
 }: DualPeriodMapPanelsProps) {
   const [legendCollapsed, setLegendCollapsed] = useState(false);
 
@@ -200,6 +224,14 @@ export function DualPeriodMapPanels({
               mapBasemapTheme={mapBasemapTheme}
               lockedViewKey={panel.lockedViewKey}
             />
+            {onViewFullMap && (
+              <ViewFullMapLink
+                saving={
+                  savingPanelKey === `${panel.lockedViewKey}:${panel.period}`
+                }
+                onClick={() => onViewFullMap(panel)}
+              />
+            )}
           </section>
         ))}
       </div>

@@ -6,6 +6,7 @@ import type { SavedMap } from "@/lib/apiClient";
 import { formatMetricMapViewSpecKey, type MetricMapViewSpec } from "@/lib/metricMapEmbedViews";
 
 export type DualPeriodPanelSpec = {
+  period: "prior" | "current";
   label: string;
   count?: number;
   /** Noun shown next to the count (e.g. "permits"). */
@@ -88,12 +89,14 @@ export function buildChoroplethDualPanels(
 
   return [
     {
+      period: "prior",
       label: labels.prior,
       ...panelCountForAgg(comparisonAgg, itemNoun, areaNoun),
       mapData: panelMapForChoroplethLayer(comparisonMap, shapeLayerId, comparisonAgg),
       lockedViewKey,
     },
     {
+      period: "current",
       label: labels.current,
       ...panelCountForAgg(currentAgg, itemNoun, areaNoun),
       mapData: panelMapForChoroplethLayer(currentMap, shapeLayerId, currentAgg),

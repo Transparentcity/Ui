@@ -42,6 +42,8 @@ describe("buildChoroplethDualPanels", () => {
     expect(panels).toHaveLength(2);
     expect(panels![0].label).toBe("2024");
     expect(panels![1].label).toBe("2025");
+    expect(panels![0].period).toBe("prior");
+    expect(panels![1].period).toBe("current");
     expect(panels![0].lockedViewKey).toBe("choro:10");
     expect(panels![1].lockedViewKey).toBe("choro:10");
   });
