@@ -10,7 +10,7 @@ import {
   getAvailableModels,
   type ModelGroupInfo,
 } from "@/lib/apiClient";
-import { pickDefaultModelKey } from "@/lib/modelDefaults";
+import { pickDefaultModelKey, PREFERRED_DEFAULT_MODEL_KEY } from "@/lib/modelDefaults";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import "../brand-styles.css";
 import "./styles.css";
@@ -22,7 +22,7 @@ export default function NewResearchPage() {
   const [prompt, setPrompt] = useState("");
   const [cityId, setCityId] = useState<number | null>(null);
   const [oneShot, setOneShot] = useState(false);
-  const [modelKey, setModelKey] = useState("claude-sonnet-4.6");
+  const [modelKey, setModelKey] = useState(PREFERRED_DEFAULT_MODEL_KEY);
   const [requireAgendaApproval, setRequireAgendaApproval] = useState(false);
   const [availableModels, setAvailableModels] = useState<ModelGroupInfo[]>([]);
 

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/collapsible"
 import { sendChatMessageStream, createNewSession, toggleSessionPublic } from "@/lib/apiClient"
 import type { ChatMessageRequest } from "@/lib/apiClient"
+import { PREFERRED_DEFAULT_MODEL_KEY } from "@/lib/modelDefaults"
 
 // ---------------------------------------------------------------------------
 // FOIA-relevant Seymour capabilities reference
@@ -115,7 +116,7 @@ export function SeymourChatContent() {
       let sid = sessionId
       if (!sid && token) {
         try {
-          const session = await createNewSession("claude-sonnet-4.6", ["core", "foia", "email", "research", "web_search"], token)
+          const session = await createNewSession(PREFERRED_DEFAULT_MODEL_KEY, ["core", "foia", "email", "research", "web_search"], token)
           sid = session.session_id
           setSessionId(sid)
         } catch {
