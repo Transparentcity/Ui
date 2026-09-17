@@ -5,6 +5,11 @@ import dynamic from "next/dynamic";
 import { useTheme } from "@/contexts/ThemeContext";
 import styles from "./TimeSeriesChart.module.css";
 import {
+  getDateFromISOWeek,
+  getISOWeeksInYear,
+  getISOYearAndWeek,
+} from "./isoWeek";
+import {
   formatYtdHoverLabel,
   formatYtdLegendLabel,
   getYtdAvgLineStyle,
@@ -13,6 +18,11 @@ import {
   niceYAxisMax,
   trailingSevenDayAverage,
 } from "./timeSeriesChartYtd";
+import {
+  buildAnomalyOverlayTraces,
+  overlayBandBounds,
+  type AnomalyOverlay,
+} from "./anomalyOverlay";
 
 // Dynamically import Plotly to avoid SSR issues
 const Plot = dynamic(
@@ -93,6 +103,11 @@ export interface TimeSeriesChartProps {
   parentProvidesTitle?: boolean;
   /** Override automatic compact layout for dense multi-group YTD charts. */
   layoutDensity?: "auto" | "default" | "compact";
+  /**
+   * Slim anomaly stats overlay: full live series plus comparison mean, ±σ band,
+   * and recent-period highlight. Shown only when the selected grain matches.
+   */
+  anomalyOverlay?: AnomalyOverlay | null;
 }
 
 /**
@@ -112,28 +127,6 @@ const SERIES_COLORS = [
   "#bc80bd", // Purple
   "#ccebc5", // Mint green
 ];
-
-/**
- * Returns the number of ISO weeks in a given year (52 or 53).
- * Dec 28 is always in the last ISO week of the year.
- */
-function getISOWeeksInYear(year: number): number {
-  return getISOYearAndWeek(new Date(year, 11, 28)).isoWeek;
-}
-
-/**
- * Get ISO year and week for a date (handles year boundaries correctly).
- * Returns {isoYear, isoWeek} where isoYear is the ISO year (may differ from calendar year).
- */
-function getISOYearAndWeek(date: Date): { isoYear: number; isoWeek: number } {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const isoWeek = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  const isoYear = d.getUTCFullYear();
-  return { isoYear, isoWeek };
-}
 
 /**
  * Get day of year (1-366) for a date.
@@ -839,6 +832,7 @@ export default function TimeSeriesChart({
   embeddedMode = false,
   parentProvidesTitle = false,
   layoutDensity = "auto",
+  anomalyOverlay = null,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -855,9 +849,11 @@ export default function TimeSeriesChart({
 
   // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
   // Only fall back to metadata.period_type if no explicit default was provided
-  const effectiveDefaultPeriod = defaultPeriod !== "month" 
-    ? defaultPeriod  // Explicit override (not the default value)
-    : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
+  const effectiveDefaultPeriod = anomalyOverlay?.periodType
+    ? anomalyOverlay.periodType
+    : defaultPeriod !== "month"
+      ? defaultPeriod
+      : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
   // Default to "by series" lines; one-click toggle to stacked areas
@@ -878,9 +874,11 @@ export default function TimeSeriesChart({
         ? fillMissingYTDPeriods(rawAggregated)
         : fillMissingPeriods(rawAggregated, periodType);
     const { filtered, partialInfo } = filterPartialPeriods(gapFilled, periodType, data);
-    const limited = limitToDefaultRange(filtered, periodType);
+    const limited = anomalyOverlay
+      ? filtered
+      : limitToDefaultRange(filtered, periodType);
     return { aggregatedByGroup: limited, partialPeriodInfo: partialInfo };
-  }, [data, periodType]);
+  }, [data, periodType, anomalyOverlay]);
 
   // Check if we have group values
   const hasGroups = useMemo(() => {
@@ -1406,19 +1404,7 @@ export default function TimeSeriesChart({
           const points = aggregatedByGroup.get(groupValue)!;
           if (points.length === 0) return;
 
-          const x = points.map((point) => {
-            if (periodType === "week" && point.time_period.includes("W")) {
-              const [year, week] = point.time_period.split("-W");
-              return getDateFromISOWeek(parseInt(year), parseInt(week));
-            } else if (periodType === "month" && point.time_period.match(/^\d{4}-\d{2}$/)) {
-              const [year, month] = point.time_period.split("-");
-              return new Date(parseInt(year), parseInt(month) - 1, 1);
-            } else if (periodType === "year") {
-              return new Date(parseInt(point.time_period), 0, 1);
-            } else {
-              return new Date(point.time_period);
-            }
-          });
+          const x = points.map((point) => parsePlottedDate(point.time_period, periodType));
 
           const y = points.map((point) => point.numeric_value);
 
@@ -1506,6 +1492,34 @@ export default function TimeSeriesChart({
             hoverinfo: "skip",
           });
         }
+
+        if (
+          anomalyOverlay &&
+          anomalyOverlay.periodType === periodType &&
+          (!hasGroups || groupValues.length === 1)
+        ) {
+          const points = aggregatedByGroup.get(groupValues[0]) || [];
+          const overlayX = points.map((point) =>
+            parsePlottedDate(point.time_period, periodType),
+          );
+          const overlayY = points.map((point) => point.numeric_value);
+          for (const t of traces) {
+            if (t.visible === "legendonly") continue;
+            t.line = { ...(t.line || {}), color: "#999999", width: 1.5 };
+            t.marker = { ...(t.marker || {}), color: "#999999", size: 4 };
+            if (t.showlegend !== false) {
+              t.name = "History";
+              t.showlegend = false;
+            }
+          }
+          const overlayTraces = buildAnomalyOverlayTraces(
+            overlayX,
+            overlayY,
+            anomalyOverlay,
+          );
+          traces.unshift(...overlayTraces.slice(0, 3));
+          traces.push(...overlayTraces.slice(3));
+        }
       }
     }
 
@@ -1519,6 +1533,7 @@ export default function TimeSeriesChart({
     staleness_days,
     useCompactLayout,
     showPriorYear,
+    anomalyOverlay,
   ]);
 
   const chartTitleText =
@@ -1599,6 +1614,10 @@ export default function TimeSeriesChart({
         }
       }
     }
+    if (anomalyOverlay && anomalyOverlay.periodType === periodType) {
+      const { upper } = overlayBandBounds(anomalyOverlay);
+      if (upper > max) max = upper;
+    }
     return max > 0 ? max * 1.1 : 10;
   }, [
     aggregatedByGroup,
@@ -1607,6 +1626,7 @@ export default function TimeSeriesChart({
     periodType,
     useCompactLayout,
     showPriorYear,
+    anomalyOverlay,
   ]);
 
   // Use lighter, more visible colors in dark mode
@@ -2052,24 +2072,30 @@ export default function TimeSeriesChart({
 }
 
 /**
- * Get date from ISO week number and year.
- * Uses proper ISO week calculation to handle year boundaries correctly.
+ * Parse a stored time_period into a local Date for plotting.
+ * YYYY-MM-DD must be local midnight, not UTC, or overlay windows miss by a day.
  */
-function getDateFromISOWeek(isoYear: number, isoWeek: number): Date {
-  // Create a date for January 4th of the ISO year (always in week 1)
-  const jan4 = new Date(isoYear, 0, 4);
-  const jan4Day = jan4.getDay() || 7; // Convert Sunday (0) to 7
-  
-  // Calculate the first Monday of the year (ISO week starts on Monday)
-  const daysToMonday = (8 - jan4Day) % 7;
-  const firstMonday = new Date(jan4);
-  firstMonday.setDate(jan4.getDate() + daysToMonday);
-  
-  // Calculate the target date by adding weeks
-  const targetDate = new Date(firstMonday);
-  targetDate.setDate(firstMonday.getDate() + (isoWeek - 1) * 7);
-  
-  return targetDate;
+function parsePlottedDate(timePeriod: string, periodType: PeriodType): Date {
+  if (periodType === "week" && timePeriod.includes("W")) {
+    const [year, week] = timePeriod.split("-W");
+    return getDateFromISOWeek(parseInt(year, 10), parseInt(week, 10));
+  }
+  const ymd = timePeriod.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymd) {
+    return new Date(
+      parseInt(ymd[1], 10),
+      parseInt(ymd[2], 10) - 1,
+      parseInt(ymd[3], 10),
+    );
+  }
+  if (periodType === "month" && timePeriod.match(/^\d{4}-\d{2}$/)) {
+    const [year, month] = timePeriod.split("-");
+    return new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+  }
+  if (periodType === "year" && /^\d{4}$/.test(timePeriod.trim())) {
+    return new Date(parseInt(timePeriod, 10), 0, 1);
+  }
+  return new Date(timePeriod);
 }
 
 /**
