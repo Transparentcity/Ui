@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 import { getApiBaseUrl } from "./apiBase";
 import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
+import { PREFERRED_DEFAULT_MODEL_KEY } from "./modelDefaults";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -2190,7 +2191,7 @@ export function sendChatMessage(
 }
 
 export function createNewSession(
-  model_key: string = "claude-sonnet-4.6",
+  model_key: string = PREFERRED_DEFAULT_MODEL_KEY,
   tool_groups?: string[],
   token?: string
 ): Promise<SessionSummary> {

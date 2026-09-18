@@ -7,6 +7,7 @@ import MarkdownWithEmbeds from "./MarkdownWithEmbeds";
 import ToolCall from "./ToolCall";
 import SessionHeader from "./SessionHeader";
 import Loader from "./Loader";
+import ThinkingTrace from "./ThinkingTrace";
 import styles from "./ChatView.module.css";
 import {
   sendChatMessageStream,
@@ -23,6 +24,10 @@ import {
   pickDefaultModelKey,
 } from "@/lib/modelDefaults";
 import { recordProductEvent } from "@/lib/productAnalytics";
+import {
+  appendChatStreamEvent,
+  mergeConsecutiveThinkingEvents,
+} from "./chatStreamEvents";
 
 interface Message {
   id: string;
@@ -626,6 +631,46 @@ export default function ChatView({
               
               return updated;
             });
+          } else if (event.type === "thinking" && event.content) {
+            if (!streamingStateRef.current) return;
+
+            streamingStateRef.current.intermediateEvents = appendChatStreamEvent(
+              streamingStateRef.current.intermediateEvents,
+              {
+                type: "thinking",
+                content: event.content,
+                timestamp: now,
+              }
+            );
+
+            setMessages((prev) => {
+              const currentEvents = [
+                ...streamingStateRef.current!.intermediateEvents,
+              ];
+              const messageExists = prev.some(
+                (msg) => msg.id === assistantMessageId
+              );
+              if (!messageExists) {
+                return [
+                  ...prev,
+                  {
+                    id: assistantMessageId,
+                    role: "assistant" as const,
+                    content: streamingStateRef.current!.fullResponse,
+                    tool_calls: [],
+                    intermediate_events: currentEvents,
+                  },
+                ];
+              }
+              return prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? {
+                      ...msg,
+                      intermediate_events: currentEvents,
+                    }
+                  : msg
+              );
+            });
           } else if (event.type === "tool_call_start") {
             if (!streamingStateRef.current) return;
             
@@ -1073,11 +1118,13 @@ export default function ChatView({
     
     if (intermediateEvents.length > 0) {
       // Sort events by timestamp for proper chronological order
-      const sortedEvents = [...intermediateEvents].sort((a, b) => {
-        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timeA - timeB;
-      });
+      const sortedEvents = mergeConsecutiveThinkingEvents(
+        [...intermediateEvents].sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeA - timeB;
+        })
+      );
 
       const elements: ReactElement[] = [];
       let currentTextContent = "";
@@ -1125,6 +1172,30 @@ export default function ChatView({
               />
             );
           }
+        } else if (event.type === "thinking" && event.content) {
+          if (currentTextContent.trim()) {
+            elements.push(
+              <div key={`text-before-thinking-${idx}`} className={styles.messageContent}>
+                <MarkdownWithEmbeds content={currentTextContent} />
+              </div>
+            );
+            currentTextContent = "";
+          }
+
+          const laterEvents = sortedEvents.slice(idx + 1);
+          const thinkingStreaming =
+            isActiveStream &&
+            !laterEvents.some(
+              (later) => later.type !== "thinking"
+            );
+
+          elements.push(
+            <ThinkingTrace
+              key={`${msg.id}-thinking-${idx}`}
+              content={event.content}
+              isStreaming={thinkingStreaming}
+            />
+          );
         }
 
         lastEventType = event.type;
@@ -1157,7 +1228,7 @@ export default function ChatView({
         }
       }
 
-      if (isActiveStream) {
+      if (isActiveStream && sortedEvents[sortedEvents.length - 1]?.type !== "thinking") {
         elements.push(
           <div key="thinking" className={styles.thinkingIndicator}>
             <span className={styles.thinkingDot} />
