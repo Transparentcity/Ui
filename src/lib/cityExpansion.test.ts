@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cityResultLabel, formatDemandSources, formatPopulation, QUEUE_REASON_LABEL } from "./cityExpansion";
+import {
+  cityResultLabel,
+  formatDemandSources,
+  formatPopulation,
+  GATE_CHECKS,
+  QUEUE_REASON_LABEL,
+} from "./cityExpansion";
 
 describe("cityResultLabel", () => {
   it("prefers dark-launch over a generic pass", () => {
@@ -33,5 +39,14 @@ describe("formatDemandSources", () => {
     expect(formatDemandSources({ subscribers: 2, saved: 2, homes: 0 })).toBe(
       "2 subscribers · 2 saved"
     );
+  });
+});
+
+describe("GATE_CHECKS", () => {
+  it("includes the tightened dark-launch metric and map checks", () => {
+    const keys = GATE_CHECKS.map((check) => check.key);
+    expect(keys).toContain("applicable_templates_instantiated");
+    expect(keys).toContain("metrics_map_fields");
+    expect(keys).toContain("metrics_district_breakdowns");
   });
 });

@@ -7,9 +7,12 @@ export const GATE_CHECKS: { key: string; label: string }[] = [
   { key: "official_district_layer", label: "Official district" },
   { key: "district_fields", label: "District fields" },
   { key: "dashboard_metrics", label: "Dash metrics" },
-  { key: "metrics_from_templates", label: "Metric templates" },
-  { key: "metrics_executed", label: "Executed" },
+  { key: "metrics_from_templates", label: "All templated" },
+  { key: "applicable_templates_instantiated", label: "Matched families" },
+  { key: "metrics_executed", label: "All executed" },
   { key: "no_failed_executions", label: "No failures" },
+  { key: "metrics_map_fields", label: "Map fields" },
+  { key: "metrics_district_breakdowns", label: "Districts" },
 ];
 
 export const QUEUE_REASON_LABEL: Record<string, string> = {
