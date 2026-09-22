@@ -742,7 +742,234 @@ const SAN_FRANCISCO: CityGuide = {
   ],
 };
 
-export const CITY_GUIDES: CityGuide[] = [OAKLAND, MIAMI, SAN_FRANCISCO];
+const KANSAS_CITY: CityGuide = {
+  cityId: 56595,
+  citySlug: "kansas-city",
+  cityName: "Kansas City",
+  cityEmoji: "🍖",
+  personFirst: "Matt",
+  roleChip: "City manager · Matt",
+  mayor: "Mayor Quinton Lucas",
+  unit: "council district",
+  unitPlural: "council districts",
+  unitCount: 6,
+  datasetsCount: 378,
+  metricsCount: 0,
+  portal: "Socrata",
+  snapshotDate: "September 22, 2026",
+  lede: (
+    <>
+      Welcome. Kansas City is the newest city on Transparent City and the least built: 378 datasets
+      catalogued from data.kcmo.org, no metrics on the dashboard yet, no council districts drawn, and a
+      public page that stays dark until it is worth a resident&apos;s time. That is the job, and it is a
+      better starting point than it sounds. You get to decide what Kansas City measures.
+    </>
+  ),
+  welcome: (
+    <>
+      You said you are interested in the streetcar expansion, in permitting, and in the difference between
+      changing something for a season and changing it for good. Those run through this guide as worked
+      examples. The last one is also how the platform works: a question you ask Seymour is answered once,
+      while a metric you build is re-run every night, watched for anomalies, and written about on Sunday.
+    </>
+  ),
+  firstSteps: [
+    {
+      title: "See where Kansas City stands",
+      body: (
+        <>
+          Open <Link href="/home?city_id=56595">Kansas City</Link> from <b>My Places</b>, then the{" "}
+          <b>All metrics</b> tab. It is empty. Then open the admin menu&apos;s{" "}
+          <Link href="/home?view=datasets-admin">Datasets</Link> panel and filter to Kansas City: 378
+          catalogued, including 311, permits, vendor payments, capital projects and council district
+          boundaries. The empty table and the full catalog are the honest starting point.
+        </>
+      ),
+    },
+    {
+      title: "Ask a question that needs no setup",
+      body: (
+        <>
+          Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
+          <i>
+            &ldquo;Using Kansas City&apos;s City Issued Permits dataset, show median days from application
+            to issue by permit type for the last 12 months, and count the applications filed since January
+            2025 that are still not issued, by status.&rdquo;
+          </i>{" "}
+          Then push: <i>&ldquo;Now show the median age of the ones marked Ready for Issuance.&rdquo;</i> As
+          of this writing that is 954 approved permits nobody has picked up, at a median age of 143 days. A
+          finding on day one.
+        </>
+      ),
+    },
+    {
+      title: "Turn the answer into something that lasts",
+      body: (
+        <>
+          In the same chat:{" "}
+          <i>
+            &ldquo;Create a Kansas City metric for permits issued per week from the City Issued Permits
+            dataset, and a second one for median days from application to issue. Confirm the numbers look
+            right.&rdquo;
+          </i>{" "}
+          The chat answer scrolls away. The metric runs every night from now on. That is the whole
+          difference between ephemeral and structural, and it took one sentence.
+        </>
+      ),
+    },
+    {
+      title: "Open the admin menu",
+      body: (
+        <>
+          Click the <b>green circle</b> at the bottom left. That is the full toolset, and where this guide
+          lives in the app (<Link href="/admin/guide?city=kansas-city">Admin guide</Link>). Look, then come
+          back here.
+        </>
+      ),
+    },
+  ],
+  promptsIntro: (
+    <>
+      Written around the two things you said you care about, plus the setup Kansas City needs. Copy one,
+      change a word, send it.
+    </>
+  ),
+  prompts: [
+    {
+      text: "Which shared templates could run on Kansas City's 378 catalogued datasets? Rank them by fit and by how much a resident would care, and name the dataset each would use.",
+      note: "The setup question. Every city on the platform started here.",
+    },
+    {
+      text: "From Kansas City's City Issued Permits dataset, how many applications filed since January 2025 are still not issued, by status, and what is the median age of each queue?",
+      note: "The permit tail. Medians are under a week; the queues waiting on holds and customer responses are months old.",
+    },
+    {
+      text: "The Kansas City Streetcar Authority does not publish ridership on data.kcmo.org. What does the city publish that touches the streetcar: vendor payments, excavation and traffic-control permits along Main Street, 311 requests near the line? Build the best proxy you can.",
+      note: "The streetcar shows up in the checkbook: $47.9M to KC Streetcar Constructors and $16.5M to the Authority in 2025.",
+    },
+    {
+      text: "Show 311 pothole reports and median days to resolve by Kansas City council district for the last 12 months, as a map and a table.",
+      note: "The equity question. If the map comes back blank, the districts have not been set up yet; ask it to do that first.",
+    },
+    {
+      text: "Which Kansas City datasets are refreshed daily, and which have not been updated in over a year? Rank the stale ones by how much they would matter.",
+      note: "Freshness check. 311 and permits update daily; the city contracts list stopped in November 2023.",
+    },
+  ],
+  metricRows: [
+    {
+      category: "Nothing yet",
+      metrics: (
+        <>
+          The dashboard is empty until the first metric runs. Ready to feed one, all catalogued: City Issued
+          Permits (daily) · 311 Reported Issues, Public Works (daily) · 311 Call Center Reported Issues
+          (daily) · Vendor Payments 2025 · GO KC Capital Project · Map of City Council Districts
+        </>
+      ),
+      count: 0,
+    },
+  ],
+  standing: (
+    <>
+      No metrics yet, over 378 catalogued datasets. San Francisco, longest on the platform, runs 76, and
+      most of those are templates that can be pointed at Kansas City&apos;s data: 311, permits, crime,
+      vendor payments and capital projects are all on data.kcmo.org. The first ten metrics are the most
+      valuable ten, because they are what turns the public page on.
+    </>
+  ),
+  challengeIntro: (
+    <>
+      Kansas City is dark-launched: admins can see it, residents cannot. It goes public when there is enough
+      on the dashboard to be worth a resident&apos;s time. Everything below moves it toward that, and
+      everything below is additive.
+    </>
+  ),
+  challenge: [
+    {
+      title: "Draw the map first",
+      body: (
+        <>
+          Six council districts, each with an in-district and an at-large member, plus the mayor. The
+          boundaries are on data.kcmo.org. Until the structure exists, no metric can be broken out by
+          district and the &ldquo;accountable here&rdquo; list is blank. Ask Seymour to set it up, then
+          check the map against the city&apos;s own.
+        </>
+      ),
+    },
+    {
+      title: "Permits, as a standing measure",
+      body: (
+        <>
+          City Issued Permits refreshes daily, about 40,000 permits a year. Build three metrics: permits
+          issued per week, median days from application to issue, and applications older than 90 days that
+          are not yet issued. The third is the one no city publishes about itself. The city&apos;s Certified
+          Permitting Program launched in late July 2026 with a 4-business-day review target; a metric that
+          tracks it from month one is a standing check on a promise.
+        </>
+      ),
+    },
+    {
+      title: "The streetcar, through the city's own records",
+      body: (
+        <>
+          The 18th &amp; Vine study will recommend a route later this year at $125M to $175M with no funding
+          plan yet, and the Main Street extension took nine years from first financing to opening in
+          October 2025. Ridership is not on the portal. What is: checkbook payments to KC Streetcar
+          Constructors ($47.9M in 2025) and to the Streetcar Authority ($16.5M), excavation and
+          traffic-control permits by corridor, and 311 requests near the line. Build the payments metric,
+          then ask for a research report on the extension&apos;s cost and timeline.
+        </>
+      ),
+    },
+    {
+      title: "Structural, not ephemeral",
+      body: (
+        <>
+          On this platform the difference is concrete. A chat answer is read once. A metric re-runs
+          nightly, feeds anomaly detection, becomes stories, reaches the newsletter, and is comparable with
+          nine other cities through templates. When you find something worth knowing twice, make it a
+          metric. When you find something worth saying once, make it a story. Both take a sentence.
+        </>
+      ),
+    },
+    {
+      title: "Say when it is ready",
+      body: (
+        <>
+          When the dashboard has a map, officials, and ten or so metrics that have run clean for a week,
+          tell Adam and Rob. Launching is their call and a one-line change. Everything after that is public.
+        </>
+      ),
+    },
+  ],
+  challengeOutro: (
+    <>
+      When you find something, ask Seymour to write it up. It waits in the Kansas City feed until launch,
+      then it is the first thing residents read.
+    </>
+  ),
+  careNote: (
+    <>
+      One more, specific to Kansas City. Because the city is dark, nothing you build is public yet, which
+      makes this the safest city on the platform to learn in. Build freely. The one thing not to do is
+      launch it yourself; that is a decision Adam and Rob make with you, once the dashboard is ready.
+    </>
+  ),
+  cheatSheet: [
+    { goal: "See what exists", say: "List all Kansas City metrics and catalogued datasets with their last fetch date and status." },
+    { goal: "Set up districts", say: "Set up Kansas City's six council districts and current council members from the city's published boundaries, and show me the map." },
+    { goal: "Find what to add", say: "Which shared templates would run on Kansas City's datasets? Rank the top ten by fit and name the dataset each would use." },
+    { goal: "Build one", say: "Create a Kansas City metric for [thing] from dataset [name], and confirm the numbers look right." },
+    { goal: "Permit tail", say: "From City Issued Permits, show applications filed since January 2025 that are not yet issued, by status, with the median age of each." },
+    { goal: "Streetcar money", say: "Total Kansas City payments to KC Streetcar Constructors and the Kansas City Streetcar Authority by month since 2024, as a chart." },
+    { goal: "By district", say: "Show 311 pothole reports and median days to resolve by Kansas City council district, last 12 months, as a map and a table." },
+    { goal: "Check freshness", say: "Which Kansas City datasets have not updated in over a year, and which metrics would that break?" },
+    { goal: "Go deep", say: "Create a research report on the 18th & Vine streetcar extension: cost, funding, timeline, and how the Main Street extension compares." },
+    { goal: "Write it up", say: "Write a story about [finding] in Kansas City. Include the chart and cite the dataset." },
+  ],
+};
+
+export const CITY_GUIDES: CityGuide[] = [OAKLAND, MIAMI, SAN_FRANCISCO, KANSAS_CITY];
 
 /** Guide shown when a viewer has no city-lead assignment we recognize. */
 export const DEFAULT_GUIDE = OAKLAND;
