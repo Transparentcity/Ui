@@ -513,8 +513,8 @@ export default function StructuringNotesModal({
     isOpen && !canUseTemplate && metricId ? metricId : null,
   );
   const templateQuery = useTemplateStructuringNotes(
-    canUseTemplate ? templateId : null,
-    canUseTemplate ? cityId : null,
+    canUseTemplate && templateId != null ? templateId : null,
+    canUseTemplate && cityId != null ? cityId : null,
   );
   const notesQuery = canUseTemplate ? templateQuery : metricQuery;
   const data = notesQuery.data ?? null;
