@@ -2963,8 +2963,6 @@ export default function CityDataAdmin({
           <NewslettersTabPanel
             cityId={cityId}
             cityName={cityData?.name || ""}
-            initialDistrict={null}
-            isAdmin={true}
             onClose={() => setActiveTab("data")}
           />
         </div>

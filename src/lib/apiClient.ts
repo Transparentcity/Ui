@@ -6189,16 +6189,21 @@ export interface NewsletterEditionAdminItem {
   short_hash: string | null;
   city_slug: string | null;
   city_name: string | null;
+  city_emoji: string | null;
+  subject: string;
   summary_headline: string | null;
+  preview: string;
+  cover_image_url: string | null;
   created_at: string | null;
 }
 
 export function listNewsletterEditionsAdmin(
   token: string,
-  options?: { limit?: number }
+  options?: { limit?: number; cityId?: number }
 ): Promise<{ items: NewsletterEditionAdminItem[]; count: number }> {
   const params = new URLSearchParams();
   if (options?.limit != null) params.set("limit", String(options.limit));
+  if (options?.cityId != null) params.set("city_id", String(options.cityId));
   const q = params.toString();
   return request<{ items: NewsletterEditionAdminItem[]; count: number }>(
     `/api/admin/newsletter-editions${q ? `?${q}` : ""}`,
