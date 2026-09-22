@@ -442,6 +442,7 @@ export interface TemplateInstantiationStatusItem {
   category?: string | null;
   subcategory?: string | null;
   category_slug?: string | null;
+  has_notes?: boolean;
 }
 
 /** Response for GET template-instantiation-status */

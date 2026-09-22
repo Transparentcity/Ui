@@ -506,13 +506,17 @@ export default function StructuringNotesModal({
   isOpen,
   onClose,
 }: StructuringNotesModalProps) {
-  // Use metric-based query when we have a metricId, template-based otherwise
-  const metricQuery = useStructuringNotes(isOpen && metricId ? metricId : null);
-  const templateQuery = useTemplateStructuringNotes(
-    isOpen && !metricId && templateId ? templateId : null,
-    isOpen && !metricId && cityId ? cityId : null,
+  // Prefer the template+city lookup: it returns metric notes when they have
+  // content, otherwise the latest batch/all-templates/single job notes.
+  const canUseTemplate = Boolean(isOpen && templateId && cityId);
+  const metricQuery = useStructuringNotes(
+    isOpen && !canUseTemplate && metricId ? metricId : null,
   );
-  const notesQuery = metricId ? metricQuery : templateQuery;
+  const templateQuery = useTemplateStructuringNotes(
+    canUseTemplate ? templateId : null,
+    canUseTemplate ? cityId : null,
+  );
+  const notesQuery = canUseTemplate ? templateQuery : metricQuery;
   const data = notesQuery.data ?? null;
 
   if (!isOpen) return null;
@@ -521,13 +525,22 @@ export default function StructuringNotesModal({
   const notes = data?.structuring_notes ?? {};
   const obs = notes.agent_observations;
   const hasContent =
-    data?.has_structured_notes ||
-    obs ||
-    notes.date_field ||
-    notes.freshness ||
-    notes.field_searches?.length ||
-    notes.validation_history?.length ||
-    notes.trial_execution;
+    Boolean(notes.error_context) ||
+    Boolean(notes.warnings?.length) ||
+    Boolean(notes.data_authority_notes?.length) ||
+    Boolean(obs?.dataset_rationale) ||
+    Boolean(obs?.date_field_rationale) ||
+    Boolean(obs?.category_values_observed && Object.keys(obs.category_values_observed).length) ||
+    Boolean(obs?.issues_and_resolutions?.length) ||
+    Boolean(obs?.execution_verification) ||
+    Boolean(obs?.confidence_rationale) ||
+    Boolean(obs?.warnings?.length) ||
+    Boolean(notes.date_field) ||
+    Boolean(notes.freshness) ||
+    Boolean(notes.field_searches?.length) ||
+    Boolean(notes.dataset_search) ||
+    Boolean(notes.validation_history?.length) ||
+    Boolean(notes.trial_execution);
 
   const content = (
     <div className={styles.modalOverlay} onMouseDown={onClose}>
@@ -657,6 +670,16 @@ export default function StructuringNotesModal({
                     </div>
                   ))}
                 </div>
+              )}
+
+              {notes.data_authority_notes?.length > 0 && (
+                <Section title="Data Authority Notes" defaultOpen={true}>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                    {notes.data_authority_notes.map((n: string, i: number) => (
+                      <li key={i} style={{ marginBottom: 4 }}>{n}</li>
+                    ))}
+                  </ul>
+                </Section>
               )}
 
               {/* Agent Observations (primary section) */}

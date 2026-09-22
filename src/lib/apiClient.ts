@@ -653,6 +653,8 @@ export interface TemplateInstantiationStatusItem {
   subcategory?: string | null;
   /** Slug derived from category (stable ordering / filters) */
   category_slug?: string | null;
+  /** True when reviewable AI structuring notes exist for this template. */
+  has_notes?: boolean;
 }
 
 /** Response for GET template-instantiation-status */

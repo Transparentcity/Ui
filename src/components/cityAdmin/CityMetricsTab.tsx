@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
   getMetricRecordCounts,
@@ -73,6 +74,7 @@ interface TemplateRow {
   subcategory?: string | null;
   status: string;
   metric_id?: number | null;
+  has_notes?: boolean;
 }
 
 export interface CityMetricsTabProps {
@@ -664,6 +666,7 @@ export default function CityMetricsTab({
   onMetricChange,
 }: CityMetricsTabProps) {
   const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
   const [isClient, setIsClient] = useState(false);
   useEffect(() => setIsClient(true), []);
 
@@ -707,7 +710,7 @@ export default function CityMetricsTab({
   const [metricSort, setMetricSort] = useState<"asc" | "desc" | null>(null);
 
   // ── Template section state ────────────────────────────────────────────────
-  const [templateShowAll, setTemplateShowAll] = useState(false);
+  const [templateShowAll, setTemplateShowAll] = useState(true);
   const [templateModelKey, setTemplateModelKey] = useState("");
   const [showRunAllTemplatesModal, setShowRunAllTemplatesModal] = useState(false);
   const [runningSingleJobByTemplateId, setRunningSingleJobByTemplateId] = useState<Record<number, string>>({});
@@ -731,9 +734,14 @@ export default function CityMetricsTab({
   // ── Template job completion watcher ──────────────────────────────────────
   useEffect(() => {
     const terminal = new Set(["completed", "failed", "cancelled"]);
+    const invalidateNotes = () => {
+      templateStatusQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ["templateStructuringNotes"] });
+      queryClient.invalidateQueries({ queryKey: ["structuringNotes"] });
+    };
     if (runningAllJobId && jobs?.some((j) => j.job_id === runningAllJobId && terminal.has(j.status))) {
       setRunningAllJobId(null);
-      templateStatusQuery.refetch();
+      invalidateNotes();
     }
     const stillRunning = { ...runningSingleJobByTemplateId };
     let changed = false;
@@ -746,9 +754,9 @@ export default function CityMetricsTab({
     });
     if (changed) {
       setRunningSingleJobByTemplateId(stillRunning);
-      templateStatusQuery.refetch();
+      invalidateNotes();
     }
-  }, [jobs, runningAllJobId, runningSingleJobByTemplateId, templateStatusQuery]);
+  }, [jobs, runningAllJobId, runningSingleJobByTemplateId, templateStatusQuery, queryClient]);
 
   // ── Auto-load record counts when entering cleanup section ─────────────────
   useEffect(() => {
@@ -1165,8 +1173,14 @@ export default function CityMetricsTab({
           {visibleTemplates.length === 0 ? (
             <div className={styles.emptyState}>
               <i className={`fas fa-check-circle ${styles.emptyStateIcon}`} />
-              <p>All templates have been instantiated for this city.</p>
-              <button className={styles.actionBtn} onClick={() => setTemplateShowAll(true)}>Show all templates</button>
+              {sortedTemplates.length === 0 ? (
+                <p>No templates are available.</p>
+              ) : (
+                <>
+                  <p>All templates have been instantiated for this city.</p>
+                  <button className={styles.actionBtn} onClick={() => setTemplateShowAll(true)}>Show all templates</button>
+                </>
+              )}
             </div>
           ) : (
             <div className={cityAdminStyles.metricsTableContainer}>
@@ -1245,13 +1259,15 @@ export default function CityMetricsTab({
                               >
                                 {isRunning ? "Running…" : isInstantiated ? "Re-run" : "Run"}
                               </button>
-                              <button
-                                onClick={() => setStructuringNotesTarget({ metricId: t.metric_id, templateId: t.template_id })}
-                                className={styles.rowActionBtn}
-                                title="View AI structuring notes"
-                              >
-                                <i className="fas fa-clipboard-list" style={{ marginRight: 3 }} />Notes
-                              </button>
+                              {t.has_notes ? (
+                                <button
+                                  onClick={() => setStructuringNotesTarget({ metricId: t.metric_id, templateId: t.template_id })}
+                                  className={styles.rowActionBtn}
+                                  title="View AI structuring notes"
+                                >
+                                  <i className="fas fa-clipboard-list" style={{ marginRight: 3 }} />Notes
+                                </button>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
