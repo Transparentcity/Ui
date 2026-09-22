@@ -21,10 +21,17 @@
   gap: var(--space-sm);
 }
 
-.heroEditButton {
+.heroActions {
   position: absolute;
   top: var(--space-lg);
   right: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  z-index: 1;
+}
+
+.heroEditButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -36,7 +43,6 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  z-index: 1;
 }
 
 .heroEditButton:hover {

@@ -3001,6 +3001,7 @@ export default function CityView({
           )}
           <BriefingHome
             cityId={cityId}
+            cityName={cityData.name}
             scopeLabel={
               selectedPlaceId != null
                 ? selectedPlace?.label ?? initialPlaceLabel ?? "My place"
@@ -3043,6 +3044,7 @@ export default function CityView({
               followDistrictOnNextPickRef.current = false;
               setOpenDistrictTrigger((t) => t + 1);
             }}
+            onAdminClick={isAdmin ? () => setAdminDrawerOpen(true) : undefined}
             onOpenScopeSelectorToFollow={() => {
               followDistrictOnNextPickRef.current = true;
               setOpenDistrictTrigger((t) => t + 1);
@@ -3124,7 +3126,9 @@ export default function CityView({
           />
           <div className="city-view-admin-drawer-panel">
             <div className="city-view-admin-drawer-header">
-              <h2 className="city-view-admin-drawer-title">City data admin</h2>
+              <h2 className="city-view-admin-drawer-title">
+                {cityData.name} settings
+              </h2>
               <button
                 type="button"
                 className="city-view-admin-drawer-close"
