@@ -759,64 +759,60 @@ const KANSAS_CITY: CityGuide = {
   snapshotDate: "September 22, 2026",
   lede: (
     <>
-      Welcome. Kansas City is one of the newer cities on Transparent City and still dark: 15 metrics set
-      up over 378 datasets catalogued from data.kcmo.org, the six council districts drawn, the mayor
-      recorded, and a public page that stays hidden until it is worth a resident&apos;s time. Thirteen of
-      those metrics are on the dashboard now, nearly all crime and 311. Nothing yet on permits, spending,
-      or transit. That is the job, and you get to decide what Kansas City measures next.
+      Welcome, Matt, and thanks for taking this on. Kansas City is set up but not yet public: 15 metrics
+      running over 378 catalogued datasets, six council districts drawn, the mayor in place. Thirteen
+      metrics are on the dashboard today, nearly all crime and 311. Nothing yet on permits, money, or
+      transit. Filling that in is the job, and you get to decide what comes next.
     </>
   ),
   welcome: (
     <>
-      You said you are interested in the streetcar expansion, in permitting, and in the difference between
-      changing something for a season and changing it for good. Those run through this guide as worked
-      examples. The last one is also how the platform works: a question you ask Seymour is answered once,
-      while a metric you build is re-run every night, watched for anomalies, and written about on Sunday.
+      You mentioned the streetcar, permitting, and wanting change that lasts rather than change that
+      fades. All three run through this guide. The last one is also how the platform works: a question you
+      ask Seymour is answered once. A metric you build runs every night, gets watched for anomalies, and
+      shows up in the Sunday newsletter.
     </>
   ),
   firstSteps: [
     {
-      title: "See what Kansas City already tracks",
+      title: "See what is already there",
       body: (
         <>
           Open <Link href="/home?city_id=56595">Kansas City</Link> from <b>My Places</b>, then the{" "}
-          <b>All metrics</b> tab. Thirteen measures with a year-to-date comparison: four crime, nine from
-          311. Two already look like leads. Pothole requests are down 43 percent this year while the
-          average days to close one fell from 19 to 8, and graffiti requests are down 82 percent, which is
-          either a policy change or a feed that stopped. That table is the raw material for everything
-          else.
+          <b>All metrics</b> tab. Thirteen measures, each compared to last year. Two already look
+          interesting: pothole requests are down 43 percent while days to close fell from 19 to 8, and
+          graffiti requests are down 82 percent with the data stopping in August. That table is the raw
+          material for everything else.
         </>
       ),
     },
     {
-      title: "Ask a question the dashboard cannot answer yet",
+      title: "Ask something the dashboard cannot answer",
       body: (
         <>
           Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
           <i>
             &ldquo;Using Kansas City&apos;s City Issued Permits dataset, show median days from application
-            to issue by permit type for the last 12 months, and count the applications filed since January
+            to issue by permit type for the last 12 months, and count applications filed since January
             2025 that are still not issued, by status.&rdquo;
           </i>{" "}
-          Then push: <i>&ldquo;Now show the median age of the ones marked Ready for Issuance.&rdquo;</i> As
-          of this writing that is 954 approved permits nobody has picked up, at a median age of 143 days.
-          Permits are not among Kansas City&apos;s 15 metrics, so this is a finding the dashboard does not
-          have.
+          Then: <i>&ldquo;Now show the median age of the ones marked Ready for Issuance.&rdquo;</i> Today
+          that is 954 approved permits nobody has picked up, at a median age of 143 days. Permits are not a
+          metric yet, so the dashboard does not know this.
         </>
       ),
     },
     {
-      title: "Turn the answer into something that lasts",
+      title: "Make it permanent",
       body: (
         <>
-          In the same chat:{" "}
+          Same chat:{" "}
           <i>
-            &ldquo;Create a Kansas City metric for permits issued per week from the City Issued Permits
-            dataset, and a second one for median days from application to issue. Confirm the numbers look
-            right.&rdquo;
+            &ldquo;Create a Kansas City metric for permits issued per week from City Issued Permits, and
+            another for median days from application to issue. Check the numbers look right.&rdquo;
           </i>{" "}
           The chat answer scrolls away. The metric runs every night from now on. That is the whole
-          difference between ephemeral and structural, and it took one sentence.
+          difference between a one-off and a fixture, in one sentence.
         </>
       ),
     },
@@ -825,80 +821,74 @@ const KANSAS_CITY: CityGuide = {
       body: (
         <>
           Click the <b>green circle</b> at the bottom left. That is the full toolset, and where this guide
-          lives in the app (<Link href="/admin/guide?city=kansas-city">Admin guide</Link>). Look, then come
-          back here.
+          lives in the app (<Link href="/admin/guide?city=kansas-city">Admin guide</Link>). Have a look,
+          then come back.
         </>
       ),
     },
   ],
-  promptsIntro: (
-    <>
-      Written around the two things you said you care about, plus the setup Kansas City needs. Copy one,
-      change a word, send it.
-    </>
-  ),
+  promptsIntro: <>Written around the things you said you care about. Copy one, change a word, send it.</>,
   prompts: [
     {
-      text: "Kansas City has 15 metrics set up and 38 shared templates not yet tried. Which of the 38 could run on its 378 catalogued datasets? Rank them by fit and by how much a resident would care, and name the dataset each would use.",
+      text: "Kansas City has 15 metrics and 38 shared templates it has not tried. Which of the 38 could run on its 378 datasets? Rank them by fit and by how much a resident would care, and name the dataset each would use.",
       note: "The growth question. Permits, vendor payments and capital projects are all on the portal and none is a metric yet.",
     },
     {
-      text: "From Kansas City's City Issued Permits dataset, how many applications filed since January 2025 are still not issued, by status, and what is the median age of each queue?",
-      note: "The permit tail. Medians are under a week; the queues waiting on holds and customer responses are months old.",
+      text: "From Kansas City's City Issued Permits dataset, how many applications filed since January 2025 are still not issued, by status, and how old is each queue?",
+      note: "The permit tail. Medians are under a week; the queues on hold or waiting on the applicant are months old.",
     },
     {
-      text: "The Kansas City Streetcar Authority does not publish ridership on data.kcmo.org. What does the city publish that touches the streetcar: vendor payments, excavation and traffic-control permits along Main Street, 311 requests near the line? Build the best proxy you can.",
-      note: "The streetcar shows up in the checkbook: $47.9M to KC Streetcar Constructors and $16.5M to the Authority in 2025.",
+      text: "The Streetcar Authority does not publish ridership on data.kcmo.org. What does the city publish that touches the streetcar: vendor payments, excavation and traffic-control permits along Main Street, 311 requests near the line? Build the best proxy you can.",
+      note: "The streetcar is in the checkbook: $47.9M to KC Streetcar Constructors and $16.5M to the Authority in 2025.",
     },
     {
       text: "Show 311 pothole reports and median days to resolve by Kansas City council district for the last 12 months, as a map and a table.",
-      note: "The equity question. The six districts are drawn, so this works today.",
+      note: "The fairness question. The six districts are drawn, so this works today.",
     },
     {
-      text: "Kansas City graffiti removal requests are down 82 percent year to date and the data stops on August 18. Did the city change how it codes graffiti, stop publishing it, or actually stop getting the requests?",
-      note: "The broken-feed check. Finding out is a real result either way.",
+      text: "Kansas City graffiti requests are down 82 percent this year and the data stops on August 18. Did the city recode graffiti, stop publishing it, or actually stop getting the requests?",
+      note: "The broken-feed check. Any answer is a real result.",
     },
   ],
   metricRows: [
     {
       category: "Crime",
-      metrics: <>Homicides · Drug Crime Incidents · Property Crime Incidents · Violent Crime Incidents</>,
+      metrics: <>Homicides · Drug Crime · Property Crime · Violent Crime</>,
       count: 4,
     },
     {
       category: "311 and streets",
       metrics: (
         <>
-          311 Service Requests · Pothole Requests · Avg Days to Close a Pothole Request · Abandoned Vehicle
-          Complaints · Graffiti Removal Requests
+          311 Service Requests · Pothole Requests · Avg Days to Close a Pothole · Abandoned Vehicles ·
+          Graffiti Removal
         </>
       ),
       count: 5,
     },
     {
       category: "Sanitation",
-      metrics: <>Illegal Dumping Complaints (311)</>,
+      metrics: <>Illegal Dumping Complaints</>,
       count: 1,
     },
     {
       category: "Service requests",
-      metrics: <>Streetlight Outage Complaints · Street &amp; Sidewalk Cleaning Requests · Noise Complaints</>,
+      metrics: <>Streetlight Outages · Street &amp; Sidewalk Cleaning · Noise Complaints</>,
       count: 3,
     },
   ],
   standing: (
     <>
-      Fifteen metrics set up, 13 on the dashboard, 38 shared templates not yet tried, 378 catalogued
-      datasets. San Francisco, longest on the platform, runs 76. What Kansas City has is crime and 311;
-      what it does not have is anything about money, permits or transit, and all three are on
-      data.kcmo.org. Asking which of the 38 fit is the highest-value thing you can do here.
+      Fifteen metrics set up, 13 on the dashboard, 38 templates not yet tried, 378 datasets to draw on.
+      San Francisco, longest on the platform, runs 76. Kansas City has crime and 311 covered and nothing on
+      money, permits or transit, all of which are on the portal. Asking which of the 38 fit is the most
+      valuable thing you can do here.
     </>
   ),
   challengeIntro: (
     <>
-      Kansas City is dark-launched: admins can see it, residents cannot. It goes public when the dashboard
-      covers more than crime and 311 and has run clean for a while. Everything below moves it toward that,
-      and everything below is additive.
+      Kansas City goes public when the dashboard covers more than crime and 311 and has run clean for a
+      while. Everything below moves it toward that, and all of it is additive.
     </>
   ),
   challenge: [
@@ -906,10 +896,10 @@ const KANSAS_CITY: CityGuide = {
       title: "Two leads already on the dashboard",
       body: (
         <>
-          Pothole requests are down 43 percent year to date while average days to close fell from 19 to
-          8: fewer complaints because the roads got better, or because people stopped reporting? Graffiti
-          requests are down 82 percent and the data ends August 18, which looks like a feed that broke.
-          Break both out by council district and ask for the story.
+          Pothole requests are down 43 percent this year while days to close fell from 19 to 8. Better
+          roads, or fewer people bothering to report? Graffiti requests are down 82 percent and the data
+          ends August 18, which looks like a feed that broke. Break both out by district and ask for the
+          story.
         </>
       ),
     },
@@ -918,10 +908,10 @@ const KANSAS_CITY: CityGuide = {
       body: (
         <>
           City Issued Permits refreshes daily, about 40,000 permits a year. Build three metrics: permits
-          issued per week, median days from application to issue, and applications older than 90 days that
-          are not yet issued. The third is the one no city publishes about itself. The city&apos;s Certified
-          Permitting Program launched in late July 2026 with a 4-business-day review target; a metric that
-          tracks it from month one is a standing check on a promise.
+          issued per week, median days from application to issue, and applications stuck more than 90
+          days. The third is the one no city publishes about itself. The city&apos;s Certified Permitting
+          Program launched in late July 2026 with a 4-business-day target, so a metric that tracks it from
+          month one is a standing check on a promise.
         </>
       ),
     },
@@ -929,23 +919,22 @@ const KANSAS_CITY: CityGuide = {
       title: "The streetcar, through the city's own records",
       body: (
         <>
-          The 18th &amp; Vine study will recommend a route later this year at $125M to $175M with no funding
-          plan yet, and the Main Street extension took nine years from first financing to opening in
-          October 2025. Ridership is not on the portal. What is: checkbook payments to KC Streetcar
-          Constructors ($47.9M in 2025) and to the Streetcar Authority ($16.5M), excavation and
-          traffic-control permits by corridor, and 311 requests near the line. Build the payments metric,
-          then ask for a research report on the extension&apos;s cost and timeline.
+          The 18th &amp; Vine study will recommend a route later this year at $125M to $175M, with no
+          funding plan yet. The Main Street extension took nine years from first financing to opening in
+          October 2025. Ridership is not on the portal, but the checkbook is: $47.9M to KC Streetcar
+          Constructors and $16.5M to the Streetcar Authority in 2025. Build the payments metric, then ask
+          for a research report on the extension&apos;s cost and timeline.
         </>
       ),
     },
     {
-      title: "Structural, not ephemeral",
+      title: "Lasting, not fleeting",
       body: (
         <>
-          On this platform the difference is concrete. A chat answer is read once. A metric re-runs
-          nightly, feeds anomaly detection, becomes stories, reaches the newsletter, and is comparable with
-          nine other cities through templates. When you find something worth knowing twice, make it a
-          metric. When you find something worth saying once, make it a story. Both take a sentence.
+          Here the difference is concrete. A chat answer is read once. A metric runs nightly, feeds anomaly
+          detection, becomes stories, reaches the newsletter, and can be compared with nine other cities.
+          Something worth knowing twice becomes a metric. Something worth saying once becomes a story. Both
+          take a sentence.
         </>
       ),
     },
@@ -968,18 +957,18 @@ const KANSAS_CITY: CityGuide = {
   ),
   careNote: (
     <>
-      One more, specific to Kansas City. Because the city is dark, nothing you build is public yet, which
-      makes this the safest city on the platform to learn in. Build freely. The one thing not to do is
-      launch it yourself; that is a decision Adam and Rob make with you, once the dashboard is ready.
+      One more, specific to Kansas City. Because the city is dark, nothing you build is public yet. That
+      makes this the safest city on the platform to learn in, so build freely. Just leave the launch switch
+      to Adam and Rob.
     </>
   ),
   cheatSheet: [
-    { goal: "See what exists", say: "List all Kansas City metrics and catalogued datasets with their last fetch date and status." },
-    { goal: "Check the structure", say: "Compare Kansas City's council district map and council member list in the platform against the city's published boundaries and roster, and flag any difference." },
-    { goal: "Find what to add", say: "Of the 38 shared templates Kansas City has not tried, which ten would run on its datasets? Name the dataset each would use." },
+    { goal: "See what exists", say: "List all Kansas City metrics with their last run status and last data date." },
+    { goal: "Check the structure", say: "Compare Kansas City's council district map and council member list against the city's published boundaries and roster, and flag any difference." },
+    { goal: "Find what to add", say: "Of the 38 templates Kansas City has not tried, which ten would run on its datasets? Name the dataset each would use." },
     { goal: "Build one", say: "Create a Kansas City metric for [thing] from dataset [name], and confirm the numbers look right." },
     { goal: "Permit tail", say: "From City Issued Permits, show applications filed since January 2025 that are not yet issued, by status, with the median age of each." },
-    { goal: "Streetcar money", say: "Total Kansas City payments to KC Streetcar Constructors and the Kansas City Streetcar Authority by month since 2024, as a chart." },
+    { goal: "Streetcar money", say: "Chart Kansas City payments to KC Streetcar Constructors and the Kansas City Streetcar Authority by month since 2024." },
     { goal: "By district", say: "Show 311 pothole reports and median days to resolve by Kansas City council district, last 12 months, as a map and a table." },
     { goal: "Check a feed", say: "Kansas City graffiti requests stop on August 18, 2026. Did the dataset change, and what is the replacement?" },
     { goal: "Go deep", say: "Create a research report on the 18th & Vine streetcar extension: cost, funding, timeline, and how the Main Street extension compares." },
