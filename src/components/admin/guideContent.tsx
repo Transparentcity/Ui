@@ -754,15 +754,16 @@ const KANSAS_CITY: CityGuide = {
   unitPlural: "council districts",
   unitCount: 6,
   datasetsCount: 378,
-  metricsCount: 0,
+  metricsCount: 15,
   portal: "Socrata",
   snapshotDate: "September 22, 2026",
   lede: (
     <>
-      Welcome. Kansas City is the newest city on Transparent City and the least built: 378 datasets
-      catalogued from data.kcmo.org, no metrics on the dashboard yet, no council districts drawn, and a
-      public page that stays dark until it is worth a resident&apos;s time. That is the job, and it is a
-      better starting point than it sounds. You get to decide what Kansas City measures.
+      Welcome. Kansas City is one of the newer cities on Transparent City and still dark: 15 metrics set
+      up over 378 datasets catalogued from data.kcmo.org, the six council districts drawn, the mayor
+      recorded, and a public page that stays hidden until it is worth a resident&apos;s time. Thirteen of
+      those metrics are on the dashboard now, nearly all crime and 311. Nothing yet on permits, spending,
+      or transit. That is the job, and you get to decide what Kansas City measures next.
     </>
   ),
   welcome: (
@@ -775,19 +776,20 @@ const KANSAS_CITY: CityGuide = {
   ),
   firstSteps: [
     {
-      title: "See where Kansas City stands",
+      title: "See what Kansas City already tracks",
       body: (
         <>
           Open <Link href="/home?city_id=56595">Kansas City</Link> from <b>My Places</b>, then the{" "}
-          <b>All metrics</b> tab. It is empty. Then open the admin menu&apos;s{" "}
-          <Link href="/home?view=datasets-admin">Datasets</Link> panel and filter to Kansas City: 378
-          catalogued, including 311, permits, vendor payments, capital projects and council district
-          boundaries. The empty table and the full catalog are the honest starting point.
+          <b>All metrics</b> tab. Thirteen measures with a year-to-date comparison: four crime, nine from
+          311. Two already look like leads. Pothole requests are down 43 percent this year while the
+          average days to close one fell from 19 to 8, and graffiti requests are down 82 percent, which is
+          either a policy change or a feed that stopped. That table is the raw material for everything
+          else.
         </>
       ),
     },
     {
-      title: "Ask a question that needs no setup",
+      title: "Ask a question the dashboard cannot answer yet",
       body: (
         <>
           Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
@@ -797,8 +799,9 @@ const KANSAS_CITY: CityGuide = {
             2025 that are still not issued, by status.&rdquo;
           </i>{" "}
           Then push: <i>&ldquo;Now show the median age of the ones marked Ready for Issuance.&rdquo;</i> As
-          of this writing that is 954 approved permits nobody has picked up, at a median age of 143 days. A
-          finding on day one.
+          of this writing that is 954 approved permits nobody has picked up, at a median age of 143 days.
+          Permits are not among Kansas City&apos;s 15 metrics, so this is a finding the dashboard does not
+          have.
         </>
       ),
     },
@@ -836,8 +839,8 @@ const KANSAS_CITY: CityGuide = {
   ),
   prompts: [
     {
-      text: "Which shared templates could run on Kansas City's 378 catalogued datasets? Rank them by fit and by how much a resident would care, and name the dataset each would use.",
-      note: "The setup question. Every city on the platform started here.",
+      text: "Kansas City has 15 metrics set up and 38 shared templates not yet tried. Which of the 38 could run on its 378 catalogued datasets? Rank them by fit and by how much a resident would care, and name the dataset each would use.",
+      note: "The growth question. Permits, vendor payments and capital projects are all on the portal and none is a metric yet.",
     },
     {
       text: "From Kansas City's City Issued Permits dataset, how many applications filed since January 2025 are still not issued, by status, and what is the median age of each queue?",
@@ -849,50 +852,64 @@ const KANSAS_CITY: CityGuide = {
     },
     {
       text: "Show 311 pothole reports and median days to resolve by Kansas City council district for the last 12 months, as a map and a table.",
-      note: "The equity question. If the map comes back blank, the districts have not been set up yet; ask it to do that first.",
+      note: "The equity question. The six districts are drawn, so this works today.",
     },
     {
-      text: "Which Kansas City datasets are refreshed daily, and which have not been updated in over a year? Rank the stale ones by how much they would matter.",
-      note: "Freshness check. 311 and permits update daily; the city contracts list stopped in November 2023.",
+      text: "Kansas City graffiti removal requests are down 82 percent year to date and the data stops on August 18. Did the city change how it codes graffiti, stop publishing it, or actually stop getting the requests?",
+      note: "The broken-feed check. Finding out is a real result either way.",
     },
   ],
   metricRows: [
     {
-      category: "Nothing yet",
+      category: "Crime",
+      metrics: <>Homicides · Drug Crime Incidents · Property Crime Incidents · Violent Crime Incidents</>,
+      count: 4,
+    },
+    {
+      category: "311 and streets",
       metrics: (
         <>
-          The dashboard is empty until the first metric runs. Ready to feed one, all catalogued: City Issued
-          Permits (daily) · 311 Reported Issues, Public Works (daily) · 311 Call Center Reported Issues
-          (daily) · Vendor Payments 2025 · GO KC Capital Project · Map of City Council Districts
+          311 Service Requests · Pothole Requests · Avg Days to Close a Pothole Request · Abandoned Vehicle
+          Complaints · Graffiti Removal Requests
         </>
       ),
-      count: 0,
+      count: 5,
+    },
+    {
+      category: "Sanitation",
+      metrics: <>Illegal Dumping Complaints (311)</>,
+      count: 1,
+    },
+    {
+      category: "Service requests",
+      metrics: <>Streetlight Outage Complaints · Street &amp; Sidewalk Cleaning Requests · Noise Complaints</>,
+      count: 3,
     },
   ],
   standing: (
     <>
-      No metrics yet, over 378 catalogued datasets. San Francisco, longest on the platform, runs 76, and
-      most of those are templates that can be pointed at Kansas City&apos;s data: 311, permits, crime,
-      vendor payments and capital projects are all on data.kcmo.org. The first ten metrics are the most
-      valuable ten, because they are what turns the public page on.
+      Fifteen metrics set up, 13 on the dashboard, 38 shared templates not yet tried, 378 catalogued
+      datasets. San Francisco, longest on the platform, runs 76. What Kansas City has is crime and 311;
+      what it does not have is anything about money, permits or transit, and all three are on
+      data.kcmo.org. Asking which of the 38 fit is the highest-value thing you can do here.
     </>
   ),
   challengeIntro: (
     <>
-      Kansas City is dark-launched: admins can see it, residents cannot. It goes public when there is enough
-      on the dashboard to be worth a resident&apos;s time. Everything below moves it toward that, and
-      everything below is additive.
+      Kansas City is dark-launched: admins can see it, residents cannot. It goes public when the dashboard
+      covers more than crime and 311 and has run clean for a while. Everything below moves it toward that,
+      and everything below is additive.
     </>
   ),
   challenge: [
     {
-      title: "Draw the map first",
+      title: "Two leads already on the dashboard",
       body: (
         <>
-          Six council districts, each with an in-district and an at-large member, plus the mayor. The
-          boundaries are on data.kcmo.org. Until the structure exists, no metric can be broken out by
-          district and the &ldquo;accountable here&rdquo; list is blank. Ask Seymour to set it up, then
-          check the map against the city&apos;s own.
+          Pothole requests are down 43 percent year to date while average days to close fell from 19 to
+          8: fewer complaints because the roads got better, or because people stopped reporting? Graffiti
+          requests are down 82 percent and the data ends August 18, which looks like a feed that broke.
+          Break both out by council district and ask for the story.
         </>
       ),
     },
@@ -936,8 +953,9 @@ const KANSAS_CITY: CityGuide = {
       title: "Say when it is ready",
       body: (
         <>
-          When the dashboard has a map, officials, and ten or so metrics that have run clean for a week,
-          tell Adam and Rob. Launching is their call and a one-line change. Everything after that is public.
+          When the dashboard covers money and permits as well as crime and 311, and the metrics have run
+          clean for a couple of weeks, tell Adam and Rob. Launching is their call and a one-line change.
+          Everything after that is public.
         </>
       ),
     },
@@ -957,13 +975,13 @@ const KANSAS_CITY: CityGuide = {
   ),
   cheatSheet: [
     { goal: "See what exists", say: "List all Kansas City metrics and catalogued datasets with their last fetch date and status." },
-    { goal: "Set up districts", say: "Set up Kansas City's six council districts and current council members from the city's published boundaries, and show me the map." },
-    { goal: "Find what to add", say: "Which shared templates would run on Kansas City's datasets? Rank the top ten by fit and name the dataset each would use." },
+    { goal: "Check the structure", say: "Compare Kansas City's council district map and council member list in the platform against the city's published boundaries and roster, and flag any difference." },
+    { goal: "Find what to add", say: "Of the 38 shared templates Kansas City has not tried, which ten would run on its datasets? Name the dataset each would use." },
     { goal: "Build one", say: "Create a Kansas City metric for [thing] from dataset [name], and confirm the numbers look right." },
     { goal: "Permit tail", say: "From City Issued Permits, show applications filed since January 2025 that are not yet issued, by status, with the median age of each." },
     { goal: "Streetcar money", say: "Total Kansas City payments to KC Streetcar Constructors and the Kansas City Streetcar Authority by month since 2024, as a chart." },
     { goal: "By district", say: "Show 311 pothole reports and median days to resolve by Kansas City council district, last 12 months, as a map and a table." },
-    { goal: "Check freshness", say: "Which Kansas City datasets have not updated in over a year, and which metrics would that break?" },
+    { goal: "Check a feed", say: "Kansas City graffiti requests stop on August 18, 2026. Did the dataset change, and what is the replacement?" },
     { goal: "Go deep", say: "Create a research report on the 18th & Vine streetcar extension: cost, funding, timeline, and how the Main Street extension compares." },
     { goal: "Write it up", say: "Write a story about [finding] in Kansas City. Include the chart and cite the dataset." },
   ],
