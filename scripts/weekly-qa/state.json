@@ -59,22 +59,29 @@
       "missingWindow": "prior-year YTD",
       "reason": "reason unconfirmed",
       "addedDate": "2026-06-18"
+    },
+    {
+      "city": "NYC",
+      "metricName": "🔪 Homicide Arrests",
+      "metricKey": "nyc_homicide_arrests",
+      "metricId": 832,
+      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_homicide_arrests",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-09-24"
+    },
+    {
+      "city": "Miami",
+      "metricName": "📋📥 New Residential Construction Permits Filed",
+      "metricKey": "miami_new_residential_construction_permits_filed",
+      "metricId": 865,
+      "cardUrl": "https://transparent.city/c/miami/metrics/miami_new_residential_construction_permits_filed",
+      "missingWindow": "prior-year YTD",
+      "reason": "reason unconfirmed",
+      "addedDate": "2026-09-24"
     }
   ],
   "knownLags": [
-    {
-      "city": "SF",
-      "metricName": "📊 311 SLA Compliance Rate",
-      "metricKey": "sf_311_sla_compliance_rate",
-      "metricId": 735,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_311_sla_compliance_rate",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
     {
       "city": "SF",
       "metricName": "⏱️ Avg Days to Permit — Full Review Residential (SF)",
@@ -279,19 +286,6 @@
       "normalLagRange": [
         30,
         38
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
-      "metricName": "🏪 Retail Closures",
-      "metricKey": "retail_closures_retail_closures_17",
-      "metricId": 103,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/retail_closures_retail_closures_17",
-      "normalLagRange": [
-        7,
-        15
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
@@ -661,32 +655,6 @@
       "addedDate": "2026-06-18"
     },
     {
-      "city": "Oakland",
-      "metricName": "💀 Homicides",
-      "metricKey": "oakland_homicides",
-      "metricId": 780,
-      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_homicides",
-      "normalLagRange": [
-        13,
-        21
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "Denver",
-      "metricName": "🎨 Graffiti Removal Requests (Denver)",
-      "metricKey": "denver_311_graffiti",
-      "metricId": 540,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_graffiti",
-      "normalLagRange": [
-        11,
-        19
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
       "city": "Denver",
       "metricName": "🛣️ Pavement Lane-Miles Treated",
       "metricKey": "denver_pavement_lane_miles_treated",
@@ -711,19 +679,6 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-18"
-    },
-    {
-      "city": "SF",
-      "metricName": "📋🏁 New Residential Construction Permits Completed",
-      "metricKey": "sf_new_residential_construction_permits_completed",
-      "metricId": 570,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_new_residential_construction_permits_completed",
-      "normalLagRange": [
-        7,
-        15
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
     },
     {
       "city": "SF",
@@ -765,19 +720,6 @@
       "addedDate": "2026-06-25"
     },
     {
-      "city": "Denver",
-      "metricName": "🚗 Abandoned Vehicle Complaints (Denver)",
-      "metricKey": "denver_311_abandoned_vehicle",
-      "metricId": 541,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_311_abandoned_vehicle",
-      "normalLagRange": [
-        16,
-        24
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
       "city": "NYC",
       "metricName": "🚶 NYC Pedestrian Collisions",
       "metricKey": "nyc_pedestrian_collisions",
@@ -809,19 +751,6 @@
       "metricKey": "cincinnati_noise_complaints_311",
       "metricId": 608,
       "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_noise_complaints_311",
-      "normalLagRange": [
-        8,
-        16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-07-16"
-    },
-    {
-      "city": "Austin",
-      "metricName": "🏢 New Commercial Construction Permits Filed",
-      "metricKey": "austin_new_commercial_construction_permits_filed",
-      "metricId": 788,
-      "cardUrl": "https://transparent.city/c/austin/metrics/austin_new_commercial_construction_permits_filed",
       "normalLagRange": [
         8,
         16
@@ -909,19 +838,6 @@
     },
     {
       "city": "Oakland",
-      "metricName": "⏱️ Avg Days to Close a Pothole (Oakland)",
-      "metricKey": "oak_pothole_avg_days_to_close",
-      "metricId": 876,
-      "cardUrl": "https://transparent.city/c/oakland/metrics/oak_pothole_avg_days_to_close",
-      "normalLagRange": [
-        34,
-        42
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-10"
-    },
-    {
-      "city": "Oakland",
       "metricName": "🕳️ Pothole Closure Rate (Oakland)",
       "metricKey": "oak_pothole_closure_rate",
       "metricId": 877,
@@ -947,19 +863,6 @@
       "addedDate": "2026-09-10"
     },
     {
-      "city": "Miami",
-      "metricName": "📋📥 New Residential Construction Permits Filed",
-      "metricKey": "miami_new_residential_construction_permits_filed",
-      "metricId": 865,
-      "cardUrl": "https://transparent.city/c/miami/metrics/miami_new_residential_construction_permits_filed",
-      "normalLagRange": [
-        39,
-        47
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-10"
-    },
-    {
       "city": "Oakland",
       "metricName": "🕳️ Pothole Closure Rate",
       "metricKey": "oakland_pothole_closure_rate",
@@ -971,7 +874,85 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-09-17"
+    },
+    {
+      "city": "SF",
+      "metricName": "⏱️ Avg Days to Permit — OTC Residential (SF)",
+      "metricKey": "sf_days_to_permit_otc_residential",
+      "metricId": 494,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc_residential",
+      "normalLagRange": [
+        17,
+        25
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-24"
+    },
+    {
+      "city": "SF",
+      "metricName": "⏱️ Avg Days to Permit — OTC (SF)",
+      "metricKey": "sf_days_to_permit_otc",
+      "metricId": 492,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_otc",
+      "normalLagRange": [
+        17,
+        25
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-24"
+    },
+    {
+      "city": "Denver",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "denver_property_crime_incidents",
+      "metricId": 353,
+      "cardUrl": "https://transparent.city/c/denver/metrics/denver_property_crime_incidents",
+      "normalLagRange": [
+        180,
+        188
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-24"
+    },
+    {
+      "city": "Miami",
+      "metricName": "🏚️ Demolition Permits Issued",
+      "metricKey": "miami_demolition_permits_issued",
+      "metricId": 862,
+      "cardUrl": "https://transparent.city/c/miami/metrics/miami_demolition_permits_issued",
+      "normalLagRange": [
+        65,
+        73
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-24"
+    },
+    {
+      "city": "Miami",
+      "metricName": "📞 Miami Police Calls for Service",
+      "metricKey": "miami_911_calls_for_service",
+      "metricId": 851,
+      "cardUrl": "https://transparent.city/c/miami/metrics/miami_911_calls_for_service",
+      "normalLagRange": [
+        260,
+        268
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-24"
+    },
+    {
+      "city": "Miami",
+      "metricName": "🚗 Miami Traffic Calls for Service",
+      "metricKey": "miami_traffic_911_calls",
+      "metricId": 852,
+      "cardUrl": "https://transparent.city/c/miami/metrics/miami_traffic_911_calls",
+      "normalLagRange": [
+        201,
+        209
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-09-24"
     }
   ],
-  "lastRunDate": "2026-09-17"
+  "lastRunDate": "2026-09-24"
 }
