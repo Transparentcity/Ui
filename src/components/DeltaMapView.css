@@ -83,15 +83,41 @@
     0 0 14px rgba(0, 0, 0, 0.5);
 }
 
-/* Mapbox popup styling */
-.mapboxgl-popup-content {
+/* Mapbox popups default to a white card, unreadable against themed text in
+   dark mode. Theme tokens flip with [data-theme], so no dark override. Tip
+   colour is set per anchor because that is how mapbox-gl.css paints it. */
+.delta-map-container .mapboxgl-popup-content {
   padding: 10px 14px;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
-.mapboxgl-popup-tip {
-  border-top-color: white;
+.delta-map-container .mapboxgl-popup[class*="anchor-bottom"] .mapboxgl-popup-tip {
+  border-top-color: var(--bg-secondary);
+}
+
+.delta-map-container .mapboxgl-popup[class*="anchor-top"] .mapboxgl-popup-tip {
+  border-bottom-color: var(--bg-secondary);
+}
+
+.delta-map-container .mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+  border-right-color: var(--bg-secondary);
+}
+
+.delta-map-container .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  border-left-color: var(--bg-secondary);
+}
+
+.delta-map-container .mapboxgl-popup-close-button {
+  color: var(--text-secondary);
+}
+
+.delta-map-container .mapboxgl-popup-close-button:hover {
+  color: var(--text-primary);
+  background: transparent;
 }
 
 .delta-map-wrapper .map-link-row {

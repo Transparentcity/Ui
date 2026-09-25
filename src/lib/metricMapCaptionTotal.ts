@@ -86,6 +86,82 @@ export function getMetricAggregationValueField(
   return null;
 }
 
+/** Whether generate_map can build a map without a stored map_query. */
+export function metricSupportsGeneratedMap(
+  metric: Pick<
+    PublicMetricDetail,
+    "map_query" | "map_config" | "location_fields" | "metadata"
+  >
+): boolean {
+  if (metric.map_query?.trim()) return true;
+
+  const mapConfig = metric.map_config;
+  if (
+    mapConfig &&
+    ["map_query", "district_field", "latitude_field", "longitude_field"].some(
+      (key) => typeof mapConfig[key] === "string" && String(mapConfig[key]).trim()
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    metric.location_fields?.some((field) => {
+      const name = String(field.fieldName ?? field.field_name ?? "").toLowerCase();
+      const type = String(field.fieldType ?? field.type ?? "").toLowerCase();
+      return ["district", "ward", "precinct", "zone", "neighborhood", "latitude", "longitude", "lat", "lon", "lng"].some(
+        (token) => type === token || name.includes(token)
+      );
+    })
+  ) {
+    return true;
+  }
+
+  const queryConfig = metric.metadata?.query_config;
+  if (!queryConfig || typeof queryConfig !== "object") return false;
+
+  // Derived ratio metrics (numerator / denominator by district)
+  const derivedConfig = (queryConfig as Record<string, unknown>).derived_config;
+  if (derivedConfig && typeof derivedConfig === "object") {
+    const derived = derivedConfig as Record<string, unknown>;
+    const operation = String(
+      derived.operation ?? derived.calculation_type ?? ""
+    ).toLowerCase();
+    if (
+      ["ratio", "divide", "division"].includes(operation) &&
+      derived.numerator_metric_id != null &&
+      derived.denominator_metric_id != null
+    ) {
+      return true;
+    }
+  }
+
+  // AVG/SUM/MIN/MAX metrics with a ytd_config district_field: the backend can
+  // synthesize the map_query from ytd_config.custom_where_conditions so no
+  // stored map_query is needed.
+  const ytdConfig = (queryConfig as Record<string, unknown>).ytd_config;
+  if (ytdConfig && typeof ytdConfig === "object") {
+    const ytd = ytdConfig as Record<string, unknown>;
+    const aggregation = ytd.aggregation as
+      | { type?: string; field?: string }
+      | undefined;
+    const districtField =
+      (ytd.district_field as string | undefined) ??
+      ((ytd.location_config as Record<string, unknown> | undefined)
+        ?.district_field as string | undefined);
+    const aggType = String(aggregation?.type ?? "").toUpperCase();
+    if (
+      ["SUM", "AVG", "MIN", "MAX"].includes(aggType) &&
+      aggregation?.field?.trim() &&
+      districtField?.trim()
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Total for map captions: sum of measure values when the metric aggregates a field,
  * otherwise point/row count (e.g. one incident per row).
@@ -94,6 +170,11 @@ export function getMapCaptionTotalCount(
   mapData: Pick<SavedMap, "location_data" | "map_config">,
   options?: { valueField?: string | null }
 ): number | null {
+  // District averages, minima/maxima, and ratios cannot be added into a
+  // citywide total. Callers may supply an independently calculated citywide
+  // value, but this helper must not manufacture one from choropleth rows.
+  if (mapData.map_config?.additive === false) return null;
+
   const aggregations = mapData.map_config?.aggregations as
     | Record<string, { rows?: Array<{ value?: number; count?: number }> }>
     | undefined;
