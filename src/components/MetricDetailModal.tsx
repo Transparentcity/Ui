@@ -22,7 +22,11 @@ import Loader from "./Loader";
 import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
-import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
+import {
+  getMetricAggregationValueField,
+  metricSupportsGeneratedMap,
+} from "@/lib/metricMapCaptionTotal";
+import { formatPercentValue, isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
 import {
   buildMetricSourceInformation,
   resolveMetricDatasetAttribution,
@@ -213,9 +217,14 @@ export default function MetricDetailModal({
         mtd_prior_year: { previous: "Last Year", current: "This Year" },
       };
 
+  // Rate metrics name their unit in item_noun ("% Closed"). Rounding to a whole
+  // number turned 46.8% into a bare "47", which reads as a count.
+  const isPercentMetric = isPercentageNoun(metric?.item_noun);
+
   const formatValue = (value: number | null | undefined, loading?: boolean): string => {
     if (loading) return "Loading...";
     if (value === null || value === undefined) return "No data";
+    if (isPercentMetric) return formatPercentValue(value);
     return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
   };
 
@@ -565,8 +574,11 @@ export default function MetricDetailModal({
               )}
 
               {/* Map — place-scoped uses lat/lng/radius; city/district uses public preview */}
+              {/* A stored map_query is not the only way to get a map: derived
+                  ratio and AVG metrics are built from their components or from
+                  ytd_config, so gate on what the backend can actually render. */}
               {mapSectionVisible &&
-                metric.map_query &&
+                metricSupportsGeneratedMap(metric) &&
                 (!isPlaceScope ||
                   (placeLat != null &&
                     placeLng != null &&
@@ -626,7 +638,7 @@ export default function MetricDetailModal({
                 </section>
               )}
 
-              {!isPlaceScope && metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+              {!isPlaceScope && metricSupportsGeneratedMap(metric) && (selectedDistrict === null || selectedDistrict === 0) && (
                 <MetricDistrictChangeSection
                   metricId={metric.id}
                   metricName={metric.metric_name}

@@ -8,6 +8,7 @@ import {
 import Loader from "./Loader";
 import { yearFromDateString } from "@/lib/formatters";
 import { formatChoroplethAreaLabel } from "@/lib/mapUtils";
+import { formatPercentValue, isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
 import "./DistrictComparisonTable.css";
 
 interface DistrictComparisonTableProps {
@@ -158,8 +159,14 @@ export default function DistrictComparisonTable({
     }
   };
 
+  // Rate metrics name their unit in itemNoun ("% Closed"). Without a "%" the
+  // whole-number formatting below turns 32.0% into a bare "32" that reads as a
+  // count of something.
+  const isPercentMetric = isPercentageNoun(itemNoun);
+
   const formatValue = (value: number | null): string => {
     if (value === null) return "—";
+    if (isPercentMetric) return formatPercentValue(value);
     const absValue = Math.abs(value);
     const sign = value < 0 ? "-" : "";
     if (absValue >= 1e6) return `${sign}${(absValue / 1e6).toFixed(1)}M`;
@@ -333,8 +340,14 @@ export default function DistrictComparisonTable({
       </table>
       {showCaption && (
         <p className="district-comparison-caption">
-          So far in {currentYear}, {cityName} had {formatValue(totals.current_value)} {metricName.toLowerCase()} {itemNoun} through {currentPeriodEndFormatted}.
-          {topDistrict ? ` ${formatAreaLabel(topDistrict.district)} had the most (${formatValue(topDistrict.current_value)}).` : ""}
+          {isPercentMetric
+            ? `In ${currentYear}, ${metricName.toLowerCase()} in ${cityName} was ${formatValue(totals.current_value)} through ${currentPeriodEndFormatted}.`
+            : `So far in ${currentYear}, ${cityName} had ${formatValue(totals.current_value)} ${metricName.toLowerCase()} ${itemNoun} through ${currentPeriodEndFormatted}.`}
+          {topDistrict
+            ? isPercentMetric
+              ? ` ${formatAreaLabel(topDistrict.district)} was highest at ${formatValue(topDistrict.current_value)}.`
+              : ` ${formatAreaLabel(topDistrict.district)} had the most (${formatValue(topDistrict.current_value)}).`
+            : ""}
         </p>
       )}
     </div>

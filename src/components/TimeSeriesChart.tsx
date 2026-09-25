@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/contexts/ThemeContext";
+import { isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
 import styles from "./TimeSeriesChart.module.css";
 import {
   getDateFromISOWeek,
@@ -87,6 +88,10 @@ export interface TimeSeriesChartProps {
     period_type?: string; // Source data period type (day, week, month, year)
     district?: number | null; // District number (0 = citywide)
     city_name?: string;
+    /** Unit of the plotted value, e.g. "percentage" for ratio/rate metrics. */
+    value_unit?: string | null;
+    /** Metric's unit of measure (Days, Minutes, Permits, ...) for value labels. */
+    item_noun?: string | null;
   };
   height?: number;
   defaultPeriod?: PeriodType;
@@ -108,6 +113,25 @@ export interface TimeSeriesChartProps {
    * and recent-period highlight. Shown only when the selected grain matches.
    */
   anomalyOverlay?: AnomalyOverlay | null;
+}
+
+/**
+ * Build the unit suffix shown after a value, e.g. "3" -> "3 days".
+ *
+ * Percentage nouns are dropped ("35.0% percent" reads badly). Single title-case
+ * words are lowercased so they read naturally mid-sentence. Anything with
+ * internal capitals is left alone to preserve acronyms and compound units such
+ * as "MPH" and "MPN/100mL".
+ */
+function formatItemNounSuffix(itemNoun?: string | null): string {
+  const noun = itemNoun?.trim();
+  if (!noun || isPercentageNoun(noun)) {
+    return "";
+  }
+
+  const isSimpleWord = /^[A-Za-z]+$/.test(noun);
+  const isAcronym = noun === noun.toUpperCase();
+  return ` ${isSimpleWord && !isAcronym ? noun.toLowerCase() : noun}`;
 }
 
 /**
@@ -837,6 +861,17 @@ export default function TimeSeriesChart({
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
 
+  // Ratio/rate metrics are stored as percentages (e.g. 31.85 meaning 31.85%), so
+  // axis ticks and hover readouts need a "%" suffix and a decimal place to read
+  // correctly rather than looking like a bare count.
+  const isPercentageUnit = metadata?.value_unit === "percentage";
+  const valueFormat = isPercentageUnit ? ",.1f" : ",.0f";
+  // "%" already reads as a unit, so it wins over the metric's item noun (which
+  // for those metrics is itself percentage wording like "Percent" or "% Closed").
+  const valueSuffix = isPercentageUnit
+    ? "%"
+    : formatItemNounSuffix(metadata?.item_noun);
+
   // Detect narrow screens for compact chart layout
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -1026,7 +1061,7 @@ export default function TimeSeriesChart({
                 marker: { color: avgLineStyle.color, size: useCompactLayout ? 4 : 5 },
                 showlegend: true,
                 ...legendMeta,
-                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", {
@@ -1049,7 +1084,7 @@ export default function TimeSeriesChart({
                   line: { ...avgLineStyle, dash: "dot" },
                   marker: { color: avgLineStyle.color, size: useCompactLayout ? 4 : 5 },
                   showlegend: false,
-                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
                     return date.toLocaleDateString("en-US", {
@@ -1091,7 +1126,7 @@ export default function TimeSeriesChart({
                 line: avgLineStyle,
                 showlegend: true,
                 ...legendMeta,
-                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", {
@@ -1127,7 +1162,7 @@ export default function TimeSeriesChart({
                   name: `${legendName} (incomplete)`,
                   line: { ...avgLineStyle, dash: "dot" },
                   showlegend: false,
-                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
                     return date.toLocaleDateString("en-US", {
@@ -1195,7 +1230,7 @@ export default function TimeSeriesChart({
               line: { color: lineColor, width: 2 },
               marker: { color: lineColor, size: 5 },
               showlegend: true,
-              hovertemplate: `${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${yearStr}<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
               customdata: completeX.map((dayOfYear) => {
                 const date = new Date(year, 0, dayOfYear);
                 return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1213,7 +1248,7 @@ export default function TimeSeriesChart({
                 line: { color: lineColor, width: 2, dash: "dot" },
                 marker: { color: lineColor, size: 5 },
                 showlegend: false,
-                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: incompleteX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1254,7 +1289,7 @@ export default function TimeSeriesChart({
               name: `${yearStr} 7-Day Avg`,
               line: { color: lineColor, width: 2 },
               showlegend: true,
-              hovertemplate: `${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
               customdata: completeX.map((dayOfYear) => {
                 const date = new Date(year, 0, dayOfYear);
                 return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1284,7 +1319,7 @@ export default function TimeSeriesChart({
                 name: "Incomplete",
                 line: { color: lineColor, width: 2, dash: "dot" },
                 showlegend: false,
-                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: incompleteX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1373,7 +1408,7 @@ export default function TimeSeriesChart({
             fill: isFirst ? "tozeroy" : "tonexty",
             line: { color, width: 0 },
             fillcolor: color,
-            hovertemplate: `${seriesName}<br>%{x|${dateFormat}}<br>%{customdata:,.0f}<extra></extra>`,
+            hovertemplate: `${seriesName}<br>%{x|${dateFormat}}<br>%{customdata:${valueFormat}}${valueSuffix}<extra></extra>`,
           });
         });
       } else {
@@ -1453,7 +1488,7 @@ export default function TimeSeriesChart({
                 color,
                 size: 6,
               },
-              hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
             });
           }
 
@@ -1470,7 +1505,7 @@ export default function TimeSeriesChart({
               marker: { color, size: 6 },
               // Keep the series in the legend when the entire line is incomplete.
               showlegend: completeX.length === 0,
-              hovertemplate: `${hoverPrefix}%{x|${dateFormat}} (incomplete)<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${hoverPrefix}%{x|${dateFormat}} (incomplete)<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
             });
           }
         });
@@ -1534,6 +1569,8 @@ export default function TimeSeriesChart({
     useCompactLayout,
     showPriorYear,
     anomalyOverlay,
+    valueFormat,
+    valueSuffix,
   ]);
 
   const chartTitleText =
@@ -1723,6 +1760,7 @@ export default function TimeSeriesChart({
           gridcolor: gridColor,
           zeroline: false,
           range: [0, maxYValue],
+          ...(isPercentageUnit && { ticksuffix: "%" }),
           tickfont: {
             family: PLOT_AXIS_FONT_FAMILY,
             size: isMobile ? 8 : 9,
@@ -1872,6 +1910,7 @@ export default function TimeSeriesChart({
         showgrid: true,
         gridcolor: gridColor,
         range: [0, maxYValue],
+        ...(isPercentageUnit && { ticksuffix: "%" }),
         tickfont: {
           family: PLOT_AXIS_FONT_FAMILY,
           size: isMobile ? 8 : 10,
@@ -1916,7 +1955,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, isPercentageUnit]);
 
   const config = {
     responsive: true,

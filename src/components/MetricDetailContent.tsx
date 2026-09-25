@@ -24,7 +24,10 @@ import Loader from "./Loader";
 import PublicMetricTimeSeriesChart from "./PublicMetricTimeSeriesChart";
 import { selectPublicMetricCharts } from "@/lib/selectPublicMetricCharts";
 import { computeReportingCompletenessStalenessDays } from "@/lib/computeReportingCompletenessStalenessDays";
-import { getMetricAggregationValueField } from "@/lib/metricMapCaptionTotal";
+import {
+  getMetricAggregationValueField,
+  metricSupportsGeneratedMap,
+} from "@/lib/metricMapCaptionTotal";
 import {
   buildMetricSourceInformation,
   resolveMetricDatasetAttribution,
@@ -32,6 +35,7 @@ import {
 import CompletenessSparkline from "./CompletenessSparkline";
 import MetricSourceAttribution from "./MetricSourceAttribution";
 import MetricChainView from "./MetricChainView";
+import { formatPercentValue, isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
 import "./MetricChainView.css";
 
 interface MetricDetailContentProps {
@@ -87,6 +91,10 @@ export default function MetricDetailContent({
 
   const mapValueField = useMemo(
     () => getMetricAggregationValueField(metric),
+    [metric]
+  );
+  const hasGeneratedMap = useMemo(
+    () => metricSupportsGeneratedMap(metric),
     [metric]
   );
 
@@ -240,9 +248,15 @@ export default function MetricDetailContent({
             mtd_prior_year: { previous: "Last Year", current: "This Year" },
           };
 
+  // Rate metrics carry percentage wording in item_noun ("% Closed"), so their
+  // headline numbers need a "%" — a bare "32" next to a "46.8" reads as a count
+  // and hides that these are rates.
+  const isPercentMetric = isPercentageNoun(metric.item_noun);
+
   const formatValue = (value: number | null | undefined, isLoading?: boolean): string => {
     if (isLoading) return "Loading...";
     if (value === null || value === undefined) return "No data";
+    if (isPercentMetric) return formatPercentValue(value);
     const absValue = Math.abs(value);
     const sign = value < 0 ? "-" : "";
     const formatWithSuffix = (scaled: number, suffix: string) =>
@@ -497,7 +511,8 @@ export default function MetricDetailContent({
             comparison &&
             comparison.current_period_value !== null ? (
               <p className="metric-comparison-caption">
-                Currently {formatValue(comparison.current_period_value)} {metric.item_noun.toLowerCase()}{" "}
+                Currently {formatValue(comparison.current_period_value)}
+                {isPercentMetric ? "" : ` ${metric.item_noun.toLowerCase()}`}{" "}
                 {trend && comparison.comparison_period_value !== null
                   ? `, ${trend.isIncrease ? "up" : "down"} ${Math.round(Math.abs(trend.percent))}% from ${formatValue(comparison.comparison_period_value)} a year ago`
                   : ""}
@@ -513,7 +528,8 @@ export default function MetricDetailContent({
             comparison.comparison_period_value !== null &&
             currentPeriodEndFormatted ? (
               <p className="metric-comparison-caption">
-                So far in {currentYear}, {metric.metric_name.toLowerCase()} {metric.item_noun} are{" "}
+                So far in {currentYear}, {metric.metric_name.toLowerCase()}
+                {isPercentMetric ? " is" : ` ${metric.item_noun} are`}{" "}
                 {formatValue(comparison.current_period_value)}
                 {trend ? `, ${trend.isIncrease ? "up" : "down"} by ${Math.round(Math.abs(trend.percent))}%` : ""} from last year&apos;s {formatValue(comparison.comparison_period_value)} to this date of {currentPeriodEndFormatted}.
               </p>
@@ -543,7 +559,7 @@ export default function MetricDetailContent({
       )}
 
       {/* Map — district pages pass district so preview/choropleth scope to that area */}
-      {mapSectionVisible && metric.map_query && (
+      {mapSectionVisible && hasGeneratedMap && (
         <section className="metric-section">
           <h2 className="metric-section-title">
             {selectedDistrict !== null && selectedDistrict > 0
@@ -587,7 +603,7 @@ export default function MetricDetailContent({
       )}
 
       {/* District change map + table — omitted when district/shape data is not available */}
-      {metric.map_query && (selectedDistrict === null || selectedDistrict === 0) && (
+      {hasGeneratedMap && (selectedDistrict === null || selectedDistrict === 0) && (
         <MetricDistrictChangeSection
           metricId={metric.id}
           metricName={metric.metric_name}

@@ -86,6 +86,26 @@ describe("buildChoroplethDualPanels", () => {
     expect(panels![1].countNoun).toBe("districts");
   });
 
+  it("omits summed headers for non-additive averages and ratios", () => {
+    const current = savedMap(
+      { "10": { rows: [{ district: "a", value: 12.5 }, { district: "b", value: 20 }] } },
+      { additive: false, aggregation_type: "AVG" }
+    );
+    const prior = savedMap(
+      { "10": { rows: [{ district: "a", value: 10 }, { district: "b", value: 18 }] } },
+      { additive: false, aggregation_type: "AVG" }
+    );
+    const panels = buildChoroplethDualPanels(
+      current,
+      prior,
+      { kind: "choropleth", shapeLayerId: "10", label: "Districts" },
+      { prior: "2024", current: "2025" }
+    );
+
+    expect(panels![0].count).toBeUndefined();
+    expect(panels![1].count).toBeUndefined();
+  });
+
   it("returns null when comparison map is missing", () => {
     const current = savedMap({ "10": { rows: [{ id: "a" }] } });
     const panels = buildChoroplethDualPanels(
