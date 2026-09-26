@@ -57,6 +57,14 @@ export default function PublicFooter({ citySlug, feedbackPageUrl, feedbackPageTy
             <a href="mailto:seymour@transparent.city" className="footer-link">
               seymour@transparent.city
             </a>
+            <a
+              href="https://x.com/citydatadesk"
+              className="footer-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              @citydatadesk on X
+            </a>
           </div>
         </div>
         <div className="footer-bottom">

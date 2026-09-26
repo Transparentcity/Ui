@@ -24,6 +24,18 @@ const paragraphStyle = {
   marginBottom: "1.5rem",
 } as const;
 
+const handleStyle = {
+  fontSize: "0.9375rem",
+  marginTop: "-0.5rem",
+  marginBottom: "0.75rem",
+} as const;
+
+const handleLinkStyle = {
+  color: "#ad35fa",
+  textDecoration: "none",
+  fontWeight: 500,
+} as const;
+
 export default function AboutPage() {
   return (
     <>
@@ -63,6 +75,16 @@ export default function AboutPage() {
         </p>
 
         <h2 style={headingStyle}>Rob Goldman</h2>
+        <p style={handleStyle}>
+          <a
+            href="https://x.com/robjective"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={handleLinkStyle}
+          >
+            @robjective on X
+          </a>
+        </p>
         <p style={paragraphStyle}>
           Rob has been building consumer internet products since the early
           days. He helped build Shopping.com, founded his own tech startup,
@@ -73,6 +95,16 @@ export default function AboutPage() {
         </p>
 
         <h2 style={headingStyle}>Adam Werbach</h2>
+        <p style={handleStyle}>
+          <a
+            href="https://x.com/adamwerbach"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={handleLinkStyle}
+          >
+            @adamwerbach on X
+          </a>
+        </p>
         <p style={paragraphStyle}>
           Adam has spent his career pushing big institutions to work for
           regular people. He was the youngest president of the Sierra Club,
