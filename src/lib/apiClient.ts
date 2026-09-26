@@ -1729,6 +1729,46 @@ export function getAdminMetricTimeSeriesDetail(
   );
 }
 
+export interface CrossCityPoint {
+  time_period: string;
+  numeric_value: number;
+}
+
+/** One city's best citywide series for a template. `chart_id` is null when the metric has no usable chart. */
+export interface CrossCitySeries {
+  metric_id: number;
+  metric_name: string | null;
+  city_id: number;
+  city_name: string | null;
+  emoji: string | null;
+  is_launched: boolean;
+  population: number | null;
+  population_source_name: string | null;
+  population_data_year: number | null;
+  chart_id: number | null;
+  period_type: string | null;
+  points: CrossCityPoint[];
+}
+
+export interface CrossCityComparison {
+  template_id: number;
+  metric_name: string | null;
+  series: CrossCitySeries[];
+}
+
+/** Every city metric instantiated from a template, with its citywide time series, in one request. */
+export function getCrossCityComparison(
+  templateId: number,
+  token: string
+): Promise<CrossCityComparison> {
+  return request<CrossCityComparison>(
+    `/api/admin/metrics/cross-city-comparison/${templateId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
 export function getAdminMetricCityStructure(metricId: number, token: string): Promise<any> {
   return request<any>(`/api/admin/metrics/${metricId}/city-structure`, "GET", undefined, token);
 }
