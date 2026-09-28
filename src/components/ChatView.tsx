@@ -15,6 +15,7 @@ import {
   getAvailableModels,
   getSessionStats,
   toggleSessionPublic,
+  ChatStreamInterruptedError,
   type ModelGroupInfo,
   type StreamEvent,
   type SessionStats,
@@ -24,6 +25,7 @@ import {
   pickDefaultModelKey,
 } from "@/lib/modelDefaults";
 import { recordProductEvent } from "@/lib/productAnalytics";
+import { buildResumeMessage, type InterruptedTurn } from "@/lib/chatResume";
 import {
   appendChatStreamEvent,
   mergeConsecutiveThinkingEvents,
@@ -143,6 +145,14 @@ export default function ChatView({
   const hasPendingSendRef = useRef(false);
   const pendingSessionIdRef = useRef<string | null>(null);
   const statsSetFromSessionLoadRef = useRef<string | null>(null); // Track which session had stats set from handleSessionLoaded
+  // Work from a reply whose stream was cut off. It is replayed at the top of
+  // the next message so Seymour can pick up where it stopped.
+  const [interruptedTurn, setInterruptedTurnState] = useState<InterruptedTurn | null>(null);
+  const interruptedTurnRef = useRef<InterruptedTurn | null>(null);
+  const setInterruptedTurn = (turn: InterruptedTurn | null) => {
+    interruptedTurnRef.current = turn;
+    setInterruptedTurnState(turn);
+  };
   
   // Refs for streaming state (reused across stream calls)
   const streamingStateRef = useRef<{
@@ -183,6 +193,7 @@ export default function ChatView({
       // silently discard the new session's messages.
       if (!isBootstrappedSessionAssignment) {
         setMessages([]);
+        setInterruptedTurn(null);
       }
 
       // Set currentSessionId FIRST so the header knows we have a session
@@ -221,6 +232,7 @@ export default function ChatView({
       setSessionStats(null);
       statsSetFromSessionLoadRef.current = null;
       setCurrentSessionId(null);
+      setInterruptedTurn(null);
       // Clear messages to show welcome view
       setMessages([]);
     } else if (sessionId && sessionId === currentSessionId) {
@@ -507,6 +519,14 @@ export default function ChatView({
     setIsStreaming(true);
     hasPendingSendRef.current = true;
 
+    // If the previous reply was cut off, send its work along with this
+    // message. Otherwise "continue" reaches a model with no record of it.
+    const resumingTurn = interruptedTurnRef.current;
+    const backendMessageText = resumingTurn
+      ? buildResumeMessage(resumingTurn, userMessageText)
+      : userMessageText;
+    setInterruptedTurn(null);
+
     // Create assistant message ID for streaming (but don't add to messages until content arrives)
     const assistantMessageId = `assistant-${Date.now()}`;
     setCurrentAssistantMessageId(assistantMessageId);
@@ -553,7 +573,7 @@ export default function ChatView({
       // Stream the response
       await sendChatMessageStream(
         {
-          message: userMessageText,
+          message: backendMessageText,
           session_id: sessionIdToUse || undefined,
           model_key: selectedModel,
         },
@@ -917,7 +937,39 @@ export default function ChatView({
          error.message?.includes("cancelled") ||
          error.message?.includes("Stream cancelled"));
       
-      if (isAbortError) {
+      if (error instanceof ChatStreamInterruptedError) {
+        // The connection dropped mid-reply. Keep the partial reply on screen
+        // and hold its work so the next message can resume from it.
+        const state = streamingStateRef.current;
+        const completedToolCalls = (state?.toolCalls ?? []).map((call) => ({
+          tool_name: call.tool_name,
+          arguments: call.arguments,
+          response: call.response,
+          success: call.success,
+        }));
+        const pendingToolNames = Object.values(state?.toolCallMap ?? {})
+          .filter((call) => call.success === null && call.response === null)
+          .map((call) => call.tool_name as string);
+        const partialText = state?.fullResponse ?? "";
+        const turn: InterruptedTurn = resumingTurn
+          ? {
+              // A resumed reply was cut off again: keep the earlier work too.
+              request: resumingTurn.request,
+              partialText: partialText || resumingTurn.partialText,
+              completedToolCalls: [
+                ...resumingTurn.completedToolCalls,
+                ...completedToolCalls,
+              ],
+              pendingToolNames,
+            }
+          : {
+              request: userMessageText,
+              partialText,
+              completedToolCalls,
+              pendingToolNames,
+            };
+        setInterruptedTurn(turn);
+      } else if (isAbortError) {
         // Don't show error message for cancellations - the partial response is fine
       } else {
         // Update assistant message with error for real errors
@@ -1539,6 +1591,26 @@ export default function ChatView({
                   <span className={styles.thinkingDot} />
                   <span className={styles.thinkingDot} />
                 </div>
+              </div>
+            </div>
+          )}
+          {interruptedTurn && !isStreaming && (
+            <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+              <div className={styles.interruptedBubble} role="status">
+                <div className={styles.errorTitle}>Seymour&apos;s connection dropped before the reply finished</div>
+                <div className={styles.errorContent}>
+                  {interruptedTurn.completedToolCalls.length > 0
+                    ? `It had finished ${interruptedTurn.completedToolCalls.length} tool call${interruptedTurn.completedToolCalls.length === 1 ? "" : "s"}. `
+                    : ""}
+                  Your next message will include that work, so Seymour can pick up where it stopped.
+                </div>
+                <button
+                  type="button"
+                  className={styles.interruptedContinueButton}
+                  onClick={() => handleSend("Continue where you left off.")}
+                >
+                  Continue where it left off
+                </button>
               </div>
             </div>
           )}

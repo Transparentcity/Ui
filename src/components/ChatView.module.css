@@ -1082,3 +1082,27 @@
     max-height: 300px;
   }
 }
+
+.interruptedBubble {
+  background: #fffbeb;
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.interruptedContinueButton {
+  margin-top: var(--space-md);
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #d97706;
+  background: #ffffff;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.interruptedContinueButton:hover {
+  background: #fef3c7;
+}

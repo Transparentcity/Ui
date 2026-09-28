@@ -36,6 +36,20 @@ function emptyStreamResponse(): Response {
   });
 }
 
+/** A complete chat stream: the backend's closing `end` event and nothing else. */
+function endedStreamResponse(): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"end"}\n\n'));
+      controller.close();
+    },
+  });
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -55,6 +69,10 @@ function headersFromLastCall(): Record<string, string> {
 }
 
 describe("sendChatMessageStream identity headers", () => {
+  beforeEach(() => {
+    fetchMock.mockResolvedValue(endedStreamResponse());
+  });
+
   it("forwards the impersonation header during a proxy session", async () => {
     setImpersonation(4242, "crutchre@hotmail.com");
 
