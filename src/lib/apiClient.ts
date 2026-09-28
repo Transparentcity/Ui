@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
-import { getApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl, getDirectChatStreamBaseUrl } from "./apiBase";
 import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
 import { PREFERRED_DEFAULT_MODEL_KEY } from "./modelDefaults";
 
@@ -3098,7 +3098,11 @@ export async function sendChatMessageStream(
   onEvent: (event: StreamEvent) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  const url = `${getApiBaseUrl()}/api/chat/message/stream`;
+  const proxyUrl = `${getApiBaseUrl()}/api/chat/message/stream`;
+  const directBase = getDirectChatStreamBaseUrl();
+  // Prefer the API server directly (no function time limit); fall back to the
+  // same-origin proxy route if that connection cannot be made.
+  let url = directBase ? `${directBase}/api/chat/message/stream` : proxyUrl;
 
   let lastError: unknown = null;
 
@@ -3139,6 +3143,12 @@ export async function sendChatMessageStream(
       // Only retry when the request never reached the backend.
       if (!(error instanceof ChatStreamConnectError) || attempt >= MAX_STREAM_RETRIES) {
         break;
+      }
+
+      if (url !== proxyUrl) {
+        console.warn("⚠️ Direct chat stream connection failed; retrying through the site proxy.", error);
+        url = proxyUrl;
+        continue;
       }
 
       const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);

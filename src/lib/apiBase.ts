@@ -100,6 +100,33 @@ export function getUpstreamApiBaseUrl(): string {
 
 export const API_BASE_FOR_ASSETS = getApiBaseUrlForAssets();
 
+/**
+ * Site hosts whose origin the API server allows through CORS for Seymour's
+ * streaming endpoint (checked with a preflight against api.transparent.city).
+ */
+const DIRECT_CHAT_STREAM_HOSTS = new Set(["transparent.city", "app.transparent.city"]);
+const DIRECT_CHAT_STREAM_ORIGIN = "https://api.transparent.city";
+
+/**
+ * Origin for Seymour's streaming endpoint, given the page's hostname.
+ *
+ * On the live site the browser streams straight from the API server. The
+ * same-origin route (`/api/chat/message/stream`) runs as a Vercel function,
+ * which is ended at its max duration, and a long Seymour reply outlasts it.
+ * Other hosts (previews, local dev) keep using the same-origin route.
+ */
+export function chatStreamBaseUrlFor(hostname: string | null | undefined): string | null {
+  if (hostname && DIRECT_CHAT_STREAM_HOSTS.has(hostname)) {
+    return DIRECT_CHAT_STREAM_ORIGIN;
+  }
+  return null;
+}
+
+export function getDirectChatStreamBaseUrl(): string | null {
+  if (!globalThis.window?.location) return null;
+  return chatStreamBaseUrlFor(globalThis.location.hostname);
+}
+
 // Default city used by CRM pages; configurable via env.
 export const CRM_DEFAULT_CITY_ID = Number(
   process.env.NEXT_PUBLIC_CRM_CITY_ID ?? 57260

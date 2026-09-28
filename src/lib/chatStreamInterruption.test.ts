@@ -113,3 +113,20 @@ describe("sendChatMessageStream interruption handling", () => {
     await expect(done).resolves.toBeUndefined();
   });
 });
+
+describe("chatStreamBaseUrlFor", () => {
+  it("streams straight from the API server on the live site hosts", async () => {
+    const { chatStreamBaseUrlFor } = await import("./apiBase");
+    expect(chatStreamBaseUrlFor("transparent.city")).toBe("https://api.transparent.city");
+    expect(chatStreamBaseUrlFor("app.transparent.city")).toBe("https://api.transparent.city");
+  });
+
+  it("keeps the same-origin proxy route everywhere else", async () => {
+    const { chatStreamBaseUrlFor } = await import("./apiBase");
+    // www redirects to the apex and is not in the API's CORS allow-list.
+    expect(chatStreamBaseUrlFor("www.transparent.city")).toBeNull();
+    expect(chatStreamBaseUrlFor("ui-git-branch.vercel.app")).toBeNull();
+    expect(chatStreamBaseUrlFor("localhost")).toBeNull();
+    expect(chatStreamBaseUrlFor(undefined)).toBeNull();
+  });
+});
