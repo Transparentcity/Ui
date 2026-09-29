@@ -42,6 +42,8 @@ describe("buildChoroplethDualPanels", () => {
     expect(panels).toHaveLength(2);
     expect(panels![0].label).toBe("2024");
     expect(panels![1].label).toBe("2025");
+    expect(panels![0].period).toBe("prior");
+    expect(panels![1].period).toBe("current");
     expect(panels![0].lockedViewKey).toBe("choro:10");
     expect(panels![1].lockedViewKey).toBe("choro:10");
   });
@@ -82,6 +84,26 @@ describe("buildChoroplethDualPanels", () => {
 
     expect(panels![1].count).toBe(2);
     expect(panels![1].countNoun).toBe("districts");
+  });
+
+  it("omits summed headers for non-additive averages and ratios", () => {
+    const current = savedMap(
+      { "10": { rows: [{ district: "a", value: 12.5 }, { district: "b", value: 20 }] } },
+      { additive: false, aggregation_type: "AVG" }
+    );
+    const prior = savedMap(
+      { "10": { rows: [{ district: "a", value: 10 }, { district: "b", value: 18 }] } },
+      { additive: false, aggregation_type: "AVG" }
+    );
+    const panels = buildChoroplethDualPanels(
+      current,
+      prior,
+      { kind: "choropleth", shapeLayerId: "10", label: "Districts" },
+      { prior: "2024", current: "2025" }
+    );
+
+    expect(panels![0].count).toBeUndefined();
+    expect(panels![1].count).toBeUndefined();
   });
 
   it("returns null when comparison map is missing", () => {

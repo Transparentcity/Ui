@@ -20,6 +20,10 @@ import {
 } from "@/lib/mapUtils";
 import { normalizePointData } from "@/lib/mapPointNormalize";
 import {
+  type ChoroplethValueConfig,
+  formatChoroplethValue,
+} from "@/lib/maps/formatChoroplethValue";
+import {
   buildAggregatedItemsHtml,
   escapeHtml,
   pickPointDate,
@@ -1372,17 +1376,21 @@ export default function ProgressiveMapView({
       mapInstance.off("mouseenter", "choropleth-fill");
       mapInstance.off("mouseleave", "choropleth-fill");
       
-      const itemNoun = (mapData.map_config?.item_noun as string) || "items";
       mapInstance.on("mouseenter", "choropleth-fill", (e: any) => {
         if (!e.features || e.features.length === 0) return;
         const feature = e.features[0];
         const props = feature.properties;
         const districtId = props.district_id || "Unknown";
-        const value = props.value !== null && props.value !== undefined ? props.value.toLocaleString() : "No data";
+        // Rate metrics render as "32.9%"; counts keep "<value> <noun>".
+        const valueLabel = formatChoroplethValue(
+          props.value,
+          mapData.map_config as ChoroplethValueConfig | undefined,
+          { fallback: "No data" }
+        );
 
         popup
           .setLngLat(e.lngLat)
-          .setHTML(`<div class="map-popup"><strong>${shapeLayer.display_name} ${districtId}</strong><br/>${value} ${itemNoun}</div>`)
+          .setHTML(`<div class="map-popup"><strong>${shapeLayer.display_name} ${districtId}</strong><br/>${valueLabel}</div>`)
           .addTo(mapInstance);
       });
 

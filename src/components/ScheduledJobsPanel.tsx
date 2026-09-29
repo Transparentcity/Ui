@@ -1177,7 +1177,7 @@ export default function ScheduledJobsPanel({
               <div className={styles.formRow}>
                 <label className={styles.label}>
                   Model{" "}
-                  <span style={{ fontWeight: 400 }}>(leave blank to use server default: <code>claude-sonnet-4.6</code>)</span>
+                  <span style={{ fontWeight: 400 }}>(leave blank to use server default: <code>claude-sonnet-5</code>)</span>
                 </label>
                 <select
                   className={styles.input}
@@ -1185,7 +1185,7 @@ export default function ScheduledJobsPanel({
                   onChange={(e) => setEditForm({ ...editForm, model_key: e.target.value })}
                   aria-label="Model"
                 >
-                  <option value="">— server default (claude-sonnet-4.6) —</option>
+                  <option value="">— server default (claude-sonnet-5) —</option>
                   {availableModels.flatMap((group) =>
                     group.models.map((model) => (
                       <option key={model.key} value={model.key}>

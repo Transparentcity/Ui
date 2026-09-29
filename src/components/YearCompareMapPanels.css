@@ -24,6 +24,14 @@
   min-height: 0;
 }
 
+.year-compare-map-panel .view-full-map-link-row {
+  padding-top: 0.15rem;
+}
+
+.year-compare-map-panels--compact .view-full-map-link {
+  font-size: 0.75rem;
+}
+
 .year-compare-map-panel-header {
   display: flex;
   align-items: baseline;

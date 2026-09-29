@@ -3,7 +3,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/contexts/ThemeContext";
+import { isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
 import styles from "./TimeSeriesChart.module.css";
+import {
+  getDateFromISOWeek,
+  getISOWeeksInYear,
+  getISOYearAndWeek,
+} from "./isoWeek";
 import {
   formatYtdHoverLabel,
   formatYtdLegendLabel,
@@ -13,6 +19,11 @@ import {
   niceYAxisMax,
   trailingSevenDayAverage,
 } from "./timeSeriesChartYtd";
+import {
+  buildAnomalyOverlayTraces,
+  overlayBandBounds,
+  type AnomalyOverlay,
+} from "./anomalyOverlay";
 
 // Dynamically import Plotly to avoid SSR issues
 const Plot = dynamic(
@@ -77,6 +88,10 @@ export interface TimeSeriesChartProps {
     period_type?: string; // Source data period type (day, week, month, year)
     district?: number | null; // District number (0 = citywide)
     city_name?: string;
+    /** Unit of the plotted value, e.g. "percentage" for ratio/rate metrics. */
+    value_unit?: string | null;
+    /** Metric's unit of measure (Days, Minutes, Permits, ...) for value labels. */
+    item_noun?: string | null;
   };
   height?: number;
   defaultPeriod?: PeriodType;
@@ -94,23 +109,29 @@ export interface TimeSeriesChartProps {
   /** Override automatic compact layout for dense multi-group YTD charts. */
   layoutDensity?: "auto" | "default" | "compact";
   /**
-   * Anomaly overlay – renders a ±2σ band, comparison mean line, and recent-period highlight
-   * on top of the live time series without needing a pre-computed chart_payload.
+   * Slim anomaly stats overlay: full live series plus comparison mean, ±σ band,
+   * and recent-period highlight. Shown only when the selected grain matches.
    */
-  anomalyOverlay?: {
-    /** Historical mean (center of the ±2σ band). */
-    comparisonMean: number;
-    /** Standard deviation (half-width of the ±2σ band). */
-    stddev: number;
-    /** Start of the recent (flagged) period — ISO date string (YYYY-MM-DD). */
-    recentStart?: string;
-    /** End of the recent (flagged) period — ISO date string (YYYY-MM-DD). */
-    recentEnd?: string;
-    /** % change label shown in the legend (e.g. +23%). */
-    pctChange?: number;
-    /** True = anomaly was flagged (affects highlight colour). */
-    isAnomaly?: boolean;
-  };
+  anomalyOverlay?: AnomalyOverlay | null;
+}
+
+/**
+ * Build the unit suffix shown after a value, e.g. "3" -> "3 days".
+ *
+ * Percentage nouns are dropped ("35.0% percent" reads badly). Single title-case
+ * words are lowercased so they read naturally mid-sentence. Anything with
+ * internal capitals is left alone to preserve acronyms and compound units such
+ * as "MPH" and "MPN/100mL".
+ */
+function formatItemNounSuffix(itemNoun?: string | null): string {
+  const noun = itemNoun?.trim();
+  if (!noun || isPercentageNoun(noun)) {
+    return "";
+  }
+
+  const isSimpleWord = /^[A-Za-z]+$/.test(noun);
+  const isAcronym = noun === noun.toUpperCase();
+  return ` ${isSimpleWord && !isAcronym ? noun.toLowerCase() : noun}`;
 }
 
 /**
@@ -130,28 +151,6 @@ const SERIES_COLORS = [
   "#bc80bd", // Purple
   "#ccebc5", // Mint green
 ];
-
-/**
- * Returns the number of ISO weeks in a given year (52 or 53).
- * Dec 28 is always in the last ISO week of the year.
- */
-function getISOWeeksInYear(year: number): number {
-  return getISOYearAndWeek(new Date(year, 11, 28)).isoWeek;
-}
-
-/**
- * Get ISO year and week for a date (handles year boundaries correctly).
- * Returns {isoYear, isoWeek} where isoYear is the ISO year (may differ from calendar year).
- */
-function getISOYearAndWeek(date: Date): { isoYear: number; isoWeek: number } {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const isoWeek = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  const isoYear = d.getUTCFullYear();
-  return { isoYear, isoWeek };
-}
 
 /**
  * Get day of year (1-366) for a date.
@@ -857,10 +856,21 @@ export default function TimeSeriesChart({
   embeddedMode = false,
   parentProvidesTitle = false,
   layoutDensity = "auto",
-  anomalyOverlay,
+  anomalyOverlay = null,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
+
+  // Ratio/rate metrics are stored as percentages (e.g. 31.85 meaning 31.85%), so
+  // axis ticks and hover readouts need a "%" suffix and a decimal place to read
+  // correctly rather than looking like a bare count.
+  const isPercentageUnit = metadata?.value_unit === "percentage";
+  const valueFormat = isPercentageUnit ? ",.1f" : ",.0f";
+  // "%" already reads as a unit, so it wins over the metric's item noun (which
+  // for those metrics is itself percentage wording like "Percent" or "% Closed").
+  const valueSuffix = isPercentageUnit
+    ? "%"
+    : formatItemNounSuffix(metadata?.item_noun);
 
   // Detect narrow screens for compact chart layout
   const [isMobile, setIsMobile] = useState(false);
@@ -874,9 +884,11 @@ export default function TimeSeriesChart({
 
   // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
   // Only fall back to metadata.period_type if no explicit default was provided
-  const effectiveDefaultPeriod = defaultPeriod !== "month" 
-    ? defaultPeriod  // Explicit override (not the default value)
-    : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
+  const effectiveDefaultPeriod = anomalyOverlay?.periodType
+    ? anomalyOverlay.periodType
+    : defaultPeriod !== "month"
+      ? defaultPeriod
+      : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
   // Default to "by series" lines; one-click toggle to stacked areas
@@ -897,9 +909,11 @@ export default function TimeSeriesChart({
         ? fillMissingYTDPeriods(rawAggregated)
         : fillMissingPeriods(rawAggregated, periodType);
     const { filtered, partialInfo } = filterPartialPeriods(gapFilled, periodType, data);
-    const limited = limitToDefaultRange(filtered, periodType);
+    const limited = anomalyOverlay
+      ? filtered
+      : limitToDefaultRange(filtered, periodType);
     return { aggregatedByGroup: limited, partialPeriodInfo: partialInfo };
-  }, [data, periodType]);
+  }, [data, periodType, anomalyOverlay]);
 
   // Check if we have group values
   const hasGroups = useMemo(() => {
@@ -1047,7 +1061,7 @@ export default function TimeSeriesChart({
                 marker: { color: avgLineStyle.color, size: useCompactLayout ? 4 : 5 },
                 showlegend: true,
                 ...legendMeta,
-                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", {
@@ -1070,7 +1084,7 @@ export default function TimeSeriesChart({
                   line: { ...avgLineStyle, dash: "dot" },
                   marker: { color: avgLineStyle.color, size: useCompactLayout ? 4 : 5 },
                   showlegend: false,
-                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
                     return date.toLocaleDateString("en-US", {
@@ -1112,7 +1126,7 @@ export default function TimeSeriesChart({
                 line: avgLineStyle,
                 showlegend: true,
                 ...legendMeta,
-                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `${hoverSeriesName}<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: completeX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", {
@@ -1148,7 +1162,7 @@ export default function TimeSeriesChart({
                   name: `${legendName} (incomplete)`,
                   line: { ...avgLineStyle, dash: "dot" },
                   showlegend: false,
-                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                  hovertemplate: `${hoverSeriesName} (incomplete est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                   customdata: incompleteX.map((dayOfYear) => {
                     const date = new Date(year, 0, dayOfYear);
                     return date.toLocaleDateString("en-US", {
@@ -1216,7 +1230,7 @@ export default function TimeSeriesChart({
               line: { color: lineColor, width: 2 },
               marker: { color: lineColor, size: 5 },
               showlegend: true,
-              hovertemplate: `${yearStr}<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${yearStr}<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
               customdata: completeX.map((dayOfYear) => {
                 const date = new Date(year, 0, dayOfYear);
                 return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1234,7 +1248,7 @@ export default function TimeSeriesChart({
                 line: { color: lineColor, width: 2, dash: "dot" },
                 marker: { color: lineColor, size: 5 },
                 showlegend: false,
-                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: incompleteX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1275,7 +1289,7 @@ export default function TimeSeriesChart({
               name: `${yearStr} 7-Day Avg`,
               line: { color: lineColor, width: 2 },
               showlegend: true,
-              hovertemplate: `${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${yearStr} 7-Day Avg<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
               customdata: completeX.map((dayOfYear) => {
                 const date = new Date(year, 0, dayOfYear);
                 return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1305,7 +1319,7 @@ export default function TimeSeriesChart({
                 name: "Incomplete",
                 line: { color: lineColor, width: 2, dash: "dot" },
                 showlegend: false,
-                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:,.0f}<extra></extra>`,
+                hovertemplate: `Incomplete (est.)<br>%{customdata}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
                 customdata: incompleteX.map((dayOfYear) => {
                   const date = new Date(year, 0, dayOfYear);
                   return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -1394,7 +1408,7 @@ export default function TimeSeriesChart({
             fill: isFirst ? "tozeroy" : "tonexty",
             line: { color, width: 0 },
             fillcolor: color,
-            hovertemplate: `${seriesName}<br>%{x|${dateFormat}}<br>%{customdata:,.0f}<extra></extra>`,
+            hovertemplate: `${seriesName}<br>%{x|${dateFormat}}<br>%{customdata:${valueFormat}}${valueSuffix}<extra></extra>`,
           });
         });
       } else {
@@ -1425,19 +1439,7 @@ export default function TimeSeriesChart({
           const points = aggregatedByGroup.get(groupValue)!;
           if (points.length === 0) return;
 
-          const x = points.map((point) => {
-            if (periodType === "week" && point.time_period.includes("W")) {
-              const [year, week] = point.time_period.split("-W");
-              return getDateFromISOWeek(parseInt(year), parseInt(week));
-            } else if (periodType === "month" && point.time_period.match(/^\d{4}-\d{2}$/)) {
-              const [year, month] = point.time_period.split("-");
-              return new Date(parseInt(year), parseInt(month) - 1, 1);
-            } else if (periodType === "year") {
-              return new Date(parseInt(point.time_period), 0, 1);
-            } else {
-              return new Date(point.time_period);
-            }
-          });
+          const x = points.map((point) => parsePlottedDate(point.time_period, periodType));
 
           const y = points.map((point) => point.numeric_value);
 
@@ -1486,7 +1488,7 @@ export default function TimeSeriesChart({
                 color,
                 size: 6,
               },
-              hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${hoverPrefix}%{x|${dateFormat}}<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
             });
           }
 
@@ -1503,7 +1505,7 @@ export default function TimeSeriesChart({
               marker: { color, size: 6 },
               // Keep the series in the legend when the entire line is incomplete.
               showlegend: completeX.length === 0,
-              hovertemplate: `${hoverPrefix}%{x|${dateFormat}} (incomplete)<br>%{y:,.0f}<extra></extra>`,
+              hovertemplate: `${hoverPrefix}%{x|${dateFormat}} (incomplete)<br>%{y:${valueFormat}}${valueSuffix}<extra></extra>`,
             });
           }
         });
@@ -1525,98 +1527,33 @@ export default function TimeSeriesChart({
             hoverinfo: "skip",
           });
         }
-      }
-    }
 
-    // Anomaly overlay: ±2σ band, comparison mean, recent-period highlight
-    if (anomalyOverlay && periodType !== "ytd") {
-      const { comparisonMean, stddev, pctChange, isAnomaly } = anomalyOverlay;
-
-      // Collect all x-axis dates from the main series for the band span
-      const allDates: string[] = [];
-      for (const points of aggregatedByGroup.values()) {
-        for (const pt of points) {
-          if (pt.time_period && !allDates.includes(pt.time_period)) {
-            allDates.push(pt.time_period);
-          }
-        }
-      }
-      allDates.sort();
-
-      if (allDates.length > 0 && stddev > 0) {
-        const upper = allDates.map(() => comparisonMean + 2 * stddev);
-        const lower = allDates.map(() => Math.max(comparisonMean - 2 * stddev, 0));
-
-        // Invisible lower bound (anchor for fill)
-        traces.push({
-          x: allDates,
-          y: lower,
-          type: "scatter",
-          mode: "lines",
-          line: { color: "rgba(0,0,0,0)", width: 0 },
-          showlegend: false,
-          hoverinfo: "skip",
-          name: "__anomaly_lower__",
-        });
-
-        // Upper bound fills to the lower → shaded ±2σ band
-        traces.push({
-          x: allDates,
-          y: upper,
-          type: "scatter",
-          mode: "lines",
-          line: { color: "rgba(74,116,99,0.35)", width: 1 },
-          fill: "tonexty",
-          fillcolor: "rgba(74,116,99,0.12)",
-          name: "Normal Range (\u00b12\u03c3)",
-          showlegend: true,
-          hoverinfo: "skip",
-        });
-      }
-
-      // Comparison mean as a horizontal dashed line
-      if (allDates.length > 0) {
-        const changeLabel =
-          pctChange !== undefined
-            ? ` (${pctChange >= 0 ? "+" : ""}${Math.round(pctChange)}%)`
-            : "";
-        traces.push({
-          x: [allDates[0], allDates[allDates.length - 1]],
-          y: [comparisonMean, comparisonMean],
-          type: "scatter",
-          mode: "lines",
-          name: `Historical Mean${changeLabel}`,
-          line: { color: "rgba(74,116,99,0.85)", width: 1.5, dash: "dash" },
-          showlegend: true,
-          hoverinfo: "skip",
-        });
-      }
-
-      // Recent-period highlight: a different-colored marker set
-      if (anomalyOverlay.recentStart && anomalyOverlay.recentEnd) {
-        const rs = anomalyOverlay.recentStart;
-        const re = anomalyOverlay.recentEnd;
-        const recentPts: Array<{ x: string; y: number }> = [];
-        for (const points of aggregatedByGroup.values()) {
-          for (const pt of points) {
-            if (pt.time_period >= rs && pt.time_period <= re) {
-              recentPts.push({ x: pt.time_period, y: pt.numeric_value });
+        if (
+          anomalyOverlay &&
+          anomalyOverlay.periodType === periodType &&
+          (!hasGroups || groupValues.length === 1)
+        ) {
+          const points = aggregatedByGroup.get(groupValues[0]) || [];
+          const overlayX = points.map((point) =>
+            parsePlottedDate(point.time_period, periodType),
+          );
+          const overlayY = points.map((point) => point.numeric_value);
+          for (const t of traces) {
+            if (t.visible === "legendonly") continue;
+            t.line = { ...(t.line || {}), color: "#999999", width: 1.5 };
+            t.marker = { ...(t.marker || {}), color: "#999999", size: 4 };
+            if (t.showlegend !== false) {
+              t.name = "History";
+              t.showlegend = false;
             }
           }
-        }
-        if (recentPts.length > 0) {
-          recentPts.sort((a, b) => a.x.localeCompare(b.x));
-          const highlightColor = isAnomaly ? "#f04e23" : "#ad35fa";
-          traces.push({
-            x: recentPts.map((p) => p.x),
-            y: recentPts.map((p) => p.y),
-            type: "scatter",
-            mode: "markers",
-            name: "Recent Period",
-            marker: { color: highlightColor, size: 9, symbol: "circle" },
-            showlegend: true,
-            hoverinfo: "skip",
-          });
+          const overlayTraces = buildAnomalyOverlayTraces(
+            overlayX,
+            overlayY,
+            anomalyOverlay,
+          );
+          traces.unshift(...overlayTraces.slice(0, 3));
+          traces.push(...overlayTraces.slice(3));
         }
       }
     }
@@ -1632,6 +1569,8 @@ export default function TimeSeriesChart({
     useCompactLayout,
     showPriorYear,
     anomalyOverlay,
+    valueFormat,
+    valueSuffix,
   ]);
 
   const chartTitleText =
@@ -1712,6 +1651,10 @@ export default function TimeSeriesChart({
         }
       }
     }
+    if (anomalyOverlay && anomalyOverlay.periodType === periodType) {
+      const { upper } = overlayBandBounds(anomalyOverlay);
+      if (upper > max) max = upper;
+    }
     return max > 0 ? max * 1.1 : 10;
   }, [
     aggregatedByGroup,
@@ -1720,6 +1663,7 @@ export default function TimeSeriesChart({
     periodType,
     useCompactLayout,
     showPriorYear,
+    anomalyOverlay,
   ]);
 
   // Use lighter, more visible colors in dark mode
@@ -1816,6 +1760,7 @@ export default function TimeSeriesChart({
           gridcolor: gridColor,
           zeroline: false,
           range: [0, maxYValue],
+          ...(isPercentageUnit && { ticksuffix: "%" }),
           tickfont: {
             family: PLOT_AXIS_FONT_FAMILY,
             size: isMobile ? 8 : 9,
@@ -1965,6 +1910,7 @@ export default function TimeSeriesChart({
         showgrid: true,
         gridcolor: gridColor,
         range: [0, maxYValue],
+        ...(isPercentageUnit && { ticksuffix: "%" }),
         tickfont: {
           family: PLOT_AXIS_FONT_FAMILY,
           size: isMobile ? 8 : 10,
@@ -1993,7 +1939,7 @@ export default function TimeSeriesChart({
           color: hoverTextColor,
         },
       },
-      showlegend: (hasGroups && traces.length > 1) || !!anomalyOverlay,
+      showlegend: hasGroups && traces.length > 1,
       legend: {
         orientation: "h" as const,
         x: 0.5,
@@ -2009,7 +1955,7 @@ export default function TimeSeriesChart({
       },
       height,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, anomalyOverlay]);
+  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, isPercentageUnit]);
 
   const config = {
     responsive: true,
@@ -2165,24 +2111,30 @@ export default function TimeSeriesChart({
 }
 
 /**
- * Get date from ISO week number and year.
- * Uses proper ISO week calculation to handle year boundaries correctly.
+ * Parse a stored time_period into a local Date for plotting.
+ * YYYY-MM-DD must be local midnight, not UTC, or overlay windows miss by a day.
  */
-function getDateFromISOWeek(isoYear: number, isoWeek: number): Date {
-  // Create a date for January 4th of the ISO year (always in week 1)
-  const jan4 = new Date(isoYear, 0, 4);
-  const jan4Day = jan4.getDay() || 7; // Convert Sunday (0) to 7
-  
-  // Calculate the first Monday of the year (ISO week starts on Monday)
-  const daysToMonday = (8 - jan4Day) % 7;
-  const firstMonday = new Date(jan4);
-  firstMonday.setDate(jan4.getDate() + daysToMonday);
-  
-  // Calculate the target date by adding weeks
-  const targetDate = new Date(firstMonday);
-  targetDate.setDate(firstMonday.getDate() + (isoWeek - 1) * 7);
-  
-  return targetDate;
+function parsePlottedDate(timePeriod: string, periodType: PeriodType): Date {
+  if (periodType === "week" && timePeriod.includes("W")) {
+    const [year, week] = timePeriod.split("-W");
+    return getDateFromISOWeek(parseInt(year, 10), parseInt(week, 10));
+  }
+  const ymd = timePeriod.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymd) {
+    return new Date(
+      parseInt(ymd[1], 10),
+      parseInt(ymd[2], 10) - 1,
+      parseInt(ymd[3], 10),
+    );
+  }
+  if (periodType === "month" && timePeriod.match(/^\d{4}-\d{2}$/)) {
+    const [year, month] = timePeriod.split("-");
+    return new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+  }
+  if (periodType === "year" && /^\d{4}$/.test(timePeriod.trim())) {
+    return new Date(parseInt(timePeriod, 10), 0, 1);
+  }
+  return new Date(timePeriod);
 }
 
 /**

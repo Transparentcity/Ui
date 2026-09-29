@@ -1169,13 +1169,21 @@ export type MapSaveResponse = {
   map_id: number;
 };
 
+export type MapSaveRequest = MapPreviewRequest & {
+  /** Persist a single-period map instead of year-compare for YTD permalinks. */
+  include_comparison?: boolean;
+  /** Lock the saved map's default view to match the embed the user clicked. */
+  view_type?: "points" | "choropleth";
+  shape_layer_instance_id?: number | null;
+};
+
 /**
  * Save a map to the database (called when user clicks "View full map").
  * Returns the hash/URL for navigation to the full map page.
  */
 export async function saveMetricMap(
   metricId: number,
-  request: MapPreviewRequest
+  request: MapSaveRequest
 ): Promise<MapSaveResponse> {
   const url = `${resolvePublicApiBaseUrl()}/api/public/metrics/${metricId}/map-save`;
   

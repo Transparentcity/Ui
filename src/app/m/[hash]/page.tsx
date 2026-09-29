@@ -1390,6 +1390,11 @@ export default function PublicMapPage() {
       }
       return null;
     }
+    // Rates and averages cannot be added into a headline total — summing seven
+    // district percentages produced a meaningless "430 Days". The backend marks
+    // these maps additive: false, so show no total rather than a wrong one.
+    if (m.map_config?.additive === false) return null;
+
     const aggregations = m.map_config?.aggregations as Record<string, { rows?: Array<{ value?: number; count?: number }> }> | undefined;
     if (aggregations && typeof aggregations === "object") {
       for (const key of Object.keys(aggregations)) {

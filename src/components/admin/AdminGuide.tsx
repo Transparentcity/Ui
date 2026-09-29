@@ -196,20 +196,21 @@ function SchematicFigure({ g }: { g: CityGuide }) {
           {arrow(810, 302, 810, 330)}
           {arrow(440, 250, 440, 330, "tables, charts", 432, 294, { anchor: "end" })}
 
-          {box(400, 332, 140, 78, `${g.cityName} dashboard`, "Overview · All metrics", `transparent.city/c/${g.citySlug}`)}
+          {/* Wider than its neighbours so long city names (Kansas City, San Francisco) fit. */}
+          {box(372, 332, 186, 78, `${g.cityName} dashboard`, "Overview · All metrics", `/c/${g.citySlug}`)}
           {box(570, 332, 140, 78, "Story pages", "one public page", "per story")}
           {box(740, 332, 140, 78, "Sunday newsletter", "shared edition, or", "personalized per reader")}
 
-          <rect x={400} y={444} width={480} height={36} rx={8} fill="currentColor" fillOpacity={0.08} stroke="none" />
-          <text x={640} y={467} textAnchor="middle" fontSize={T} fontWeight={600} fill="currentColor">
+          <rect x={372} y={444} width={508} height={36} rx={8} fill="currentColor" fillOpacity={0.08} stroke="none" />
+          <text x={626} y={467} textAnchor="middle" fontSize={T} fontWeight={600} fill="currentColor">
             {g.cityName} residents, reporters and officials
           </text>
-          {arrow(470, 410, 470, 442)}
+          {arrow(465, 410, 465, 442)}
           {arrow(640, 410, 640, 442)}
           {arrow(810, 410, 810, 442)}
 
           {box(20, 332, 150, 78, "You also edit", "dashboard order, stories,", "leaders and districts", { dashed: true })}
-          {arrow(170, 371, 398, 371, "display settings", 284, 362)}
+          {arrow(170, 371, 370, 371, "display settings", 270, 362)}
         </svg>
       </div>
       <figcaption className={styles.figcaption}>

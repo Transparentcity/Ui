@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Settings } from "lucide-react";
 
 import {
   getDbUserProfile,
@@ -41,6 +42,8 @@ const EDITIONS_INITIAL_LIMIT = 3;
 
 interface BriefingHomeProps {
   cityId: number;
+  /** City display name used by city administration controls. */
+  cityName: string;
   /** Scope title for the hero card, e.g. "San Francisco", "District 2", "Bay St". */
   scopeLabel: string;
   /** Context line under the title, e.g. "San Francisco · Russian Hill · 300m". */
@@ -77,6 +80,8 @@ interface BriefingHomeProps {
   neighborhoodNavMode?: boolean;
   /** Open the official/place selector (hero title chevron). */
   onOpenScopeSelector?: () => void;
+  /** Show city administration settings for platform admins and city leads. */
+  onAdminClick?: () => void;
   /** Open the selector from the personalize nudge: the next district the user
    *  picks is followed for them (with a toast). */
   onOpenScopeSelectorToFollow?: () => void;
@@ -355,6 +360,7 @@ function HeroBraces({ children }: { children: React.ReactNode }) {
  */
 export default function BriefingHome({
   cityId,
+  cityName,
   scopeLabel,
   scopeContext,
   selectedDistrict,
@@ -377,6 +383,7 @@ export default function BriefingHome({
   geographicUnitLabel = "District",
   neighborhoodNavMode = false,
   onOpenScopeSelector,
+  onAdminClick,
   onOpenScopeSelectorToFollow,
   placeJobRunning = false,
   placeLoadingLabel,
@@ -759,29 +766,44 @@ export default function BriefingHome({
           </span>
         </button>
 
-        {isPlaceScope && selectedPlaceId != null && (
-          <button
-            type="button"
-            className={styles.heroEditButton}
-            onClick={() => emitOpenEditPlace(selectedPlaceId)}
-            aria-label="Edit this place"
-            title="Edit place"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </svg>
-          </button>
+        {(onAdminClick || (isPlaceScope && selectedPlaceId != null)) && (
+          <div className={styles.heroActions}>
+            {isPlaceScope && selectedPlaceId != null && (
+              <button
+                type="button"
+                className={styles.heroEditButton}
+                onClick={() => emitOpenEditPlace(selectedPlaceId)}
+                aria-label="Edit this place"
+                title="Edit place"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+            )}
+            {onAdminClick && (
+              <button
+                type="button"
+                className={styles.heroEditButton}
+                onClick={onAdminClick}
+                aria-label={`Open ${cityName} settings`}
+                title={`${cityName} settings`}
+              >
+                <Settings size={18} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
 
         {/* Full-width scope map. Place scope gets the Week Replay animation
