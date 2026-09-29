@@ -21,6 +21,7 @@ export type MetricDatasetFields = {
   source_url?: string | null;
   data_sf_url?: string | null;
   map_query?: string | null;
+  data_source_type?: string | null;
 };
 
 const SOCRATA_ID_RE = /^[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}$/;
@@ -44,6 +45,22 @@ export function extractSocrataDatasetId(endpoint?: string | null): string | null
   return anyMatch ? anyMatch[1].toLowerCase() : null;
 }
 
+/**
+ * Readable name for a file source: the file name from its URL
+ * ("Master data PUBLIC ACCESSIBLE.xlsx"), or the host when the URL has none.
+ */
+export function fileNameFromUrl(url?: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const last = parsed.pathname.split("/").filter(Boolean).pop() ?? "";
+    if (/\.[a-z0-9]{2,5}$/i.test(last)) return decodeURIComponent(last);
+    return parsed.hostname;
+  } catch {
+    return null;
+  }
+}
+
 export function resolveMetricDatasetAttribution(
   metric: MetricDatasetFields,
   options?: {
@@ -55,14 +72,21 @@ export function resolveMetricDatasetAttribution(
   datasetId: string | null;
   datasetUrl: string | null;
 } {
-  const datasetId = extractSocrataDatasetId(metric.endpoint);
+  // File sources (CSV/XLSX at a URL) have no Socrata id; their URLs can contain
+  // accidental 4-4 matches (e.g. "data-portal" -> "data-port").
+  const isFileSource = metric.data_source_type === "file";
+  const datasetId = isFileSource ? null : extractSocrataDatasetId(metric.endpoint);
   const datasetName =
     (metric.dataset_name?.trim() || null) ||
     (metric.dataset_title?.trim() || null) ||
-    datasetId;
+    (isFileSource ? fileNameFromUrl(metric.source_url || metric.endpoint) : datasetId);
 
   const explicitUrl =
-    (metric.source_url?.trim() || null) || (metric.data_sf_url?.trim() || null);
+    (metric.source_url?.trim() || null) ||
+    (metric.data_sf_url?.trim() || null) ||
+    (isFileSource && metric.endpoint?.startsWith("https://")
+      ? metric.endpoint.trim()
+      : null);
 
   let datasetUrl = explicitUrl;
   if (!datasetUrl && datasetId) {
