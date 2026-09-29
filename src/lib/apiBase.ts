@@ -100,6 +100,40 @@ export function getUpstreamApiBaseUrl(): string {
 
 export const API_BASE_FOR_ASSETS = getApiBaseUrlForAssets();
 
+/**
+ * Hosts whose browser origin the FastAPI backend lists in its CORS allowlist
+ * (see `_PRODUCTION_ORIGINS` in the platform repo's `api/main.py`).
+ */
+const DIRECT_STREAM_HOSTS = new Set([
+  "transparent.city",
+  "www.transparent.city",
+  "app.transparent.city",
+]);
+
+/**
+ * Origin for the Seymour SSE stream (`/api/chat/message/stream`).
+ *
+ * On the live site the browser talks to the backend directly instead of going
+ * through the Next.js route handler on Vercel. A Vercel Function is killed at
+ * its max duration (300s by default) and its response body is capped at
+ * 4.5 MB; a long tool-heavy Seymour answer trips both, the browser sees the
+ * body end abruptly (Chrome reports it as "network error"), and every LLM call
+ * the backend already made is lost. The backend's nginx and CORS config
+ * already accept the browser's origin, so nothing on Vercel needs to sit in
+ * the middle.
+ *
+ * Preview deployments and local dev keep the same-origin path, because the
+ * backend does not allow their origins.
+ */
+export function getChatStreamBaseUrl(
+  hostname: string | undefined = globalThis.window?.location?.hostname
+): string {
+  if (hostname && DIRECT_STREAM_HOSTS.has(hostname)) {
+    return getApiBaseUrlForAssets();
+  }
+  return getApiBaseUrl();
+}
+
 // Default city used by CRM pages; configurable via env.
 export const CRM_DEFAULT_CITY_ID = Number(
   process.env.NEXT_PUBLIC_CRM_CITY_ID ?? 57260

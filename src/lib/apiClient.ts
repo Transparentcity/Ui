@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
-import { getApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl, getChatStreamBaseUrl } from "./apiBase";
 import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
 import { PREFERRED_DEFAULT_MODEL_KEY } from "./modelDefaults";
 
@@ -3045,19 +3045,30 @@ export async function sendChatMessageStream(
   onEvent: (event: StreamEvent) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  const url = `${getApiBaseUrl()}/api/chat/message/stream`;
+  const url = `${getChatStreamBaseUrl()}/api/chat/message/stream`;
 
   let lastError: unknown = null;
+  // Events delivered by the attempt that failed. Once the backend has sent
+  // anything (the first event is always `session_id`), Seymour is already
+  // running; re-sending the message would start a second full agent run on
+  // top of the first, doubling tokens and cost for the same question.
+  let eventsInFailedAttempt = 0;
 
   for (let attempt = 0; attempt <= MAX_STREAM_RETRIES; attempt++) {
     if (abortSignal?.aborted) return;
+
+    let eventsThisAttempt = 0;
+    const countingOnEvent = (event: StreamEvent) => {
+      eventsThisAttempt++;
+      onEvent(event);
+    };
 
     try {
       await _executeChatStream(
         url,
         request,
         token,
-        onEvent,
+        countingOnEvent,
         abortSignal
       );
 
@@ -3065,6 +3076,7 @@ export async function sendChatMessageStream(
       return;
     } catch (error) {
       lastError = error;
+      eventsInFailedAttempt = eventsThisAttempt;
 
       const isAbortError =
         error instanceof Error &&
@@ -3090,6 +3102,20 @@ export async function sendChatMessageStream(
         break;
       }
 
+      // Only retry when the connection failed before the backend produced
+      // anything. A drop mid-stream is not recoverable by replaying the
+      // message: the agent run it interrupted is gone and a new one would be
+      // billed in full.
+      if (eventsThisAttempt > 0) {
+        console.warn(
+          "⚠️ Stream dropped mid-response after",
+          eventsThisAttempt,
+          "events; not retrying",
+          error
+        );
+        break;
+      }
+
       const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
       console.warn(
         `⚠️ Stream network error (attempt ${attempt + 1}/${MAX_STREAM_RETRIES + 1}), retrying in ${delay}ms...`,
@@ -3102,13 +3128,15 @@ export async function sendChatMessageStream(
 
   // All retries exhausted -- forward the error
   if (lastError) {
+    const detail =
+      lastError instanceof Error ? lastError.message : String(lastError);
     try {
       onEvent({
         type: "error",
         content:
-          lastError instanceof Error
-            ? lastError.message
-            : String(lastError),
+          eventsInFailedAttempt > 0
+            ? `The connection dropped while Seymour was still working (${detail}). Please send the message again.`
+            : detail,
       });
     } catch {
       // Callback may have been cleaned up
