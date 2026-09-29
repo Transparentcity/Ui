@@ -16,7 +16,6 @@ export function portalTypeDisplayName(portalType: string): string {
   if (p === "dcat_ap") return "DCAT-AP";
   if (p === "opendatasoft") return "Opendatasoft";
   if (p === "junar") return "Junar";
-  if (p === "file") return "File (CSV/XLSX)";
   return p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, " ");
 }
 

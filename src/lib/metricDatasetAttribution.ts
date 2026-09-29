@@ -77,6 +77,8 @@ export function resolveMetricDatasetAttribution(
   datasetName: string | null;
   datasetId: string | null;
   datasetUrl: string | null;
+  /** File sources only: the site that publishes the file (e.g. "data.ca.gov"). */
+  publisher: string | null;
 } {
   // File sources (CSV/XLSX at a URL) have no Socrata id; their URLs can contain
   // accidental 4-4 matches (e.g. "data-portal" -> "data-port").
@@ -112,7 +114,19 @@ export function resolveMetricDatasetAttribution(
     }
   }
 
-  return { datasetName, datasetId, datasetUrl };
+  let publisher: string | null = null;
+  if (isFileSource) {
+    try {
+      publisher = new URL(metric.source_url || metric.endpoint || "").hostname.replace(
+        /^www\./,
+        ""
+      );
+    } catch {
+      publisher = null;
+    }
+  }
+
+  return { datasetName, datasetId, datasetUrl, publisher };
 }
 
 /**

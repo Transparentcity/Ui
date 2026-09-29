@@ -679,7 +679,7 @@ export default function AnomalyChartPage() {
                       return portalUrl;
                     }
                   })() : null);
-                  const { datasetName, datasetUrl } = resolveMetricDatasetAttribution(
+                  const { datasetName, datasetUrl, publisher } = resolveMetricDatasetAttribution(
                     metricDetail,
                     { portalUrl, portalDomain }
                   );
@@ -704,15 +704,21 @@ export default function AnomalyChartPage() {
                     );
                   }
 
+                  const datasetLink = datasetUrl ? (
+                    <a href={datasetUrl} target="_blank" rel="noopener noreferrer" className="data-link">
+                      {datasetName}
+                    </a>
+                  ) : (
+                    <strong>{datasetName}</strong>
+                  );
+
+                  if (publisher) {
+                    return <>{datasetLink}, a public file published on {publisher}.</>;
+                  }
+
                   return (
                     <>
-                      {datasetUrl ? (
-                        <a href={datasetUrl} target="_blank" rel="noopener noreferrer" className="data-link">
-                          {datasetName}
-                        </a>
-                      ) : (
-                        <strong>{datasetName}</strong>
-                      )}
+                      {datasetLink}
                       {resolvedCityName && (
                         <>
                           , a public dataset maintained by {resolvedCityName}

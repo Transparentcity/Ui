@@ -75,6 +75,11 @@ describe("file sources", () => {
     expect(resolved.datasetId).toBeNull();
     expect(resolved.datasetName).toBe("Master data PUBLIC ACCESSIBLE.xlsx");
     expect(resolved.datasetUrl).toBe(url);
+    // Credited to the publishing site, not the city's portal.
+    expect(resolved.publisher).toBe("cdss.ca.gov");
+    expect(
+      resolveMetricDatasetAttribution({ endpoint: "i98e-djp9" }).publisher
+    ).toBeNull();
   });
 
   it("uses the host when the URL has no file name", () => {

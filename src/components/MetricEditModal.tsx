@@ -524,7 +524,7 @@ export default function MetricEditModal({
                 />
                 <div className={styles.muted} style={{ fontSize: 11, marginTop: 2 }}>
                   {isFileSource
-                    ? "https URL of a CSV, XLSX or JSON file on a public-sector host. For CKAN portals use the resource page URL; the current download is looked up on each run."
+                    ? "https URL of a CSV, XLSX or JSON file on a public-sector host or NextRequest portal. For CKAN portals use the resource page URL; the current download is looked up on each run."
                     : "Socrata endpoint ID (e.g., wg3w-h783) or full URL to the data source."}
                 </div>
               </div>
