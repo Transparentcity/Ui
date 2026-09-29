@@ -7,7 +7,6 @@ import UserProfile from "./UserProfile";
 import SessionList from "./SessionList";
 import JobSessionList from "./JobSessionList";
 import MyCities from "./MyCities";
-import ResearchList from "./ResearchList";
 import SidebarCitySearch, { type SidebarCitySelectOptions } from "./SidebarCitySearch";
 import SidebarRecentQuestions from "./SidebarRecentQuestions";
 import styles from "./Sidebar.module.css";
@@ -42,9 +41,6 @@ interface SidebarProps {
   activePlaceId?: number | null;
   /** Called when user clicks a saved place in My Places: open city with this place selected. */
   onPlaceClick?: (cityId: number, placeId: number) => void;
-  onResearchClick?: (reportId: number) => void;
-  currentResearchId?: number | null;
-  onResearchDeleted?: (reportId: number) => void;
   onCitySelect?: (cityId: number, opts?: SidebarCitySelectOptions) => void;
   onGPSLocation?: (location: { lat: number; lng: number } | null) => void;
   /** Called after user saves a personalized place from Search Cities (optional full place for navigation + metrics bootstrap). */
@@ -111,9 +107,6 @@ export default function Sidebar({
   userPlaces = [],
   activePlaceId,
   onPlaceClick,
-  onResearchClick,
-  currentResearchId,
-  onResearchDeleted,
   onCitySelect,
   onGPSLocation,
   onPlaceSaved,
@@ -137,7 +130,6 @@ export default function Sidebar({
     !!governmentEmail &&
     governmentEmail.toLowerCase() !== PREVIEW_GOV_EMAIL;
   const [recentChatsExpanded, setRecentChatsExpanded] = useState(false);
-  const [researchExpanded, setResearchExpanded] = useState(false);
   const [jobSessionsExpanded, setJobSessionsExpanded] = useState(false);
 
   // Auto-expand Job Sessions section when viewing a job session
@@ -147,11 +139,6 @@ export default function Sidebar({
     }
   }, [isCurrentSessionJobSession]);
 
-  useEffect(() => {
-    if (currentView === "research" || currentView === "research-new") {
-      setResearchExpanded(true);
-    }
-  }, [currentView]);
   
   // Generate unique IDs for logo masks
   const baseId = useId();
@@ -206,9 +193,6 @@ export default function Sidebar({
       document.body.style.overflow = prev;
     };
   }, [isOpen]);
-
-  // Research reports in nav: government-verified users or platform admins
-  const canAccessResearch = governmentVerified || isAdmin;
 
   // Helper to close sidebar in narrow mode after action
   const handleActionWithClose = (action: () => void) => {
@@ -513,51 +497,6 @@ export default function Sidebar({
             activeCityId={activeCityId}
             activeDistrict={activeDistrict != null ? String(activeDistrict) : undefined}
           />
-
-          {/* Research reports — government-verified or admin */}
-          {canAccessResearch && onResearchClick && (
-            <>
-              <div className={styles.navSectionSpacer} />
-              <div id="research-reports-section">
-                <div
-                  id="research-reports-header"
-                  className={`${styles.navSectionHeader} ${styles.navSectionCollapsible}`}
-                  onClick={() => setResearchExpanded(!researchExpanded)}
-                >
-                  <span>Research reports</span>
-                  <span
-                    id="research-reports-chevron"
-                    className={styles.navSectionChevron}
-                  >
-                    {researchExpanded ? "▼" : "▶"}
-                  </span>
-                </div>
-                {researchExpanded && (
-                  <div id="research-report-list">
-                    <ResearchList
-                      isAdmin={isAdmin}
-                      onResearchClick={(reportId) => {
-                        onResearchClick(reportId);
-                        if (isNarrowScreen() && onClose) {
-                          onClose();
-                        }
-                      }}
-                      currentResearchId={currentResearchId}
-                      onResearchDeleted={onResearchDeleted}
-                      onCreateNew={
-                        chatEnabled && isAdmin && onViewChange
-                          ? () =>
-                              handleActionWithClose(() =>
-                                onViewChange("research-new")
-                              )
-                          : undefined
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
 
           {/* Recent Chats Section - only when chat enabled */}
           {chatEnabled && (

@@ -229,7 +229,7 @@ const OAKLAND: CityGuide = {
       body: (
         <>
           You said it got worse after the 2022 move to Transportation. Nobody has checked whether the data
-          agrees. Ask for a research report. That is a Substack post with a chart in it.
+          agrees. Ask Seymour to check it and write it up as a story, with a chart.
         </>
       ),
     },
@@ -277,7 +277,7 @@ const OAKLAND: CityGuide = {
     { goal: "Find what to add", say: "Which San Francisco metrics have no Oakland equivalent, and which Oakland datasets could feed them?" },
     { goal: "Build one", say: "Create an Oakland metric for [thing] from the 311 dataset, and confirm the numbers look right." },
     { goal: "Check a claim", say: "Oakland says [claim]. Does the data support that? Show the chart and the source dataset." },
-    { goal: "Go deep", say: "Create a research report on whether abandoned auto response times changed after the 2022 move to Transportation." },
+    { goal: "Go deep", say: "Did Oakland abandoned-auto response times change after the 2022 move to Transportation? Show the chart, then write a story about what you find." },
     { goal: "Write it up", say: "Write a story about [finding] in Oakland. Include the chart and cite the dataset." },
   ],
 };
@@ -445,7 +445,7 @@ const MIAMI: CityGuide = {
   ],
   challengeOutro: (
     <>
-      When you find something, ask Seymour to write it up as a story or a research report so it lands in the
+      When you find something, ask Seymour to write it up as a story so it lands in the
       feed and the newsletter.
     </>
   ),
@@ -457,7 +457,7 @@ const MIAMI: CityGuide = {
     { goal: "Look by district", say: "Show Miami police calls for service by commission district for the last 12 months, as a map and a table." },
     { goal: "Find anomalies", say: "Run anomaly detection on all Miami metrics for the last 90 days and show the three most significant." },
     { goal: "Write a story", say: "Write a story about [finding] in Miami. Include the chart and cite the dataset." },
-    { goal: "Go deep", say: "Create a research report on [question] in Miami." },
+    { goal: "Go deep", say: "Investigate [question] in Miami. Show the chart and the source dataset, then write a story about what you find." },
     { goal: "Preview Sunday", say: "Generate a sample Miami newsletter for this week and show it to me." },
   ],
 };
@@ -923,7 +923,7 @@ const KANSAS_CITY: CityGuide = {
           funding plan yet. The Main Street extension took nine years from first financing to opening in
           October 2025. Ridership is not on the portal, but the checkbook is: $47.9M to KC Streetcar
           Constructors and $16.5M to the Streetcar Authority in 2025. Build the payments metric, then ask
-          for a research report on the extension&apos;s cost and timeline.
+          Seymour to write a story on the extension&apos;s cost and timeline.
         </>
       ),
     },
@@ -971,7 +971,7 @@ const KANSAS_CITY: CityGuide = {
     { goal: "Streetcar money", say: "Chart Kansas City payments to KC Streetcar Constructors and the Kansas City Streetcar Authority by month since 2024." },
     { goal: "By district", say: "Show 311 pothole reports and median days to resolve by Kansas City council district, last 12 months, as a map and a table." },
     { goal: "Check a feed", say: "Kansas City graffiti requests stop on August 18, 2026. Did the dataset change, and what is the replacement?" },
-    { goal: "Go deep", say: "Create a research report on the 18th & Vine streetcar extension: cost, funding, timeline, and how the Main Street extension compares." },
+    { goal: "Go deep", say: "Investigate the 18th & Vine streetcar extension: cost, funding, timeline, and how the Main Street extension compares. Then write a story about what you find." },
     { goal: "Write it up", say: "Write a story about [finding] in Kansas City. Include the chart and cite the dataset." },
   ],
 };

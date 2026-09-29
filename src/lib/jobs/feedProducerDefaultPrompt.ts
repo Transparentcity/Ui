@@ -23,11 +23,11 @@ const DEFAULT_INSTRUCTIONS = `For each city:
    - newsletter_frequency='weekly' (REQUIRED — stories without it won't appear in the feed)
    - article_html: 3-5 paragraphs with at least one visual shortcode ([chart:N], [anomaly:N], or [map:HASH]) on its own <p> line
    - visualization_type + visualization_ref_id/visualization_short_hash matching the primary visual
-   - detail_url: SECONDARY "read more" link only (external source, /r/hash report). Do NOT set to a /stories/ or /s/ URL.
+   - detail_url: SECONDARY "read more" link only (external source). Do NOT set to a /stories/ or /s/ URL.
 
 IMPORTANT — canonical URLs:
 - Every story automatically gets its own public page at /c/{city-slug}/stories/{hash}. Do NOT pass a canonical URL as detail_url.
-- detail_url is for a SECONDARY "read more" link only (e.g. a research report /r/hash, an external source). Leave it null when there is no meaningful secondary destination.
+- detail_url is for a SECONDARY "read more" link only (an external source). Leave it null when there is no meaningful secondary destination.
 
 Aim for 2-4 high-quality stories per city. Specific headlines, real numbers. Only publish text-only if tools return no usable chart/anomaly/map id.`;
 

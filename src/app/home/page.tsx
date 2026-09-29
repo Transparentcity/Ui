@@ -115,15 +115,6 @@ const CityView = dynamic(() => import("@/components/CityView"), {
     </div>
   ),
 });
-const ResearchView = dynamic(() => import("@/components/ResearchView"), {
-  ssr: false,
-  loading: () => (
-    <div className={`${styles.contentView} tc-loading-state`} style={{ alignItems: "center", justifyContent: "center" }}>
-      <Loader size="sm" color="dark" />
-      <span>Loading…</span>
-    </div>
-  ),
-});
 const CityDataAdmin = dynamic(() => import("@/components/CityDataAdmin"), { ssr: false });
 const CityDataTable = dynamic(() => import("@/components/CityDataTable"), { ssr: false });
 const DatasetsAdmin = dynamic(() => import("@/components/DatasetsAdmin"), { ssr: false });
@@ -136,13 +127,10 @@ const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false }
 const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { ssr: false });
 const ProductAnalyticsDashboard = dynamic(() => import("@/components/ProductAnalyticsDashboard"), { ssr: false });
 
-// Dynamically import NewResearchPage to avoid SSR issues
-const NewResearchPage = dynamic(() => import("../research/new/page"), { ssr: false });
-
 import MobileBottomNav from "@/components/MobileBottomNav";
 import { listInbox, getPlaceMetrics } from "@/lib/apiClient";
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "research" | "research-new" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "feed";
 
 
 // Mobile breakpoint (matches CSS media query)
@@ -224,7 +212,6 @@ export default function DashboardPage() {
   const [activeCityName, setActiveCityName] = useState<string | null>(null);
   const savedCitiesRef = useRef<Array<{ id: number; display_name: string }>>([]);
   const [initialDistrict, setInitialDistrict] = useState<number | null>(null);
-  const [currentResearchId, setCurrentResearchId] = useState<number | null>(null);
   const [initialChatPrompt, setInitialChatPrompt] = useState<string | null>(null);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [initialPlaceGps, setInitialPlaceGps] = useState<{ lat: number; lng: number; radius_m: number } | null>(null);
@@ -374,7 +361,6 @@ export default function DashboardPage() {
     setSelectedCityId(null);
     setActiveCityId(null);
     setInitialDistrict(null);
-    setCurrentResearchId(null);
     setInitialChatPrompt(null);
     setGpsLocation(null);
     setRequestOpenDistrictModal(null);
@@ -460,7 +446,6 @@ export default function DashboardPage() {
     setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
     setActiveCityId(null);
-    setCurrentResearchId(null);
     setInitialChatPrompt(prefill);
 
     // Clean URL so refresh/back doesn't resend the same prompt.
@@ -484,7 +469,6 @@ export default function DashboardPage() {
     setIsCurrentSessionJobSession(true);
     setCurrentView("chat");
     setActiveCityId(null);
-    setCurrentResearchId(null);
 
     params.delete("job_session");
     const nextQuery = params.toString();
@@ -1058,25 +1042,6 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, isLoading, isCheckingAdmin, getAccessTokenSilently, isImpersonating]);
 
-  // Listen for research creation from embedded research-new view
-  useEffect(() => {
-    const handleResearchCreated = (e: CustomEvent) => {
-      const reportId = e.detail as number;
-
-      setCurrentResearchId(reportId);
-      setCurrentView("research");
-    };
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("research:created", handleResearchCreated as EventListener);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("research:created", handleResearchCreated as EventListener);
-      }
-    };
-  }, []);
-
   // Seymour chat: platform admins, analysts, and government-verified users.
   // Gates both the left-nav entry points and the chat view itself so they
   // can never disagree.
@@ -1096,21 +1061,7 @@ export default function DashboardPage() {
     }
   }, [isCheckingAdmin, isAdmin, currentView]);
 
-  // Research UI: government-verified users and platform admins
-  const canAccessResearch =
-    !!govVerificationStatus?.government_verified || isAdmin;
-  useEffect(() => {
-    if (
-      !isCheckingAdmin &&
-      !canAccessResearch &&
-      (currentView === "research" || currentView === "research-new")
-    ) {
-      setCurrentView("feed");
-      setCurrentResearchId(null);
-    }
-  }, [isCheckingAdmin, canAccessResearch, currentView]);
-
-  // Allow other views (e.g., Research) to open a Job Session for review.
+  // Allow other views to open a Job Session for review.
   useEffect(() => {
     const handler = (e: Event) => {
       const customEvent = e as CustomEvent<{ session_id: string }>;
@@ -1121,7 +1072,6 @@ export default function DashboardPage() {
       setIsCurrentSessionJobSession(true); // Mark as job session
       setCurrentView("chat");
       setActiveCityId(null);
-      setCurrentResearchId(null);
     };
 
     if (typeof window !== "undefined") {
@@ -1168,7 +1118,6 @@ export default function DashboardPage() {
     setCurrentSessionId(null); // Reset to new chat
     setIsCurrentSessionJobSession(false); // Clear job session flag
     setActiveCityId(null); // Clear city selection when starting new chat
-    setCurrentResearchId(null); // Clear research when starting new chat
   };
 
   const handleSessionClick = (sessionId: string) => {
@@ -1176,7 +1125,6 @@ export default function DashboardPage() {
     setIsCurrentSessionJobSession(false); // Regular chat session, not a job session
     setCurrentView("chat");
     setActiveCityId(null); // Clear city selection when selecting a chat session
-    setCurrentResearchId(null); // Clear research when selecting a chat session
   };
 
   const handleJobSessionClick = (sessionId: string) => {
@@ -1184,7 +1132,6 @@ export default function DashboardPage() {
     setIsCurrentSessionJobSession(true); // This is a job session
     setCurrentView("chat");
     setActiveCityId(null); // Clear city selection when selecting a job session
-    setCurrentResearchId(null); // Clear research when selecting a job session
   };
 
   const handleSessionDeleted = (sessionId: string) => {
@@ -1245,7 +1192,6 @@ export default function DashboardPage() {
     setCurrentView("city");
     setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
-    setCurrentResearchId(null);
     setGpsLocation(null);
   };
 
@@ -1267,7 +1213,6 @@ export default function DashboardPage() {
       setCurrentView("city");
       setCurrentSessionId(null);
       setIsCurrentSessionJobSession(false);
-      setCurrentResearchId(null);
       setGpsLocation(null);
     },
     [allUserPlaces]
@@ -1309,7 +1254,6 @@ export default function DashboardPage() {
       setCurrentView("city");
       setCurrentSessionId(null);
       setIsCurrentSessionJobSession(false);
-      setCurrentResearchId(null);
       setGpsLocation(null);
       return;
     }
@@ -1392,7 +1336,6 @@ export default function DashboardPage() {
     setCurrentView("city");
     setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
-    setCurrentResearchId(null);
     setGpsLocation(null);
   }, [
     isAuthenticated,
@@ -1438,7 +1381,6 @@ export default function DashboardPage() {
       setCurrentView("city");
       setCurrentSessionId(null);
       setIsCurrentSessionJobSession(false);
-      setCurrentResearchId(null);
       setGpsLocation(null);
     } else {
       handleCityClick(cityId);
@@ -1987,7 +1929,6 @@ export default function DashboardPage() {
     setInitialPlaceGps(null);
     setCurrentView("city");
     setCurrentSessionId(null);
-    setCurrentResearchId(null);
     hasAutoSelectedCity.current = true;
     void refreshAllUserPlaces().then((places) => {
       if (p == null || !places?.length) return;
@@ -2030,7 +1971,6 @@ export default function DashboardPage() {
     setCitySelection({ district: ctx.district ?? null, placeId: null });
     setCurrentView("city");
     setCurrentSessionId(null);
-    setCurrentResearchId(null);
     setGpsLocation(null);
     hasAutoSelectedCity.current = true;
     // Suppress the returning-user auto-landing; onboarding owns navigation now.
@@ -2258,7 +2198,6 @@ export default function DashboardPage() {
           setCurrentView("city");
           setCurrentSessionId(null);
           setIsCurrentSessionJobSession(false);
-          setCurrentResearchId(null);
           setGpsLocation(null);
         }}
         userPlaces={allUserPlaces}
@@ -2280,19 +2219,6 @@ export default function DashboardPage() {
         onPlaceDeleted={handlePlaceDeleted}
         onDistrictRemoved={handleDistrictRemoved}
         activeCityId={activeCityId}
-        onResearchClick={(reportId) => {
-          setCurrentResearchId(reportId);
-          setCurrentView("research");
-          setCurrentSessionId(null);
-          setIsCurrentSessionJobSession(false);
-          setActiveCityId(null);
-        }}
-        currentResearchId={currentResearchId}
-        onResearchDeleted={(reportId) => {
-          if (currentResearchId === reportId) {
-            setCurrentResearchId(null);
-          }
-        }}
         onCitySelect={(cityId, opts) => {
           setActiveCityId(cityId);
           setInitialPlaceId(null);
@@ -2391,19 +2317,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-                  {currentView === "research" && currentResearchId && canAccessResearch && (
-            <div className={`${styles.contentView} ${styles.contentViewActive}`}>
-                      <ResearchView reportId={currentResearchId} isAdmin={isAdmin} />
-            </div>
-          )}
-
-          {currentView === "research-new" && canAccessResearch && (
-            <div className={`${styles.contentView} ${styles.contentViewActive}`}>
-              <NewResearchPage />
-            </div>
-          )}
-          
-          {/* Admin Views — only reachable via admin menus; gated so proxy mode
+{/* Admin Views — only reachable via admin menus; gated so proxy mode
               cannot leave an admin surface mounted after identity switch. */}
           {currentView === "city-data" && isAdmin && (
             <div id="city-data-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
