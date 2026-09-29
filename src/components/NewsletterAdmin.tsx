@@ -65,6 +65,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 const RECENT_SENDS_PAGE_SIZE = 20;
+const PENDING_PAGE_SIZE = 20;
 
 type QueuePanelTab = "pending" | "recent";
 
@@ -682,7 +683,8 @@ function NewsletterScopeCell({ item }: { item: NewsletterPendingListItem }) {
           }}
           title={`Shared edition — one Seymour run sent to ${n} matching recipients`}
         >
-          shared \u00d7{n}
+          shared {"\u00d7"}
+          {n}
         </span>
       )}
       {item.canonical_pending_id != null && (
@@ -889,7 +891,7 @@ function NewsletterSelectionPanel({
                 }}
               >
                 Ranked by personalization score. Selected-for-slate rows first.
-                Score = story final \u2192 after geo/interest multiplier.
+                Score = story final {"\u2192"} after geo/interest multiplier.
                 {selection.scored_candidates_source === "live"
                   ? " List re-scored live (this draft predated full candidate storage)."
                   : null}
@@ -1235,6 +1237,9 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   const { getAccessTokenSilently } = useAuth0();
   const [pending, setPending] = useState<NewsletterPendingListItem[]>([]);
   const [pendingOpen, setPendingOpen] = useState(true);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingPages, setPendingPages] = useState(1);
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [queueTab, setQueueTab] = useState<QueuePanelTab>("pending");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -1286,19 +1291,66 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
 
   const previewModalOpen = expandedId !== null || searchExpandedId !== null;
 
-  const loadAll = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = await getAccessTokenSilently();
-      const u = await listNewsletterPending(token, { unsent_only: true, limit: 200 });
+  const applyPendingResponse = useCallback(
+    (
+      u: {
+        items: NewsletterPendingListItem[];
+        count: number;
+        total?: number;
+        page?: number;
+        pages?: number;
+      },
+      requestedPage: number
+    ) => {
       setPending(u.items);
-      setSelected(new Set(u.items.filter((x) => !x.draft_failed).map((x) => x.id)));
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to load newsletter queue");
-    } finally {
-      setLoading(false);
-    }
-  }, [getAccessTokenSilently]);
+      setPendingPage(u.page ?? requestedPage);
+      setPendingPages(u.pages ?? 1);
+      setPendingTotal(u.total ?? u.count ?? u.items.length);
+      setSelected(
+        new Set(
+          u.items
+            .filter((x) => !x.draft_failed && x.canonical_pending_id == null)
+            .map((x) => x.id)
+        )
+      );
+    },
+    []
+  );
+
+  const loadPending = useCallback(
+    async (page: number) => {
+      try {
+        setLoading(true);
+        const token = await getAccessTokenSilently();
+        let requestedPage = Math.max(1, page);
+        let u = await listNewsletterPending(token, {
+          unsent_only: true,
+          page: requestedPage,
+          page_size: PENDING_PAGE_SIZE,
+        });
+        const itemCount = u.items?.length ?? 0;
+        const lastPage = Math.max(1, u.pages ?? requestedPage);
+        if (itemCount === 0 && requestedPage > lastPage) {
+          requestedPage = lastPage;
+          u = await listNewsletterPending(token, {
+            unsent_only: true,
+            page: requestedPage,
+            page_size: PENDING_PAGE_SIZE,
+          });
+        }
+        applyPendingResponse(u, requestedPage);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Failed to load newsletter queue");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyPendingResponse, getAccessTokenSilently]
+  );
+
+  const loadAll = useCallback(async () => {
+    await loadPending(pendingPage);
+  }, [loadPending, pendingPage]);
 
   /**
    * Push a re-judged / auto-corrected eval into the cached queue rows. A full
@@ -1340,8 +1392,8 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
   }, [getAccessTokenSilently]);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    void loadPending(pendingPage);
+  }, [loadPending, pendingPage]);
 
   useEffect(() => {
     if (queueTab === "recent" && pendingOpen) {
@@ -1694,7 +1746,8 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
       const jobId = (res.result as { job_id?: string })?.job_id;
       if (jobId) notifyJobCreated(jobId);
       toast.success("Weekly newsletter run started (drafts queued for review).");
-      await loadAll();
+      setPendingPage(1);
+      await loadPending(1);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to start generation");
     } finally {
@@ -1859,7 +1912,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
         : `(${recentSendsTotal})`
       : loading
         ? "(loading...)"
-        : `(${pending.length})`;
+        : `(${pendingTotal})`;
 
   return (
     <>
@@ -1890,7 +1943,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                 Pending review
                 {!loading && (
                   <span className={styles.muted} style={{ marginLeft: 6 }}>
-                    ({pending.length})
+                    ({pendingTotal})
                   </span>
                 )}
               </button>
@@ -1969,7 +2022,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                       )
                     }
                   >
-                    Select all
+                    Select page
                   </button>
                   <button
                     type="button"
@@ -1988,7 +2041,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                   </button>
                 </div>
 
-                {loading ? (
+                {loading && pending.length === 0 ? (
                   <div
                     style={{
                       padding: 24,
@@ -2001,6 +2054,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                     <span>Loading queue…</span>
                   </div>
                 ) : (
+                  <>
                   <div className={styles.tableWrapper}>
                     <table className={styles.table}>
                       <thead>
@@ -2135,7 +2189,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                           }}
                                           title={`Accuracy gate: score ${row.eval_accuracy?.toFixed(1)} < 4.0 \u2014 held from Sunday send`}
                                         >
-                                          \u26a0 HELD
+                                          {"\u26a0"} HELD
                                         </span>
                                         {row.eval_score != null && (
                                           <ScoreBadge
@@ -2152,7 +2206,9 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                         size={22}
                                       />
                                     ) : (
-                                      <span style={{ color: "var(--text-tertiary, #9ca3af)", fontSize: 11 }}>\u2014</span>
+                                      <span style={{ color: "var(--text-tertiary, #9ca3af)", fontSize: 11 }}>
+                                        {"\u2014"}
+                                      </span>
                                     )}
                                   </td>
                                   <td className={styles.td} style={{ fontSize: 12 }}>
@@ -2205,7 +2261,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                           }}
                                           title="Manually overridden \u2014 will send despite failing accuracy gate"
                                         >
-                                          \u2713 OVERRIDE
+                                          {"\u2713"} OVERRIDE
                                         </span>
                                       )}
                                     </div>
@@ -2233,7 +2289,7 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                                       className={styles.td}
                                       style={{ paddingLeft: 20, color: "var(--text-secondary)", fontSize: 12 }}
                                     >
-                                      \u21b3 {emailUsername(sibling.recipient_email)}
+                                      {"\u21b3"} {emailUsername(sibling.recipient_email)}
                                     </td>
                                     <td className={styles.td} style={{ fontSize: 11, color: "var(--text-tertiary, #9ca3af)" }}>
                                       shared copy
@@ -2262,6 +2318,32 @@ function NewsletterDashboardQueue({ cities }: { cities: CityListItem[] }) {
                       </tbody>
                     </table>
                   </div>
+                    {pendingTotal > 0 && (
+                      <div className={styles.pagination}>
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          disabled={pendingPage <= 1 || loading}
+                          onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </button>
+                        <span className={styles.pageInfo}>
+                          Page {pendingPage} of {pendingPages} ({pendingTotal} emails)
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.secondaryBtn}
+                          disabled={pendingPage >= pendingPages || loading}
+                          onClick={() =>
+                            setPendingPage((p) => Math.min(pendingPages, p + 1))
+                          }
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                </>
                 )}
               </>
             )}
