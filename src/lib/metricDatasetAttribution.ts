@@ -54,7 +54,13 @@ export function fileNameFromUrl(url?: string | null): string | null {
   try {
     const parsed = new URL(url);
     const last = parsed.pathname.split("/").filter(Boolean).pop() ?? "";
-    if (/\.[a-z0-9]{2,5}$/i.test(last)) return decodeURIComponent(last);
+    if (/\.[a-z0-9]{2,5}$/i.test(last)) {
+      try {
+        return decodeURIComponent(last);
+      } catch {
+        return last;
+      }
+    }
     return parsed.hostname;
   } catch {
     return null;

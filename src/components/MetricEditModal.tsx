@@ -97,7 +97,7 @@ function StatusBadge({
 
 /** One-line summary of a file source's parsing options (sheet, header row, filter). */
 function fileSourceSummary(sourceConfig: unknown): string {
-  if (!sourceConfig || typeof sourceConfig !== "object") return "Defaults (first sheet, header on row 1)";
+  if (!sourceConfig || typeof sourceConfig !== "object") return "Default parsing";
   const sc = sourceConfig as Record<string, unknown>;
   const parts: string[] = [];
   if (sc.format) parts.push(`format ${String(sc.format)}`);
@@ -109,8 +109,11 @@ function fileSourceSummary(sourceConfig: unknown): string {
     );
     if (filters.length) parts.push(`rows where ${filters.join(", ")}`);
   }
-  if (sc.unpivot) parts.push("unpivoted");
-  return parts.length ? parts.join("; ") : "Defaults (first sheet, header on row 1)";
+  if (sc.pages && typeof sc.pages === "object") {
+    const maxPages = (sc.pages as Record<string, unknown>).max_pages;
+    parts.push(maxPages ? `up to ${String(maxPages)} pages` : "paged");
+  }
+  return parts.length ? parts.join("; ") : "Default parsing";
 }
 
 export default function MetricEditModal({

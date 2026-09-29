@@ -84,6 +84,10 @@ describe("file sources", () => {
       )
     ).toBe("data.ca.gov");
   });
+
+  it("keeps the raw file name when it is not valid percent-encoding", () => {
+    expect(fileNameFromUrl("https://x.gov/report%E0%A4.csv")).toBe("report%E0%A4.csv");
+  });
 });
 
 describe("buildMetricSourceInformation", () => {
