@@ -11,10 +11,12 @@ import type {
 import {
   batchExecuteMetrics,
   instantiateAllTemplates,
+  opsBatchExecute,
   restructureCity,
   retryMissingShapeLayers,
 } from "@/lib/apiClient";
-import { ensureCitiesAttention } from "@/lib/cityHealthAttention";
+import type { ScheduleHealthScope } from "./ScheduleHealthDashboard";
+import { countCriticalAlerts, ensureCitiesAttention } from "@/lib/cityHealthAttention";
 import {
   LAUNCH_STATUS_LABEL,
   resolveLaunchStatus,
@@ -70,12 +72,12 @@ function actionKey(cityId: number, issue: CityHealthAttentionIssue, action: stri
   return `${cityId}:${issue.kind}:${issue.metric_id ?? ""}:${issue.schedule_key ?? ""}:${action}`;
 }
 
-function actionLabel(action: CityHealthSuggestedAction): string {
+function actionLabel(action: CityHealthSuggestedAction, issue: CityHealthAttentionIssue): string {
   switch (action) {
     case "re_run_schedule":
       return "Re-run batch";
     case "re_run_metric":
-      return "Re-run metric";
+      return (issue.metric_ids?.length ?? 0) > 1 ? "Re-run failed metrics" : "Re-run metric";
     case "edit_metric":
       return "Edit";
     case "restructure_city":
@@ -93,6 +95,7 @@ function actionLabel(action: CityHealthSuggestedAction): string {
 
 function primaryActions(issue: CityHealthAttentionIssue): CityHealthSuggestedAction[] {
   const primary = issue.suggested_action;
+  if (primary === "none") return [];
   const extras: CityHealthSuggestedAction[] = [];
   if (primary === "re_run_metric" || primary === "re_run_schedule") {
     if (issue.metric_id != null) extras.push("edit_metric");
@@ -106,6 +109,22 @@ function primaryActions(issue: CityHealthAttentionIssue): CityHealthSuggestedAct
   return [primary, ...extras.filter((a) => a !== primary)];
 }
 
+// City leads can re-run their metrics and structure missing templates; the
+// other actions hit admin-only routes. Analysts (no canManage) see no actions.
+const CITY_LEAD_ACTIONS = new Set<CityHealthSuggestedAction>([
+  "re_run_schedule",
+  "re_run_metric",
+  "structure_metrics",
+]);
+
+function actionAllowed(
+  action: CityHealthSuggestedAction,
+  scope: ScheduleHealthScope | undefined
+): boolean {
+  if (!scope || scope.isAdmin) return true;
+  return scope.canManage && CITY_LEAD_ACTIONS.has(action);
+}
+
 interface Props {
   cities: CityScheduleHealth[];
   summary?: CityHealthAttentionSummary | null;
@@ -113,6 +132,8 @@ interface Props {
   onEditMetric: (metricId: number) => void;
   onViewJob?: (jobId: string) => void;
   onRefresh: () => void;
+  /** Set on the city ops dashboard; limits actions to what the viewer may do. */
+  opsScope?: ScheduleHealthScope;
 }
 
 export default function CityHealthAttentionDashboard({
@@ -122,12 +143,23 @@ export default function CityHealthAttentionDashboard({
   onEditMetric,
   onViewJob,
   onRefresh,
+  opsScope,
 }: Props) {
+  const runBatch = (
+    opts: Parameters<typeof batchExecuteMetrics>[0],
+    token: string
+  ) =>
+    opsScope
+      ? opsBatchExecute(opsScope.cityId, opts, token)
+      : batchExecuteMetrics(opts, token);
   const [scope, setScope] = useState<ScopeFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CityHealthAttentionCategory | null>(
     null
   );
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // A lead's dashboard shows one city: open it rather than making them click.
+  const [expanded, setExpanded] = useState<Set<number>>(
+    () => new Set(opsScope ? [opsScope.cityId] : [])
+  );
   const [busy, setBusy] = useState<Map<ActionKey, "loading" | "done" | "error">>(new Map());
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -135,6 +167,11 @@ export default function CityHealthAttentionDashboard({
     () => ensureCitiesAttention(cities, summary),
     [cities, summary]
   );
+  const criticalCount = useMemo(() => countCriticalAlerts(enriched.cities), [enriched.cities]);
+  // Collapsed unless something critical needs a decision now; data can arrive
+  // after mount, so the default tracks it until the user toggles.
+  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
+  const collapsed = userCollapsed ?? criticalCount === 0;
 
   const scopedCities = useMemo(() => {
     return enriched.cities
@@ -220,7 +257,7 @@ export default function CityHealthAttentionDashboard({
     try {
       const token = await getAccessTokenSilently();
       if (action === "re_run_schedule") {
-        const result = await batchExecuteMetrics(
+        const result = await runBatch(
           {
             city_id: city.city_id,
             schedule_key: issue.schedule_key ?? "daily_metrics",
@@ -230,11 +267,12 @@ export default function CityHealthAttentionDashboard({
         );
         if (result.job_id && onViewJob) onViewJob(result.job_id);
       } else if (action === "re_run_metric") {
-        const metricIds =
-          issue.metric_id != null
+        const metricIds = issue.metric_ids?.length
+          ? issue.metric_ids
+          : issue.metric_id != null
             ? [issue.metric_id]
             : undefined;
-        const result = await batchExecuteMetrics(
+        const result = await runBatch(
           {
             city_id: city.city_id,
             metric_ids: metricIds,
@@ -274,14 +312,34 @@ export default function CityHealthAttentionDashboard({
   return (
     <section className={styles.wrap} aria-label="Needs attention">
       <div className={styles.header}>
-        <div className={styles.titleBlock}>
-          <h3 className={styles.title}>Needs attention</h3>
-          <p className={styles.subtitle}>
-            Incomplete or failing metrics across launched, dark, and coming-soon
-            cities. Grouped by cause: job runs, data freshness, district wiring,
-            map fields, and city structure.
-          </p>
-        </div>
+        <button
+          type="button"
+          className={styles.collapseToggle}
+          onClick={() => setUserCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
+        >
+          <span className={`${styles.chevron} ${collapsed ? "" : styles.chevronOpen}`} aria-hidden>
+            ▶
+          </span>
+          <span className={styles.titleBlock}>
+            <span className={styles.title}>
+              Needs attention
+              {criticalCount > 0 && (
+                <span className={styles.criticalBadge} title="Critical issues in launched and dark cities">
+                  {criticalCount} critical
+                </span>
+              )}
+            </span>
+            <span className={styles.subtitle}>
+              {criticalCount > 0
+                ? "Something is broken and needs a decision. Each item says what happened and the smallest fix."
+                : totalIssues > 0
+                  ? `Nothing critical. ${totalIssues} lower-priority ${totalIssues === 1 ? "item" : "items"}, mostly housekeeping.`
+                  : "All clear. No incomplete or failing metrics."}
+            </span>
+          </span>
+        </button>
+        {!collapsed && !opsScope && (
         <div className={styles.controls}>
           <div className={styles.toggle} role="group" aria-label="Launch stage">
             {LAUNCH_SCOPES.map((item) => (
@@ -301,8 +359,11 @@ export default function CityHealthAttentionDashboard({
             ))}
           </div>
         </div>
+        )}
       </div>
 
+      {!collapsed && (
+      <>
       <div className={styles.categoryStrip}>
         {CATEGORIES.map((cat) => {
           const count = categoryTotals[cat.key] ?? 0;
@@ -344,10 +405,12 @@ export default function CityHealthAttentionDashboard({
           {categoryFilter ? ` · filtered to ${categoryFilter}` : ""}
           {scope !== "all" ? ` · ${LAUNCH_STATUS_LABEL[scope]}` : ""}
         </span>
-        <span>
-          {needingByStatus.launched} launched · {needingByStatus.dark_launched} dark ·{" "}
-          {needingByStatus.not_launched} coming soon
-        </span>
+        {!opsScope && (
+          <span>
+            {needingByStatus.launched} launched · {needingByStatus.dark_launched} dark ·{" "}
+            {needingByStatus.not_launched} coming soon
+          </span>
+        )}
       </div>
 
       {actionError && <p className={styles.actionError}>{actionError}</p>}
@@ -404,7 +467,9 @@ export default function CityHealthAttentionDashboard({
                 {isOpen && (
                   <div className={styles.issueBody}>
                     {attention.issues.map((issue, idx) => {
-                      const actions = primaryActions(issue);
+                      const actions = primaryActions(issue).filter((a) =>
+                        actionAllowed(a, opsScope)
+                      );
                       return (
                         <div
                           key={`${issue.kind}-${issue.metric_id ?? ""}-${issue.schedule_key ?? ""}-${idx}`}
@@ -412,6 +477,9 @@ export default function CityHealthAttentionDashboard({
                         >
                           <div className={styles.issueMeta}>
                             <p className={styles.issueTitle}>{issue.title}</p>
+                            {issue.explanation && (
+                              <p className={styles.issueExplanation}>{issue.explanation}</p>
+                            )}
                             {issue.detail && (
                               <p className={styles.issueDetail}>{issue.detail}</p>
                             )}
@@ -434,7 +502,7 @@ export default function CityHealthAttentionDashboard({
                                   }`}
                                   disabled={state === "loading"}
                                   onClick={() => void runAction(city, issue, action)}
-                                  title={actionLabel(action)}
+                                  title={actionLabel(action, issue)}
                                 >
                                   {state === "loading" ? (
                                     <span className={styles.busyNote}>
@@ -443,7 +511,7 @@ export default function CityHealthAttentionDashboard({
                                   ) : state === "done" ? (
                                     "Started"
                                   ) : (
-                                    actionLabel(action)
+                                    actionLabel(action, issue)
                                   )}
                                 </button>
                               );
@@ -454,8 +522,9 @@ export default function CityHealthAttentionDashboard({
                     })}
                     {attention.issues_truncated && (
                       <p className={styles.truncatedNote}>
-                        Showing top issues. Expand the city schedule row below for the full
-                        metric table.
+                        {opsScope
+                          ? "Showing top issues. The Metrics tab has the full list."
+                          : "Showing top issues. Expand the city schedule row below for the full metric table."}
                       </p>
                     )}
                   </div>
@@ -464,6 +533,8 @@ export default function CityHealthAttentionDashboard({
             );
           })}
         </div>
+      )}
+      </>
       )}
     </section>
   );

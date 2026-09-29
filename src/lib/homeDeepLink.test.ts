@@ -40,4 +40,11 @@ describe("home deep links", () => {
     expect(shouldLeaveAdminView("feed", false)).toBe(false);
     expect(shouldLeaveAdminView("chat", false)).toBe(false);
   });
+
+  it("lets city leads and analysts stay on the scoped dashboard only", () => {
+    expect(shouldLeaveAdminView("system-stats", false, true)).toBe(false);
+    expect(shouldLeaveAdminView("system-stats", false, false)).toBe(true);
+    expect(shouldLeaveAdminView("city-data", false, true)).toBe(true);
+    expect(shouldLeaveAdminView("user-management", false, true)).toBe(true);
+  });
 });

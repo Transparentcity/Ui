@@ -12,11 +12,17 @@ import styles from "./UserProfile.module.css";
 
 interface UserProfileProps {
   isAdmin?: boolean;
+  isOpsUser?: boolean;
   onViewChange?: (view: string) => void;
   onOpenSettings?: () => void;
 }
 
-export default function UserProfile({ isAdmin = false, onViewChange, onOpenSettings }: UserProfileProps) {
+export default function UserProfile({
+  isAdmin = false,
+  isOpsUser = false,
+  onViewChange,
+  onOpenSettings,
+}: UserProfileProps) {
   const { user, getAccessTokenSilently } = useAuth0();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [dbProfile, setDbProfile] = useState<DbUserProfile | null>(null);
@@ -127,6 +133,7 @@ export default function UserProfile({ isAdmin = false, onViewChange, onOpenSetti
         ref={menuRef}
         isOpen={isMenuOpen}
         isAdmin={isAdmin}
+        isOpsUser={isOpsUser}
         onClose={() => setIsMenuOpen(false)}
         onViewChange={onViewChange}
         onOpenSettings={onOpenSettings}

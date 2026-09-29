@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 import { getApiBaseUrl } from "./apiBase";
-import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
+import {
+  clearImpersonation,
+  getImpersonationCacheKey,
+  getImpersonationUserId,
+} from "./impersonation";
 import { PREFERRED_DEFAULT_MODEL_KEY } from "./modelDefaults";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -89,12 +93,32 @@ function authHeaders(token?: string): Record<string, string> {
   return headers;
 }
 
+const MISSING_PROXY_TARGET = "Proxy target not found";
+let lastStaleProxyClearAt = 0;
+
+/**
+ * A stored proxy user id can outlive the account (deleted user, or a session
+ * started against a different database). Identity calls then 404 forever.
+ * Drop the session so the retry, and later calls, run as the signed-in admin.
+ */
+function clearStaleProxySession(): void {
+  const now = Date.now();
+  if (now - lastStaleProxyClearAt > 2000) {
+    console.warn(
+      "Ended proxy session because that user no longer exists. Continuing as yourself."
+    );
+  }
+  lastStaleProxyClearAt = now;
+  clearImpersonation();
+}
+
 async function request<T>(
   path: string,
   method: HttpMethod = "GET",
   body?: any,
   token?: string,
-  options?: { signal?: AbortSignal; timeoutMs?: number }
+  options?: { signal?: AbortSignal; timeoutMs?: number },
+  retriedWithoutProxy = false
 ): Promise<T> {
   const url = `${getApiBaseUrl()}${path}`;
 
@@ -140,6 +164,15 @@ async function request<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (
+      !retriedWithoutProxy &&
+      res.status === 404 &&
+      text.includes(MISSING_PROXY_TARGET) &&
+      getImpersonationUserId() != null
+    ) {
+      clearStaleProxySession();
+      return request<T>(path, method, body, token, options, true);
+    }
     const error = new Error(`API ${method} ${path} failed: ${res.status} ${text}`);
     // Attach status code to error for better error handling
     (error as any).status = res.status;
@@ -1063,6 +1096,8 @@ export interface UserPermissions {
   impersonated_by_email?: string | null;
   city_lead_city_ids?: number[];
   is_city_lead?: boolean;
+  /** Admin, analyst, or city lead: lands on the ops dashboard. */
+  is_ops_user?: boolean;
 }
 
 export function getMyPermissions(token: string): Promise<UserPermissions> {
@@ -1763,6 +1798,22 @@ export function getCrossCityComparison(
 ): Promise<CrossCityComparison> {
   return request<CrossCityComparison>(
     `/api/admin/metrics/cross-city-comparison/${templateId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/**
+ * Same as getCrossCityComparison but uses the authenticated (non-admin) endpoint.
+ * Used for Seymour chat embeds so regular users can view cross-city charts.
+ */
+export function getCrossCityComparisonForUser(
+  templateId: number,
+  token: string
+): Promise<CrossCityComparison> {
+  return request<CrossCityComparison>(
+    `/api/template-metrics/${templateId}/cross-city-comparison`,
     "GET",
     undefined,
     token
@@ -2513,6 +2564,7 @@ export interface CityScheduleRun {
   metrics_completed: number | null;
   metrics_failed: number | null;
   failed_metric_names: string[];
+  failed_metric_ids?: number[];
   is_overdue: boolean;
 }
 
@@ -2544,7 +2596,9 @@ export type CityHealthSuggestedAction =
   | "restructure_city"
   | "retry_shapes"
   | "structure_metrics"
-  | "review";
+  | "review"
+  /** Informational only (e.g. source data lag); nothing to re-run. */
+  | "none";
 
 export interface CityHealthAttentionIssue {
   kind: string;
@@ -2556,6 +2610,10 @@ export interface CityHealthAttentionIssue {
   metric_name?: string | null;
   schedule_key?: string | null;
   detail?: string | null;
+  /** Plain-language summary of what happened and what it likely means. */
+  explanation?: string | null;
+  /** Metrics to re-run (a partial batch lists only its failures). */
+  metric_ids?: number[] | null;
 }
 
 export interface CityHealthAttention {
@@ -8978,6 +9036,358 @@ export function getCityLeadActivity(
   );
 }
 
+// ── Admin People tab (every chat-enabled system user) ────────────────────────
+
+export type PersonRole = "admin" | "city_lead" | "analyst" | "chat_user";
+
+export interface PersonActivity {
+  user_id: number;
+  email: string;
+  name: string;
+  roles: PersonRole[];
+  cities: { city_id: number; name: string | null }[];
+  presence: {
+    active_days: number;
+    sessions: number;
+    events: number;
+    first_seen: string | null;
+    last_seen: string | null;
+  };
+  chats: Omit<CityLeadChats, "sessions"> & {
+    sessions: Omit<CityLeadChatSession, "user_turns">[];
+    /** Most recent non-job chat ever, not limited to the window. */
+    last_chat_at: string | null;
+  };
+  llm_spend: CityLeadSpend;
+  produced: {
+    available: boolean;
+    total: number;
+    metrics_created: number;
+    by_action: { action: string; count: number }[];
+  };
+}
+
+export interface PeopleActivityResponse {
+  window_days: number;
+  since: string;
+  generated_at: string;
+  person_count: number;
+  total_cost_usd: number;
+  people: PersonActivity[];
+}
+
+/** Usage and output for every chat-enabled system user. Admin only. */
+export function getPeopleActivity(
+  token: string,
+  options?: { days?: number }
+): Promise<PeopleActivityResponse> {
+  const qs = options?.days != null ? `?days=${options.days}` : "";
+  return request<PeopleActivityResponse>(
+    `/api/admin/city-lead-activity/people${qs}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+// ── City ops dashboard (admins, city leads, analysts) ────────────────────────
+
+export interface OpsCity {
+  city_id: number;
+  name: string;
+  can_manage: boolean;
+}
+
+export interface OpsCitiesResponse {
+  all_cities: boolean;
+  cities: OpsCity[];
+}
+
+export function getOpsCities(token: string): Promise<OpsCitiesResponse> {
+  return request<OpsCitiesResponse>("/api/ops/cities", "GET", undefined, token);
+}
+
+export interface OpsCityHealthResponse extends CityScheduleHealthResponse {
+  can_manage: boolean;
+}
+
+export function getOpsCityHealth(
+  cityId: number,
+  token: string,
+  options?: { daysBack?: number }
+): Promise<OpsCityHealthResponse> {
+  const qs = options?.daysBack != null ? `?days_back=${options.daysBack}` : "";
+  return request<OpsCityHealthResponse>(
+    `/api/ops/cities/${cityId}/health${qs}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Re-run metrics for a city the caller manages (admin or city lead). */
+export function opsBatchExecute(
+  cityId: number,
+  options: BatchExecuteMetricsRequest,
+  token: string
+): Promise<BatchExecuteMetricsResponse> {
+  return request<BatchExecuteMetricsResponse>(
+    `/api/ops/cities/${cityId}/batch-execute`,
+    "POST",
+    { ...options, city_id: cityId },
+    token
+  );
+}
+
+/** A feed story as the ops dashboard lists it (see AdminStoryRow). */
+export interface OpsCityStory {
+  id: number;
+  headline: string;
+  description: string | null;
+  story_type: string | null;
+  city_id: number | null;
+  city_name: string | null;
+  city_emoji: string | null;
+  district: number | null;
+  user_place_id: number | null;
+  place_label: string | null;
+  status: string | null;
+  story_date: string | null;
+  published_at: string | null;
+  created_at: string | null;
+  short_hash: string | null;
+  view_count: number;
+  click_count: number;
+  share_count: number;
+  applaud_count: number;
+  accuracy: number | null;
+  job_session_id: string | null;
+  scheduled_job_name: string | null;
+  /** Story-page views inside the window, when the story had any. */
+  period_views?: number;
+  /** All-time story-page views. ``view_count`` is in-app feed impressions. */
+  page_views?: number;
+}
+
+export interface OpsCityUsage {
+  city_id: number;
+  window_days: number;
+  followers: { total: number; new_in_window: number };
+  /** Story pages plus city, district, and saved-place overview pages. */
+  page_views: {
+    views: number;
+    viewers: number;
+    by_surface: { stories: number; city: number; districts: number; places: number };
+  };
+  daily: { date: string; total_followers: number }[];
+  top_stories: OpsCityStory[];
+}
+
+export type OpsStorySort =
+  | "period_views"
+  | "views"
+  | "likes"
+  | "clicks"
+  | "newest"
+  | "accuracy";
+
+export function getOpsCityUsage(
+  cityId: number,
+  token: string,
+  options?: { days?: number; sort?: OpsStorySort }
+): Promise<OpsCityUsage> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.set("days", String(options.days));
+  if (options?.sort) params.set("sort", options.sort);
+  const qs = params.toString();
+  return request<OpsCityUsage>(
+    `/api/ops/cities/${cityId}/usage${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface OpsCityStories {
+  /** Null when the list covers every city in the viewer's scope. */
+  city_id: number | null;
+  window_days: number;
+  passing_accuracy: number;
+  counts: { total: number; judged: number; passing: number; failing: number; severe: number };
+  stories: OpsCityStory[];
+}
+
+export function getOpsCityStories(
+  cityId: number,
+  token: string,
+  options?: { days?: number; maxAccuracy?: number; sort?: OpsStorySort }
+): Promise<OpsCityStories> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.set("days", String(options.days));
+  if (options?.maxAccuracy != null) params.set("max_accuracy", String(options.maxAccuracy));
+  if (options?.sort) params.set("sort", options.sort);
+  const qs = params.toString();
+  return request<OpsCityStories>(
+    `/api/ops/cities/${cityId}/stories${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Stories across every city the viewer may see. */
+export function getOpsStories(
+  token: string,
+  options?: { days?: number; maxAccuracy?: number; sort?: OpsStorySort }
+): Promise<OpsCityStories> {
+  const params = new URLSearchParams();
+  if (options?.days != null) params.set("days", String(options.days));
+  if (options?.maxAccuracy != null) params.set("max_accuracy", String(options.maxAccuracy));
+  if (options?.sort) params.set("sort", options.sort);
+  const qs = params.toString();
+  return request<OpsCityStories>(
+    `/api/ops/stories${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface OpsCityLlmCost {
+  city_id: number;
+  window_days: number;
+  /** False until migration 148 adds token_usage_log.city_id. */
+  story_jobs_available: boolean;
+  total_cost_usd: number;
+  story_jobs_cost_usd: number;
+  people_cost_usd: number;
+  daily: { date: string; story_jobs: number; people: number }[];
+  by_job: { name: string; calls: number; tokens: number; cost_usd: number }[];
+  by_person: {
+    user_id: number;
+    email: string;
+    name: string | null;
+    roles: string[];
+    calls: number;
+    tokens: number;
+    cost_usd: number;
+  }[];
+}
+
+export function getOpsCityLlmCost(
+  cityId: number,
+  token: string,
+  options?: { days?: number }
+): Promise<OpsCityLlmCost> {
+  const qs = options?.days != null ? `?days=${options.days}` : "";
+  return request<OpsCityLlmCost>(
+    `/api/ops/cities/${cityId}/llm-cost${qs}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export interface OpsStoryReview {
+  story: OpsCityStory & {
+    article_html: string | null;
+    summary: string | null;
+    metadata: Record<string, unknown>;
+  };
+  evals: StoryEvalRow[];
+  can_manage: boolean;
+}
+
+/** Story content and judge history for the ops story review modal. */
+export function getOpsStoryReview(
+  cityId: number,
+  storyId: number,
+  token: string
+): Promise<OpsStoryReview> {
+  return request<OpsStoryReview>(
+    `/api/ops/cities/${cityId}/stories/${storyId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function opsJudgeStory(cityId: number, storyId: number, token: string) {
+  return request<{ row_ids: number[]; job_id: string; imported: number }>(
+    `/api/ops/cities/${cityId}/stories/${storyId}/judge`,
+    "POST",
+    {},
+    token
+  );
+}
+
+export function opsRejudgeStory(cityId: number, storyId: number, evalId: number, token: string) {
+  return request<{ completed: number; failed: number }>(
+    `/api/ops/cities/${cityId}/stories/${storyId}/evals/${evalId}/rejudge`,
+    "POST",
+    {},
+    token
+  );
+}
+
+export function opsAutocorrectStory(
+  cityId: number,
+  storyId: number,
+  evalId: number,
+  token: string
+): ReturnType<typeof autocorrectStoryEval> {
+  return request(
+    `/api/ops/cities/${cityId}/stories/${storyId}/evals/${evalId}/correct`,
+    "POST",
+    {},
+    token
+  );
+}
+
+export function opsSetStoryOverride(
+  cityId: number,
+  storyId: number,
+  revoke: boolean,
+  token: string
+) {
+  return request<Record<string, unknown>>(
+    `/api/ops/cities/${cityId}/stories/${storyId}/override-eligible`,
+    revoke ? "DELETE" : "POST",
+    revoke ? undefined : {},
+    token
+  );
+}
+
+/** City-scoped metric update (admin or city lead for that city). */
+export function updateCityMetric(
+  cityId: number,
+  metricId: number,
+  payload: UpdateAdminMetricRequest,
+  token: string
+): Promise<AdminMetricWriteResponse> {
+  return request<AdminMetricWriteResponse>(
+    `/api/admin/metrics/city/${cityId}/${metricId}`,
+    "PUT",
+    payload,
+    token
+  );
+}
+
+/** City-scoped metadata merge-patch (admin or city lead for that city). */
+export function patchCityMetricMetadata(
+  cityId: number,
+  metricId: number,
+  patch: Record<string, unknown>,
+  token: string
+): Promise<AdminMetricWriteResponse> {
+  return request<AdminMetricWriteResponse>(
+    `/api/admin/metrics/city/${cityId}/${metricId}/metadata-patch`,
+    "PATCH",
+    { patch },
+    token
+  );
+}
+
 export interface TokenUsageDailyRow {
   date: string;
   tokens: number;
@@ -10138,6 +10548,229 @@ export function revokeStoryEligibleOverride(
     `/api/admin/newsletter/stories/${storyId}/override-eligible`,
     "DELETE",
     undefined,
+    token
+  );
+}
+
+// ---------------------------------------------------------------------------
+// City site view (structure, metrics, job health)
+// ---------------------------------------------------------------------------
+
+export interface OpsCitySiteMetric {
+  metric_id: number;
+  metric_key: string | null;
+  metric_name: string | null;
+  show_on_dash: boolean;
+  most_recent_data_date: string | null;
+  days_old: number | null;
+  bucket: "current" | "slightly_stale" | "stale" | "no_data" | string;
+  last_execution_at: string | null;
+  last_execution_status: string | null;
+  has_district_field: boolean;
+  district_working: boolean;
+  has_map_fields: boolean;
+  has_precise_location: boolean;
+  charts: number;
+  template_id: number | null;
+  template_name: string | null;
+  story_count: number;
+  last_story_at: string | null;
+}
+
+export interface OpsCitySiteCategory {
+  category: string;
+  total: number;
+  public_count: number;
+  permalink: string;
+  metrics: OpsCitySiteMetric[];
+}
+
+export interface OpsCitySiteScheduleRun {
+  job_id: string | null;
+  status: string | null;
+  created_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  metrics_total: number | null;
+  metrics_completed: number | null;
+  metrics_failed: number | null;
+  failed_metric_names: string[];
+  failed_metric_ids?: number[];
+  is_overdue: boolean;
+}
+
+export interface OpsCitySiteSchedule {
+  last_run: OpsCitySiteScheduleRun | null;
+  recent_runs: OpsCitySiteScheduleRun[];
+  is_overdue: boolean;
+}
+
+export interface OpsCitySiteDistrict {
+  id: number;
+  name: string;
+  district_number: number | null;
+  permalink: string;
+}
+
+export interface OpsCitySite {
+  city_id: number;
+  city_name: string;
+  city_slug: string;
+  launch_status: string | null;
+  structure: {
+    elected_officials: boolean;
+    geographic_structures: boolean;
+    shape_layers: boolean;
+    population_defined: boolean;
+    city_district_fields: boolean;
+    metrics_total: number;
+    metrics_with_district_field: number;
+    metrics_district_working: number;
+    metrics_with_map_fields: number;
+    counts: { elected_officials: number; geographic_structures: number; shape_layers: number };
+  };
+  missing_structure: string[];
+  schedules: Record<string, OpsCitySiteSchedule>;
+  categories: OpsCitySiteCategory[];
+  districts: OpsCitySiteDistrict[];
+  total_metrics: number;
+  public_metrics: number;
+  not_found?: boolean;
+}
+
+export function getOpsCitySite(
+  cityId: number,
+  token: string
+): Promise<OpsCitySite> {
+  return request<OpsCitySite>(`/api/ops/cities/${cityId}/site`, "GET", undefined, token);
+}
+
+// Metric drawer detail
+export interface OpsMetricRunHistoryEntry {
+  job_id: string | null;
+  trigger: string | null;
+  status: string;
+  error: string | null;
+  max_data_date: string | null;
+  ran_at: string;
+}
+
+/** One public asset of a metric with its site-relative permalink paths. */
+export interface OpsMetricAssetLink {
+  id: number;
+  title: string;
+  subtitle: string;
+  /** Canonical, shareable page. */
+  page_path: string;
+  /** Chrome-free view for iframes. */
+  embed_path: string;
+  /** Story / newsletter shortcode, e.g. `[chart:12]`. */
+  shortcode: string;
+  period_type?: string | null;
+  district?: number | null;
+  short_hash?: string;
+  pct_change?: number | null;
+}
+
+export interface OpsMetricAssetLinks {
+  charts: OpsMetricAssetLink[];
+  maps: OpsMetricAssetLink[];
+  anomalies: OpsMetricAssetLink[];
+}
+
+export interface OpsMetricDetail {
+  metric_id: number;
+  metric_name: string | null;
+  metric_key: string | null;
+  city_id: number;
+  city_name: string | null;
+  city_slug: string;
+  category: string | null;
+  template_id: number | null;
+  template_name: string | null;
+  show_on_dash: boolean;
+  is_active: boolean;
+  most_recent_data_date: string | null;
+  last_execution_at: string | null;
+  last_execution_status: string | null;
+  last_execution_error: string | null;
+  has_district_field: boolean;
+  has_map_fields: boolean;
+  has_precise_location: boolean;
+  assets: { charts: number; maps: number; anomalies: number };
+  asset_links?: OpsMetricAssetLinks;
+  run_history: OpsMetricRunHistoryEntry[];
+  stories: OpsCityStory[];
+  gen_quota: { used_today: number; daily_cap: number; remaining: number };
+  permalink: string | null;
+}
+
+export function getOpsMetricDetail(
+  cityId: number,
+  metricId: number,
+  token: string
+): Promise<OpsMetricDetail> {
+  return request<OpsMetricDetail>(
+    `/api/ops/cities/${cityId}/metrics/${metricId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function opsSetStoryVisibility(
+  cityId: number,
+  storyId: number,
+  newStatus: "active" | "hidden",
+  token: string
+): Promise<{ story_id: number; status: string }> {
+  return request(
+    `/api/ops/cities/${cityId}/stories/${storyId}/visibility`,
+    "PATCH",
+    { status: newStatus },
+    token
+  );
+}
+
+export interface OpsGenerateStoryResult {
+  status: string;
+  job_id: string | null;
+  metric_id: number;
+  metric_name: string;
+  quota_used: number;
+  quota_cap: number;
+}
+
+export function opsGenerateMetricStory(
+  cityId: number,
+  metricId: number,
+  token: string
+): Promise<OpsGenerateStoryResult> {
+  return request<OpsGenerateStoryResult>(
+    `/api/ops/cities/${cityId}/metrics/${metricId}/generate-story`,
+    "POST",
+    {},
+    token
+  );
+}
+
+export interface OpsCityGenerateStoryResult {
+  status: string;
+  job_id: string | null;
+  city_name: string;
+  quota_used: number;
+  quota_cap: number;
+}
+
+export function opsGenerateCityStory(
+  cityId: number,
+  prompt: string,
+  token: string
+): Promise<OpsCityGenerateStoryResult> {
+  return request<OpsCityGenerateStoryResult>(
+    `/api/ops/cities/${cityId}/generate-story`,
+    "POST",
+    { prompt },
     token
   );
 }

@@ -358,6 +358,21 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.selectPage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.selectPage input {
+  accent-color: var(--brand-primary);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

@@ -20,12 +20,16 @@ import type {
 import {
   batchExecuteMetrics,
   getCityScheduleHealth,
+  getOpsCityHealth,
+  opsBatchExecute,
+  patchCityMetricMetadata,
   patchMetricMetadata,
   updateAdminMetric,
+  updateCityMetric,
 } from "@/lib/apiClient";
 import MetricEditModal from "./MetricEditModal";
+import CitySiteView from "@/components/citySite/CitySiteView";
 import CityHealthAttentionDashboard from "./CityHealthAttentionDashboard";
-import CityExpansionPanel from "./CityExpansionPanel";
 import LaunchStatusBadge from "./LaunchStatusBadge";
 import { ensureCitiesAttention } from "@/lib/cityHealthAttention";
 import {
@@ -151,13 +155,6 @@ function FreshnessBar({
     </>
   );
 }
-
-const BUCKET_ORDER: Record<CityFreshnessMetricRow["bucket"], number> = {
-  stale: 0,
-  slightly_stale: 1,
-  current: 2,
-  no_data: 3,
-};
 
 const BUCKET_COLOR: Record<CityFreshnessMetricRow["bucket"], string> = {
   current: "#10b981",
@@ -364,12 +361,16 @@ function MetricHealthTable({
   onEditMetric,
   getAccessTokenSilently,
   userId,
+  scope,
 }: {
   rows: CityFreshnessMetricRow[];
   onEditMetric: (metricId: number) => void;
   getAccessTokenSilently: () => Promise<string>;
   userId: string | undefined;
+  scope?: ScheduleHealthScope;
 }) {
+  const readOnly = !!scope && !scope.canManage;
+  const canEdit = !scope || scope.isAdmin;
   // Optimistic overrides: metricId → reviewed state (cleared on parent refresh)
   const [reviewOverrides, setReviewOverrides] = useState<Map<number, ReviewedOverride>>(
     new Map()
@@ -397,7 +398,11 @@ function MetricHealthTable({
 
     try {
       const t = await getAccessTokenSilently();
-      await patchMetricMetadata(id, override, t);
+      if (scope) {
+        await patchCityMetricMetadata(scope.cityId, id, override, t);
+      } else {
+        await patchMetricMetadata(id, override, t);
+      }
     } catch (err) {
       console.error("Failed to save reviewed state", err);
       // Revert to previous
@@ -438,7 +443,11 @@ function MetricHealthTable({
 
     try {
       const t = await getAccessTokenSilently();
-      await updateAdminMetric(id, { show_on_dash: newChecked }, t);
+      if (scope) {
+        await updateCityMetric(scope.cityId, id, { show_on_dash: newChecked }, t);
+      } else {
+        await updateAdminMetric(id, { show_on_dash: newChecked }, t);
+      }
     } catch (err) {
       console.error("Failed to save show_on_dash", err);
       setShowOnDashOverrides((prev) => {
@@ -589,7 +598,7 @@ function MetricHealthTable({
                   <input
                     type="checkbox"
                     checked={showOnDash}
-                    disabled={isSaving}
+                    disabled={isSaving || readOnly}
                     onChange={(e) => handleShowOnDashToggle(m, e.target.checked)}
                     style={{ cursor: "pointer", accentColor: "#3b82f6" }}
                     title="Show on public city dashboard"
@@ -599,21 +608,23 @@ function MetricHealthTable({
                   <input
                     type="checkbox"
                     checked={isReviewed}
-                    disabled={isSaving}
+                    disabled={isSaving || readOnly}
                     onChange={(e) => handleReviewToggle(m, e.target.checked)}
                     style={{ cursor: "pointer", accentColor: "#10b981" }}
                     title="Mark as reviewed"
                   />
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  <button
-                    type="button"
-                    className={styles.linkBtn}
-                    onClick={() => onEditMetric(m.metric_id)}
-                    title="Edit metric"
-                  >
-                    Edit
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className={styles.linkBtn}
+                      onClick={() => onEditMetric(m.metric_id)}
+                      title="Edit metric"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </td>
               </tr>
             );
@@ -624,10 +635,22 @@ function MetricHealthTable({
   );
 }
 
+/**
+ * One city on the ops dashboard. Loads from /api/ops/cities/{id}/health and
+ * uses city-scoped write routes. Viewers without canManage (analysts) get a
+ * read-only table; metric editing stays admin-only.
+ */
+export interface ScheduleHealthScope {
+  cityId: number;
+  canManage: boolean;
+  isAdmin: boolean;
+}
+
 interface ScheduleHealthDashboardProps {
   token: string | null;
   getAccessTokenSilently: () => Promise<string>;
   onViewJob: (jobId: string) => void;
+  scope?: ScheduleHealthScope;
 }
 
 interface RunSlotState {
@@ -640,7 +663,10 @@ export default function ScheduleHealthDashboard({
   token,
   getAccessTokenSilently,
   onViewJob,
+  scope,
 }: ScheduleHealthDashboardProps) {
+  const scopeCityId = scope?.cityId;
+  const readOnly = !!scope && !scope.canManage;
   const { isAuthenticated, user } = useAuth0();
   const [cities, setCities] = useState<CityScheduleHealth[]>([]);
   const [attentionSummary, setAttentionSummary] =
@@ -648,7 +674,9 @@ export default function ScheduleHealthDashboard({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastLoaded, setLastLoaded] = useState<Date | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [expanded, setExpanded] = useState<Set<number>>(
+    () => new Set(scope ? [scope.cityId] : [])
+  );
   // Map of "cityId-periodKey" -> RunSlotState for tracking re-run status
   const [runSlots, setRunSlots] = useState<Map<string, RunSlotState>>(new Map());
   const [editingMetricId, setEditingMetricId] = useState<number | null>(null);
@@ -659,7 +687,10 @@ export default function ScheduleHealthDashboard({
       setLoading(true);
       setError(null);
       const t = token || (await getAccessTokenSilently());
-      const res = await getCityScheduleHealth(t, { daysBack: 14 });
+      const res =
+        scopeCityId != null
+          ? await getOpsCityHealth(scopeCityId, t, { daysBack: 14 })
+          : await getCityScheduleHealth(t, { daysBack: 14 });
       const enriched = ensureCitiesAttention(
         res.cities || [],
         res.attention_summary ?? null
@@ -673,7 +704,7 @@ export default function ScheduleHealthDashboard({
     } finally {
       setLoading(false);
     }
-  }, [token, getAccessTokenSilently]);
+  }, [token, getAccessTokenSilently, scopeCityId]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -698,10 +729,10 @@ export default function ScheduleHealthDashboard({
       setRunSlots((prev) => new Map(prev).set(key, { status: "loading" }));
       try {
         const t = token || (await getAccessTokenSilently());
-        const result = await batchExecuteMetrics(
-          { city_id: cityId, schedule_key: periodKey, max_concurrent: 3 },
-          t
-        );
+        const opts = { city_id: cityId, schedule_key: periodKey, max_concurrent: 3 };
+        const result = scope
+          ? await opsBatchExecute(cityId, opts, t)
+          : await batchExecuteMetrics(opts, t);
         setRunSlots((prev) =>
           new Map(prev).set(key, {
             status: "running",
@@ -720,7 +751,7 @@ export default function ScheduleHealthDashboard({
         );
       }
     },
-    [token, getAccessTokenSilently, load]
+    [token, getAccessTokenSilently, load, scope]
   );
 
   const toggleExpand = (cityId: number) => {
@@ -769,8 +800,6 @@ export default function ScheduleHealthDashboard({
 
       {error && <div className={styles.error}>{error}</div>}
 
-      <CityExpansionPanel getAccessTokenSilently={getAccessTokenSilently} />
-
       <CityHealthAttentionDashboard
         cities={cities}
         summary={attentionSummary}
@@ -778,43 +807,27 @@ export default function ScheduleHealthDashboard({
         onEditMetric={setEditingMetricId}
         onViewJob={onViewJob}
         onRefresh={() => void load()}
+        opsScope={scope}
       />
 
-      <div className={styles.legend}>
-        <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#10b981" }} />
-          All ran
-        </span>
-        <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#f59e0b" }} />
-          Partial / overdue slot
-        </span>
-        <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#ef4444" }} />
-          Failed / cancelled
-        </span>
-        <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#3b82f6" }} />
-          Running / pending
-        </span>
-        <span className={styles.legendItem}>
-          <span className={styles.dot} style={{ background: "#9ca3af" }} />
-          Never run
-        </span>
-        <span className={styles.legendItem}>
-          <span className={`${styles.launchSwatch} ${styles.launchedCityName}`}>Launched</span>
-        </span>
-        <span className={styles.legendItem}>
-          <span className={`${styles.launchSwatch} ${styles.darkCityName}`}>Dark</span>
-        </span>
-        <span className={styles.legendItem}>
-          <span className={`${styles.launchSwatch} ${styles.comingSoonCityName}`}>Coming soon</span>
-        </span>
-      </div>
+      {/* Admin all-cities health keeps a compact city list. The per-city
+          metric list lives on the Metrics tab of the city ops dashboard. */}
+      {!scope && (
+        <CitySiteView
+          cities={cities}
+          onViewJob={onViewJob}
+          onEditMetric={setEditingMetricId}
+          onSelectCity={(id) => {
+            toggleExpand(id);
+          }}
+        />
+      )}
 
-      {cities.length === 0 ? (
+      {/* Schedule matrix is the all-cities admin view. A scoped city
+          (city lead) sees Needs attention here; metrics are a separate tab. */}
+      {!scope && cities.length === 0 ? (
         <p className={styles.empty}>No cities found.</p>
-      ) : (
+      ) : !scope ? (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -923,7 +936,7 @@ export default function ScheduleHealthDashboard({
                               </div>
                               <FreshnessBar total={totalM} fresh={freshN} />
                               <div className={styles.reRunRow}>
-                                {runState?.status === "loading" ? (
+                                {readOnly ? null : runState?.status === "loading" ? (
                                   <span className={styles.reRunStatus}>
                                     <Loader size="sm" color="dark" /> Starting…
                                   </span>
@@ -1061,6 +1074,7 @@ export default function ScheduleHealthDashboard({
                                 onEditMetric={setEditingMetricId}
                                 getAccessTokenSilently={getAccessTokenSilently}
                                 userId={user?.sub}
+                                scope={scope}
                               />
                             </div>
                           </div>
@@ -1073,7 +1087,7 @@ export default function ScheduleHealthDashboard({
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
 
       {editingMetricId != null && (
         <MetricEditModal

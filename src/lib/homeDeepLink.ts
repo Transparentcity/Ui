@@ -38,7 +38,16 @@ export function isDeepLinkableView(param: string | null | undefined): boolean {
   return !!param && DEEP_LINKABLE_VIEWS.has(param);
 }
 
-/** True when the current view must be abandoned because the viewer is not an admin. */
-export function shouldLeaveAdminView(currentView: string, isAdmin: boolean): boolean {
-  return !isAdmin && ADMIN_ONLY_VIEWS.has(currentView);
+/** Admin views that city leads and analysts may also open (city-scoped there). */
+export const OPS_VIEWS = new Set<string>(["system-stats"]);
+
+/** True when the current view must be abandoned because the viewer lacks access. */
+export function shouldLeaveAdminView(
+  currentView: string,
+  isAdmin: boolean,
+  isOpsUser = false
+): boolean {
+  if (isAdmin) return false;
+  if (isOpsUser && OPS_VIEWS.has(currentView)) return false;
+  return ADMIN_ONLY_VIEWS.has(currentView);
 }

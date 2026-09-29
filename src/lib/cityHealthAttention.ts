@@ -156,10 +156,11 @@ function scheduleIssues(city: CityScheduleHealth): CityHealthAttentionIssue[] {
           kind: "schedule_partial",
           category: "jobs",
           severity: "high",
-          title: `${label} batch had ${failedN} failed metric(s)`,
-          suggested_action: "re_run_schedule",
+          title: `${label} batch: ${failedN} ${failedN === 1 ? "metric" : "metrics"} failed`,
+          suggested_action: last.failed_metric_ids?.length ? "re_run_metric" : "re_run_schedule",
           schedule_key: sk,
           detail: (last.failed_metric_names || []).slice(0, 5).join(", ") || null,
+          metric_ids: last.failed_metric_ids?.length ? last.failed_metric_ids : null,
         })
       );
     } else if (overdue && status !== "pending" && status !== "running") {
@@ -385,4 +386,18 @@ export function ensureCitiesAttention(
       by_severity,
     },
   };
+}
+
+/**
+ * Critical issues in launched and dark-launched cities: the count shown on the
+ * Needs attention badge. Coming-soon cities and lower severities are excluded.
+ */
+export function countCriticalAlerts(cities: CityScheduleHealth[]): number {
+  let n = 0;
+  for (const city of cities) {
+    const status = resolveLaunchStatus(city);
+    if (status !== "launched" && status !== "dark_launched") continue;
+    n += (city.attention?.issues ?? []).filter((i) => i.severity === "critical").length;
+  }
+  return n;
 }

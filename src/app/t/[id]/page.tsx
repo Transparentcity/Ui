@@ -427,6 +427,18 @@ function TimeSeriesChartPageContent() {
       try {
         const data = await fetchTimeSeries(chartId, periodParam);
         if (ac.signal.aborted) return;
+
+        // Redirect cross-city comparison charts to their dedicated rich page.
+        if (data.metadata?.object_type === "cross_city_comparison") {
+          const objectId = String(data.metadata?.object_id ?? "");
+          // object_id format: ccc_{template_id}_{city1+city2+...}
+          const match = objectId.match(/^ccc_(\d+)_/);
+          if (match) {
+            router.replace(`/cross-city/${match[1]}`);
+            return;
+          }
+        }
+
         setTimeSeries(data);
         lastLoadedKeyRef.current = loadKey;
       } catch (err: unknown) {

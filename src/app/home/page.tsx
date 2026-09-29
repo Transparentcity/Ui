@@ -70,7 +70,7 @@ import {
   recordFunnelEventBackend,
   type SignupEventContext,
 } from "@/lib/analytics";
-import { recordAppView } from "@/lib/productAnalytics";
+import { recordAppView, recordProductEvent } from "@/lib/productAnalytics";
 import {
   trackMetaSignupComplete,
   trackMetaOnboardingComplete,
@@ -189,6 +189,9 @@ export default function DashboardPage() {
   const [isAnalyst, setIsAnalyst] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [cityLeadCityIds, setCityLeadCityIds] = useState<number[]>([]);
+  // Admins, city leads, and analysts land on the ops dashboard, not the Overview.
+  const [isOpsUser, setIsOpsUser] = useState(false);
+  const hasAppliedOpsLanding = useRef(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [impersonationState, setImpersonationState] = useState<ImpersonationState | null>(
     () => getImpersonationState(),
@@ -355,6 +358,11 @@ export default function DashboardPage() {
     setIsAnalyst(false);
     setIsCheckingAdmin(true);
     setCityLeadCityIds([]);
+    setIsOpsUser(false);
+    hasAppliedOpsLanding.current = false;
+    // A ?view= deep link belongs to the previous identity's page load; the new
+    // identity must get its own login landing.
+    deepLinkViewApplied.current = false;
     setCurrentView("feed");
     setCurrentSessionId(null);
     setIsCurrentSessionJobSession(false);
@@ -602,6 +610,28 @@ export default function DashboardPage() {
       city_id: activeCityId ?? selectedCityId ?? null,
     });
   }, [currentView, isAuthenticated, isLoading, activeCityId, selectedCityId]);
+
+  // Overview views of a city, district, or saved place. Unlike app_view this
+  // fires per scope, because each scope is a distinct page for the city's
+  // page-view count on the ops dashboard.
+  const lastOverviewKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    if (currentView !== "city" || activeCityId == null) {
+      lastOverviewKeyRef.current = null;
+      return;
+    }
+    const { district, placeId } = citySelection;
+    const key = `${activeCityId}:${district ?? ""}:${placeId ?? ""}`;
+    if (lastOverviewKeyRef.current === key) return;
+    lastOverviewKeyRef.current = key;
+    recordProductEvent("city_overview_view", {
+      city_id: activeCityId,
+      surface: placeId != null ? "place" : district ? "district" : "city",
+      district: district ?? null,
+      place_id: placeId ?? null,
+    });
+  }, [currentView, isAuthenticated, isLoading, activeCityId, citySelection]);
 
   // Track signup completion and login; set initial view to feed only when not already on a city/location
   useEffect(() => {
@@ -913,6 +943,7 @@ export default function DashboardPage() {
       setIsAdmin(false);
       setIsAnalyst(false);
       setCityLeadCityIds([]);
+      setIsOpsUser(false);
       setCurrentUserId(null);
       setGovVerificationStatus(null);
       setIsCheckingAdmin(false);
@@ -936,6 +967,7 @@ export default function DashboardPage() {
         setIsAdmin(permissions.is_admin || false);
         setIsAnalyst(permissions.role === "analyst");
         setCityLeadCityIds(permissions.city_lead_city_ids || []);
+        setIsOpsUser(permissions.is_ops_user ?? false);
         setGovVerificationStatus(govStatus ?? null);
 
       } catch (error) {
@@ -1045,7 +1077,11 @@ export default function DashboardPage() {
   // Seymour chat: platform admins, analysts, and government-verified users.
   // Gates both the left-nav entry points and the chat view itself so they
   // can never disagree.
-  const chatEnabled = isAdmin || isAnalyst || !!govVerificationStatus?.government_verified;
+  const chatEnabled =
+    isAdmin ||
+    isAnalyst ||
+    cityLeadCityIds.length > 0 ||
+    !!govVerificationStatus?.government_verified;
   useEffect(() => {
     if (!isCheckingAdmin && !chatEnabled && currentView === "chat") {
       setCurrentView("feed");
@@ -1056,10 +1092,19 @@ export default function DashboardPage() {
 
   // A deep link to an admin panel must not strand a non-admin on a blank pane.
   useEffect(() => {
-    if (!isCheckingAdmin && shouldLeaveAdminView(currentView, isAdmin)) {
+    if (!isCheckingAdmin && shouldLeaveAdminView(currentView, isAdmin, isOpsUser)) {
       setCurrentView("feed");
     }
-  }, [isCheckingAdmin, isAdmin, currentView]);
+  }, [isCheckingAdmin, isAdmin, isOpsUser, currentView]);
+
+  // Ops users (admins, city leads, analysts) land on the dashboard once
+  // permissions load, unless a deep link or an explicit city pick got there first.
+  useEffect(() => {
+    if (isCheckingAdmin || !isOpsUser || hasAppliedOpsLanding.current) return;
+    hasAppliedOpsLanding.current = true;
+    if (deepLinkViewApplied.current) return;
+    setCurrentView((prev) => (prev === "feed" ? "system-stats" : prev));
+  }, [isCheckingAdmin, isOpsUser]);
 
   // Allow other views to open a Job Session for review.
   useEffect(() => {
@@ -1275,6 +1320,7 @@ export default function DashboardPage() {
       !isAuthenticated ||
       isLoading ||
       isCheckingAdmin ||
+      isOpsUser ||
       showWelcomeModal ||
       pendingNavIntent ||
       hasAutoSelectedCity.current ||
@@ -1343,6 +1389,7 @@ export default function DashboardPage() {
     isCheckingAdmin,
     isImpersonating,
     isAdmin,
+    isOpsUser,
     showWelcomeModal,
     pendingNavIntent,
     currentView,
@@ -2147,6 +2194,7 @@ export default function DashboardPage() {
         sidebarWidth={sidebarWidth}
         onWidthChange={handleSidebarWidthChange}
         isAdmin={isAdmin}
+        isOpsUser={isOpsUser}
         cityLeadCityIds={cityLeadCityIds}
         currentView={currentView}
         governmentVerified={govVerificationStatus?.government_verified ?? false}
@@ -2317,7 +2365,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-{/* Admin Views — only reachable via admin menus; gated so proxy mode
+          {/* Admin Views — only reachable via admin menus; gated so proxy mode
               cannot leave an admin surface mounted after identity switch. */}
           {currentView === "city-data" && isAdmin && (
             <div id="city-data-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
@@ -2432,7 +2480,10 @@ export default function DashboardPage() {
                 <h2 style={{ margin: "0 0 8px 0", padding: 0, color: "var(--text-primary)", fontSize: "18px" }}>
                   Feed
                 </h2>
-                <FeedAdmin />
+                <FeedAdmin
+                  isAdmin={isAdmin}
+                  onViewJob={isAdmin ? handleOpenJobLogsFromCityData : undefined}
+                />
               </div>
             </div>
           )}
@@ -2448,10 +2499,13 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {currentView === "system-stats" && isAdmin && (
+          {currentView === "system-stats" && isOpsUser && (
             <div id="system-stats-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               <div className={styles.analyticsAdminContainer}>
-                <ProductAnalyticsDashboard />
+                <ProductAnalyticsDashboard
+                  isAdmin={isAdmin}
+                  onViewJob={isAdmin ? handleOpenJobLogsFromCityData : undefined}
+                />
               </div>
             </div>
           )}
@@ -2979,6 +3033,7 @@ export default function DashboardPage() {
               )
         }
         isAdmin={isAdmin}
+        isOpsUser={isOpsUser}
         onViewChange={handleViewChange}
         onOpenSettings={handleOpenSettings}
         onProfileMenuToggle={(open) => {

@@ -7,13 +7,14 @@ import styles from "./ContextMenu.module.css";
 interface ContextMenuProps {
   isOpen: boolean;
   isAdmin?: boolean;
+  isOpsUser?: boolean;
   onClose: () => void;
   onViewChange?: (view: string) => void;
   onOpenSettings?: () => void;
 }
 
 const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
-  ({ isOpen, isAdmin = false, onClose, onViewChange, onOpenSettings }, ref) => (
+  ({ isOpen, isAdmin = false, isOpsUser = false, onClose, onViewChange, onOpenSettings }, ref) => (
     <div
       ref={ref}
       className={`${styles.menu} ${isOpen ? styles.open : ""}`}
@@ -23,6 +24,7 @@ const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
     >
       <UserMenuPanel
         isAdmin={isAdmin}
+        isOpsUser={isOpsUser}
         onClose={onClose}
         onViewChange={onViewChange}
         onOpenSettings={onOpenSettings}

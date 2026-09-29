@@ -15,6 +15,8 @@ import type { UserPlace } from "@/lib/apiClient";
 interface SidebarProps {
   isOpen: boolean;
   isAdmin?: boolean;
+  /** City leads and analysts: shows the Dashboard entry in the user menu. */
+  isOpsUser?: boolean;
   cityLeadCityIds?: number[];
   /** When true, show a small "g" in the logo braces (government mode). */
   governmentVerified?: boolean;
@@ -88,6 +90,7 @@ export default function Sidebar({
   isOpen,
   isAdmin = false,
   cityLeadCityIds = [],
+  isOpsUser = false,
   governmentVerified = false,
   governmentEmail = null,
   onNewChat,
@@ -139,7 +142,6 @@ export default function Sidebar({
     }
   }, [isCurrentSessionJobSession]);
 
-  
   // Generate unique IDs for logo masks
   const baseId = useId();
   const logoMaskIdBl = `${baseId}-logo-mask-bl`;
@@ -608,6 +610,7 @@ export default function Sidebar({
           <div className={styles.sidebarFooterContent}>
             <UserProfile
               isAdmin={isAdmin}
+              isOpsUser={isOpsUser}
               onViewChange={(view) => {
                 if (onViewChange) {
                   onViewChange(view);

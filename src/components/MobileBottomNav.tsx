@@ -13,6 +13,7 @@ interface MobileBottomNavProps {
   profilePictureUrl?: string | null;
   profileInitial?: string;
   isAdmin?: boolean;
+  isOpsUser?: boolean;
   onViewChange?: (view: string) => void;
   onOpenSettings?: () => void;
   /** Called when the profile menu opens or closes (e.g. close sidebar on open). */
@@ -42,6 +43,7 @@ export default function MobileBottomNav({
   profilePictureUrl = null,
   profileInitial = "U",
   isAdmin = false,
+  isOpsUser = false,
   onViewChange,
   onOpenSettings,
   onProfileMenuToggle,
@@ -154,6 +156,7 @@ export default function MobileBottomNav({
             >
               <UserMenuPanel
                 isAdmin={isAdmin}
+                isOpsUser={isOpsUser}
                 onClose={closeProfileMenu}
                 onViewChange={onViewChange}
                 onOpenSettings={onOpenSettings}

@@ -5,10 +5,15 @@ import {
   deleteResearch,
   exportAdminMetrics,
   exportWasteFindings,
+  getMyPermissions,
   sendChatMessageStream,
   uploadAvatar,
 } from "./apiClient";
-import { clearImpersonation, setImpersonation } from "./impersonation";
+import {
+  clearImpersonation,
+  getImpersonationUserId,
+  setImpersonation,
+} from "./impersonation";
 
 /**
  * Regression guard for the proxy-session identity bugs.
@@ -79,6 +84,48 @@ describe("sendChatMessageStream identity headers", () => {
     const headers = headersFromLastCall();
     expect(headers["X-Impersonate-User-Id"]).toBeUndefined();
     expect(headers["Authorization"]).toBe("Bearer test-token");
+  });
+});
+
+describe("stale proxy session", () => {
+  it("clears impersonation and retries when the proxy target is gone", async () => {
+    setImpersonation(4242, "gone@example.com");
+    const permissions = {
+      user_id: 1,
+      email: "admin@example.com",
+      role: "admin",
+      permissions: [],
+      is_admin: true,
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "Proxy target not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(permissions), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+    const result = await getMyPermissions("test-token");
+
+    expect(result.email).toBe("admin@example.com");
+    expect(getImpersonationUserId()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstHeaders = (fetchMock.mock.calls[0][1] as RequestInit)
+      .headers as Record<string, string>;
+    const secondHeaders = (fetchMock.mock.calls[1][1] as RequestInit)
+      .headers as Record<string, string>;
+    expect(firstHeaders["X-Impersonate-User-Id"]).toBe("4242");
+    expect(secondHeaders["X-Impersonate-User-Id"]).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
 

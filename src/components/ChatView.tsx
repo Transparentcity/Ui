@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, ReactElement } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import ChatSessionLoader from "./ChatSessionLoader";
 import MarkdownWithEmbeds from "./MarkdownWithEmbeds";
-import ToolCall from "./ToolCall";
+import ToolCall, { getEmbeddedMapHash } from "./ToolCall";
 import SessionHeader from "./SessionHeader";
 import Loader from "./Loader";
 import ThinkingTrace from "./ThinkingTrace";
@@ -1129,6 +1129,8 @@ export default function ChatView({
       const elements: ReactElement[] = [];
       let currentTextContent = "";
       let lastEventType: string | null = null;
+      // generate_map and a follow-up show_map return the same map; embed it once.
+      const embeddedMapHashes = new Set<string>();
 
       sortedEvents.forEach((event, idx) => {
         if (event.type === "text_response") {
@@ -1165,10 +1167,14 @@ export default function ChatView({
             (tc) => tc.tool_id === event.tool_id
           );
           if (toolCall) {
+            const mapHash = getEmbeddedMapHash(toolCall);
+            const isDuplicateMap = mapHash !== null && embeddedMapHashes.has(mapHash);
+            if (mapHash) embeddedMapHashes.add(mapHash);
             elements.push(
               <ToolCall
                 key={`${msg.id}-tool-${idx}`}
                 toolCall={toolCall}
+                hideEmbed={isDuplicateMap}
               />
             );
           }
@@ -1245,9 +1251,21 @@ export default function ChatView({
           {/* Render tool calls before content */}
           {msg.tool_calls &&
             msg.tool_calls.length > 0 &&
-            msg.tool_calls.map((toolCall, idx) => (
-              <ToolCall key={`${msg.id}-tool-${idx}`} toolCall={toolCall} />
-            ))}
+            (() => {
+              const embeddedMapHashes = new Set<string>();
+              return msg.tool_calls.map((toolCall, idx) => {
+                const mapHash = getEmbeddedMapHash(toolCall);
+                const isDuplicateMap = mapHash !== null && embeddedMapHashes.has(mapHash);
+                if (mapHash) embeddedMapHashes.add(mapHash);
+                return (
+                  <ToolCall
+                    key={`${msg.id}-tool-${idx}`}
+                    toolCall={toolCall}
+                    hideEmbed={isDuplicateMap}
+                  />
+                );
+              });
+            })()}
           {/* Render markdown content */}
           {msg.content && (
             <div className={styles.messageContent}>

@@ -39,6 +39,10 @@ import {
   normalizeLocationRowLatLng,
   seriesMatchFallbackColor,
 } from "@/lib/mapUtils";
+import {
+  buildChoroplethScaleLegend,
+  type ScaleLegend,
+} from "@/lib/maps/choroplethLegend";
 
 // Types for the map data
 interface MapCenter {
@@ -1145,9 +1149,16 @@ export default function PublicMapPage() {
   const [legend, setLegend] = useState<{
     title: string;
     items: Array<{ label: string; color: string }>;
+    /** Date range label for delta and categorical legends. */
+    dateRange?: string | null;
   } | null>(null);
   /** Tap the legend to minimize it to its title row (both desktop and mobile). */
   const [legendCollapsed, setLegendCollapsed] = useState(false);
+  /**
+   * Gradient-scale legend for continuous choropleth count/rate ramps.
+   * Separate from `legend` so district-dot category legends don't overwrite it.
+   */
+  const [choroplethScale, setChoroplethScale] = useState<ScaleLegend | null>(null);
   /** Mobile: point details render in a bottom sheet (~2/3 of the map) instead of a popup. */
   const [pointSheetHtml, setPointSheetHtml] = useState<string | null>(null);
   // Media gallery (points carrying photo/media URLs, e.g. SF 311 media_url)
@@ -1990,6 +2001,7 @@ export default function PublicMapPage() {
         } catch (err) {
           console.warn("[PublicMapPage] Error removing choropleth for cleared selection:", err);
         }
+        setChoroplethScale(null);
         return;
       }
       
@@ -2418,6 +2430,8 @@ export default function PublicMapPage() {
           },
         };
       });
+      // Determine whether any district has no data (drives "No data" swatch).
+      const hasNoDataDistricts = features.some((f: any) => f.properties?.value === null);
       await waitForMapStyleLoaded(mapInstance);
       if (loadGen !== choroplethLoadGenRef.current) {
         return;
@@ -2514,8 +2528,13 @@ export default function PublicMapPage() {
           const badColor  = greenDirection === "down" ? "#ef4444" : "#22c55e";
           const goodLabel = greenDirection === "down" ? "Decreased (better)" : "Increased (better)";
           const badLabel  = greenDirection === "down" ? "Increased (worse)"  : "Decreased (worse)";
+          setChoroplethScale(null);
           setLegend({
             title: "Change vs prior period",
+            dateRange: formatSourceDateRange(
+              mapData.map_config?.start_date as string | null | undefined,
+              mapData.map_config?.end_date as string | null | undefined,
+            ),
             items: [
               { label: goodLabel, color: goodColor },
               {
@@ -2529,13 +2548,24 @@ export default function PublicMapPage() {
             ],
           });
         } else {
-          setLegend({
-            title: "Count",
-            items: [
-              { label: "Low",  color: `rgb(${CHORO_LOW.join(",")})` },
-              { label: "High", color: `rgb(${CHORO_HIGH.join(",")})` },
-            ],
-          });
+          // Count/rate choropleth — show a gradient bar with real min/max values
+          // instead of generic "Low" / "High" labels.
+          setChoroplethScale(
+            buildChoroplethScaleLegend({
+              minValue,
+              maxValue,
+              lowRgb: CHORO_LOW,
+              highRgb: CHORO_HIGH,
+              noDataFill: choroRamp.noDataFill,
+              hasNoData: hasNoDataDistricts,
+              mapConfig: {
+                item_noun: mapData.map_config?.item_noun as string | null | undefined,
+                aggregation_type: mapData.map_config?.aggregation_type as string | null | undefined,
+              },
+              startDate: mapData.map_config?.start_date as string | null | undefined,
+              endDate: mapData.map_config?.end_date as string | null | undefined,
+            }),
+          );
         }
 
         // Add popup on click
@@ -3755,6 +3785,55 @@ export default function PublicMapPage() {
     (map.map_config as Record<string, unknown> | undefined)?.delta_palette ===
       "red_green";
 
+  /**
+   * Gradient-bar scale legend for count/rate choropleths.
+   * Shown at top-left of the map container, above any categorical legend.
+   * thumbnail=true renders a compact strip at the bottom.
+   */
+  const renderChoroplethScale = (variant: "full" | "thumbnail") => {
+    if (!choroplethScale || useYearPanels || map.map_type === "multi_layer") return null;
+    const cls =
+      variant === "thumbnail"
+        ? "map-choropleth-scale map-choropleth-scale--thumbnail"
+        : "map-choropleth-scale";
+    return (
+      <div className={cls} aria-label="Color scale">
+        {choroplethScale.dateRange && (
+          <div className="map-choropleth-scale-date">{choroplethScale.dateRange}</div>
+        )}
+        {choroplethScale.isSingleValue ? (
+          <div className="map-choropleth-scale-row">
+            <span
+              className="map-choropleth-scale-swatch"
+              style={{ backgroundColor: choroplethScale.highColor }}
+            />
+            <span className="map-choropleth-scale-label">{choroplethScale.maxLabel}</span>
+          </div>
+        ) : (
+          <div className="map-choropleth-scale-row">
+            <span className="map-choropleth-scale-end-label">{choroplethScale.minLabel}</span>
+            <span
+              className="map-choropleth-scale-bar"
+              style={{
+                background: `linear-gradient(to right, ${choroplethScale.lowColor}, ${choroplethScale.highColor})`,
+              }}
+            />
+            <span className="map-choropleth-scale-end-label">{choroplethScale.maxLabel}</span>
+          </div>
+        )}
+        {choroplethScale.hasNoData && (
+          <div className="map-choropleth-scale-row map-choropleth-scale-nodata-row">
+            <span
+              className="map-choropleth-scale-swatch"
+              style={{ backgroundColor: choroplethScale.noDataColor }}
+            />
+            <span className="map-choropleth-scale-label">No data</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Thumbnail mode — map only, no chrome, for feed card previews
   if (isThumbnail) {
     if (useYearPanels) {
@@ -3775,6 +3854,7 @@ export default function PublicMapPage() {
       <div className="public-map-page embedded thumbnail">
         <div className="map-container-wrapper embedded-map-wrapper">
           <div className="map-container embedded-map" ref={mapContainerRef} />
+          {renderChoroplethScale("thumbnail")}
           {legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend map-legend-thumbnail${
@@ -3793,6 +3873,9 @@ export default function PublicMapPage() {
                   </div>
                 ))}
               </div>
+              {legend.dateRange && (
+                <div className="map-legend-date">{legend.dateRange}</div>
+              )}
             </div>
           )}
         </div>
@@ -3946,6 +4029,14 @@ export default function PublicMapPage() {
                 return "—";
               })()}
             </span>
+            {(() => {
+              const range = formatSourceDateRange(
+                map.map_config?.start_date as string | null | undefined,
+                map.map_config?.end_date as string | null | undefined,
+              );
+              if (!range) return null;
+              return <span className="embedded-meta-date">{range}</span>;
+            })()}
             <a
               href={`/m/${hash}`}
               target="_blank"
@@ -4006,11 +4097,12 @@ export default function PublicMapPage() {
           {!useYearPanels && (
           <div className="map-container embedded-map" ref={mapContainerRef} />
           )}
+          {!useYearPanels && renderChoroplethScale("full")}
           {!useYearPanels && legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend${
                 useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
-              }${legendCollapsed ? " map-legend-collapsed" : ""}`}
+              }${legendCollapsed ? " map-legend-collapsed" : ""}${choroplethScale ? " map-legend--scale-offset" : ""}`}
               aria-label="Map legend"
             >
               <button
@@ -4036,6 +4128,9 @@ export default function PublicMapPage() {
                     </div>
                   ))}
                 </div>
+              )}
+              {legend.dateRange && (
+                <div className="map-legend-date">{legend.dateRange}</div>
               )}
             </div>
           )}
@@ -4399,11 +4494,12 @@ export default function PublicMapPage() {
           {!useYearPanels && (
           <div className="map-container" ref={mapContainerRef} />
           )}
+          {!useYearPanels && renderChoroplethScale("full")}
           {!useYearPanels && legend && legend.items.length > 0 && map.map_type !== "multi_layer" && (
             <div
               className={`map-legend${
                 useChoroplethCompactLegendStyle ? " map-legend-delta-choropleth" : ""
-              }${legendCollapsed ? " map-legend-collapsed" : ""}`}
+              }${legendCollapsed ? " map-legend-collapsed" : ""}${choroplethScale ? " map-legend--scale-offset" : ""}`}
               aria-label="Map legend"
             >
               <button
@@ -4429,6 +4525,9 @@ export default function PublicMapPage() {
                     </div>
                   ))}
                 </div>
+              )}
+              {legend.dateRange && (
+                <div className="map-legend-date">{legend.dateRange}</div>
               )}
             </div>
           )}

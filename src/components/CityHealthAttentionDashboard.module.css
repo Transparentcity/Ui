@@ -500,3 +500,41 @@
 :global(.dark) .actionError {
   color: #fca5a5;
 }
+
+/* Collapsible header: the whole title block toggles the section. */
+.collapseToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  min-width: 0;
+}
+
+.collapseToggle .chevron {
+  margin-top: 0.3rem;
+}
+
+.criticalBadge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--error, #ef4444);
+  color: var(--text-on-brand, #fff);
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.issueExplanation {
+  margin: 0.2rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--text-secondary, #555);
+}
