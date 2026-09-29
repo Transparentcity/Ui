@@ -687,7 +687,7 @@ export default function MetricDetailModal({
                   {(() => {
                     const portalUrl = cityDetail?.main_portal_url || null;
                     const portalDomain = cityDetail?.main_domain || null;
-                    const { datasetName, datasetUrl } = resolveMetricDatasetAttribution(
+                    const { datasetName, datasetUrl, publisher } = resolveMetricDatasetAttribution(
                       metric,
                       { portalUrl, portalDomain }
                     );
@@ -712,7 +712,24 @@ export default function MetricDetailModal({
                           </p>
                         )}
                         <p className="provenance-value">
-                          {datasetName ? (
+                          {publisher && datasetName ? (
+                            <>
+                              This data comes from{" "}
+                              {datasetUrl ? (
+                                <a
+                                  href={datasetUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="provenance-link-inline"
+                                >
+                                  {datasetName}
+                                </a>
+                              ) : (
+                                <strong>{datasetName}</strong>
+                              )}
+                              , a public file published on {publisher}.
+                            </>
+                          ) : datasetName ? (
                             <>
                               This data comes from{" "}
                               {datasetUrl ? (
