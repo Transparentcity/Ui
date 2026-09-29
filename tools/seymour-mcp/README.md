@@ -33,7 +33,25 @@ dashboard.
 
 ### 1. Create the Auth0 application (about five minutes)
 
-In the Auth0 dashboard for the `auth.transparent.city` tenant:
+Fastest path: run the setup script with a short-lived Management API token.
+In the Auth0 dashboard open Applications, APIs, Auth0 Management API, API
+Explorer tab, and copy the token shown there (it expires in 24 hours). The
+tenant domain is the canonical one shown at the top of the dashboard, not the
+custom domain.
+
+```bash
+cd tools/seymour-mcp
+AUTH0_MGMT_TOKEN=<token> AUTH0_TENANT_DOMAIN=<tenant>.us.auth0.com \
+  node scripts/create-auth0-app.mjs
+```
+
+It creates (or updates) a Native application named "Seymour MCP" with only the
+Device Code and Refresh Token grants, rotating refresh tokens (30 days
+absolute, 14 days idle), turns on Allow Offline Access for the API, and
+prints the `export SEYMOUR_AUTH0_CLIENT_ID=...` line to use in step 2. It is
+safe to re-run.
+
+Manual path, in the Auth0 dashboard for the `auth.transparent.city` tenant:
 
 1. Applications, Create Application, type **Native**, name it `Seymour MCP`.
 2. Settings, Advanced Settings, Grant Types: enable **Device Code** and
