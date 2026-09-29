@@ -1133,60 +1133,57 @@
   background: #fef3c7;
 }
 
-/* Status bar above the input: what Seymour is doing, and how the last reply ended */
+/* Status line above the input: what Seymour is doing, and how the last reply ended.
+   A small inline chip, not a full-width bar, so it stays out of the way on phones. */
 .streamStatus {
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   align-items: center;
-  gap: var(--space-sm);
-  margin: 0 0 var(--space-sm);
-  padding: 6px 12px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
+  gap: 6px;
+  margin: 0 0 var(--space-xs, 6px);
+  padding: 2px 8px 2px 0;
+  border-radius: 999px;
+  font-size: 12px;
   line-height: 1.4;
-  border: 1px solid transparent;
-}
-
-.streamStatusWorking {
-  background: var(--brand-primary-light, rgba(99, 102, 241, 0.08));
-  border-color: var(--brand-primary, #6366f1);
-  color: var(--text-primary);
-}
-
-.streamStatusDone {
-  background: #ecfdf5;
-  border-color: #6ee7b7;
-  color: #065f46;
-}
-
-.streamStatusStopped {
-  background: var(--bg-tertiary, #f3f4f6);
-  border-color: var(--border-primary);
   color: var(--text-secondary);
 }
 
+.streamStatusWorking {
+  color: var(--text-secondary);
+}
+
+.streamStatusDone {
+  color: #047857;
+}
+
+.streamStatusStopped {
+  color: var(--text-tertiary);
+}
+
 .streamStatusInterrupted {
-  background: #fffbeb;
-  border-color: #fcd34d;
-  color: #92400e;
+  color: #b45309;
 }
 
 .streamStatusText {
-  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .streamStatusTime {
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
 .streamSpinner {
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   flex-shrink: 0;
   border-radius: 50%;
-  border: 2px solid var(--brand-primary, #6366f1);
+  border: 1.5px solid var(--brand-primary, #6366f1);
   border-right-color: transparent;
   animation: streamSpin 0.8s linear infinite;
 }
