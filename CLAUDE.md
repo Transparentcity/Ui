@@ -10,6 +10,13 @@ anything under `src/components/waste/` or `src/app/waste/`. The city picker
 is backend-driven (`configured && launched` from `/api/admin/waste/cities`);
 launching a new waste city requires no UI change.
 
+## Seymour MCP server
+
+`tools/seymour-mcp/` is a standalone Node package (own `package.json`, excluded
+from the root tsconfig and eslint) that exposes Seymour chat to Claude Code and
+Claude Desktop over MCP using the Auth0 device flow. Its request shapes mirror
+`src/lib/api/chat.ts`; keep them in sync. Setup and usage: `tools/seymour-mcp/README.md`.
+
 ## Weekly QA
 
 The automated weekly QA runs via `.github/workflows/weekly-qa.yml` every Thursday at 7 AM PT.

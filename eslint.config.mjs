@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Ignore Node.js scripts (they use require() which is valid in Node.js)
     "scripts/**",
+    // Standalone packages with their own toolchain (e.g. the Seymour MCP server)
+    "tools/**",
     "public/debug-auth.js",
   ]),
 ]);
