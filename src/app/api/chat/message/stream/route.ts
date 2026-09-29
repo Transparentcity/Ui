@@ -8,12 +8,19 @@
  * as it arrives.
  */
 import { NextRequest } from "next/server";
+import { withSseKeepalive } from "@/lib/sseKeepalive";
 
 // Always talk to the backend directly — never through the Next.js proxy.
 const BACKEND_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
 
 export const dynamic = "force-dynamic";
+
+// A Seymour reply that runs several tools can take minutes. Without this the
+// function falls back to the project's default duration and Vercel kills the
+// stream part way through the reply. 300s is within every plan's limit under
+// fluid compute (Vercel's default); Pro allows up to 800.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest): Promise<Response> {
   const backendUrl = `${BACKEND_BASE}/api/chat/message/stream`;
@@ -76,8 +83,10 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // Pipe the backend's ReadableStream directly to the client.
   // Using `new Response(stream)` (not NextResponse) avoids any buffering
-  // that NextResponse might introduce.
-  return new Response(backendResponse.body, {
+  // that NextResponse might introduce. The keepalive wrapper writes an SSE
+  // comment during long silent tool calls so idle proxies keep the
+  // connection open.
+  return new Response(withSseKeepalive(backendResponse.body), {
     status: 200,
     headers: {
       "Content-Type": "text/event-stream",

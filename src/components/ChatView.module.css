@@ -1082,3 +1082,182 @@
     max-height: 300px;
   }
 }
+
+.interruptedBubble {
+  background: #fffbeb;
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.interruptedContinueButton {
+  margin-top: var(--space-md);
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #d97706;
+  background: #ffffff;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.interruptedContinueButton:hover {
+  background: #fef3c7;
+}
+
+.interruptedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.interruptedContinueButton {
+  margin-top: 0;
+}
+
+.interruptedSecondaryButton {
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #d97706;
+  background: transparent;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.interruptedSecondaryButton:hover {
+  background: #fef3c7;
+}
+
+/* Status line above the input: what Seymour is doing, and how the last reply ended.
+   A small inline chip, not a full-width bar, so it stays out of the way on phones. */
+.streamStatus {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-xs, 6px);
+  padding: 2px 8px 2px 0;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.streamStatusWorking {
+  color: var(--text-secondary);
+}
+
+.streamStatusDone {
+  color: #047857;
+}
+
+.streamStatusStopped {
+  color: var(--text-tertiary);
+}
+
+.streamStatusInterrupted {
+  color: #b45309;
+}
+
+.streamStatusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.streamStatusTime {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.streamSpinner {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--brand-primary, #6366f1);
+  border-right-color: transparent;
+  animation: streamSpin 0.8s linear infinite;
+}
+
+@keyframes streamSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streamSpinner {
+    animation-duration: 2s;
+  }
+}
+
+/* Footer after the last message: whole-conversation copy and the share link */
+.conversationFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px dashed var(--border-primary);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.conversationFooterButton {
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.conversationFooterButton:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.conversationFooterButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.conversationFooterLink {
+  color: var(--brand-primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.conversationFooterLink:hover {
+  text-decoration: underline;
+}
+
+.transcriptFallback {
+  flex-basis: 100%;
+}
+
+.transcriptFallbackNote {
+  margin-bottom: 4px;
+}
+
+.transcriptFallbackText {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}

@@ -18,7 +18,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible"
-import { sendChatMessageStream, createNewSession, toggleSessionPublic } from "@/lib/apiClient"
+import { sendChatMessageStream, createNewSession, toggleSessionPublic, ChatStreamInterruptedError } from "@/lib/apiClient"
 import type { ChatMessageRequest } from "@/lib/apiClient"
 import { PREFERRED_DEFAULT_MODEL_KEY } from "@/lib/modelDefaults"
 
@@ -151,7 +151,11 @@ export function SeymourChatContent() {
             }
           })
         } catch (err) {
-          fullResponse = fullResponse || "Sorry, I encountered an error processing your request. Please try again."
+          if (err instanceof ChatStreamInterruptedError) {
+            fullResponse = `${fullResponse}\n\n_Seymour's connection dropped before this reply finished._`.trim()
+          } else {
+            fullResponse = fullResponse || "Sorry, I encountered an error processing your request. Please try again."
+          }
         }
       } else {
         fullResponse = "Please sign in to use Seymour. Authentication is required to access FOIA tools."
