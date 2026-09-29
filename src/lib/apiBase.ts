@@ -105,7 +105,6 @@ export const API_BASE_FOR_ASSETS = getApiBaseUrlForAssets();
  * streaming endpoint (checked with a preflight against api.transparent.city).
  */
 const DIRECT_CHAT_STREAM_HOSTS = new Set(["transparent.city", "app.transparent.city"]);
-const DIRECT_CHAT_STREAM_ORIGIN = "https://api.transparent.city";
 
 /**
  * Origin for Seymour's streaming endpoint, given the page's hostname.
@@ -117,7 +116,8 @@ const DIRECT_CHAT_STREAM_ORIGIN = "https://api.transparent.city";
  */
 export function chatStreamBaseUrlFor(hostname: string | null | undefined): string | null {
   if (hostname && DIRECT_CHAT_STREAM_HOSTS.has(hostname)) {
-    return DIRECT_CHAT_STREAM_ORIGIN;
+    // The same configured API origin that images and other assets use.
+    return getApiBaseUrlForAssets();
   }
   return null;
 }

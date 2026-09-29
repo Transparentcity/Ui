@@ -116,9 +116,12 @@ describe("sendChatMessageStream interruption handling", () => {
 
 describe("chatStreamBaseUrlFor", () => {
   it("streams straight from the API server on the live site hosts", async () => {
-    const { chatStreamBaseUrlFor } = await import("./apiBase");
-    expect(chatStreamBaseUrlFor("transparent.city")).toBe("https://api.transparent.city");
-    expect(chatStreamBaseUrlFor("app.transparent.city")).toBe("https://api.transparent.city");
+    const { chatStreamBaseUrlFor, getApiBaseUrlForAssets } = await import("./apiBase");
+    // The configured API origin (https://api.transparent.city in production).
+    const apiOrigin = getApiBaseUrlForAssets();
+    expect(apiOrigin).toMatch(/^https?:\/\//);
+    expect(chatStreamBaseUrlFor("transparent.city")).toBe(apiOrigin);
+    expect(chatStreamBaseUrlFor("app.transparent.city")).toBe(apiOrigin);
   });
 
   it("keeps the same-origin proxy route everywhere else", async () => {

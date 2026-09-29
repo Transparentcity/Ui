@@ -29,7 +29,7 @@ export interface InterruptedTurn {
 const MAX_ARGS_CHARS = 600;
 const MAX_RESULT_CHARS = 1500;
 const MAX_PARTIAL_TEXT_CHARS = 4000;
-const MAX_CONTEXT_CHARS = 16000;
+export const MAX_RESUME_CONTEXT_CHARS = 16000;
 
 function stringify(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -65,18 +65,13 @@ function formatToolCall(call: InterruptedToolCall, index: number): string {
 }
 
 /**
- * Build the message sent to the backend for the turn after an interruption:
- * a context block describing the interrupted work, followed by what the user
- * typed. When the tool log is too long, the oldest calls are dropped first.
+ * Describe the work done before the cut: the request, the completed tool
+ * calls with their (truncated) arguments and results, tools still running,
+ * and the partial answer. When the tool log would push the text past
+ * `maxChars`, the oldest calls are dropped first.
  */
-export function buildResumeMessage(turn: InterruptedTurn, userText: string): string {
-  const header =
-    "[Context added by the Transparent City app: your previous reply was cut off " +
-    "by a connection timeout before it finished, and that work may not be in " +
-    "your history. Below is what you had done for that request. Use it and do " +
-    "not repeat tool calls that already succeeded.]";
-
-  const sections: string[] = [header, `Request you were working on:\n${truncate(turn.request, 2000)}`];
+export function formatInterruptedWork(turn: InterruptedTurn, maxChars = MAX_RESUME_CONTEXT_CHARS): string {
+  const sections: string[] = [`Request you were working on:\n${truncate(turn.request, 2000)}`];
 
   if (turn.pendingToolNames.length > 0) {
     sections.push(
@@ -90,10 +85,7 @@ export function buildResumeMessage(turn: InterruptedTurn, userText: string): str
     );
   }
 
-  const footer = "[End of context]";
-  const fixedLength =
-    sections.join("\n\n").length + footer.length + userText.length + 64;
-  const budget = Math.max(0, MAX_CONTEXT_CHARS - fixedLength);
+  const budget = Math.max(0, maxChars - sections.join("\n\n").length - 64);
 
   const formatted = turn.completedToolCalls.map(formatToolCall);
   const kept: string[] = [];
@@ -112,8 +104,27 @@ export function buildResumeMessage(turn: InterruptedTurn, userText: string): str
     }:`;
     // Tool results go right after the request so the order reads the same
     // way the work happened.
-    sections.splice(2, 0, [title, ...kept].join("\n"));
+    sections.splice(1, 0, [title, ...kept].join("\n"));
   }
 
-  return `${sections.join("\n\n")}\n${footer}\n\n${userText}`;
+  return sections.join("\n\n");
+}
+
+/**
+ * Build the message sent to the backend for the turn after an interruption:
+ * a context block describing the interrupted work, followed by what the user
+ * typed.
+ */
+export function buildResumeMessage(turn: InterruptedTurn, userText: string): string {
+  const header =
+    "[Context added by the Transparent City app: your previous reply was cut off " +
+    "by a connection timeout before it finished, and that work may not be in " +
+    "your history. Below is what you had done for that request. Use it and do " +
+    "not repeat tool calls that already succeeded.]";
+  const footer = "[End of context]";
+
+  const reserved = header.length + footer.length + userText.length + 64;
+  const work = formatInterruptedWork(turn, MAX_RESUME_CONTEXT_CHARS - reserved);
+
+  return `${header}\n\n${work}\n${footer}\n\n${userText}`;
 }

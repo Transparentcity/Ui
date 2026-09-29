@@ -26,6 +26,8 @@ import {
 } from "@/lib/modelDefaults";
 import { recordProductEvent } from "@/lib/productAnalytics";
 import { buildResumeMessage, type InterruptedTurn } from "@/lib/chatResume";
+import { buildConversationTranscript } from "@/lib/chatTranscript";
+import { copyTextToClipboard } from "@/lib/copyToClipboard";
 import {
   appendChatStreamEvent,
   mergeConsecutiveThinkingEvents,
@@ -55,6 +57,19 @@ interface ChatViewProps {
 }
 
 type ProviderKey = "anthropic" | "openai" | "google" | "grok" | "xai" | "unknown";
+
+/** "get_metric_data" -> "get metric data" for the status bar. */
+function humanizeToolName(name: string): string {
+  return name.replace(/[_-]+/g, " ").trim();
+}
+
+/** 83000 -> "1:23"; 5000 -> "0:05". */
+function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 function normalizeProviderKey(value: string | undefined | null): ProviderKey {
   const v = (value || "").toLowerCase().trim();
@@ -148,6 +163,20 @@ export default function ChatView({
   // Work from a reply whose stream was cut off. It is replayed at the top of
   // the next message so Seymour can pick up where it stopped.
   const [interruptedTurn, setInterruptedTurnState] = useState<InterruptedTurn | null>(null);
+  // What Seymour is doing right now, shown in the status bar while streaming.
+  const [streamActivity, setStreamActivity] = useState<string>("Thinking");
+  const [streamElapsedMs, setStreamElapsedMs] = useState(0);
+  const streamStartedAtRef = useRef<number | null>(null);
+  const stoppedByUserRef = useRef(false);
+  // How the last reply ended, so the status bar can say so after the stop
+  // button disappears. Cleared on the next send.
+  const [streamOutcome, setStreamOutcome] = useState<
+    { kind: "done" | "stopped" | "interrupted"; elapsedMs: number } | null
+  >(null);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [copiedTranscript, setCopiedTranscript] = useState(false);
+  const [copiedFooterLink, setCopiedFooterLink] = useState(false);
+  const [transcriptFallback, setTranscriptFallback] = useState<string | null>(null);
   const interruptedTurnRef = useRef<InterruptedTurn | null>(null);
   const setInterruptedTurn = (turn: InterruptedTurn | null) => {
     interruptedTurnRef.current = turn;
@@ -194,6 +223,9 @@ export default function ChatView({
       if (!isBootstrappedSessionAssignment) {
         setMessages([]);
         setInterruptedTurn(null);
+        setStreamOutcome(null);
+        setPublicUrl(null);
+        setTranscriptFallback(null);
       }
 
       // Set currentSessionId FIRST so the header knows we have a session
@@ -233,6 +265,9 @@ export default function ChatView({
       statsSetFromSessionLoadRef.current = null;
       setCurrentSessionId(null);
       setInterruptedTurn(null);
+      setStreamOutcome(null);
+      setPublicUrl(null);
+      setTranscriptFallback(null);
       // Clear messages to show welcome view
       setMessages([]);
     } else if (sessionId && sessionId === currentSessionId) {
@@ -388,7 +423,31 @@ export default function ChatView({
     });
   }, [isStreaming]);
 
+  // Tick the elapsed timer once a second while a reply is streaming.
+  useEffect(() => {
+    if (!isStreaming) return;
+    const tick = () => {
+      const start = streamStartedAtRef.current;
+      setStreamElapsedMs(start ? Date.now() - start : 0);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isStreaming]);
+
+  // "Finished" and "stopped" notes fade on their own; a dropped connection
+  // stays until the next send.
+  useEffect(() => {
+    if (!streamOutcome || streamOutcome.kind === "interrupted") return;
+    const id = setTimeout(() => setStreamOutcome(null), 8000);
+    return () => clearTimeout(id);
+  }, [streamOutcome]);
+
   const handleSessionLoaded = useCallback((session: any) => {
+    // A public link is per session; forget the previous session's.
+    setPublicUrl(
+      session?.is_public && session?.short_hash ? `/chat/${session.short_hash}` : null
+    );
     
     // Store session data for intermediate_steps access
     setCurrentSession(session);
@@ -518,6 +577,12 @@ export default function ChatView({
     setIsTyping(true);
     setIsStreaming(true);
     hasPendingSendRef.current = true;
+    streamStartedAtRef.current = Date.now();
+    stoppedByUserRef.current = false;
+    setStreamElapsedMs(0);
+    setStreamActivity("Thinking");
+    setStreamOutcome(null);
+    setTranscriptFallback(null);
 
     // If the previous reply was cut off, send its work along with this
     // message. Otherwise "continue" reaches a model with no record of it.
@@ -607,6 +672,7 @@ export default function ChatView({
               console.error("❌ Streaming state ref is null!");
               return;
             }
+            setStreamActivity("Writing the reply");
             
             streamingStateRef.current.fullResponse += event.content;
             streamingStateRef.current.intermediateEvents.push({
@@ -653,6 +719,7 @@ export default function ChatView({
             });
           } else if (event.type === "thinking" && event.content) {
             if (!streamingStateRef.current) return;
+            setStreamActivity("Thinking");
 
             streamingStateRef.current.intermediateEvents = appendChatStreamEvent(
               streamingStateRef.current.intermediateEvents,
@@ -696,6 +763,7 @@ export default function ChatView({
             
             const toolId = event.tool_id || `tool-${Date.now()}`;
             const toolName = event.tool_name || "unknown";
+            setStreamActivity(`Running ${humanizeToolName(toolName)}`);
             
             streamingStateRef.current.toolCallMap[toolId] = {
               tool_id: toolId,
@@ -749,6 +817,12 @@ export default function ChatView({
               streamingStateRef.current.toolCallMap[event.tool_id].success = event.success;
               streamingStateRef.current.toolCalls.push(streamingStateRef.current.toolCallMap[event.tool_id]);
             }
+            const stillRunning = Object.values(streamingStateRef.current.toolCallMap).find(
+              (call) => call.response === null && call.success === null
+            );
+            setStreamActivity(
+              stillRunning ? `Running ${humanizeToolName(stillRunning.tool_name)}` : "Thinking"
+            );
 
             streamingStateRef.current.intermediateEvents.push({
               type: "tool_call_complete",
@@ -972,6 +1046,9 @@ export default function ChatView({
       } else if (isAbortError) {
         // Don't show error message for cancellations - the partial response is fine
       } else {
+        // The resumed message never got a reply, so keep its context for the
+        // next attempt rather than losing the earlier work.
+        if (resumingTurn) setInterruptedTurn(resumingTurn);
         // Update assistant message with error for real errors
         setMessages((prev) =>
           prev.map((msg) =>
@@ -985,11 +1062,69 @@ export default function ChatView({
         );
       }
     } finally {
+      const elapsedMs = streamStartedAtRef.current ? Date.now() - streamStartedAtRef.current : 0;
+      setStreamOutcome({
+        kind: interruptedTurnRef.current
+          ? "interrupted"
+          : stoppedByUserRef.current || abortControllerRef.current?.signal.aborted
+            ? "stopped"
+            : "done",
+        elapsedMs,
+      });
       hasPendingSendRef.current = false;
       setIsTyping(false);
       setIsStreaming(false);
       setCurrentAssistantMessageId(null);
       abortControllerRef.current = null;
+    }
+  };
+
+  // Everything the browser knows about this conversation, as text that can
+  // be pasted into a new chat. Includes the cut-off reply's work when there
+  // is one. Falls back to an on-screen textarea when the clipboard is blocked.
+  const handleCopyConversation = async () => {
+    const text = buildConversationTranscript(messages, {
+      title: currentSession?.title,
+      link: publicUrl ? `${window.location.origin}${publicUrl}` : null,
+      sessionId: currentSessionId,
+      interruptedTurn,
+    });
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      setTranscriptFallback(null);
+      setCopiedTranscript(true);
+      setTimeout(() => setCopiedTranscript(false), 2000);
+    } else {
+      setTranscriptFallback(text);
+    }
+  };
+
+  // Make the session public (idempotent) so it has a /chat/{hash} link, show
+  // the link in the footer, and copy it.
+  const handleCopyConversationLink = async () => {
+    if (!currentSessionId || isSharing) return;
+    setIsSharing(true);
+    try {
+      let url = publicUrl;
+      if (!url) {
+        const token = await getAccessTokenSilently();
+        const data = await toggleSessionPublic(currentSessionId, true, token);
+        if (!data.public_url) return;
+        url = data.public_url;
+        setPublicUrl(url);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
+        }
+      }
+      const ok = await copyTextToClipboard(`${window.location.origin}${url}`);
+      if (ok) {
+        setCopiedFooterLink(true);
+        setTimeout(() => setCopiedFooterLink(false), 2000);
+      }
+    } catch {
+      // Share may fail (offline); the link stays visible if we already have it.
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -1009,6 +1144,7 @@ export default function ChatView({
   }, [initialPrompt, isStreaming, onInitialPromptHandled]);
 
   const handleStop = () => {
+    stoppedByUserRef.current = true;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -1597,21 +1733,76 @@ export default function ChatView({
           {interruptedTurn && !isStreaming && (
             <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
               <div className={styles.interruptedBubble} role="status">
-                <div className={styles.errorTitle}>Seymour&apos;s connection dropped before the reply finished</div>
+                <div className={styles.errorTitle}>
+                  Seymour&apos;s connection dropped
+                  {streamOutcome?.kind === "interrupted" ? ` after ${formatElapsed(streamOutcome.elapsedMs)}` : ""}, before the reply finished
+                </div>
                 <div className={styles.errorContent}>
                   {interruptedTurn.completedToolCalls.length > 0
                     ? `It had finished ${interruptedTurn.completedToolCalls.length} tool call${interruptedTurn.completedToolCalls.length === 1 ? "" : "s"}. `
                     : ""}
-                  Your next message will include that work, so Seymour can pick up where it stopped.
+                  Your next message here will include that work, so Seymour can pick up where it stopped.
+                  Or copy the whole conversation, with that work, into a new chat.
                 </div>
+                <div className={styles.interruptedActions}>
+                  <button
+                    type="button"
+                    className={styles.interruptedContinueButton}
+                    onClick={() => handleSend("Continue where you left off.")}
+                  >
+                    Continue where it left off
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.interruptedSecondaryButton}
+                    onClick={handleCopyConversation}
+                  >
+                    {copiedTranscript ? "Copied" : "Copy whole conversation"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {!isStreaming && messages.length > 0 && (
+            <div className={styles.conversationFooter}>
+              <button
+                type="button"
+                className={styles.conversationFooterButton}
+                onClick={handleCopyConversation}
+                title="Copy every message in this conversation as text"
+              >
+                {copiedTranscript ? "Conversation copied" : "Copy whole conversation"}
+              </button>
+              {currentSessionId && (
                 <button
                   type="button"
-                  className={styles.interruptedContinueButton}
-                  onClick={() => handleSend("Continue where you left off.")}
+                  className={styles.conversationFooterButton}
+                  onClick={handleCopyConversationLink}
+                  disabled={isSharing}
+                  title={publicUrl ? "Copy the link to this conversation" : "Create a link to this conversation and copy it"}
                 >
-                  Continue where it left off
+                  {copiedFooterLink ? "Link copied" : publicUrl ? "Copy link" : "Get link"}
                 </button>
-              </div>
+              )}
+              {publicUrl && (
+                <a className={styles.conversationFooterLink} href={publicUrl} target="_blank" rel="noreferrer">
+                  {typeof window !== "undefined" ? `${window.location.host}${publicUrl}` : publicUrl}
+                </a>
+              )}
+              {transcriptFallback && (
+                <div className={styles.transcriptFallback}>
+                  <div className={styles.transcriptFallbackNote}>
+                    Your browser blocked the clipboard. Select the text below and copy it.
+                  </div>
+                  <textarea
+                    className={styles.transcriptFallbackText}
+                    readOnly
+                    value={transcriptFallback}
+                    onFocus={(e) => e.currentTarget.select()}
+                    rows={8}
+                  />
+                </div>
+              )}
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -1619,6 +1810,43 @@ export default function ChatView({
 
         {/* Chat Input Area */}
         <div className={styles.chatInputArea}>
+          {(isStreaming || streamOutcome) && (
+            <div
+              className={`${styles.streamStatus} ${
+                isStreaming
+                  ? styles.streamStatusWorking
+                  : streamOutcome?.kind === "interrupted"
+                    ? styles.streamStatusInterrupted
+                    : streamOutcome?.kind === "stopped"
+                      ? styles.streamStatusStopped
+                      : styles.streamStatusDone
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              {isStreaming ? (
+                <>
+                  <span className={styles.streamSpinner} aria-hidden="true" />
+                  <span className={styles.streamStatusText}>
+                    Seymour is working: {streamActivity}
+                  </span>
+                  <span className={styles.streamStatusTime}>{formatElapsed(streamElapsedMs)}</span>
+                </>
+              ) : streamOutcome?.kind === "interrupted" ? (
+                <span className={styles.streamStatusText}>
+                  Connection dropped after {formatElapsed(streamOutcome.elapsedMs)}. The reply above is incomplete; use the notice above it to continue.
+                </span>
+              ) : streamOutcome?.kind === "stopped" ? (
+                <span className={styles.streamStatusText}>
+                  Stopped after {formatElapsed(streamOutcome.elapsedMs)}.
+                </span>
+              ) : (
+                <span className={styles.streamStatusText}>
+                  Reply finished in {formatElapsed(streamOutcome?.elapsedMs ?? 0)}.
+                </span>
+              )}
+            </div>
+          )}
           <div className={styles.chatInputWrapper}>
             {/* Model selector icon inside on the left */}
             <div ref={modelIconWrapperRef} className={styles.modelIconWrapper}>
