@@ -672,7 +672,7 @@ export default function ChatView({
               console.error("❌ Streaming state ref is null!");
               return;
             }
-            setStreamActivity("Writing the reply");
+            setStreamActivity("Writing");
             
             streamingStateRef.current.fullResponse += event.content;
             streamingStateRef.current.intermediateEvents.push({
@@ -1734,8 +1734,8 @@ export default function ChatView({
             <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
               <div className={styles.interruptedBubble} role="status">
                 <div className={styles.errorTitle}>
-                  Seymour&apos;s connection dropped
-                  {streamOutcome?.kind === "interrupted" ? ` after ${formatElapsed(streamOutcome.elapsedMs)}` : ""}, before the reply finished
+                  Connection dropped
+                  {streamOutcome?.kind === "interrupted" ? ` after ${formatElapsed(streamOutcome.elapsedMs)}` : ""}
                 </div>
                 <div className={styles.errorContent}>
                   {interruptedTurn.completedToolCalls.length > 0
@@ -1827,23 +1827,20 @@ export default function ChatView({
               {isStreaming ? (
                 <>
                   <span className={styles.streamSpinner} aria-hidden="true" />
-                  <span className={styles.streamStatusText}>
-                    Seymour is working: {streamActivity}
-                  </span>
+                  <span className={styles.streamStatusText}>{streamActivity}</span>
                   <span className={styles.streamStatusTime}>{formatElapsed(streamElapsedMs)}</span>
                 </>
-              ) : streamOutcome?.kind === "interrupted" ? (
-                <span className={styles.streamStatusText}>
-                  Connection dropped after {formatElapsed(streamOutcome.elapsedMs)}. The reply above is incomplete; use the notice above it to continue.
-                </span>
-              ) : streamOutcome?.kind === "stopped" ? (
-                <span className={styles.streamStatusText}>
-                  Stopped after {formatElapsed(streamOutcome.elapsedMs)}.
-                </span>
               ) : (
-                <span className={styles.streamStatusText}>
-                  Reply finished in {formatElapsed(streamOutcome?.elapsedMs ?? 0)}.
-                </span>
+                <>
+                  <span className={styles.streamStatusText}>
+                    {streamOutcome?.kind === "interrupted"
+                      ? "Connection dropped"
+                      : streamOutcome?.kind === "stopped"
+                        ? "Stopped"
+                        : "Done"}
+                  </span>
+                  <span className={styles.streamStatusTime}>{formatElapsed(streamOutcome?.elapsedMs ?? 0)}</span>
+                </>
               )}
             </div>
           )}
