@@ -95,6 +95,24 @@ function StatusBadge({
   return <span className={`${styles.badge}`}>Not Run</span>;
 }
 
+/** One-line summary of a file source's parsing options (sheet, header row, filter). */
+function fileSourceSummary(sourceConfig: unknown): string {
+  if (!sourceConfig || typeof sourceConfig !== "object") return "Defaults (first sheet, header on row 1)";
+  const sc = sourceConfig as Record<string, unknown>;
+  const parts: string[] = [];
+  if (sc.format) parts.push(`format ${String(sc.format)}`);
+  if (sc.sheet !== undefined && sc.sheet !== null) parts.push(`sheet ${String(sc.sheet)}`);
+  if (sc.header_row) parts.push(`header row ${String(sc.header_row)}`);
+  if (sc.row_filter && typeof sc.row_filter === "object") {
+    const filters = Object.entries(sc.row_filter as Record<string, unknown>).map(
+      ([col, val]) => `${col} = ${Array.isArray(val) ? val.join(" or ") : String(val)}`
+    );
+    if (filters.length) parts.push(`rows where ${filters.join(", ")}`);
+  }
+  if (sc.unpivot) parts.push("unpivoted");
+  return parts.length ? parts.join("; ") : "Defaults (first sheet, header on row 1)";
+}
+
 export default function MetricEditModal({
   metricId,
   isOpen,
@@ -111,6 +129,7 @@ export default function MetricEditModal({
 
   const metric = metricQuery.data ?? null;
   const cityStructure = cityStructureQuery.data ?? null;
+  const isFileSource = metric?.data_source_type === "file";
 
   // Form state
   const [editForm, setEditForm] = useState<{
@@ -487,17 +506,33 @@ export default function MetricEditModal({
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-primary)" }}>
             <div className={styles.grid2}>
               <div style={{ gridColumn: "1 / -1" }}>
-                <div className={styles.fieldLabel}>Endpoint (Dataset ID)</div>
+                <div className={styles.fieldLabel}>
+                  {isFileSource ? "File URL" : "Endpoint (Dataset ID)"}
+                </div>
                 <input
                   className={styles.input}
                   value={editForm.endpoint}
                   onChange={(e) => setEditForm((p) => ({ ...p, endpoint: e.target.value }))}
-                  placeholder="e.g., wg3w-h783 or https://data.sfgov.org/resource/wg3w-h783.json"
+                  placeholder={
+                    isFileSource
+                      ? "e.g., https://data.ca.gov/dataset/<id>/resource/<uuid>"
+                      : "e.g., wg3w-h783 or https://data.sfgov.org/resource/wg3w-h783.json"
+                  }
                 />
                 <div className={styles.muted} style={{ fontSize: 11, marginTop: 2 }}>
-                  Socrata endpoint ID (e.g., wg3w-h783) or full URL to the data source.
+                  {isFileSource
+                    ? "https URL of a CSV, XLSX or JSON file on a public-sector host. For CKAN portals use the resource page URL; the current download is looked up on each run."
+                    : "Socrata endpoint ID (e.g., wg3w-h783) or full URL to the data source."}
                 </div>
               </div>
+              {isFileSource && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div className={styles.fieldLabel}>File parsing (read-only)</div>
+                  <div className={styles.fieldValue}>
+                    {fileSourceSummary(metric.metadata?.source_config)}
+                  </div>
+                </div>
+              )}
               <div>
                 <div className={styles.fieldLabel}>Type (read-only)</div>
                 <div className={styles.fieldValue}>{metric.metric_type || "queried"}</div>
