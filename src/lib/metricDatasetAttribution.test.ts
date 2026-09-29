@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMetricSourceInformation,
   extractSocrataDatasetId,
+  fileNameFromUrl,
   resolveMetricDatasetAttribution,
 } from "@/lib/metricDatasetAttribution";
 
@@ -57,6 +58,40 @@ describe("resolveMetricDatasetAttribution", () => {
     expect(resolved.datasetId).toBe("wnbq-64tb");
     expect(resolved.datasetName).toBe("wnbq-64tb");
     expect(resolved.datasetUrl).toBe("https://data.seattle.gov/d/wnbq-64tb");
+  });
+});
+
+describe("file sources", () => {
+  const url =
+    "https://www.cdss.ca.gov/inforesources/data-portal/research-and-data/calfresh-data-dashboard/Master%20data%20PUBLIC%20ACCESSIBLE.xlsx";
+
+  it("does not extract a fake Socrata id from a file URL", () => {
+    // The generic fallback finds "data-port" inside "data-portal".
+    expect(extractSocrataDatasetId(url)).toBe("data-port");
+    const resolved = resolveMetricDatasetAttribution({
+      endpoint: url,
+      data_source_type: "file",
+    });
+    expect(resolved.datasetId).toBeNull();
+    expect(resolved.datasetName).toBe("Master data PUBLIC ACCESSIBLE.xlsx");
+    expect(resolved.datasetUrl).toBe(url);
+    // Credited to the publishing site, not the city's portal.
+    expect(resolved.publisher).toBe("cdss.ca.gov");
+    expect(
+      resolveMetricDatasetAttribution({ endpoint: "i98e-djp9" }).publisher
+    ).toBeNull();
+  });
+
+  it("uses the host when the URL has no file name", () => {
+    expect(
+      fileNameFromUrl(
+        "https://data.ca.gov/dataset/ff08/resource/1e80a9cf-724c-432d-8374-e9708a6a92dc"
+      )
+    ).toBe("data.ca.gov");
+  });
+
+  it("keeps the raw file name when it is not valid percent-encoding", () => {
+    expect(fileNameFromUrl("https://x.gov/report%E0%A4.csv")).toBe("report%E0%A4.csv");
   });
 });
 

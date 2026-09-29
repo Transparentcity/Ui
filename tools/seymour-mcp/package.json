@@ -1,0 +1,30 @@
+{
+  "name": "seymour-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that lets Claude chat with Seymour (Transparent City) using your own Auth0 login.",
+  "type": "module",
+  "bin": {
+    "seymour-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "login": "node dist/login.js",
+    "logout": "node dist/login.js --logout",
+    "start": "node dist/index.js",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx src/*.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.6.0"
+  }
+}
