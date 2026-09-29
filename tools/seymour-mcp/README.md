@@ -29,6 +29,24 @@ with the same permissions you have on the site. Revoke access at any time by
 running `npm run logout` and deleting the grant under your user in the Auth0
 dashboard.
 
+## Quick start without any Auth0 setup
+
+If you just want to try it now, reuse the access token the web app already
+has. It expires (usually within 24 hours) and cannot be refreshed, so this is
+a stopgap; the Auth0 app below gives you a login that renews itself.
+
+```bash
+cd tools/seymour-mcp
+npm install && npm run build
+npm run login -- --token     # paste the token when prompted, then Enter and Ctrl-D
+claude mcp add --scope user --transport stdio seymour -- node "$PWD/dist/index.js"
+```
+
+To find the token: open app.transparent.city while logged in, open DevTools,
+Network tab, click any request to `/api/`, and copy the value after
+`Authorization: Bearer` in the request headers. The token is read from stdin
+so it never lands in your shell history.
+
 ## One-time setup
 
 ### 1. Create the Auth0 application (about five minutes)

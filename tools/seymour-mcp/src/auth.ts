@@ -43,8 +43,8 @@ export class AuthError extends Error {
 }
 
 export const NOT_LOGGED_IN_MESSAGE =
-  "Not logged in to Seymour. Run `npm run login` in tools/seymour-mcp (or `node dist/login.js`), " +
-  "approve the device code in your browser, then retry.";
+  "Not logged in to Seymour. In tools/seymour-mcp run `npm run login` (device flow) " +
+  "or `npm run login -- --token` (paste the web app's access token), then retry.";
 
 function tokenUrl(config: Config): string {
   return `https://${config.auth0Domain}/oauth/token`;
