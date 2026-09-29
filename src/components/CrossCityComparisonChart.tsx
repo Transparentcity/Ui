@@ -14,18 +14,11 @@ import {
 } from "react";
 import type { PlotParams } from "react-plotly.js";
 import type { Config, Data, Layout, PlotHoverEvent } from "plotly.js";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  getAdminMetricTimeSeries,
-  getAdminMetricTimeSeriesDetail,
+  getCrossCityComparison,
   getMyPermissions,
-  listAdminMetrics,
-  listCities,
-  type AdminMetricListItem,
-  type AdminMetricTimeSeries,
-  type AdminMetricTimeSeriesDetail,
-  type AdminTimeSeriesSummary,
-  type CityListItem,
+  type CrossCityPoint,
 } from "@/lib/apiClient";
 import { useImpersonationCacheKey } from "@/lib/impersonation";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -113,9 +106,10 @@ interface CityLookupItem {
 }
 
 interface CitySeries {
-  metric: AdminMetricListItem;
-  chart: AdminTimeSeriesSummary;
-  detail: AdminMetricTimeSeriesDetail;
+  metricId: number;
+  periodType: string | null;
+  /** Parsed once per load; sorted by date. */
+  points: ParsedPoint[];
   city: CityLookupItem;
   color: string;
 }
@@ -149,17 +143,6 @@ const RANGE_LABELS: Record<RangeMode, string> = {
   "3y": "3Y",
 };
 
-function parsePopulation(value: CityListItem["population"]): number | null {
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/,/g, ""));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-  return null;
-}
-
 function formatPopulation(value: number | null): string | null {
   if (value == null) return null;
   if (value >= 1_000_000) {
@@ -181,53 +164,12 @@ function formatPopulation(value: number | null): string | null {
   return value.toLocaleString();
 }
 
-function buildCityLookup(cities: CityListItem[]): Map<number, CityLookupItem> {
-  const map = new Map<number, CityLookupItem>();
-  for (const city of cities) {
-    map.set(city.city_id, {
-      name: city.city_name,
-      emoji: city.emoji ?? null,
-      population: parsePopulation(city.population),
-      population_source_name: city.population_source_name ?? null,
-      population_data_year: city.population_data_year ?? null,
-    });
-  }
-  return map;
-}
-
-function pickBestChart(series: AdminMetricTimeSeries): AdminTimeSeriesSummary | null {
-  const citywideBase = series.time_series.filter((item) => {
-    const district = item.district ?? 0;
-    return district === 0 && !item.group_field;
-  });
-  const candidates =
-    citywideBase.length > 0
-      ? citywideBase
-      : series.time_series.filter((item) => !item.group_field);
-
-  const priority = ["day", "month", "year"];
-  for (const period of priority) {
-    const match = candidates.find(
-      (item) => item.period_type?.toLowerCase() === period
-    );
-    if (match) return match;
-  }
-  return candidates[0] ?? null;
-}
-
-function parsePoints(detail: AdminMetricTimeSeriesDetail): ParsedPoint[] {
-  return detail.data
+function parsePoints(points: CrossCityPoint[]): ParsedPoint[] {
+  return points
     .map((point) => {
       const date = new Date(point.time_period);
-      const value = Number(point.numeric_value);
-      if (Number.isNaN(date.getTime()) || !Number.isFinite(value)) {
-        return null;
-      }
-      return {
-        time: point.time_period,
-        date,
-        value,
-      };
+      if (Number.isNaN(date.getTime())) return null;
+      return { time: point.time_period, date, value: point.numeric_value };
     })
     .filter((point): point is ParsedPoint => point != null)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -247,7 +189,7 @@ function getRangeStart(maxDate: Date, range: RangeMode): Date {
 
 /** Trailing average window size and label, aligned with YTD TimeSeriesChart styling. */
 function getSmoothingConfig(
-  periodType: string | undefined,
+  periodType: string | null | undefined,
   rangeMode: RangeMode
 ): { window: number; label: string } | null {
   const pt = (periodType ?? "day").toLowerCase();
@@ -420,154 +362,96 @@ export default function CrossCityComparisonChart({
   const isAdmin = permissionsQuery.data?.is_admin ?? false;
   const includeUnlaunched = isAdmin && showAllCities;
 
-  const metricsQuery = useQuery({
-    queryKey: ["cross-city-comparison", "metrics", templateId],
-    queryFn: () =>
-      listAdminMetrics(token, {
-        template_id: templateId,
-        is_active: true,
-        limit: 500,
-      }),
+  const comparisonQuery = useQuery({
+    queryKey: ["cross-city-comparison", templateId],
+    queryFn: () => getCrossCityComparison(templateId, token),
     enabled: Boolean(token && templateId),
     staleTime: 2 * 60 * 1000,
   });
 
-  const citiesQuery = useQuery({
-    queryKey: ["cross-city-comparison", "cities"],
-    queryFn: () => listCities(token),
-    enabled: Boolean(token),
-    staleTime: 10 * 60 * 1000,
-  });
-
-  const launchedCityIds = useMemo(() => {
-    const ids = new Set<number>();
-    for (const city of citiesQuery.data ?? []) {
-      if (city.is_launched) ids.add(city.city_id);
-    }
-    return ids;
-  }, [citiesQuery.data]);
-
-  const cityMetrics = useMemo(() => {
-    const withCity = (metricsQuery.data ?? []).filter((metric) => metric.city_id != null);
-    if (includeUnlaunched) return withCity;
-    return withCity.filter((metric) => launchedCityIds.has(metric.city_id!));
-  }, [includeUnlaunched, launchedCityIds, metricsQuery.data]);
-
-  const cityLookup = useMemo(
-    () => buildCityLookup(citiesQuery.data ?? []),
-    [citiesQuery.data]
-  );
-
-  const summaryQueries = useQueries({
-    queries: cityMetrics.map((metric) => ({
-      queryKey: ["cross-city-comparison", "summary", metric.id],
-      queryFn: () =>
-        getAdminMetricTimeSeries(metric.id, token, {
-          exclude_group_fields: true,
-        }),
-      enabled: Boolean(token),
-      staleTime: 2 * 60 * 1000,
-    })),
-  });
-
-  const selectedCharts = useMemo(
+  const visibleSeries = useMemo(
     () =>
-      cityMetrics
-        .map((metric, index) => {
-          const summary = summaryQueries[index]?.data;
-          const chart = summary ? pickBestChart(summary) : null;
-          return chart ? { metric, chart } : null;
-        })
-        .filter(
-          (item): item is { metric: AdminMetricListItem; chart: AdminTimeSeriesSummary } =>
-            item != null
-        ),
-    [cityMetrics, summaryQueries]
+      (comparisonQuery.data?.series ?? []).filter(
+        (series) => includeUnlaunched || series.is_launched
+      ),
+    [comparisonQuery.data, includeUnlaunched]
   );
 
-  const detailQueries = useQueries({
-    queries: selectedCharts.map(({ metric, chart }) => ({
-      queryKey: ["cross-city-comparison", "detail", metric.id, chart.chart_id],
-      queryFn: () => getAdminMetricTimeSeriesDetail(metric.id, chart.chart_id, token),
-      enabled: Boolean(token && chart.chart_id),
-      staleTime: 2 * 60 * 1000,
-    })),
-  });
-
-  const citySeries = useMemo<CitySeries[]>(() => {
-    return selectedCharts
-      .map(({ metric, chart }, index) => {
-        const detail = detailQueries[index]?.data;
-        const cityId = metric.city_id;
-        if (!detail || cityId == null) return null;
-        const city = cityLookup.get(cityId) ?? {
-          name: metric.city_name ?? `City ${cityId}`,
-          emoji: null,
-          population: null,
-          population_source_name: null,
-          population_data_year: null,
-        };
-        return {
-          metric,
-          chart,
-          detail,
-          city,
-          // Temporary color; reassigned after value-based ordering below.
-          color: SERIES_COLORS[index % SERIES_COLORS.length],
-        };
-      })
-      .filter((item): item is CitySeries => item != null);
-  }, [cityLookup, detailQueries, selectedCharts]);
+  const { citySeries, citiesWithoutData } = useMemo(() => {
+    const withData: CitySeries[] = [];
+    const withoutData: string[] = [];
+    for (const series of visibleSeries) {
+      const name = series.city_name ?? `City ${series.city_id}`;
+      const points = parsePoints(series.points);
+      if (points.length === 0) {
+        withoutData.push(name);
+        continue;
+      }
+      withData.push({
+        metricId: series.metric_id,
+        periodType: series.period_type,
+        points,
+        city: {
+          name,
+          emoji: series.emoji,
+          population: series.population,
+          population_source_name: series.population_source_name,
+          population_data_year: series.population_data_year,
+        },
+        // Temporary color; reassigned after value-based ordering below.
+        color: SERIES_COLORS[withData.length % SERIES_COLORS.length],
+      });
+    }
+    return { citySeries: withData, citiesWithoutData: withoutData };
+  }, [visibleSeries]);
 
   const commonDateWindow = useMemo(() => {
-    const extents = citySeries
-      .map((series) => {
-        const points = parsePoints(series.detail);
-        if (points.length === 0) return null;
-        return {
-          start: points[0].date,
-          end: points[points.length - 1].date,
-        };
-      })
-      .filter((extent): extent is { start: Date; end: Date } => extent != null);
-
-    if (extents.length === 0) return null;
+    if (citySeries.length === 0) return null;
     const commonStart = new Date(
-      Math.max(...extents.map((extent) => extent.start.getTime()))
+      Math.max(...citySeries.map((series) => series.points[0].date.getTime()))
     );
-    const commonEnd = new Date(Math.min(...extents.map((extent) => extent.end.getTime())));
+    const commonEnd = new Date(
+      Math.min(...citySeries.map((series) => series.points.at(-1)!.date.getTime()))
+    );
     if (commonStart > commonEnd) return null;
     return { start: commonStart, end: commonEnd };
   }, [citySeries]);
 
-  const rangeStart = commonDateWindow
-    ? new Date(
-        Math.max(
-          commonDateWindow.start.getTime(),
-          getRangeStart(commonDateWindow.end, rangeMode).getTime()
-        )
-      )
-    : null;
+  const rangeStart = useMemo(
+    () =>
+      commonDateWindow
+        ? new Date(
+            Math.max(
+              commonDateWindow.start.getTime(),
+              getRangeStart(commonDateWindow.end, rangeMode).getTime()
+            )
+          )
+        : null,
+    [commonDateWindow, rangeMode]
+  );
 
   /** Order by latest value in the active mode so legend/traces/table stay aligned. */
   const sortedCitySeries = useMemo(() => {
-    const getLatestDisplayValue = (series: CitySeries): number => {
-      if (!rangeStart || !commonDateWindow) return Number.NEGATIVE_INFINITY;
-      const parsed = parsePoints(series.detail).filter(
-        (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
-      );
-      if (parsed.length === 0) return Number.NEGATIVE_INFINITY;
-      const latest = toDisplayValue(
-        parsed[parsed.length - 1].value,
-        series.city.population,
-        valueMode
-      );
-      return latest ?? Number.NEGATIVE_INFINITY;
-    };
+    const latestByMetric = new Map<number, number>();
+    for (const series of citySeries) {
+      let latest = Number.NEGATIVE_INFINITY;
+      if (rangeStart && commonDateWindow) {
+        const point = series.points.findLast(
+          (p) => p.date <= commonDateWindow.end
+        );
+        if (point && point.date >= rangeStart) {
+          latest =
+            toDisplayValue(point.value, series.city.population, valueMode) ??
+            Number.NEGATIVE_INFINITY;
+        }
+      }
+      latestByMetric.set(series.metricId, latest);
+    }
 
     return [...citySeries]
       .sort((a, b) => {
-        const valueDiff = getLatestDisplayValue(b) - getLatestDisplayValue(a);
+        const valueDiff =
+          latestByMetric.get(b.metricId)! - latestByMetric.get(a.metricId)!;
         if (valueDiff !== 0) return valueDiff;
         const popA = a.city.population ?? -1;
         const popB = b.city.population ?? -1;
@@ -595,7 +479,7 @@ export default function CrossCityComparisonChart({
 
     for (const series of sortedCitySeries) {
       const population = series.city.population;
-      const parsed = parsePoints(series.detail).filter(
+      const parsed = series.points.filter(
         (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
       );
       if (parsed.length === 0) continue;
@@ -609,7 +493,7 @@ export default function CrossCityComparisonChart({
       const label = `${series.city.emoji ? `${series.city.emoji} ` : ""}${series.city.name}${
         popLabel ? ` (${popLabel})` : ""
       }`;
-      const smoothing = getSmoothingConfig(series.chart.period_type, rangeMode);
+      const smoothing = getSmoothingConfig(series.periodType, rangeMode);
       const canSmooth =
         smoothing != null &&
         smoothing.window > 1 &&
@@ -628,7 +512,7 @@ export default function CrossCityComparisonChart({
       if (valuesByDay.size === 0) continue;
 
       out.push({
-        metricId: series.metric.id,
+        metricId: series.metricId,
         label,
         color: series.color,
         smoothingLabel: canSmooth && smoothing ? smoothing.label : null,
@@ -645,7 +529,7 @@ export default function CrossCityComparisonChart({
 
     for (const series of sortedCitySeries) {
       const population = series.city.population;
-      const parsed = parsePoints(series.detail).filter(
+      const parsed = series.points.filter(
         (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
       );
       if (parsed.length === 0) continue;
@@ -660,7 +544,7 @@ export default function CrossCityComparisonChart({
       const cityLabel = `${series.city.emoji ? `${series.city.emoji} ` : ""}${series.city.name}${
         popLabel ? ` (${popLabel})` : ""
       }`;
-      const smoothing = getSmoothingConfig(series.chart.period_type, rangeMode);
+      const smoothing = getSmoothingConfig(series.periodType, rangeMode);
       const canSmooth =
         smoothing != null &&
         smoothing.window > 1 &&
@@ -813,7 +697,7 @@ export default function CrossCityComparisonChart({
   const showSmoothingFootnote = useMemo(
     () =>
       sortedCitySeries.some((series) => {
-        const smoothing = getSmoothingConfig(series.chart.period_type, rangeMode);
+        const smoothing = getSmoothingConfig(series.periodType, rangeMode);
         return smoothing != null && smoothing.window > 1;
       }),
     [sortedCitySeries, rangeMode]
@@ -830,7 +714,7 @@ export default function CrossCityComparisonChart({
 
     for (const series of sortedCitySeries) {
       const population = series.city.population;
-      const parsed = parsePoints(series.detail).filter(
+      const parsed = series.points.filter(
         (point) => point.date >= rangeStart && point.date <= commonDateWindow.end
       );
       if (parsed.length === 0) continue;
@@ -856,7 +740,7 @@ export default function CrossCityComparisonChart({
           : null;
 
       rows.push({
-        metricId: series.metric.id,
+        metricId: series.metricId,
         cityName: series.city.name,
         emoji: series.city.emoji,
         color: series.color,
@@ -872,26 +756,6 @@ export default function CrossCityComparisonChart({
     // Keep table order identical to chart/legend (already sorted by latest value).
     return rows;
   }, [sortedCitySeries, commonDateWindow, rangeStart, valueMode]);
-
-  const isBootstrapping = metricsQuery.isLoading || citiesQuery.isLoading;
-  const isSeriesLoading =
-    !isBootstrapping &&
-    cityMetrics.length > 0 &&
-    (summaryQueries.some((query) => query.isLoading || query.isFetching) ||
-      detailQueries.some((query) => query.isLoading || query.isFetching));
-  const seriesLoadLabel = useMemo(() => {
-    if (!isSeriesLoading) return null;
-    const total = cityMetrics.length;
-    const ready = sortedCitySeries.length;
-    if (total <= 0) return "Loading time series…";
-    return `Loading time series… (${ready} of ${total} cities)`;
-  }, [isSeriesLoading, cityMetrics.length, sortedCitySeries.length]);
-
-  const isError =
-    metricsQuery.isError ||
-    citiesQuery.isError ||
-    summaryQueries.some((query) => query.isError) ||
-    detailQueries.some((query) => query.isError);
 
   const hasAnyPopulation = sortedCitySeries.some(
     (series) => series.city.population != null
@@ -956,7 +820,7 @@ export default function CrossCityComparisonChart({
     []
   );
 
-  const title = metricName ?? cityMetrics[0]?.metric_name ?? "Cross-city comparison";
+  const title = metricName ?? comparisonQuery.data?.metric_name ?? "Cross-city comparison";
 
   const chartHeader = (subtitle: ReactNode) => (
     <div className="cross-city-chart-header-intro">
@@ -977,7 +841,7 @@ export default function CrossCityComparisonChart({
     </div>
   );
 
-  if (isBootstrapping) {
+  if (comparisonQuery.isLoading) {
     return (
       <section className="cross-city-chart-card">
         {chartHeader("Loading cross-city comparison…")}
@@ -989,7 +853,7 @@ export default function CrossCityComparisonChart({
     );
   }
 
-  if (isError) {
+  if (comparisonQuery.isError) {
     return (
       <section className="cross-city-chart-card">
         {chartHeader(null)}
@@ -1009,6 +873,9 @@ export default function CrossCityComparisonChart({
           <>
             {citySeries.length} cities matched from template #{templateId}
             {!includeUnlaunched ? " (launched only)" : ""}
+            {citiesWithoutData.length > 0
+              ? `. No time series yet: ${citiesWithoutData.join(", ")}`
+              : ""}
           </>
         )}
         <div className="cross-city-chart-controls" aria-label="Cross-city comparison controls">
@@ -1074,13 +941,12 @@ export default function CrossCityComparisonChart({
         </div>
       </div>
 
-      {sortedCitySeries.length > 0 || isSeriesLoading ? (
+      {sortedCitySeries.length > 0 ? (
         <div className="cross-city-chart-body">
           <div
             ref={plotWrapRef}
             className="cross-city-chart-plot-wrap"
             style={{ minHeight: height }}
-            aria-busy={isSeriesLoading}
             onMouseLeave={clearHoverTip}
           >
             {sortedCitySeries.length > 0 ? (
@@ -1129,23 +995,13 @@ export default function CrossCityComparisonChart({
                 ) : null}
               </div>
             ) : null}
-            {isSeriesLoading ? (
-              <div
-                className="cross-city-chart-plot-loading"
-                role="status"
-                aria-live="polite"
-              >
-                <Loader size="md" color="dark" />
-                <span>{seriesLoadLabel ?? "Loading time series…"}</span>
-              </div>
-            ) : null}
           </div>
           {sortedCitySeries.length > 0 ? (
             <div className="cross-city-chart-legend" aria-label="Cities in comparison">
               {sortedCitySeries.map((series) => {
                 const popLabel = formatPopulation(series.city.population);
                 return (
-                  <div key={series.metric.id} className="cross-city-chart-legend-item">
+                  <div key={series.metricId} className="cross-city-chart-legend-item">
                     <span
                       className="cross-city-chart-swatch"
                       style={{ backgroundColor: series.color }}

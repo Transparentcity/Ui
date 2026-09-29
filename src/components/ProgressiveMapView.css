@@ -152,6 +152,41 @@
   margin-bottom: 4px;
 }
 
+/* Mapbox popups default to a white card, unreadable against themed text in
+   dark mode. Theme tokens flip with [data-theme], so no dark override. Tip
+   colour is set per anchor because that is how mapbox-gl.css paints it. */
+.progressive-map-view .mapboxgl-popup-content {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+}
+
+.progressive-map-view .mapboxgl-popup[class*="anchor-bottom"] .mapboxgl-popup-tip {
+  border-top-color: var(--bg-secondary);
+}
+
+.progressive-map-view .mapboxgl-popup[class*="anchor-top"] .mapboxgl-popup-tip {
+  border-bottom-color: var(--bg-secondary);
+}
+
+.progressive-map-view .mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+  border-right-color: var(--bg-secondary);
+}
+
+.progressive-map-view .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  border-left-color: var(--bg-secondary);
+}
+
+.progressive-map-view .mapboxgl-popup-close-button {
+  color: var(--text-secondary);
+}
+
+.progressive-map-view .mapboxgl-popup-close-button:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+
 /* ── Saved-place marker (center pin + label) ───────────────────────────── */
 .saved-place-marker {
   display: flex;

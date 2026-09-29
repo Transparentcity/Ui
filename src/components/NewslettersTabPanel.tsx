@@ -1,159 +1,95 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
-import { listNewsletterReports, createResearch, type NewsletterReport, type CreateResearchRequest } from "@/lib/apiClient";
-import { notifyJobCreated } from "@/lib/useJobWebSocket";
+import {
+  listNewsletterEditionsAdmin,
+  type InboxItem,
+  type NewsletterEditionAdminItem,
+} from "@/lib/apiClient";
+import InboxCard from "./InboxCard";
 import Loader from "./Loader";
 import "./NewslettersTabPanel.css";
 
 interface NewslettersTabPanelProps {
   cityId: number;
   cityName: string;
-  initialDistrict?: number | null;
-  isAdmin?: boolean;
   onClose?: () => void;
 }
 
 export default function NewslettersTabPanel({
   cityId,
   cityName,
-  initialDistrict,
-  isAdmin = false,
   onClose,
 }: NewslettersTabPanelProps) {
   const router = useRouter();
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
-  const [selectedDistrict, setSelectedDistrict] = useState<number | null>(initialDistrict ?? null);
-  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
-  const [newsletters, setNewsletters] = useState<NewsletterReport[]>([]);
+  const { getAccessTokenSilently } = useAuth0();
+  const [editions, setEditions] = useState<NewsletterEditionAdminItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    const loadNewsletters = async () => {
+    const loadEditions = async () => {
       setLoading(true);
       setError(null);
       try {
-        const token = isAuthenticated ? await getAccessTokenSilently() : undefined;
-        const reports = await listNewsletterReports(
+        const token = await getAccessTokenSilently();
+        const response = await listNewsletterEditionsAdmin(token, {
           cityId,
-          {
-            district: selectedDistrict,
-            frequency: selectedFrequency ?? undefined,
-            limit: 50,
-          },
-          token
+          limit: 200,
+        });
+        setEditions(
+          [...response.items].sort((a, b) => {
+            const dateOrder = (b.edition_date ?? "").localeCompare(
+              a.edition_date ?? "",
+            );
+            if (dateOrder !== 0) return dateOrder;
+            return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+          }),
         );
-        setNewsletters(reports);
-      } catch (err: any) {
-        console.error("Failed to load newsletters:", err);
-        setError(err.message || "Failed to load newsletters");
+      } catch (err: unknown) {
+        console.error("Failed to load newsletter editions:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load newsletters",
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    loadNewsletters();
-  }, [cityId, selectedDistrict, selectedFrequency, isAuthenticated, getAccessTokenSilently]);
+    void loadEditions();
+  }, [cityId, getAccessTokenSilently]);
 
-  // Clear error when filters change
-  useEffect(() => {
-    setError(null);
-  }, [selectedDistrict, selectedFrequency]);
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "";
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      return dateString || "";
-    }
-  };
-
-  const getDistrictLabel = (district: string | null | undefined) => {
-    if (!district || district === "0" || district === "null") return "City-wide";
-    return `District ${district}`;
-  };
-
-  const handleNewsletterClick = (newsletter: NewsletterReport) => {
-    if (!newsletter.public_url) return;
-    router.push(newsletter.public_url);
-  };
-
-  const handleGenerateNewsletter = async () => {
-    if (!selectedDistrict && selectedDistrict !== 0) {
-      setError("Please select a district");
-      return;
-    }
-    if (!selectedFrequency) {
-      setError("Please select a frequency");
-      return;
-    }
-
-    setGenerating(true);
-    setError(null);
-    try {
-      const token = await getAccessTokenSilently();
-      
-      // Generate newsletter prompt
-      const districtLabel = selectedDistrict === 0 ? "city-wide" : `District ${selectedDistrict}`;
-      const prompt = `Create a ${selectedFrequency} newsletter report for ${cityName} (${districtLabel}).
-
-Focus on:
-- Recent changes and trends in key metrics (crime, housing, permits, 311 calls, budget)
-- Notable anomalies or significant shifts
-- Comparative analysis (this period vs. previous period, this district vs. city-wide)
-- Actionable insights for residents and officials
-
-The report should be:
-- Accessible to general public (avoid jargon)
-- Data-driven with specific numbers and percentages
-- Highlight both positive and concerning trends
-- Include visualizations (charts, maps) where helpful
-- Suggest what these trends might mean for residents
-
-Format as a newsletter-style summary that could be emailed to subscribers interested in ${districtLabel} news.`;
-
-      // Create research report with newsletter metadata
-      const payload: CreateResearchRequest = {
-        prompt,
-        city_id: cityId,
-        district: selectedDistrict === 0 ? null : selectedDistrict.toString(),
-        one_shot: true,
-        model_key: "gpt-5.1",
-        enable_web_search: true,
-        is_newsletter: true,
-        newsletter_frequency: selectedFrequency as "weekly" | "monthly",
-      };
-      
-      const response = await createResearch(payload, token);
-
-      // Notify the job system so the badge shows progress
-      if (response.job_id) {
-        notifyJobCreated(response.job_id);
-      }
-    } catch (err: any) {
-      console.error("Failed to generate newsletter:", err);
-      setError(err.message || "Failed to generate newsletter");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  // Check if we should show the generate button
-  const shouldShowGenerateButton = 
-    isAdmin && 
-    newsletters.length === 0 && 
-    (selectedDistrict !== null || selectedDistrict === 0) && 
-    selectedFrequency !== null;
+  const inboxItems: InboxItem[] = editions.map((edition) => {
+    const district = edition.district > 0 ? String(edition.district) : null;
+    const sentAt = edition.edition_date
+      ? `${edition.edition_date}T12:00:00Z`
+      : edition.created_at ?? new Date(0).toISOString();
+    return {
+      id: `edition:${edition.short_hash ?? edition.id}`,
+      type: "edition",
+      subject: edition.subject,
+      preview: edition.preview,
+      cover_image_url: edition.cover_image_url,
+      sent_at: sentAt,
+      is_read: true,
+      is_private: false,
+      scope: district ? "district" : "city",
+      city_id: edition.city_id,
+      city_name: edition.city_name || cityName,
+      city_slug: edition.city_slug,
+      city_emoji: edition.city_emoji,
+      district,
+      district_label: district ? `D${district}` : null,
+      place_id: null,
+      place_name: null,
+      public_url:
+        edition.city_slug && edition.short_hash
+          ? `/c/${edition.city_slug}/newsletter/${edition.short_hash}`
+          : null,
+    };
+  });
 
   if (loading) {
     return (
@@ -166,7 +102,7 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
     );
   }
 
-  if (error && !newsletters.length && loading === false) {
+  if (error && !editions.length) {
     return (
       <div className="newsletters-tab-panel">
         <div className="newsletters-error">
@@ -192,104 +128,30 @@ Format as a newsletter-style summary that could be emailed to subscribers intere
           )}
         </div>
         <p className="newsletters-subtitle">
-          Weekly and monthly research reports for {cityName}
+          Citywide and district editions for {cityName}
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="newsletters-filters">
-        <div className="newsletter-filter-group">
-          <label htmlFor="district-filter">District:</label>
-          <select
-            id="district-filter"
-            value={selectedDistrict ?? ""}
-            onChange={(e) => setSelectedDistrict(e.target.value ? Number(e.target.value) : null)}
-            className="newsletter-filter-select"
-          >
-            <option value="">All Districts</option>
-            <option value="0">City-wide</option>
-            {Array.from({ length: 11 }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d}>
-                District {d}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="newsletter-filter-group">
-          <label htmlFor="frequency-filter">Frequency:</label>
-          <select
-            id="frequency-filter"
-            value={selectedFrequency ?? ""}
-            onChange={(e) => setSelectedFrequency(e.target.value || null)}
-            className="newsletter-filter-select"
-          >
-            <option value="">All</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Error message (if any) */}
-      {error && newsletters.length > 0 && (
+      {error && editions.length > 0 && (
         <div className="newsletters-error" style={{ marginBottom: "16px", padding: "12px", borderRadius: "8px", background: "var(--bg-secondary)" }}>
           <p style={{ margin: 0 }}>Error: {error}</p>
         </div>
       )}
 
-      {/* Newsletters List */}
-      {newsletters.length === 0 ? (
+      {inboxItems.length === 0 ? (
         <div className="newsletters-empty">
-          <p>No newsletters found for this city and district.</p>
-          {shouldShowGenerateButton && (
-            <button
-              className="newsletter-generate-btn"
-              onClick={handleGenerateNewsletter}
-              disabled={generating}
-            >
-              {generating ? "Generating..." : "Generate New Newsletter"}
-            </button>
-          )}
+          <p>No shared newsletter editions found for this city.</p>
         </div>
       ) : (
         <div className="newsletters-list">
-          {newsletters.map((newsletter) => (
-            <div
-              key={newsletter.id}
-              className="newsletter-card"
-              onClick={() => handleNewsletterClick(newsletter)}
-            >
-              <div className="newsletter-card-header">
-                <h3 className="newsletter-title">{newsletter.title}</h3>
-                {newsletter.frequency && (
-                  <span className="newsletter-frequency-badge">
-                    {newsletter.frequency}
-                  </span>
-                )}
-              </div>
-
-              <div className="newsletter-card-meta">
-                <span className="newsletter-date">
-                  {formatDate(newsletter.created_at)}
-                </span>
-                {newsletter.district && (
-                  <span className="newsletter-district">
-                    {getDistrictLabel(newsletter.district)}
-                  </span>
-                )}
-              </div>
-
-              {newsletter.social_summary && (
-                <p className="newsletter-summary">{newsletter.social_summary}</p>
-              )}
-
-              <div className="newsletter-card-footer">
-                <button className="newsletter-read-btn">
-                  Read Newsletter →
-                </button>
-              </div>
-            </div>
+          {inboxItems.map((item) => (
+            <InboxCard
+              key={item.id}
+              item={item}
+              onClick={() => {
+                if (item.public_url) router.push(item.public_url);
+              }}
+            />
           ))}
         </div>
       )}

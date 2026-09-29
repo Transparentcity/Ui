@@ -24,6 +24,12 @@ import {
 } from "@/lib/metricMapPermalinks";
 import { getMapCaptionTotalCount } from "@/lib/metricMapCaptionTotal";
 import {
+  type ChoroplethValueConfig,
+  formatChoroplethValue,
+  formatPercentValue,
+  isPercentageValued,
+} from "@/lib/maps/formatChoroplethValue";
+import {
   getPlaceRadiusBoundingBox,
   getPlaceRadiusBoundingBoxPolygon,
 } from "@/lib/placeBounds";
@@ -585,14 +591,18 @@ export default function MetricMapEmbed({
         }
       } catch (err) {
         if (mounted) {
-          const is404 =
+          // A metric whose dataset carries no coordinates or district column has
+          // no map to show. Treat that like a 404 so the embed hides itself
+          // instead of rendering an error the reader can do nothing about.
+          const isMapUnavailable =
             (err as any)?.status === 404 ||
             (err instanceof Error &&
               (err.message.includes("404") ||
                 err.message.includes("not available") ||
-                err.message.includes("no map_query")));
+                err.message.includes("no map_query") ||
+                err.message.toLowerCase().includes("no location")));
 
-          if (is404) {
+          if (isMapUnavailable) {
             setMapNotAvailable(true);
             setError(null);
             setMapData(null);
@@ -682,6 +692,31 @@ export default function MetricMapEmbed({
     }
     if (!dateRangeStr) return "";
 
+    const locationLabel =
+      isPlaceScope
+        ? "near this place"
+        : district && district > 0
+          ? `in District ${district}`
+          : "citywide";
+    const mapConfig = mapData?.map_config as ChoroplethValueConfig | undefined;
+    const unitConfig: ChoroplethValueConfig = {
+      ...mapConfig,
+      item_noun: mapConfig?.item_noun || itemNoun,
+    };
+
+    // A non-additive choropleth cannot derive a citywide value by summing its
+    // districts. Use only the independently calculated metric value.
+    if (mapData?.map_config?.additive === false) {
+      if (knownTotal == null || !Number.isFinite(knownTotal)) return "";
+      // Rates read as "32.0%"; averages keep their unit ("63.5 days").
+      const valueLabel = formatChoroplethValue(knownTotal, unitConfig, {
+        fallback: "",
+        lowercaseNoun: true,
+      });
+      if (!valueLabel) return "";
+      return `The ${metricName.toLowerCase()} was ${valueLabel} ${locationLabel} from ${dateRangeStr}.`;
+    }
+
     // Resolve total count:
     //   1. knownTotal (authoritative — from comparison API)
     //   2. choropleth aggregation sum
@@ -695,13 +730,13 @@ export default function MetricMapEmbed({
 
     if (totalCount === null) return "";
 
-    const locationLabel =
-      isPlaceScope
-        ? "near this place"
-        : district && district > 0
-          ? `in District ${district}`
-          : "citywide";
-    const displayItemNoun = (mapData?.map_config?.item_noun as string | undefined) || itemNoun;
+    // "There were 32 ... % closed" doesn't parse. Rates are a level, not a
+    // tally, so they take the same "was 32.0%" phrasing as the branch above.
+    if (isPercentageValued(unitConfig)) {
+      return `The ${metricName.toLowerCase()} was ${formatPercentValue(totalCount)} ${locationLabel} from ${dateRangeStr}.`;
+    }
+
+    const displayItemNoun = unitConfig.item_noun ?? "";
 
     return `There ${totalCount === 1 ? "was" : "were"} ${totalCount.toLocaleString()} ${metricName.toLowerCase()} ${displayItemNoun.toLowerCase()} ${locationLabel} from ${dateRangeStr}.`;
   };

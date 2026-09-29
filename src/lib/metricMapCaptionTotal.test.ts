@@ -3,6 +3,7 @@ import type { SavedMap } from "@/lib/apiClient";
 import {
   getMapCaptionTotalCount,
   getMetricAggregationValueField,
+  metricSupportsGeneratedMap,
 } from "./metricMapCaptionTotal";
 
 function baseMap(over: Partial<SavedMap> = {}): SavedMap {
@@ -83,6 +84,22 @@ describe("getMapCaptionTotalCount", () => {
     });
     expect(getMapCaptionTotalCount(map)).toBe(215);
   });
+
+  it("does not sum non-additive district averages", () => {
+    const map = baseMap({
+      location_data: [],
+      map_config: {
+        additive: false,
+        aggregation_type: "AVG",
+        aggregations: {
+          "1": {
+            rows: [{ value: 12.5 }, { value: 20.5 }],
+          },
+        },
+      },
+    });
+    expect(getMapCaptionTotalCount(map)).toBeNull();
+  });
 });
 
 describe("getMetricAggregationValueField", () => {
@@ -110,5 +127,142 @@ describe("getMetricAggregationValueField", () => {
         },
       })
     ).toBe("count");
+  });
+});
+
+describe("metricSupportsGeneratedMap", () => {
+  const base = { map_query: null, map_config: null, location_fields: null, metadata: null };
+
+  it("true when map_query is set", () => {
+    expect(metricSupportsGeneratedMap({ ...base, map_query: "SELECT *" })).toBe(true);
+  });
+
+  it("false when nothing is configured", () => {
+    expect(metricSupportsGeneratedMap(base)).toBe(false);
+  });
+
+  it("true for derived ratio (divide) with numerator+denominator", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            derived_config: {
+              operation: "divide",
+              numerator_metric_id: 11,
+              denominator_metric_id: 12,
+            },
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("false for derived divide without numerator/denominator", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            derived_config: { operation: "divide" },
+          },
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("true for AVG ytd_config with district_field", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            ytd_config: {
+              aggregation: { type: "AVG", field: "date_diff_d(closed_at, opened_at)" },
+              district_field: "councildistrict",
+            },
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("true for AVG ytd_config with district_field in location_config", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            ytd_config: {
+              aggregation: { type: "AVG", field: "days_to_close" },
+              location_config: { district_field: "supervisor_district" },
+            },
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("false for AVG ytd_config without district_field", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            ytd_config: {
+              aggregation: { type: "AVG", field: "days_to_close" },
+            },
+          },
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("false for AVG ytd_config without aggregation field", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            ytd_config: {
+              aggregation: { type: "AVG" },
+              district_field: "councildistrict",
+            },
+          },
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("true for SUM ytd_config with district_field", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            ytd_config: {
+              aggregation: { type: "SUM", field: "housingunits" },
+              district_field: "supervisor_district",
+            },
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("false for COUNT ytd_config (handled by map_query path)", () => {
+    expect(
+      metricSupportsGeneratedMap({
+        ...base,
+        metadata: {
+          query_config: {
+            ytd_config: {
+              aggregation: { type: "COUNT" },
+              district_field: "supervisor_district",
+            },
+          },
+        },
+      })
+    ).toBe(false);
   });
 });

@@ -277,8 +277,7 @@
   white-space: nowrap;
 }
 
-.cross-city-chart-loading,
-.cross-city-chart-plot-loading {
+.cross-city-chart-loading {
   align-items: center;
   color: var(--text-secondary);
   display: flex;
@@ -286,18 +285,8 @@
   font-size: 13px;
   gap: 12px;
   justify-content: center;
-  text-align: center;
-}
-
-.cross-city-chart-loading {
   min-height: 180px;
-}
-
-.cross-city-chart-plot-loading {
-  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
-  inset: 0;
-  position: absolute;
-  z-index: 2;
+  text-align: center;
 }
 
 .cross-city-chart-empty {

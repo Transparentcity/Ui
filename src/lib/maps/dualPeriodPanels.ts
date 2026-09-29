@@ -24,8 +24,10 @@ type AggRow = { value?: number; count?: number };
 function panelCountForAgg(
   agg: { rows?: AggRow[] } | undefined,
   itemNoun: string | undefined,
-  areaNoun: string | undefined
-): { count: number; countNoun?: string } {
+  areaNoun: string | undefined,
+  additive: boolean
+): { count?: number; countNoun?: string } {
+  if (!additive) return {};
   const rows = Array.isArray(agg?.rows) ? agg.rows : [];
   const total = rows.reduce(
     (sum, row) => sum + (Number(row?.value ?? row?.count ?? 0) || 0),
@@ -84,6 +86,7 @@ export function buildChoroplethDualPanels(
   const areaNoun = (
     currentMap.map_config?.choropleth_area_noun as string | undefined
   )?.trim();
+  const additive = currentMap.map_config?.additive !== false;
 
   const lockedViewKey = formatMetricMapViewSpecKey(spec);
 
@@ -91,14 +94,14 @@ export function buildChoroplethDualPanels(
     {
       period: "prior",
       label: labels.prior,
-      ...panelCountForAgg(comparisonAgg, itemNoun, areaNoun),
+      ...panelCountForAgg(comparisonAgg, itemNoun, areaNoun, additive),
       mapData: panelMapForChoroplethLayer(comparisonMap, shapeLayerId, comparisonAgg),
       lockedViewKey,
     },
     {
       period: "current",
       label: labels.current,
-      ...panelCountForAgg(currentAgg, itemNoun, areaNoun),
+      ...panelCountForAgg(currentAgg, itemNoun, areaNoun, additive),
       mapData: panelMapForChoroplethLayer(currentMap, shapeLayerId, currentAgg),
       lockedViewKey,
     },
