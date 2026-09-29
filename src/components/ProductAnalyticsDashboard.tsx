@@ -3,7 +3,9 @@
 /**
  * ProductAnalyticsDashboard — modular admin analytics hub.
  *
- * Tabs: Overview · Needs attention · Marketing · Newsletters · LLM costs · Integrations
+ * Admins: Overview · Needs attention · City expansion · City view · People · Marketing ·
+ * Newsletters · LLM costs · Integrations. City leads and analysts get the
+ * city-scoped CityOpsDashboard instead (same panels, locked to their cities).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,10 +25,14 @@ import {
 import LandingSourcesMatrix from "@/components/LandingSourcesMatrix";
 import RetentionLagTable from "@/components/RetentionLagTable";
 import RetentionTriangle from "@/components/RetentionTriangle";
+import CityExpansionPanel from "@/components/CityExpansionPanel";
+import CityOpsDashboard from "@/components/CityOpsDashboard";
 import NeedsAttentionPanel from "@/components/NeedsAttentionPanel";
+import PeopleActivityPanel from "@/components/PeopleActivityPanel";
 import NewsletterAdminMetricsTab from "@/components/NewsletterAdminMetricsTab";
 import SignupFunnelDashboard from "@/components/SignupFunnelDashboard";
 import {
+  getCityScheduleHealth,
   getProductAnalyticsOverview,
   getTokenUsageDailySeries,
   getUserStats,
@@ -35,11 +41,16 @@ import {
   type TokenUsageSourceRow,
   type UserStats,
 } from "@/lib/apiClient";
+import { fmt, money, shortDate, StatCard } from "@/components/analytics/dashboardParts";
+import { countCriticalAlerts, ensureCitiesAttention } from "@/lib/cityHealthAttention";
 import styles from "./ProductAnalyticsDashboard.module.css";
 
 type TabId =
   | "overview"
   | "needs-attention"
+  | "city-expansion"
+  | "city-view"
+  | "people"
   | "marketing"
   | "newsletters"
   | "llm-costs"
@@ -52,6 +63,9 @@ type AudienceFilter = "logged_in" | "logged_out" | "both";
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "needs-attention", label: "Needs attention" },
+  { id: "city-expansion", label: "City expansion" },
+  { id: "city-view", label: "City view" },
+  { id: "people", label: "People" },
   { id: "marketing", label: "Marketing" },
   { id: "newsletters", label: "Newsletters" },
   { id: "llm-costs", label: "LLM costs" },
@@ -218,48 +232,6 @@ const PRESETS = [
   { label: "12w", days: 84 },
 ];
 
-function pct(n: number | null | undefined, decimals = 1): string {
-  if (n == null || !isFinite(n)) return "—";
-  return `${(n * 100).toFixed(decimals)}%`;
-}
-
-function fmt(n: number | null | undefined): string {
-  if (n == null) return "—";
-  return n.toLocaleString();
-}
-
-function money(n: number | null | undefined): string {
-  if (n == null) return "—";
-  return `$${n.toFixed(2)}`;
-}
-
-function shortDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function StatCard({
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className={highlight ? styles.statCardHighlight : styles.statCard}>
-      <div className={styles.statLabel}>{label}</div>
-      <div className={highlight ? styles.statValueHighlight : styles.statValue}>
-        {value}
-      </div>
-      {sub && <div className={styles.statSub}>{sub}</div>}
-    </div>
-  );
-}
-
 function StatusPill({
   ok,
   label,
@@ -280,11 +252,34 @@ function StatusPill({
   );
 }
 
-export default function ProductAnalyticsDashboard() {
+interface ProductAnalyticsDashboardProps {
+  /** Non-admin ops users (city leads, analysts) get the city-scoped dashboard. */
+  isAdmin: boolean;
+  onViewJob?: (jobId: string) => void;
+}
+
+export default function ProductAnalyticsDashboard({
+  isAdmin,
+  onViewJob = () => {},
+}: ProductAnalyticsDashboardProps) {
+  if (!isAdmin) {
+    return <CityOpsDashboard isAdmin={false} onViewJob={onViewJob} />;
+  }
+  return <AdminAnalyticsDashboard onViewJob={onViewJob} />;
+}
+
+/** `?dash_tab=people` opens a tab directly (e.g. the old /admin/city-leads link). */
+function initialTab(): TabId {
+  if (typeof window === "undefined") return "overview";
+  const requested = new URLSearchParams(window.location.search).get("dash_tab");
+  return TABS.some((t) => t.id === requested) ? (requested as TabId) : "overview";
+}
+
+function AdminAnalyticsDashboard({ onViewJob }: { onViewJob: (jobId: string) => void }) {
   const { getAccessTokenSilently } = useAuth0();
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [days, setDays] = useState(DEFAULT_RANGE_DAYS);
   const [activeMetric, setActiveMetric] = useState<ActiveMetric>("wau");
   const [audience, setAudience] = useState<AudienceFilter>("logged_in");
@@ -321,6 +316,25 @@ export default function ProductAnalyticsDashboard() {
   useEffect(() => {
     void load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Badge on the Needs attention tab: critical issues in launched and dark cities.
+  const [criticalAlerts, setCriticalAlerts] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const res = await getCityScheduleHealth(token, { daysBack: 14 });
+        const { cities } = ensureCitiesAttention(res.cities || [], res.attention_summary ?? null);
+        if (!cancelled) setCriticalAlerts(countCriticalAlerts(cities));
+      } catch (e) {
+        console.error("Failed to load critical alert count", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessTokenSilently]);
 
   const activeMetricChart = useMemo(() => {
     if (!overview) return [];
@@ -376,7 +390,12 @@ export default function ProductAnalyticsDashboard() {
   const health = overview?.integration_health;
 
   // Tabs that load their own data and don't use the shared date-range toolbar.
-  const isSelfContainedTab = tab === "needs-attention" || tab === "newsletters";
+  const isSelfContainedTab =
+    tab === "needs-attention" ||
+    tab === "city-expansion" ||
+    tab === "newsletters" ||
+    tab === "city-view" ||
+    tab === "people";
 
   return (
     <div className={styles.root}>
@@ -425,6 +444,11 @@ export default function ProductAnalyticsDashboard() {
             className={tab === t.id ? styles.tabActive : styles.tab}
           >
             {t.label}
+            {t.id === "needs-attention" && criticalAlerts > 0 && (
+              <span className={styles.tabBadge} title="Critical issues in launched and dark cities">
+                {criticalAlerts}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -439,6 +463,14 @@ export default function ProductAnalyticsDashboard() {
 
       {/* Needs attention tab */}
       {tab === "needs-attention" && <NeedsAttentionPanel />}
+
+      {tab === "city-expansion" && (
+        <CityExpansionPanel getAccessTokenSilently={getAccessTokenSilently} />
+      )}
+
+      {tab === "city-view" && <CityOpsDashboard isAdmin onViewJob={onViewJob} embedded />}
+
+      {tab === "people" && <PeopleActivityPanel />}
 
       {/* Newsletters tab — per-campaign edition metrics */}
       {tab === "newsletters" && <NewsletterAdminMetricsTab />}

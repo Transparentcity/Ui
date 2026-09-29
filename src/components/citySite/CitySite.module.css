@@ -1,0 +1,880 @@
+/* CitySiteView — City site view for the ops dashboard.
+   Brand: tokens.css palette, no left-accent bars, Inter/IBM Plex typography.  */
+
+/* ── Wrapper ────────────────────────────────────────────────────────────── */
+.wrap {
+  font-family: Inter, system-ui, sans-serif;
+  color: var(--text-primary, #111);
+}
+
+/* ── Summary card ────────────────────────────────────────────────────────── */
+.summaryCard {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 10px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(173, 53, 250, 0.05), transparent 55%),
+    var(--bg-primary, #fff);
+  margin-bottom: 1rem;
+}
+
+.summaryLine {
+  margin: 0 0 0.2rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-primary, #222);
+}
+
+.missingLine {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--error, #ef4444);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fixBtn {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--error, #ef4444);
+  border-radius: 999px;
+  background: none;
+  color: var(--error, #ef4444);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Jobs strip ──────────────────────────────────────────────────────────── */
+.jobsWrap {
+  margin-bottom: 1rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+}
+
+.jobsTitle {
+  margin: 0 0 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #666);
+}
+
+.jobsSchedules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.jobRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.schedLabel {
+  width: 5.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+  flex-shrink: 0;
+}
+
+.runDots {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.runDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  cursor: default;
+  transition: transform 0.1s;
+}
+
+.runDot:hover {
+  transform: scale(1.4);
+}
+
+.jobSummary {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #666);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detailsBtn {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border-primary, #e0e0e0);
+  border-radius: 5px;
+  background: none;
+  font-size: 0.68rem;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.detailsBtn:hover {
+  background: var(--bg-subtle, #f5f5f5);
+}
+
+/* Job detail popover */
+.jobDetail {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-subtle, #f9f9f9);
+  border-radius: 6px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.jobDetailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.jobDetailTitle {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-primary, #222);
+}
+
+.closeBtn {
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+
+.miniTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.68rem;
+}
+
+.miniTable th {
+  font-weight: 600;
+  text-align: left;
+  padding: 0.2rem 0.4rem;
+  border-bottom: 1px solid var(--border-primary, #eee);
+  color: var(--text-secondary, #666);
+}
+
+.miniTable td {
+  padding: 0.2rem 0.4rem;
+  border-bottom: 1px solid var(--border-primary, #f0f0f0);
+  vertical-align: top;
+}
+
+.reRunFailedBtn {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--brand-primary, #ad35fa);
+  border-radius: 4px;
+  background: none;
+  color: var(--brand-primary, #ad35fa);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Category group ──────────────────────────────────────────────────────── */
+.categoryGroup {
+  margin-bottom: 0.85rem;
+}
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.categoryName {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary, #222);
+  letter-spacing: -0.01em;
+}
+
+.categoryLink {
+  font-size: 0.68rem;
+  color: var(--text-secondary, #888);
+  text-decoration: none;
+}
+
+.categoryLink:hover {
+  text-decoration: underline;
+}
+
+.categoryCount {
+  font-size: 0.68rem;
+  color: var(--text-secondary, #999);
+  margin-left: auto;
+}
+
+.categoryMetrics {
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ── Metric row ──────────────────────────────────────────────────────────── */
+.metricRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border-primary, #f3f3f3);
+}
+
+.metricRow:last-child {
+  border-bottom: none;
+}
+
+.metricRow:hover {
+  background: rgba(173, 53, 250, 0.03);
+}
+
+.metricToggle {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: 0.05rem;
+}
+
+.toggleLabel {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary, #888);
+  text-align: center;
+  line-height: 1;
+}
+
+/* Simple toggle pill */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  width: 32px;
+  height: 17px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  padding: 2px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggleOn {
+  background: var(--brand-primary, #ad35fa);
+}
+
+.toggleOff {
+  background: var(--border-primary, #d1d5db);
+}
+
+.toggleThumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+  position: absolute;
+}
+
+.toggleThumbOn {
+  transform: translateX(15px);
+}
+
+.toggleThumbOff {
+  transform: translateX(0);
+}
+
+.metricMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.metricName {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: var(--text-primary, #222);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metricMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.metaTag {
+  font-size: 0.65rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: rgba(173, 53, 250, 0.07);
+  color: var(--text-secondary, #666);
+}
+
+.metaTagOk {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.metaTagWarn {
+  background: rgba(239, 68, 68, 0.09);
+  color: #dc2626;
+}
+
+.metricFreshness {
+  font-size: 0.7rem;
+  color: var(--text-secondary, #777);
+  margin-top: 0.15rem;
+}
+
+.metricChevron {
+  font-size: 0.65rem;
+  color: var(--text-secondary, #bbb);
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Hidden metrics group */
+.hiddenGroup {
+  margin-top: 0.5rem;
+}
+
+.hiddenToggle {
+  background: none;
+  border: 1px dashed var(--border-primary, #d1d5db);
+  border-radius: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+}
+
+.hiddenToggle:hover {
+  background: var(--bg-subtle, #f5f5f5);
+}
+
+/* ── Districts ───────────────────────────────────────────────────────────── */
+.districtsWrap {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.districtsLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.districtChip {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border-primary, #e0e0e0);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  color: var(--text-primary, #333);
+  text-decoration: none;
+}
+
+.districtChip:hover {
+  background: rgba(173, 53, 250, 0.06);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+/* ── Metric drawer ───────────────────────────────────────────────────────── */
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: min(540px, 100vw);
+  height: 100%;
+  background: var(--bg-primary, #fff);
+  border-left: 1px solid var(--border-primary, #e5e7eb);
+  overflow-y: auto;
+  padding: 1.25rem 1.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.drawerTitleBlock {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawerTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--text-primary, #111);
+  line-height: 1.3;
+}
+
+.drawerSubtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-secondary, #777);
+}
+
+.drawerCloseBtn {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-primary, #e0e0e0);
+  border-radius: 6px;
+  background: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  flex-shrink: 0;
+}
+
+/* Public toggle row */
+.drawerToggleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border-primary, #f0f0f0);
+  border-bottom: 1px solid var(--border-primary, #f0f0f0);
+}
+
+.drawerToggleLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+}
+
+.drawerToggleSub {
+  font-size: 0.7rem;
+  color: var(--text-secondary, #888);
+}
+
+/* Links row */
+.linksRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.linkBtn {
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--border-primary, #e0e0e0);
+  border-radius: 6px;
+  background: none;
+  font-size: 0.72rem;
+  color: var(--text-primary, #333);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  text-decoration: none;
+}
+
+.linkBtn:hover {
+  background: var(--bg-subtle, #f5f5f5);
+}
+
+/* Sections */
+.drawerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #666);
+}
+
+.healthGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+}
+
+.healthItem {
+  font-size: 0.78rem;
+  color: var(--text-primary, #333);
+}
+
+.healthLabel {
+  color: var(--text-secondary, #888);
+  margin-right: 0.25rem;
+}
+
+.assetRow {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.assetItem {
+  color: var(--text-secondary, #666);
+}
+
+.assetNum {
+  font-weight: 600;
+  color: var(--text-primary, #222);
+}
+
+/* Share & embed */
+.linkBtnActive {
+  background: var(--bg-subtle, #f5f5f5);
+  border-color: var(--brand-primary, #ad35fa);
+}
+
+.assetTabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--border-primary, #e0e0e0);
+  padding-bottom: 0.3rem;
+}
+
+.assetTab {
+  padding: 0.25rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+}
+
+.assetTab:hover {
+  background: var(--bg-subtle, #f5f5f5);
+}
+
+.assetTabActive {
+  background: var(--bg-subtle, #f5f5f5);
+  color: var(--text-primary, #222);
+  font-weight: 600;
+}
+
+.assetDistrictSelect {
+  margin-left: auto;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border-primary, #e0e0e0);
+  border-radius: 6px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #333);
+  font-size: 0.72rem;
+}
+
+.assetLinkList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.assetLinkRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border-primary, #eee);
+  border-radius: 8px;
+}
+
+.assetLinkHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.assetLinkText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.assetLinkTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  text-decoration: none;
+}
+
+a.assetLinkTitle:hover {
+  text-decoration: underline;
+}
+
+.assetLinkSub {
+  font-size: 0.7rem;
+  color: var(--text-secondary, #888);
+}
+
+.assetLinkPath {
+  font-size: 0.68rem;
+  color: var(--text-secondary, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assetLinkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.assetPreview {
+  width: 100%;
+  border: 1px solid var(--border-primary, #eee);
+  border-radius: 8px;
+  background: var(--bg-subtle, #f8f9fa);
+}
+
+.assetEmpty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #888);
+}
+
+/* Run history */
+.runHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.runHistoryRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-primary, #f3f3f3);
+}
+
+.runHistoryRow:last-child {
+  border-bottom: none;
+}
+
+.runStatus {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.runStatusOk {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.runStatusFail {
+  background: rgba(239, 68, 68, 0.09);
+  color: #dc2626;
+}
+
+.runStatusUnknown {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+}
+
+.runMeta {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary, #666);
+}
+
+.runError {
+  font-size: 0.68rem;
+  color: var(--error, #ef4444);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.logsLink {
+  background: none;
+  border: none;
+  color: var(--brand-primary, #ad35fa);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  flex-shrink: 0;
+}
+
+/* Action buttons */
+.drawerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-primary, #f0f0f0);
+}
+
+.actionBtn {
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--border-primary, #e0e0e0);
+  border-radius: 7px;
+  background: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-primary, #222);
+}
+
+.actionBtn:hover {
+  background: var(--bg-subtle, #f5f5f5);
+}
+
+.actionBtnPrimary {
+  border-color: var(--brand-primary, #ad35fa);
+  color: var(--brand-primary, #ad35fa);
+}
+
+.actionBtnPrimary:hover {
+  background: rgba(173, 53, 250, 0.05);
+}
+
+.quotaNote {
+  font-size: 0.68rem;
+  color: var(--text-secondary, #999);
+  align-self: center;
+}
+
+.quotaExhausted {
+  color: var(--error, #ef4444);
+  font-weight: 600;
+}
+
+/* ── Admin compact city list ────────────────────────────────────────────── */
+.compactList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.compactRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+  background: var(--bg-primary, #fff);
+}
+
+.compactRow:hover {
+  background: rgba(173, 53, 250, 0.03);
+}
+
+.compactCityName {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  flex: 1;
+  min-width: 0;
+}
+
+.compactSummary {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #777);
+}
+
+.compactDots {
+  display: flex;
+  gap: 2px;
+}
+
+.compactDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+/* ── Misc ────────────────────────────────────────────────────────────────── */
+.empty {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #888);
+  text-align: center;
+  padding: 2rem;
+}
+
+.generatingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #666);
+  border: 1px dashed var(--border-primary, #d1d5db);
+  border-radius: 7px;
+  margin-top: 0.4rem;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-primary, #e0e0e0);
+  border-top-color: var(--brand-primary, #ad35fa);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

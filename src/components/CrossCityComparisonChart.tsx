@@ -17,6 +17,7 @@ import type { Config, Data, Layout, PlotHoverEvent } from "plotly.js";
 import { useQuery } from "@tanstack/react-query";
 import {
   getCrossCityComparison,
+  getCrossCityComparisonForUser,
   getMyPermissions,
   type CrossCityPoint,
 } from "@/lib/apiClient";
@@ -95,6 +96,12 @@ interface CrossCityComparisonChartProps {
   height?: number;
   metricName?: string;
   fullPageHref?: string;
+  /**
+   * When true, use the authenticated (non-admin) endpoint instead of the
+   * admin endpoint.  Set this when rendering in Seymour chat for non-admin
+   * users.  Defaults to false (admin endpoint).
+   */
+  useUserEndpoint?: boolean;
 }
 
 interface CityLookupItem {
@@ -336,6 +343,7 @@ export default function CrossCityComparisonChart({
   height = 360,
   metricName,
   fullPageHref,
+  useUserEndpoint = false,
 }: CrossCityComparisonChartProps) {
   const { theme } = useTheme();
   const [valueMode, setValueMode] = useState<ValueMode>("absolute");
@@ -363,8 +371,11 @@ export default function CrossCityComparisonChart({
   const includeUnlaunched = isAdmin && showAllCities;
 
   const comparisonQuery = useQuery({
-    queryKey: ["cross-city-comparison", templateId],
-    queryFn: () => getCrossCityComparison(templateId, token),
+    queryKey: ["cross-city-comparison", templateId, useUserEndpoint ? "user" : "admin"],
+    queryFn: () =>
+      useUserEndpoint
+        ? getCrossCityComparisonForUser(templateId, token)
+        : getCrossCityComparison(templateId, token),
     enabled: Boolean(token && templateId),
     staleTime: 2 * 60 * 1000,
   });

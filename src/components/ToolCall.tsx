@@ -2,14 +2,18 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
+import { useAuth0 } from "@auth0/auth0-react";
 
 import styles from "./ToolCall.module.css";
 import { API_BASE } from "@/lib/apiBase";
 import { enrichChartMetadataForGroupFilter } from "@/lib/enrichChartMetadataForGroupFilter";
 import TimeSeriesChart, { type PeriodType } from "./TimeSeriesChart";
+import CrossCityComparisonChart from "./CrossCityComparisonChart";
 import Loader from "./Loader";
 
 interface ToolCallProps {
+  /** Render the chip only; used when the same map is already embedded above. */
+  hideEmbed?: boolean;
   toolCall: {
     tool_id?: string;
     tool_name?: string;
@@ -37,12 +41,21 @@ function parseResponse(response: any): any {
   return response;
 }
 
-// Check if this is a map result (only show_map, not generate_map)
-function isMapResult(toolName: string, response: any): boolean {
+const MAP_TOOL_NAMES = new Set(["show_map", "generate_map"]);
+
+// A saved map from show_map or generate_map. Preview runs of generate_map
+// return short_hash: null and stay a plain chip.
+function mapHash(toolName: string, response: any): string | null {
+  if (!MAP_TOOL_NAMES.has(toolName)) return null;
   const parsed = parseResponse(response);
-  // Only show embedded map for show_map, not generate_map
-  const isShowMapTool = toolName === "show_map";
-  return isShowMapTool && (parsed?.data?.short_hash || parsed?.short_hash);
+  return parsed?.data?.short_hash || parsed?.short_hash || null;
+}
+
+/** short_hash of the map a successful map tool call would embed, else null. */
+export function getEmbeddedMapHash(toolCall: ToolCallProps["toolCall"]): string | null {
+  if (toolCall.success === false) return null;
+  const toolName = toolCall.tool_name || toolCall.toolName || "";
+  return mapHash(toolName, toolCall.response || toolCall.result || toolCall.output);
 }
 
 // Check if this is an anomaly result (show_anomaly)
@@ -57,6 +70,14 @@ function isTimeSeriesResult(toolName: string, response: any): boolean {
   const parsed = parseResponse(response);
   const isTimeSeriesTool = toolName === "show_time_series";
   return isTimeSeriesTool && (parsed?.data?.chart_id || parsed?.chart_id);
+}
+
+// Check if this is a cross-city comparison result (show_cross_city_comparison)
+function isCrossCityResult(toolName: string, response: any): boolean {
+  if (toolName !== "show_cross_city_comparison") return false;
+  const parsed = parseResponse(response);
+  const data = parsed?.data || parsed;
+  return Boolean(data?.template_id);
 }
 
 // Get map data from response
@@ -429,7 +450,75 @@ function EmbeddedTimeSeriesCard({ data }: { data: any }) {
   );
 }
 
-export default function ToolCall({ toolCall }: ToolCallProps) {
+// Render an embedded cross-city comparison using the rich CrossCityComparisonChart component
+function EmbeddedCrossCityCard({ data }: { data: any }) {
+  const [showEmbed, setShowEmbed] = useState(true);
+  const { getAccessTokenSilently } = useAuth0();
+  const [token, setToken] = useState<string | null>(null);
+
+  const toolData = getTimeSeriesData(data);
+  const templateId = toolData.template_id as number | undefined;
+  const metricName = toolData.metric_name as string | undefined;
+  const cityCount = toolData.city_count as number | undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((t) => { if (!cancelled) setToken(t); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [getAccessTokenSilently]);
+
+  const title = metricName
+    ? `${metricName} — ${cityCount ?? "?"} cities`
+    : "Cross-city comparison";
+
+  if (!templateId) return null;
+
+  return (
+    <div className={styles.mapEmbed}>
+      <div className={styles.mapEmbedHeader}>
+        <div className={styles.mapEmbedInfo}>
+          <span className={styles.mapEmbedIcon}>🌆</span>
+          <div className={styles.mapEmbedTitle}>{title}</div>
+        </div>
+        <div className={styles.mapEmbedActions}>
+          <button
+            className={styles.mapEmbedToggle}
+            onClick={() => setShowEmbed(!showEmbed)}
+            title={showEmbed ? "Collapse chart" : "Expand chart"}
+          >
+            {showEmbed ? "▼" : "▶"}
+          </button>
+          <Link href={`/cross-city/${templateId}`} target="_blank" className={styles.mapEmbedLink}>
+            Open ↗
+          </Link>
+        </div>
+      </div>
+
+      {showEmbed && (
+        <div className={styles.timeSeriesChartContainer}>
+          {token ? (
+            <CrossCityComparisonChart
+              templateId={templateId}
+              token={token}
+              height={360}
+              metricName={metricName}
+              useUserEndpoint={true}
+            />
+          ) : (
+            <div className={styles.timeSeriesLoading}>
+              <Loader size="md" color="dark" />
+              <span>Loading chart…</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ToolCall({ toolCall, hideEmbed = false }: ToolCallProps) {
   const [showDetails, setShowDetails] = useState(false);
   const fallbackId = useId();
 
@@ -456,11 +545,13 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
   };
 
   // Check if this is a successful map generation
-  const showMapPreview = success && isMapResult(toolName, response);
+  const showMapPreview = success && mapHash(toolName, response) != null;
   // Check if this is a successful anomaly display
   const showAnomalyPreview = success && isAnomalyResult(toolName, response);
   // Check if this is a successful time series display
   const showTimeSeriesPreview = success && isTimeSeriesResult(toolName, response);
+  // Check if this is a cross-city comparison display
+  const showCrossCityPreview = success && isCrossCityResult(toolName, response);
 
   return (
     <div
@@ -474,12 +565,11 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
         style={{ cursor: "pointer" }}
       >
         <div className={styles.toolCallName}>
-          {showMapPreview ? "🗺️" : showAnomalyPreview ? "📊" : showTimeSeriesPreview ? "📈" : "🔧"} {toolName}
+          {showMapPreview ? "🗺️" : showAnomalyPreview ? "📊" : showCrossCityPreview ? "🌆" : showTimeSeriesPreview ? "📈" : "🔧"} {toolName}
         </div>
       </div>
       
-      {/* Show embedded map for generate_map tool */}
-      {showMapPreview && (
+      {showMapPreview && !hideEmbed && (
         <EmbeddedMapCard data={response} />
       )}
       
@@ -491,6 +581,11 @@ export default function ToolCall({ toolCall }: ToolCallProps) {
       {/* Show embedded time series chart for show_time_series tool */}
       {showTimeSeriesPreview && (
         <EmbeddedTimeSeriesCard data={response} />
+      )}
+
+      {/* Show cross-city comparison chart for show_cross_city_comparison tool */}
+      {showCrossCityPreview && (
+        <EmbeddedCrossCityCard data={response} />
       )}
       
       {showDetails && (

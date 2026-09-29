@@ -8,6 +8,7 @@ import type {
 } from "@/lib/publicApiClient";
 import type { MetricOrderingEntry } from "../../CityDashboardSection";
 import CitySignupButton from "../../CitySignupButton";
+import CityViewTracker from "../../CityViewTracker";
 import CityDashboardSection from "../../CityDashboardSection";
 import DistrictFollowClaimBlock from "../DistrictFollowClaimBlock";
 import DistrictListWithFollow from "../../DistrictListWithFollow";
@@ -109,6 +110,7 @@ export default function DistrictPageContent({
 
   return (
     <SignupEmailProvider>
+      <CityViewTracker citySlug={slug} cityId={city.id} district={d} />
       <PublicNavBar>
         <CitySignupButton citySlug={slug} cityName={city.shortDisplay} />
       </PublicNavBar>

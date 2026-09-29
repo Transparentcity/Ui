@@ -9,7 +9,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import CityHealthAttentionDashboard from "./CityHealthAttentionDashboard";
 import MetricEditModal from "./MetricEditModal";
-import CityExpansionPanel from "./CityExpansionPanel";
 import Loader from "./Loader";
 import {
   getCityScheduleHealth,
@@ -77,8 +76,6 @@ export default function NeedsAttentionPanel() {
           {error}
         </div>
       )}
-
-      <CityExpansionPanel getAccessTokenSilently={getAccessTokenSilently} />
 
       <CityHealthAttentionDashboard
         cities={cities}

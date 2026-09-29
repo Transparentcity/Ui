@@ -106,6 +106,49 @@
   opacity: 0.6;
 }
 
+.generateRow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.generatingNote {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #777);
+}
+
+.logsLink {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--brand-primary, #ad35fa);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: inherit;
+}
+
+.generateBtn {
+  padding: 0.45rem 1.1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--brand-primary, #ad35fa);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.filterLabel {
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .errorBanner {
   padding: var(--space-md, 12px) var(--space-lg, 16px);
   background: color-mix(in srgb, var(--error, #ef4444) 8%, white);
@@ -503,5 +546,64 @@
 
   .statGrid {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    margin-bottom: var(--space-lg, 16px);
   }
+
+  /* Selects shrink instead of pushing the rest of the toolbar off screen. */
+  .metricSelect {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .root {
+    padding: var(--space-md, 12px);
+  }
+
+  .header {
+    margin-bottom: var(--space-md, 12px);
+  }
+
+  /* A right-aligned button would leave the line empty. */
+  .generateRow {
+    justify-content: stretch;
+  }
+
+  .generateBtn {
+    flex: 1;
+    padding: 0.55rem 1rem;
+  }
+
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm, 8px);
+  }
+
+  .statCard,
+  .statCardHighlight {
+    padding: var(--space-md, 12px);
+  }
+
+  .statValue,
+  .statValueHighlight {
+    font-size: 1.375rem;
+  }
+}
+
+/* Count badge on a dashboard tab (critical alerts). */
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--error, #ef4444);
+  color: var(--text-on-brand, #fff);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }

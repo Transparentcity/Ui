@@ -15,10 +15,16 @@ import styles from "./ContextMenu.module.css";
 
 interface UserMenuPanelProps {
   isAdmin?: boolean;
+  /** City leads and analysts: show the city-scoped Dashboard entry. */
+  isOpsUser?: boolean;
   onClose: () => void;
   onViewChange?: (view: string) => void;
   onOpenSettings?: () => void;
 }
+
+const DASHBOARD_ICON = ADMIN_MENU_GROUPS.flatMap((g) => g.items).find(
+  (item) => item.view === "system-stats"
+)?.icon;
 
 function MenuIcon({ children }: { children: React.ReactNode }) {
   return (
@@ -38,6 +44,7 @@ function MenuIcon({ children }: { children: React.ReactNode }) {
 
 export default function UserMenuPanel({
   isAdmin = false,
+  isOpsUser = false,
   onClose,
   onViewChange,
   onOpenSettings,
@@ -119,6 +126,21 @@ export default function UserMenuPanel({
               ))}
             </React.Fragment>
           ))}
+          <div className={styles.separator} role="separator" />
+        </>
+      )}
+      {!isAdmin && isOpsUser && (
+        <>
+          <button
+            type="button"
+            className={styles.item}
+            data-view="system-stats"
+            role="menuitem"
+            onClick={() => handleAdminView("system-stats")}
+          >
+            <MenuIcon>{DASHBOARD_ICON}</MenuIcon>
+            <span>Dashboard</span>
+          </button>
           <div className={styles.separator} role="separator" />
         </>
       )}
