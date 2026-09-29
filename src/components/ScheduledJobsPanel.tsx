@@ -907,7 +907,7 @@ export default function ScheduledJobsPanel({
                 aria-label="Job type"
               >
                 {[
-                  "research",
+                  ...(editJob.job_type === "research" ? ["research"] : []),
                   "feed_producer",
                   "personalized_feed_producer",
                   "feed_stories",
@@ -945,7 +945,7 @@ export default function ScheduledJobsPanel({
                   />
                   <span>
                     <strong>Feed producer mode</strong>{" "}
-                    — skip research report; use full Seymour (analytics + charts + maps) to publish stories directly via <code>create_feed_story</code>
+                    — publish stories directly with Seymour (analytics, charts, and maps) via <code>create_feed_story</code>
                   </span>
                 </label>
               </div>

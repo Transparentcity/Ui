@@ -257,7 +257,6 @@ function ScreenMockup({ g }: { g: CityGuide }) {
             {g.cityEmoji} {g.cityName}
           </div>
           <div className={styles.navSub}>District 4</div>
-          <div className={styles.navSect}><span>Research reports</span><span>▸</span></div>
           <div className={styles.navSect}><span>Recent chats</span><span>▸</span></div>
           <div className={styles.navSect}><span>Suggested questions</span><span>▾</span></div>
           <div className={styles.navQ}>Which neighborhood in {g.cityName} is the safest?</div>
@@ -462,7 +461,6 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               <li><strong><Link href={view("chat")}>New Chat</Link>.</strong> A conversation with Seymour. The door to most of your powers.</li>
               <li><strong><Link href={cityHref}>My Places</Link>.</strong> Cities, districts and saved spots you follow. Add your own neighborhood as a pin with a radius you drag to fit.</li>
               <li><strong><Link href={view("feed")}>Feed</Link>.</strong> Every story on the platform, all cities. Useful for seeing what good looks like elsewhere.</li>
-              <li><strong>Research reports.</strong> Long-form investigations, started from a chat.</li>
               <li><strong>Recent chats</strong> and <strong>Suggested questions.</strong> Your history, and starter prompts that adapt to the city you are viewing.</li>
               <li><strong>Job sessions.</strong> Chats started by scheduled jobs. This is how you read what Seymour was thinking when it wrote a story overnight.</li>
               <li><strong>The green circle.</strong> Your avatar. Click it for the admin menu, Settings and Logout.</li>
@@ -494,8 +492,8 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
             <span className={styles.eyebrow}>The main tool</span>
             <h2>Seymour, the agent</h2>
             <p className={styles.why}>
-              Seymour answers questions, but it also builds things: metrics, maps, stories, research
-              reports. Talking to it is the primary interface.
+              Seymour answers questions, but it also builds things: metrics, maps, and stories.
+              Talking to it is the primary interface.
             </p>
           </div>
           <div className={styles.prose}>
@@ -695,18 +693,17 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
               {g.cityName}, with the chart.&rdquo; It appears on the dashboard within a minute.
             </p>
             <p>
-              <strong><Link href={view("feed-admin")}>The Feed panel</Link></strong> is the editorial desk.
-              Filter to {g.cityName} and you see each
-              story&apos;s views, likes and accuracy score. From there you can edit a headline, delete a
-              story, or ask Seymour for a factual fix.
+              <strong><Link href={view("feed-admin")}>The Feed panel</Link></strong> is the editorial desk,
+              the same story list as the city dashboard. It opens on every city; pick {g.cityName} to
+              narrow it, generate a story, and open it to ask Seymour for a factual fix.
             </p>
           </div>
           <div className={styles.callout}>
             <div className={styles.t}>Check before you share</div>
             <p>
               Read a story&apos;s numbers against the metric page before you cite it anywhere. The accuracy
-              check catches most errors, not all. If something is wrong, use the fix option in the Feed panel
-              or delete the story. Every story is public the moment it exists.
+              check catches most errors, not all. If something is wrong, open the story in the Feed panel
+              and use the fix option. Every story is public the moment it exists.
             </p>
           </div>
         </section>
@@ -783,8 +780,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
                 <tr><th>Item</th><th>What it is</th><th>When you would open it</th></tr>
               </thead>
               <tbody>
-                <tr><td><b><Link href={view("job-logs")}>Job Logs</Link></b></td><td>Every background job, with status and error messages. You can also create a recurring one, such as a weekly research prompt that produces stories.</td><td>When something you asked for did not appear.</td></tr>
-                <tr><td><b>Research reports</b></td><td>Deep, multi-source investigations. Seymour asks a few narrowing questions, then produces a report you can turn into stories or pull into your own writing.</td><td>When a question is bigger than one chat can answer.</td></tr>
+                <tr><td><b><Link href={view("job-logs")}>Job Logs</Link></b></td><td>Every background job, with status and error messages. You can also create a recurring one, such as a weekly feed prompt that produces stories.</td><td>When something you asked for did not appear.</td></tr>
                 <tr><td><b><Link href={view("user-management")}>Users</Link></b></td><td>Every account, role and city assignment.</td><td>If a local official signs up and needs verifying. Ask Adam first.</td></tr>
                 <tr><td><b><Link href="/home">Settings</Link></b></td><td>Dark mode, newsletter and alert subscriptions.</td><td>Worth doing once: subscribe yourself to your city&apos;s newsletter and alerts.</td></tr>
               </tbody>
