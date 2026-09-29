@@ -37,12 +37,20 @@ export interface CityGuide {
   /** City id in the platform, used to match a city-lead assignment. */
   cityId: number;
   citySlug: string;
+  /**
+   * Lookup key for `?city=`. Defaults to citySlug. Set it when a city has more
+   * than one guide, so each person can be sent their own link; the guide
+   * without a key is the one a bare /admin/guide resolves to for that city.
+   */
+  guideKey?: string;
   cityName: string;
   cityEmoji: string;
   /** First name of the person this guide was written for. */
   personFirst: string;
   /** Short role line shown next to the wordmark. */
   roleChip: string;
+  /** Role as a noun for the footer, e.g. "city manager". Defaults to that. */
+  roleNoun?: string;
   /** Government label for the top of the city, e.g. "Mayor Barbara Lee". */
   mayor: string;
   /** What this city calls its sub-units, singular and plural, lowercased. */
@@ -462,13 +470,366 @@ const MIAMI: CityGuide = {
   ],
 };
 
-const SAN_FRANCISCO: CityGuide = {
+/**
+ * Sharky's guide. He gave the first user feedback on the San Francisco
+ * prototype in May 2025 and opened the door at City Hall, so this is the
+ * city manager's guide for the city and the one a bare /admin/guide resolves
+ * to for a San Francisco lead. Snapshot figures are year-to-date against the
+ * same period of 2025, from the public comparisons API.
+ */
+const SAN_FRANCISCO_SHARKY: CityGuide = {
   cityId: 57260,
   citySlug: "san-francisco",
   cityName: "San Francisco",
   cityEmoji: "🌉",
+  personFirst: "Sharky",
+  roleChip: "City manager · Sharky",
+  mayor: "Mayor Daniel Lurie",
+  unit: "supervisorial district",
+  unitPlural: "supervisorial districts",
+  unitCount: 11,
+  datasetsCount: 1222,
+  metricsCount: 79,
+  portal: "Socrata",
+  snapshotDate: "September 28, 2026",
+  homeDistrict: 7,
+  lede: (
+    <>
+      Thank you, Sharky. You were the first person outside the team to look at this, in May 2025,
+      when it was a prototype and a Google Doc of your notes. You told us to lead with the issues
+      each district actually cares about, to look for the counter-narrative in the data, and to go
+      get the homelessness numbers the city was sitting on. You then opened the door at City Hall.
+      Most of what San Francisco is on this platform today follows from that afternoon, and we are
+      glad you are taking it on properly.
+    </>
+  ),
+  welcome: (
+    <>
+      San Francisco is the deepest city on Transparent City: 79 live metrics over 1,222 catalogued
+      datasets, and the source of most templates the other cities run. You know how City Hall
+      works and what a supervisor&apos;s office, a commission, or a reporter would do with a
+      number. We do not, and that is the gap you fill. This guide is organized around the three
+      subjects you named: homelessness, small business, and cars. Ishaan is the city associate for
+      San Francisco and shares the admin tools with you; his guide is at{" "}
+      <Link href="/admin/guide?city=san-francisco-ishaan">/admin/guide?city=san-francisco-ishaan</Link>.
+      Nothing here needs a technical background. If a section starts to feel like source code, skip
+      it.
+    </>
+  ),
+  firstSteps: [
+    {
+      title: "See what San Francisco already tracks on your three subjects",
+      body: (
+        <>
+          Open <Link href="/home?city_id=57260">San Francisco</Link> from <b>My Places</b>, then the{" "}
+          <Link href="/home?city_id=57260">All metrics</Link> tab. On homelessness: 911 homeless
+          complaint calls are down 24 percent this year and 311 homeless concerns cases are down 19
+          percent. On small business: business registrations are down 10 percent, closures are down
+          39 percent, and retail closures show up 408 percent, which is 122 against 24 and needs
+          checking before anyone quotes it. On cars: autonomous vehicle complaints are up 172
+          percent and traffic stops are up 48 percent. Skim the whole list once. It is the raw
+          material for everything else.
+        </>
+      ),
+    },
+    {
+      title: "Ask a question, then push on the answer",
+      body: (
+        <>
+          Click <Link href="/home?view=chat">New Chat</Link> and type:{" "}
+          <i>
+            &ldquo;Show San Francisco 311 homeless concerns cases by supervisorial district for the
+            last 24 months, as a table and a map. Which districts fell the most, and did any rise
+            while the citywide number fell?&rdquo;
+          </i>{" "}
+          Then keep going in the same chat: <i>&ldquo;Now overlay drug-related 911 calls on the same
+          districts.&rdquo;</i> Follow-ups keep the context, so you can interrogate a number the way
+          you would a department head.
+        </>
+      ),
+    },
+    {
+      title: "Look at District 7",
+      body: (
+        <>
+          Pick <Link href="/home?city_id=57260&amp;district=7">District 7</Link>, Supervisor Myrna
+          Melgar&apos;s, which covers Sunnyside, and read the <b>Alerts</b> tab: this week&apos;s
+          statistical outliers, things that moved more than three standard deviations from their own
+          history. Then drop a saved place on your block and drag the radius to match the neighborhood
+          as you would draw it. Some of what you see is noise; the useful ones are leads.
+        </>
+      ),
+    },
+    {
+      title: "Open the admin menu",
+      body: (
+        <>
+          Click the <b>green circle</b> at the bottom left. That is the full toolset, and where this
+          guide lives in the app (<Link href="/admin/guide?city=san-francisco">Admin guide</Link>).
+          Look, then come back here.
+        </>
+      ),
+    },
+  ],
+  promptsIntro: (
+    <>
+      Written around homelessness, small business, and cars. Analysis questions are safe and cheap to
+      ask as often as you like. Copy one, change a word, send it.
+    </>
+  ),
+  prompts: [
+    {
+      text: "San Francisco drug crime incidents are up 54 percent this year, drug dealer arrests are up 22 percent, and unintentional overdose deaths are down 24 percent. Chart all three by month since 2024 and tell me whether the arrests and the deaths move together, and where.",
+      note: "Your counter-narrative test from 2025, now checkable. Ask it to state its assumptions.",
+    },
+    {
+      text: "Compare 911 homeless complaint calls and 311 homeless concerns cases by supervisorial district for the last 24 months. Both are down citywide. Is that fewer people on the street, or fewer people reporting? What in the data could tell the two apart?",
+      note: "The displacement question: does a crackdown in one district show up as a rise in the next one?",
+    },
+    {
+      text: "Retail closures in San Francisco show 122 this year against 24 last year. Open the source dataset and tell me whether that is a real change, a reclassification, or a data artifact, and how the city defines a retail closure.",
+      note: "A 408 percent number is either a story or a bug. Find out which before it gets repeated.",
+    },
+    {
+      text: "Over-the-counter commercial permits in San Francisco went from 36 days to 87 days on average this year while full-review commercial permits fell from 402 to 285. Which permit types and which departments drove each change?",
+      note: "Small business permitting, at the level a merchant would recognize.",
+    },
+    {
+      text: "Build a San Francisco metric for car break-ins (larceny from a vehicle) from the police incidents dataset, and a second one for vehicle thefts. Show both by supervisorial district for the last 12 months and confirm the totals against SFPD's own published figures.",
+      note: "Property crime is down 19 percent, but break-ins are buried inside it. For a fleet operator this is the number.",
+    },
+    {
+      text: "Autonomous vehicle 311 complaints in San Francisco are up 172 percent this year. What are people complaining about, where, and does the pattern follow the expansion of the robotaxi service areas?",
+      note: "A category that barely existed two years ago. Ask it what the complaint text says.",
+    },
+  ],
+  metricRows: [
+    {
+      category: "Homelessness and street conditions",
+      metrics: (
+        <>
+          Homeless complaint 911 calls · Homeless concerns 311 cases · Eviction notices · Overdose
+          deaths and Narcan reversals · Drug and overdose 911 calls · Drug crime and drug dealer
+          arrests
+        </>
+      ),
+      count: 9,
+    },
+    {
+      category: "Small business and permits",
+      metrics: (
+        <>
+          Business registrations, openings, closures and expirations · New retail registrations and
+          retail closures · Days to permit a new restaurant · Average days to permit, over-the-counter
+          and full review, residential and commercial
+        </>
+      ),
+      count: 12,
+    },
+    {
+      category: "Vehicles, streets and traffic",
+      metrics: (
+        <>
+          Autonomous vehicle complaints · Abandoned vehicle complaints · Traffic stops and citations ·
+          Speed camera citations and warnings · Traffic, pedestrian, bicycle and fatal collisions ·
+          Muni complaints · Pothole complaints and days to close
+        </>
+      ),
+      count: 13,
+    },
+    {
+      category: "Housing",
+      metrics: (
+        <>
+          Housing units completed · Residential construction permits filed, issued and completed ·
+          Demolition permits
+        </>
+      ),
+      count: 5,
+    },
+    {
+      category: "Crime and prosecution",
+      metrics: (
+        <>
+          Violent and property crime · Homicides · Total police incidents · Arrests presented to the
+          DA · Charges filed, convictions, and both rates
+        </>
+      ),
+      count: 9,
+    },
+    {
+      category: "911 and emergency response",
+      metrics: (
+        <>
+          All 911 calls · Priority A calls · Response minutes, priority A, B and C · EMS, ALS and
+          ambulance response times · Life-threatening EMS calls · Fire and EMS dispatches · Fire calls,
+          fire fatalities and patient deaths
+        </>
+      ),
+      count: 13,
+    },
+    {
+      category: "Police accountability and surveillance",
+      metrics: <>Misconduct allegations · Sustained misconduct · ShotSpotter detections · SFPD drone flights</>,
+      count: 4,
+    },
+    {
+      category: "311 and neighborhood",
+      metrics: (
+        <>
+          311 service requests · 311 SLA compliance rate · Graffiti · Illegal dumping · Noise · Rodent
+          and pest complaints · Beach fecal coliform
+        </>
+      ),
+      count: 7,
+    },
+    {
+      category: "Spending and contracts",
+      metrics: (
+        <>
+          Vendor payments and transactions · Contract award value · Active supplier contracts ·
+          Sole-source share
+        </>
+      ),
+      count: 5,
+    },
+    {
+      category: "Airport",
+      metrics: <>SFO passengers · SFO landings</>,
+      count: 2,
+    },
+  ],
+  standing: (
+    <>
+      San Francisco is the reference city. When a metric is written well here, it becomes a template
+      the other cities inherit, so a fix you make can propagate to nine other places. The flip side
+      is that a change here ripples too, which is why adding and flagging are easy calls and
+      rearranging what already exists is worth a conversation first. On your three subjects the
+      coverage is uneven: homelessness has the complaint side (911 and 311) and nothing on
+      encampment resolutions or shelter, small business has the registration side and one restaurant
+      permit measure, and cars have complaints and enforcement but no break-in or theft count.
+    </>
+  ),
+  challengeIntro: (
+    <>
+      You are the political expert here, and the most useful thing you can do is explore. Pick one of
+      your three subjects, ask questions until you find what is missing, and tell us what would make
+      someone in City Hall open this. Everything below is additive.
+    </>
+  ),
+  challenge: [
+    {
+      title: "The homelessness numbers the city does not publish",
+      body: (
+        <>
+          In 2025 you pointed out that tent counts and encampment resolutions exist in spreadsheets at
+          HSH but not on DataSF, and offered to ask why. What is on the platform today is the
+          complaint side: 911 homeless calls, 311 homeless concerns cases, both down about a fifth
+          this year. Ask Seymour what DataSF publishes on shelter beds, placements, and encampment
+          resolutions, and build what can be built. Where the answer is nothing, that is a finding
+          too, and you are the right person to raise it with the department.
+        </>
+      ),
+    },
+    {
+      title: "Arrests, deaths, and the counter-narrative",
+      body: (
+        <>
+          You suggested in 2025 that arresting people does not change the overdose rate, and that a
+          claim like that is what gets a newsletter opened. Drug crime incidents are up 54 percent
+          this year, dealer arrests up 22 percent, and overdose deaths down 24 percent. Ask for a
+          research report on whether those move together by district and month. Whatever it finds is
+          publishable. One caution: overdose-related 911 calls stopped updating on March 29, so that
+          feed needs fixing before it goes in the chart.
+        </>
+      ),
+    },
+    {
+      title: "Small business, at the level a merchant recognizes",
+      body: (
+        <>
+          Registrations down 10 percent, closures down 39 percent, expirations down 35 percent, new
+          retail registrations down 37 percent. Those four do not obviously agree with each other, and
+          the 408 percent rise in retail closures needs checking at the source. Then go past the
+          registry: over-the-counter commercial permits went from 36 to 87 days this year, and the
+          restaurant permit measure has not updated since June. Break the business numbers out by
+          district and corridor, and ask which neighborhoods are opening and which are closing.
+        </>
+      ),
+    },
+    {
+      title: "Cars: build the break-in metric",
+      body: (
+        <>
+          Property crime is down 19 percent, but car break-ins and vehicle thefts are inside that
+          total with no metric of their own. Both are in the police incidents dataset. Build them,
+          break them out by district and by hour of day, and check the totals against what SFPD
+          publishes. Then look at the rest of the vehicle picture: autonomous vehicle complaints up
+          172 percent, traffic stops up 48 percent, speed cameras issuing 143,000 citations in a year
+          they issued none of last year, and abandoned vehicle complaints flat at about 16,000.
+        </>
+      ),
+    },
+    {
+      title: "Separate real lag from broken feeds",
+      body: (
+        <>
+          A handful of metrics have data more than five weeks old. Some of that is honest: collision
+          records and SFO traffic report on a delay. Some is not: vendor payments have not moved since
+          January, and overdose-related 911 calls since March. Ishaan has been working down this list.
+          Hand him anything you find, and ask him what he has already checked.
+        </>
+      ),
+    },
+    {
+      title: "Tell us what City Hall would actually use",
+      body: (
+        <>
+          You have sat on a commission and briefed supervisors. Open the public page cold and ask
+          whether the first screen answers a question a supervisor&apos;s aide would have on a Monday
+          morning. Where it does not, say so. The dashboard order is deliberate, so this is a note to
+          Adam rather than a change to make, and it is the note we most want.
+        </>
+      ),
+    },
+  ],
+  challengeOutro: (
+    <>
+      When you find something, ask Seymour to write it up, or just send it to Adam. Either is useful.
+    </>
+  ),
+  careNote: (
+    <>
+      One more, specific to this city. San Francisco is the one Adam and Rob built from scratch, and
+      its metrics are the templates the other nine inherit. Adding things is welcome, and so is
+      telling us what looks broken. Reworking what is already there, including the dashboard order,
+      is worth a message first, because a change here can ripple everywhere else.
+    </>
+  ),
+  cheatSheet: [
+    { goal: "See what exists", say: "List all active San Francisco metrics with their last run status and last data date." },
+    { goal: "Homelessness by district", say: "Show San Francisco 311 homeless concerns cases and 911 homeless complaint calls by supervisorial district, last 24 months, as a map and a table." },
+    { goal: "What the city does not publish", say: "What does DataSF publish on shelter beds, placements, and encampment resolutions? Which of it could become a metric?" },
+    { goal: "Arrests versus deaths", say: "Create a research report on whether drug arrests and overdose deaths in San Francisco move together, by district and month, since 2024." },
+    { goal: "Small business by corridor", say: "Show San Francisco business openings and closures by supervisorial district for the last 12 months, and name the corridors with the most closures." },
+    { goal: "Check a suspicious number", say: "Retail closures show 122 this year against 24 last year. Is that real, a reclassification, or a data artifact?" },
+    { goal: "Build the break-in metric", say: "Create a San Francisco metric for car break-ins from the police incidents dataset, and confirm the numbers against SFPD's published figures." },
+    { goal: "District 7", say: "What moved in San Francisco District 7 in the last 30 days? Show the metrics with the biggest change and the chart for each." },
+    { goal: "Find stale data", say: "Which San Francisco metrics have data older than 30 days, and what is the likely cause for each?" },
+    { goal: "Check a claim", say: "The city says [claim]. Does the data support that? Show the chart and the source dataset." },
+    { goal: "Write it up", say: "Write a story about [finding] in San Francisco. Include the chart and cite the dataset." },
+  ],
+};
+
+const SAN_FRANCISCO_ISHAAN: CityGuide = {
+  cityId: 57260,
+  citySlug: "san-francisco",
+  guideKey: "san-francisco-ishaan",
+  cityName: "San Francisco",
+  cityEmoji: "🌉",
   personFirst: "Ishaan",
-  roleChip: "City manager · Ishaan",
+  roleChip: "City associate · Ishaan",
+  roleNoun: "city associate",
   mayor: "Mayor Daniel Lurie",
   unit: "supervisorial district",
   unitPlural: "supervisorial districts",
@@ -489,6 +850,8 @@ const SAN_FRANCISCO: CityGuide = {
     <>
       Nothing here needs a technical background. Almost all of it is typing a question in plain
       English and reading what comes back. If a section starts to feel like source code, skip it.
+      Sharky is the San Francisco city manager and you two share the city; his guide is at{" "}
+      <Link href="/admin/guide?city=san-francisco">/admin/guide?city=san-francisco</Link>.
     </>
   ),
   firstSteps: [
@@ -976,17 +1339,34 @@ const KANSAS_CITY: CityGuide = {
   ],
 };
 
-export const CITY_GUIDES: CityGuide[] = [OAKLAND, MIAMI, SAN_FRANCISCO, KANSAS_CITY];
+export const CITY_GUIDES: CityGuide[] = [
+  OAKLAND,
+  MIAMI,
+  SAN_FRANCISCO_SHARKY,
+  SAN_FRANCISCO_ISHAAN,
+  KANSAS_CITY,
+];
 
 /** Guide shown when a viewer has no city-lead assignment we recognize. */
 export const DEFAULT_GUIDE = OAKLAND;
 
+/** The `?city=` value that opens this guide. */
+export function guideKeyOf(g: CityGuide): string {
+  return g.guideKey ?? g.citySlug;
+}
+
+/**
+ * The guide for a city-lead assignment. Where a city has several guides, the
+ * one without a guideKey (the city manager's) wins; the others are reached by
+ * their own link.
+ */
 export function guideForCityIds(cityIds: readonly number[] | undefined): CityGuide | null {
   if (!cityIds?.length) return null;
-  return CITY_GUIDES.find((g) => cityIds.includes(g.cityId)) ?? null;
+  const matches = CITY_GUIDES.filter((g) => cityIds.includes(g.cityId));
+  return matches.find((g) => !g.guideKey) ?? matches[0] ?? null;
 }
 
 export function guideForSlug(slug: string | undefined): CityGuide | null {
   if (!slug) return null;
-  return CITY_GUIDES.find((g) => g.citySlug === slug.toLowerCase()) ?? null;
+  return CITY_GUIDES.find((g) => guideKeyOf(g) === slug.toLowerCase()) ?? null;
 }

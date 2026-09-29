@@ -917,7 +917,7 @@ export default function AdminGuide({ guide: g }: { guide: CityGuide }) {
         </section>
 
         <footer className={styles.footer}>
-          <span>Transparent City · guide for the {g.cityName} city manager</span>
+          <span>Transparent City · guide for the {g.cityName} {g.roleNoun ?? "city manager"}</span>
           <span>Questions: Adam or Rob, any time</span>
         </footer>
       </div>
