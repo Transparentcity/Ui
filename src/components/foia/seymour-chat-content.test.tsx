@@ -22,6 +22,7 @@ vi.mock("@auth0/auth0-react", () => ({
 vi.mock("@/lib/apiClient", () => ({
   sendChatMessageStream: vi.fn(),
   createNewSession: vi.fn(),
+  ChatStreamInterruptedError: class ChatStreamInterruptedError extends Error {},
 }))
 
 // Mock Collapsible with functional open/close behavior

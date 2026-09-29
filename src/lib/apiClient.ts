@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
-import { getApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl, getDirectChatStreamBaseUrl } from "./apiBase";
 import { getImpersonationCacheKey, getImpersonationUserId } from "./impersonation";
 import { PREFERRED_DEFAULT_MODEL_KEY } from "./modelDefaults";
 
@@ -2939,6 +2939,35 @@ export function runCustomScheduledJobForCurrentUser(jobId: number, token: string
   return request(`/api/jobs/schedules/custom/${jobId}/run`, "POST", { use_current_user: true }, token);
 }
 
+/**
+ * The chat stream closed before the backend sent its `end` (or `error`)
+ * event: a proxy or function timeout cut the connection while Seymour was
+ * still working. The backend already has the message, so re-sending it would
+ * start the task over; callers should keep the partial reply and let the
+ * user continue from it instead.
+ */
+export class ChatStreamInterruptedError extends Error {
+  readonly eventCount: number;
+
+  constructor(eventCount: number, cause?: unknown) {
+    super("Seymour's connection closed before the reply finished.");
+    this.name = "ChatStreamInterruptedError";
+    this.eventCount = eventCount;
+    if (cause !== undefined) {
+      (this as { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** Fetch failed before any response arrived, so the request is safe to retry. */
+class ChatStreamConnectError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "ChatStreamConnectError";
+    (this as { cause?: unknown }).cause = cause;
+  }
+}
+
 async function _executeChatStream(
   url: string,
   request: ChatMessageRequest,
@@ -2946,16 +2975,22 @@ async function _executeChatStream(
   onEvent: (event: StreamEvent) => void,
   abortSignal?: AbortSignal
 ): Promise<{ eventCount: number }> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...authHeaders(token),
-    },
-    body: JSON.stringify(request),
-    signal: abortSignal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...authHeaders(token),
+      },
+      body: JSON.stringify(request),
+      signal: abortSignal,
+    });
+  } catch (error) {
+    if (abortSignal?.aborted) throw error;
+    throw new ChatStreamConnectError(error);
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -2972,6 +3007,7 @@ async function _executeChatStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let eventCount = 0;
+  let sawTerminalEvent = false;
   let lastActivity = Date.now();
   const MAX_IDLE_TIME = 180000; // 3 minutes (backend sends heartbeats every 15s)
   const HEARTBEAT_CHECK_INTERVAL = 30000;
@@ -2987,7 +3023,14 @@ async function _executeChatStream(
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch (error) {
+        if (abortSignal?.aborted) throw error;
+        throw new ChatStreamInterruptedError(eventCount, error);
+      }
+      const { done, value } = chunk;
       if (done) {
         clearInterval(heartbeatChecker);
         break;
@@ -3015,6 +3058,10 @@ async function _executeChatStream(
                 continue;
               }
 
+              if (data.type === "end" || data.type === "error") {
+                sawTerminalEvent = true;
+              }
+
               eventCount++;
               onEvent(data);
             } catch (e) {
@@ -3033,6 +3080,12 @@ async function _executeChatStream(
     }
   }
 
+  // A clean close without `end` means the connection was cut (function
+  // timeout, proxy idle timeout, or our own idle check above).
+  if (!sawTerminalEvent && !abortSignal?.aborted) {
+    throw new ChatStreamInterruptedError(eventCount);
+  }
+
   return { eventCount };
 }
 
@@ -3045,7 +3098,11 @@ export async function sendChatMessageStream(
   onEvent: (event: StreamEvent) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  const url = `${getApiBaseUrl()}/api/chat/message/stream`;
+  const proxyUrl = `${getApiBaseUrl()}/api/chat/message/stream`;
+  const directBase = getDirectChatStreamBaseUrl();
+  // Prefer the API server directly (no function time limit); fall back to the
+  // same-origin proxy route if that connection cannot be made.
+  let url = directBase ? `${directBase}/api/chat/message/stream` : proxyUrl;
 
   let lastError: unknown = null;
 
@@ -3076,18 +3133,22 @@ export async function sendChatMessageStream(
         return;
       }
 
-      // Only retry on network-level errors (not HTTP 4xx/5xx which are already handled)
-      const isNetworkError =
-        error instanceof TypeError ||
-        (error instanceof Error &&
-          (error.message.toLowerCase().includes("network") ||
-            error.message.toLowerCase().includes("failed to fetch") ||
-            error.message.toLowerCase().includes("load failed") ||
-            error.message.toLowerCase().includes("connection") ||
-            error.message.toLowerCase().includes("terminated")));
+      // The backend already started on this message. Re-sending it would
+      // run the whole task again from the top, so hand the interruption to
+      // the caller instead.
+      if (error instanceof ChatStreamInterruptedError) {
+        throw error;
+      }
 
-      if (!isNetworkError || attempt >= MAX_STREAM_RETRIES) {
+      // Only retry when the request never reached the backend.
+      if (!(error instanceof ChatStreamConnectError) || attempt >= MAX_STREAM_RETRIES) {
         break;
+      }
+
+      if (url !== proxyUrl) {
+        console.warn("⚠️ Direct chat stream connection failed; retrying through the site proxy.", error);
+        url = proxyUrl;
+        continue;
       }
 
       const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
