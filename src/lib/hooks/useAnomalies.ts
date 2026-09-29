@@ -262,7 +262,7 @@ export function useAvailableStatsPeriods(
   const { getAccessTokenSilently } = useAuth0();
 
   return useQuery({
-    queryKey: [...anomalyKeys.all, "stats-periods", periodType, cityId, placeType] as const,
+    queryKey: [...anomalyKeys.all, "stats-periods", periodType, cityId, placeType, limit ?? 20] as const,
     queryFn: async () => {
       if (!cityId) throw new Error("City ID is required");
       const token = await getAccessTokenSilently();

@@ -438,13 +438,17 @@ export default function AnomaliesTabPanel({
   // Slim stats periods: used for the "still settling" empty state.
   // If stats periods exist for the selected period type but none are flagged,
   // we know detection ran and found nothing (not just "we haven't run yet").
-  const { data: statsPeriodsData } = useAvailableStatsPeriods(
+  const statsPeriodsQuery = useAvailableStatsPeriods(
     periodType || "week",
     cityId,
     "citywide",
     5
   );
-  const hasStatsForPeriod = (statsPeriodsData?.count ?? 0) > 0;
+  // Only claim either outcome once the stats query has answered; while it is
+  // loading or failed, fall back to the neutral wording.
+  const statsPeriodsCount = statsPeriodsQuery.isSuccess
+    ? statsPeriodsQuery.data?.count ?? 0
+    : null;
   const { data: placeTypesData } = useAnomalyPlaceTypes(cityId);
   const anomalyPlaceTypes = placeTypesData?.place_types ?? [];
   const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -851,20 +855,22 @@ export default function AnomaliesTabPanel({
 
         {!isLoading && !placeAnomaliesLoading && !error && !placeAnomaliesError && filteredAnomalies.length === 0 && (
           <div className={styles.emptyContainer}>
-            {hasStatsForPeriod ? (
-              <>
-                <i className="fas fa-check-circle" />
-                <span>No significant anomalies detected</span>
-                <p className={styles.emptySubtext}>
-                  We analyzed this period and the data is within normal range.
-                </p>
-              </>
-            ) : (
+            {statsPeriodsCount === 0 ? (
               <>
                 <i className="fas fa-hourglass-half" />
                 <span>Data still settling</span>
                 <p className={styles.emptySubtext}>
                   Anomaly detection runs after each period becomes stable. Check back once data for this period has finished updating.
+                </p>
+              </>
+            ) : (
+              <>
+                <i className="fas fa-check-circle" />
+                <span>No significant anomalies detected</span>
+                <p className={styles.emptySubtext}>
+                  {statsPeriodsCount != null && statsPeriodsCount > 0
+                    ? "We analyzed this period and the data is within normal range."
+                    : "Anomalies are detected when data significantly deviates from historical patterns."}
                 </p>
               </>
             )}
