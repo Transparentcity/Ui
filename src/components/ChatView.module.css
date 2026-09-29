@@ -1082,3 +1082,185 @@
     max-height: 300px;
   }
 }
+
+.interruptedBubble {
+  background: #fffbeb;
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.interruptedContinueButton {
+  margin-top: var(--space-md);
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #d97706;
+  background: #ffffff;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.interruptedContinueButton:hover {
+  background: #fef3c7;
+}
+
+.interruptedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.interruptedContinueButton {
+  margin-top: 0;
+}
+
+.interruptedSecondaryButton {
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #d97706;
+  background: transparent;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.interruptedSecondaryButton:hover {
+  background: #fef3c7;
+}
+
+/* Status bar above the input: what Seymour is doing, and how the last reply ended */
+.streamStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-sm);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.streamStatusWorking {
+  background: var(--brand-primary-light, rgba(99, 102, 241, 0.08));
+  border-color: var(--brand-primary, #6366f1);
+  color: var(--text-primary);
+}
+
+.streamStatusDone {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+.streamStatusStopped {
+  background: var(--bg-tertiary, #f3f4f6);
+  border-color: var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.streamStatusInterrupted {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.streamStatusText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.streamStatusTime {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.streamSpinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--brand-primary, #6366f1);
+  border-right-color: transparent;
+  animation: streamSpin 0.8s linear infinite;
+}
+
+@keyframes streamSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streamSpinner {
+    animation-duration: 2s;
+  }
+}
+
+/* Footer after the last message: whole-conversation copy and the share link */
+.conversationFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px dashed var(--border-primary);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.conversationFooterButton {
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.conversationFooterButton:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.conversationFooterButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.conversationFooterLink {
+  color: var(--brand-primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.conversationFooterLink:hover {
+  text-decoration: underline;
+}
+
+.transcriptFallback {
+  flex-basis: 100%;
+}
+
+.transcriptFallbackNote {
+  margin-bottom: 4px;
+}
+
+.transcriptFallbackText {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
