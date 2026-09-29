@@ -11,6 +11,7 @@ import {
   DEFAULT_GUIDE,
   guideForCityIds,
   guideForSlug,
+  guideKeyOf,
 } from "@/components/admin/guideContent";
 import { getMyPermissions, type UserPermissions } from "@/lib/apiClient";
 import { useImpersonationCacheKey } from "@/lib/impersonation";
@@ -116,15 +117,15 @@ function GuideResolver() {
           <span>Viewing as a platform admin. Guides:</span>
           {CITY_GUIDES.map((c) => (
             <Link
-              key={c.citySlug}
-              href={`/admin/guide?city=${c.citySlug}`}
+              key={guideKeyOf(c)}
+              href={`/admin/guide?city=${guideKeyOf(c)}`}
               style={{
                 color: "var(--brand-primary-hover)",
                 fontWeight: 600,
-                textDecoration: c.citySlug === guide.citySlug ? "underline" : "none",
+                textDecoration: guideKeyOf(c) === guideKeyOf(guide) ? "underline" : "none",
               }}
             >
-              {c.cityEmoji} {c.cityName}
+              {c.cityEmoji} {c.cityName} · {c.personFirst}
             </Link>
           ))}
         </div>
