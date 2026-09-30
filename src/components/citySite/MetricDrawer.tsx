@@ -20,6 +20,7 @@ import {
   getJob,
   opsGenerateMetricStory,
   opsSetStoryVisibility,
+  opsDeleteStory,
   opsBatchExecute,
   getOpsStoryReview,
   opsJudgeStory,
@@ -28,10 +29,21 @@ import {
   opsSetStoryOverride,
   updateCityMetric,
 } from "@/lib/apiClient";
-import AdminStoryRow from "@/components/admin/AdminStoryRow";
-import type { ReviewStory, StoryReviewApi } from "@/components/StoryReviewModal";
-import StoryReviewModal from "@/components/StoryReviewModal";
+import AdminStoryRow, { StoryModerationActions } from "@/components/admin/AdminStoryRow";
+import StoryReviewModal, {
+  publicStoryPath,
+  type ReviewStory,
+  type StoryReviewApi,
+} from "@/components/StoryReviewModal";
 import MetricAssetLinks from "./MetricAssetLinks";
+import { toast } from "sonner";
+import { revalidatePublicStory } from "@/app/actions/revalidateStory";
+import {
+  isCanonicalStoryPath,
+  nextPublicVisibility,
+  storyIsPubliclyListed,
+  visibilitySuccessMessage,
+} from "@/lib/stories/staffModeration";
 import styles from "./CitySite.module.css";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -67,6 +79,7 @@ function toReviewStory(s: OpsCityStory & { article_html?: string | null; summary
     description: s.description ?? undefined,
     job_session_id: s.job_session_id ?? undefined,
     short_hash: s.short_hash ?? undefined,
+    status: s.status ?? undefined,
   };
 }
 
@@ -214,24 +227,57 @@ export default function MetricDrawer({
     }
   }, [detail, generating, cityId, metricId, getAccessTokenSilently]);
 
-  const handleHideStory = useCallback(async (storyId: number, currentStatus: string) => {
-    const newStatus: "active" | "hidden" = currentStatus === "hidden" ? "active" : "hidden";
-    setHidingStory(storyId);
+  const handleHideStory = useCallback(async (story: OpsCityStory) => {
+    const newStatus = nextPublicVisibility(story.status);
+    setHidingStory(story.id);
     try {
       const token = await getAccessTokenSilently();
-      await opsSetStoryVisibility(cityId, storyId, newStatus, token);
+      await opsSetStoryVisibility(cityId, story.id, newStatus, token);
+      const path = publicStoryPath(story);
+      if (isCanonicalStoryPath(path)) void revalidatePublicStory(path);
       setDetail((d) =>
         d
           ? {
               ...d,
               stories: d.stories.map((s) =>
-                s.id === storyId ? { ...s, status: newStatus } : s
+                s.id === story.id ? { ...s, status: newStatus } : s
               ),
             }
           : d
       );
+      setReviewingStory((current) =>
+        current && current.id === story.id ? { ...current, status: newStatus } : current
+      );
+      toast.success(visibilitySuccessMessage(newStatus));
     } catch (e) {
-      console.error("Visibility toggle failed", e);
+      toast.error(e instanceof Error ? e.message : "Could not update visibility");
+    } finally {
+      setHidingStory(null);
+    }
+  }, [cityId, getAccessTokenSilently]);
+
+  const handleDeleteStory = useCallback(async (story: OpsCityStory) => {
+    const headline = story.headline?.trim() || "this story";
+    if (
+      !window.confirm(
+        `Delete "${headline}"? This removes it from the public site and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setHidingStory(story.id);
+    try {
+      const token = await getAccessTokenSilently();
+      await opsDeleteStory(cityId, story.id, token);
+      const path = publicStoryPath(story);
+      if (isCanonicalStoryPath(path)) void revalidatePublicStory(path);
+      setDetail((d) =>
+        d ? { ...d, stories: d.stories.filter((s) => s.id !== story.id) } : d
+      );
+      setReviewingStory((current) => (current && current.id === story.id ? null : current));
+      toast.success("Story deleted.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete story");
     } finally {
       setHidingStory(null);
     }
@@ -255,7 +301,12 @@ export default function MetricDrawer({
     autocorrect: (evalId, storyId, token) => opsAutocorrectStory(cityId, storyId, evalId, token),
     override: (storyId, token) => opsSetStoryOverride(cityId, storyId, false, token),
     revokeOverride: (storyId, token) => opsSetStoryOverride(cityId, storyId, true, token),
-  }), [cityId]);
+    setVisibility: (storyId, status, token) =>
+      opsSetStoryVisibility(cityId, storyId, status, token),
+    deleteStory: isAdmin
+      ? (storyId, token) => opsDeleteStory(cityId, storyId, token)
+      : undefined,
+  }), [cityId, isAdmin]);
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -449,34 +500,20 @@ export default function MetricDrawer({
                       accuracy: story.accuracy ?? null,
                       job_session_id: story.job_session_id ?? null,
                       scheduled_job_name: story.scheduled_job_name ?? null,
+                      status: story.status ?? null,
                     }}
                     onViewSession={(sid) => onViewJob(sid)}
                     onOpen={() => void openReviewModal(story)}
                     actions={
-                      canManage ? (
-                        <button
-                          type="button"
-                          style={{
-                            padding: "0.2rem 0.5rem",
-                            border: "1px solid #e0e0e0",
-                            borderRadius: 5,
-                            background: "none",
-                            fontSize: "0.7rem",
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                          }}
-                          disabled={hidingStory === story.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleHideStory(story.id, story.status ?? "active");
-                          }}
-                        >
-                          {hidingStory === story.id
-                            ? "…"
-                            : story.status === "hidden"
-                              ? "Show on site"
-                              : "Hide from site"}
-                        </button>
+                      canManage || isAdmin ? (
+                        <StoryModerationActions
+                          isPublic={storyIsPubliclyListed(story.status)}
+                          canManage={canManage}
+                          canDelete={isAdmin}
+                          busy={hidingStory === story.id}
+                          onToggleVisibility={() => void handleHideStory(story)}
+                          onDelete={() => void handleDeleteStory(story)}
+                        />
                       ) : undefined
                     }
                   />
@@ -534,6 +571,24 @@ export default function MetricDrawer({
           canAct={canManage}
           onClose={() => setReviewingStory(null)}
           onViewSession={(sid) => onViewJob(sid)}
+          onVisibilityChange={(storyId, status) => {
+            setDetail((d) =>
+              d
+                ? {
+                    ...d,
+                    stories: d.stories.map((s) => (s.id === storyId ? { ...s, status } : s)),
+                  }
+                : d
+            );
+            setReviewingStory((current) =>
+              current && current.id === storyId ? { ...current, status } : current
+            );
+          }}
+          onDeleted={(storyId) => {
+            setDetail((d) =>
+              d ? { ...d, stories: d.stories.filter((s) => s.id !== storyId) } : d
+            );
+          }}
         />
       )}
     </>

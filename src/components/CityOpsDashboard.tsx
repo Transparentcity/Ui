@@ -33,16 +33,22 @@ import OpsStoriesTab, {
   toReviewStory,
 } from "@/components/admin/OpsStoriesTab";
 import SessionViewerModal from "@/components/eval/SessionViewerModal";
-import type { ReviewStory, StoryReviewApi } from "@/components/StoryReviewModal";
+import StoryReviewModal, {
+  publicStoryPath,
+  type ReviewStory,
+  type StoryReviewApi,
+} from "@/components/StoryReviewModal";
 import {
   getOpsCities,
   getOpsCityHealth,
   getOpsCityLlmCost,
   getOpsStoryReview,
   opsAutocorrectStory,
+  opsDeleteStory,
   opsJudgeStory,
   opsRejudgeStory,
   opsSetStoryOverride,
+  opsSetStoryVisibility,
   getOpsCityUsage,
   type OpsCity,
   type OpsStorySort,
@@ -51,9 +57,15 @@ import {
   type OpsCityUsage,
   type OpsStoryReview,
 } from "@/lib/apiClient";
+import { toast } from "sonner";
+import { revalidatePublicStory } from "@/app/actions/revalidateStory";
+import {
+  isCanonicalStoryPath,
+  nextPublicVisibility,
+  visibilitySuccessMessage,
+} from "@/lib/stories/staffModeration";
 import { fmt, money, shortDate, StatCard } from "@/components/analytics/dashboardParts";
 import { countCriticalAlerts, ensureCitiesAttention } from "@/lib/cityHealthAttention";
-import StoryReviewModal from "@/components/StoryReviewModal";
 import styles from "./ProductAnalyticsDashboard.module.css";
 
 type TabId = "overview" | "health" | "metrics" | "stories" | "llm-costs";
@@ -85,12 +97,22 @@ function UsagePanel({
   onStorySortChange,
   onViewSession,
   onOpenStory,
+  canManage,
+  canDelete,
+  busyStoryId,
+  onToggleVisibility,
+  onDelete,
 }: {
   usage: OpsCityUsage;
   storySort: OpsStorySort;
   onStorySortChange: (sort: OpsStorySort) => void;
   onViewSession?: (sessionId: string) => void;
   onOpenStory?: (story: OpsCityStory) => void;
+  canManage: boolean;
+  canDelete: boolean;
+  busyStoryId: number | null;
+  onToggleVisibility: (story: OpsCityStory) => void;
+  onDelete: (story: OpsCityStory) => void;
 }) {
   const chart = usage.daily.map((d) => ({
     day: shortDate(d.date),
@@ -155,6 +177,11 @@ function UsagePanel({
           onViewSession={onViewSession}
           onOpenStory={onOpenStory}
           emptyText="No story views or new stories in this period."
+          canManageStory={canManage ? () => true : undefined}
+          canDelete={canDelete}
+          busyStoryId={busyStoryId}
+          onToggleVisibility={onToggleVisibility}
+          onDelete={onDelete}
         />
       </div>
     </>
@@ -306,6 +333,82 @@ export default function CityOpsDashboard({ isAdmin, onViewJob, embedded }: CityO
     story: ReviewStory;
     evals: OpsStoryReview["evals"];
   } | null>(null);
+  const [busyStoryId, setBusyStoryId] = useState<number | null>(null);
+
+  const markVisibility = useCallback((storyId: number, status: "active" | "hidden") => {
+    setUsage((prev) =>
+      prev
+        ? {
+            ...prev,
+            top_stories: prev.top_stories.map((s) =>
+              s.id === storyId ? { ...s, status } : s
+            ),
+          }
+        : prev
+    );
+    setReviewing((prev) =>
+      prev && prev.story.id === storyId ? { ...prev, story: { ...prev.story, status } } : prev
+    );
+  }, []);
+
+  const dropStory = useCallback((storyId: number) => {
+    setUsage((prev) =>
+      prev
+        ? { ...prev, top_stories: prev.top_stories.filter((s) => s.id !== storyId) }
+        : prev
+    );
+    setReviewing((prev) => (prev && prev.story.id === storyId ? null : prev));
+  }, []);
+
+  const toggleVisibility = useCallback(
+    async (story: OpsCityStory) => {
+      if (cityId == null) return;
+      const next = nextPublicVisibility(story.status);
+      setBusyStoryId(story.id);
+      try {
+        const token = await getAccessTokenSilently();
+        await opsSetStoryVisibility(cityId, story.id, next, token);
+        const path = publicStoryPath(story);
+        if (isCanonicalStoryPath(path)) void revalidatePublicStory(path);
+        markVisibility(story.id, next);
+        toast.success(visibilitySuccessMessage(next));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not update visibility");
+      } finally {
+        setBusyStoryId(null);
+      }
+    },
+    [cityId, getAccessTokenSilently, markVisibility]
+  );
+
+  const deleteStory = useCallback(
+    async (story: OpsCityStory) => {
+      if (cityId == null) return;
+      const headline = story.headline.trim() || "this story";
+      if (
+        !window.confirm(
+          `Delete "${headline}"? This removes it from the public site and cannot be undone.`
+        )
+      ) {
+        return;
+      }
+      setBusyStoryId(story.id);
+      try {
+        const token = await getAccessTokenSilently();
+        await opsDeleteStory(cityId, story.id, token);
+        const path = publicStoryPath(story);
+        if (isCanonicalStoryPath(path)) void revalidatePublicStory(path);
+        dropStory(story.id);
+        toast.success("Story deleted.");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not delete story");
+      } finally {
+        setBusyStoryId(null);
+      }
+    },
+    [cityId, dropStory, getAccessTokenSilently]
+  );
+
   const openStory = useCallback(
     async (story: OpsCityStory) => {
       if (cityId == null) return;
@@ -331,8 +434,13 @@ export default function CityOpsDashboard({ isAdmin, onViewJob, embedded }: CityO
         opsAutocorrectStory(cityId, storyId, evalId, token),
       override: (storyId, token) => opsSetStoryOverride(cityId, storyId, false, token),
       revokeOverride: (storyId, token) => opsSetStoryOverride(cityId, storyId, true, token),
+      setVisibility: (storyId, status, token) =>
+        opsSetStoryVisibility(cityId, storyId, status, token),
+      deleteStory: isAdmin
+        ? (storyId, token) => opsDeleteStory(cityId, storyId, token)
+        : undefined,
     };
-  }, [cityId]);
+  }, [cityId, isAdmin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -501,6 +609,11 @@ export default function CityOpsDashboard({ isAdmin, onViewJob, embedded }: CityO
           onStorySortChange={setOverviewSort}
           onViewSession={viewSession}
           onOpenStory={openStory}
+          canManage={!!selected?.can_manage}
+          canDelete={isAdmin}
+          busyStoryId={busyStoryId}
+          onToggleVisibility={(story) => void toggleVisibility(story)}
+          onDelete={(story) => void deleteStory(story)}
         />
       )}
       {cityId != null && tab === "stories" && selected && (
@@ -543,6 +656,8 @@ export default function CityOpsDashboard({ isAdmin, onViewJob, embedded }: CityO
             void load();
           }}
           onViewSession={viewSession}
+          onVisibilityChange={markVisibility}
+          onDeleted={dropStory}
         />
       )}
       {editingMetricId != null && (
