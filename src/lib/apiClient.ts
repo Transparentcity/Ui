@@ -5,6 +5,7 @@ import {
   getImpersonationCacheKey,
   getImpersonationUserId,
 } from "./impersonation";
+import { sanitizeErrorText } from "./api/request";
 import { PREFERRED_DEFAULT_MODEL_KEY } from "./modelDefaults";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -173,7 +174,11 @@ async function request<T>(
       clearStaleProxySession();
       return request<T>(path, method, body, token, options, true);
     }
-    const error = new Error(`API ${method} ${path} failed: ${res.status} ${text}`);
+    const error = new Error(
+      `API ${method} ${path} failed: ${res.status} ${
+        /^\s*</.test(text) ? sanitizeErrorText(text) : text
+      }`
+    );
     // Attach status code to error for better error handling
     (error as any).status = res.status;
     (error as any).statusText = res.statusText;
@@ -4483,16 +4488,59 @@ export interface DraftEmailReplyResponse {
   cumulative_cost_usd: number;
 }
 
-export function draftInboundEmailReply(
+const DRAFT_POLL_INTERVAL_MS = 2000;
+const DRAFT_MAX_WAIT_MS = 5 * 60 * 1000;
+
+/**
+ * Have Seymour draft a reply to an inbound email.
+ *
+ * Drafting runs Seymour's full tool loop, which can outlast the proxy's read
+ * timeout (the synchronous /draft endpoint then returns an nginx 504 even
+ * though the agent keeps running). So this queues a job via /draft-job and
+ * polls /api/jobs/{id}. Falls back to /draft when the backend predates
+ * /draft-job.
+ */
+export async function draftInboundEmailReply(
   emailId: number,
   body: DraftEmailReplyRequest,
   token: string
 ): Promise<DraftEmailReplyResponse> {
-  return request<DraftEmailReplyResponse>(
-    `/api/admin/inbound-email/${emailId}/draft`,
-    "POST",
-    body,
-    token
+  let jobId: string;
+  try {
+    const started = await request<{ job_id: string }>(
+      `/api/admin/inbound-email/${emailId}/draft-job`,
+      "POST",
+      body,
+      token
+    );
+    jobId = started.job_id;
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    const routeMissing =
+      status === 405 ||
+      (status === 404 && err instanceof Error && /"Not Found"/.test(err.message));
+    if (!routeMissing) throw err;
+    return request<DraftEmailReplyResponse>(
+      `/api/admin/inbound-email/${emailId}/draft`,
+      "POST",
+      body,
+      token
+    );
+  }
+
+  const deadline = Date.now() + DRAFT_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, DRAFT_POLL_INTERVAL_MS));
+    const job = await getJob(jobId, token);
+    if (job.status === "completed") {
+      return job.result as DraftEmailReplyResponse;
+    }
+    if (job.status === "failed" || job.status === "cancelled") {
+      throw new Error(job.error_message || `Seymour draft ${job.status}`);
+    }
+  }
+  throw new Error(
+    "Seymour is still drafting after 5 minutes. Try again with a narrower instruction."
   );
 }
 

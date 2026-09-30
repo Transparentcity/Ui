@@ -5,7 +5,7 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export { API_BASE };
 
 /** Strip HTML tags and collapse whitespace to produce a readable error message. */
-function sanitizeErrorText(raw: string): string {
+export function sanitizeErrorText(raw: string): string {
   if (!raw || !raw.includes("<")) return raw;
   // Remove all HTML tags
   let text = raw.replace(/<[^>]*>/g, " ");
