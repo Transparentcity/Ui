@@ -16,6 +16,12 @@ import { toast } from "sonner";
 import type { FeedStory } from "@/lib/api/feed";
 import { autocorrectStoryEval, getJob, type StoryEvalRow } from "@/lib/apiClient";
 import { slugify } from "@/lib/utils";
+import {
+  isCanonicalStoryPath,
+  storyIsPubliclyListed,
+  visibilitySuccessMessage,
+} from "@/lib/stories/staffModeration";
+import { revalidatePublicStory } from "@/app/actions/revalidateStory";
 import Loader from "@/components/Loader";
 import { EvalCorrectionHistoryPanel } from "@/components/eval/EvalCorrectionHistoryPanel";
 import { EvalTicketsPanel } from "@/components/eval/EvalTicketsPanel";
@@ -45,6 +51,7 @@ export type ReviewStory = Pick<FeedStory, "id" | "headline"> &
       | "canonical_path"
       | "public_url"
       | "short_hash"
+      | "status"
     >
   >;
 
@@ -58,6 +65,14 @@ export interface StoryReviewApi {
   autocorrect: (evalId: number, storyId: number, token: string) => Promise<AutocorrectResponse>;
   override: (storyId: number, token: string) => Promise<unknown>;
   revokeOverride: (storyId: number, token: string) => Promise<unknown>;
+  /** City leads and admins. Sets status to active (public) or hidden. */
+  setVisibility?: (
+    storyId: number,
+    status: "active" | "hidden",
+    token: string
+  ) => Promise<unknown>;
+  /** Admins only. Permanently deletes the story. */
+  deleteStory?: (storyId: number, token: string) => Promise<unknown>;
 }
 
 interface StoryReviewModalProps {
@@ -70,6 +85,10 @@ interface StoryReviewModalProps {
   onViewSession?: (sessionId: string, label: string) => void;
   /** Called when accuracy or the eligibility override changes. */
   onStoryChange?: (storyId: number, metadataPatch: Record<string, unknown>) => void;
+  /** Called after public visibility is saved, so lists can update the row. */
+  onVisibilityChange?: (storyId: number, status: "active" | "hidden") => void;
+  /** Called after an admin deletes the story. The modal closes itself. */
+  onDeleted?: (storyId: number) => void;
   /** Extra footer buttons (e.g. the admin Like toggle). */
   footerActions?: ReactNode;
   /** Evals already fetched with the story; skips the first load. */
@@ -264,6 +283,8 @@ export default function StoryReviewModal({
   canAct,
   onViewSession,
   onStoryChange,
+  onVisibilityChange,
+  onDeleted,
   footerActions,
   initialEvals,
 }: StoryReviewModalProps) {
@@ -287,6 +308,13 @@ export default function StoryReviewModal({
     reason?: string;
   } | null>(null);
   const [overridingEligibility, setOverridingEligibility] = useState(false);
+  const [listed, setListed] = useState(() => storyIsPubliclyListed(storyProp.status));
+  const [visibilityBusy, setVisibilityBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setListed(storyIsPubliclyListed(storyProp.status));
+  }, [storyProp.id, storyProp.status]);
 
   // Stop polling (and state updates) once the modal is closed.
   const mountedRef = useRef(true);
@@ -296,6 +324,58 @@ export default function StoryReviewModal({
       mountedRef.current = false;
     };
   }, []);
+
+  const handleVisibility = useCallback(async () => {
+    if (!api.setVisibility || visibilityBusy) return;
+    const next = listed ? "hidden" : "active";
+    setVisibilityBusy(true);
+    try {
+      const token = await getAccessTokenSilently();
+      await api.setVisibility(story.id, next, token);
+      const path = publicStoryPath(story);
+      if (isCanonicalStoryPath(path)) void revalidatePublicStory(path);
+      if (!mountedRef.current) return;
+      setListed(next === "active");
+      onVisibilityChange?.(story.id, next);
+      toast.success(visibilitySuccessMessage(next));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update visibility");
+    } finally {
+      if (mountedRef.current) setVisibilityBusy(false);
+    }
+  }, [
+    api,
+    visibilityBusy,
+    listed,
+    getAccessTokenSilently,
+    story,
+    onVisibilityChange,
+  ]);
+
+  const handleDeleteStory = useCallback(async () => {
+    if (!api.deleteStory || deleting) return;
+    const headline = story.headline.trim() || "this story";
+    if (
+      !window.confirm(
+        `Delete "${headline}"? This removes it from the public site and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const token = await getAccessTokenSilently();
+      await api.deleteStory(story.id, token);
+      const path = publicStoryPath(story);
+      if (isCanonicalStoryPath(path)) void revalidatePublicStory(path);
+      toast.success("Story deleted.");
+      onDeleted?.(story.id);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete story");
+      if (mountedRef.current) setDeleting(false);
+    }
+  }, [api, deleting, story, getAccessTokenSilently, onDeleted, onClose]);
 
   const patchStory = useCallback(
     (patch: Record<string, unknown>) => {
@@ -892,6 +972,31 @@ export default function StoryReviewModal({
             Close
           </button>
           <div className={styles.previewFooterActions}>
+            {canAct && api.setVisibility && (
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                disabled={visibilityBusy || deleting}
+                onClick={() => void handleVisibility()}
+                title={
+                  listed
+                    ? "Remove this story from the public feed and its public page."
+                    : "Show this story on the public site. A failing accuracy score can still keep it hidden until it passes or you mark it eligible."
+                }
+              >
+                {visibilityBusy ? "Saving…" : listed ? "Hide from public" : "Make public"}
+              </button>
+            )}
+            {canAct && api.deleteStory && (
+              <button
+                type="button"
+                className={styles.dangerBtn}
+                disabled={deleting || visibilityBusy}
+                onClick={() => void handleDeleteStory()}
+              >
+                {deleting ? "Deleting…" : "Delete story"}
+              </button>
+            )}
             {footerActions}
             <a
               className={styles.primaryBtn}

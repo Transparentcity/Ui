@@ -130,6 +130,24 @@
   font-family: inherit;
 }
 
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-secondary, #f8f8f8);
+}
+
+.bulkCount {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary, #374151);
+}
+
 .generateBtn {
   padding: 0.45rem 1.1rem;
   border: none;

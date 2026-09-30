@@ -22,6 +22,7 @@ import {
 } from "@/lib/visualizationShortcodes";
 import ShareButton from "./ShareButton";
 import AdminStoryProvenance from "@/components/feed/AdminStoryProvenance";
+import StoryStaffControls from "@/components/feed/StoryStaffControls";
 import CitySignupCTA from "../../CitySignupCTA";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
@@ -269,6 +270,13 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
             sessionId={story.job_session_id}
           />
         </div>
+        <StoryStaffControls
+          storyId={story.id}
+          cityId={story.city_id}
+          path={`/c/${slug}/stories/${hash}`}
+          cityHref={backHref}
+          headline={headline}
+        />
 
         {/* Hero image */}
         {showHeroImage && (
@@ -520,6 +528,37 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         }
         .story-meta-sep {
           color: #9a9a9f;
+        }
+        .story-staff-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin: -8px 0 24px;
+        }
+        .story-staff-btn {
+          font: inherit;
+          font-size: 13px;
+          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--border-primary, #e5e5e5);
+          background: var(--bg-primary, #fff);
+          color: var(--text-primary, #111);
+          cursor: pointer;
+        }
+        .story-staff-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+        .story-staff-btn-danger {
+          color: #b91c1c;
+          border-color: rgba(185, 28, 28, 0.35);
+          background: rgba(185, 28, 28, 0.06);
+        }
+        .story-staff-note {
+          font-size: 13px;
+          color: #b91c1c;
         }
 
         /* ── Hero image ─────────────────────────────────────────────── */
