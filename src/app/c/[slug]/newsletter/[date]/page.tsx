@@ -51,6 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const description = introText.slice(0, 160);
     const canonicalSlug = edition.city_slug ?? slug;
     const canonical = `/c/${canonicalSlug}/newsletter/${edition.short_hash}`;
+    const ogImage = "https://transparent.city/images/app-screenshot-dashboard.png";
     return {
       title,
       description,
@@ -60,11 +61,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description,
         url: canonical,
         type: "article",
+        images: [{ url: ogImage, width: 1200, height: 630, alt: `${cityName} newsletter` }],
       },
       twitter: {
-        card: "summary",
+        card: "summary_large_image",
         title,
         description,
+        images: [ogImage],
       },
       other: {
         "article:section": cityName,
