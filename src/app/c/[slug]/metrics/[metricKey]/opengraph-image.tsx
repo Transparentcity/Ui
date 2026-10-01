@@ -112,7 +112,7 @@ export default async function MetricOgImage({ params }: Props) {
               fontWeight: 400,
             }}
           >
-            {cityName} &middot; {year}
+            {`${cityName} · ${year}`}
           </div>
         </div>
 
