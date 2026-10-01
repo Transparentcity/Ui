@@ -48,6 +48,7 @@ function getModelDisplayName(modelKey: string): string {
   const modelMap: Record<string, string> = {
     // Claude (latest + one older)
     "claude-haiku-4.5": "Claude Haiku 4.5",
+    "claude-sonnet-5.5": "Claude Sonnet 5.5",
     "claude-sonnet-5": "Claude Sonnet 5",
     "claude-fable-5": "Claude Fable 5",
     "claude-opus-4.8": "Claude Opus 4.8",

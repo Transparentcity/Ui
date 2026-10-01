@@ -21,7 +21,7 @@ export interface Config {
 export const DEFAULT_AUTH0_DOMAIN = "auth.transparent.city";
 export const DEFAULT_AUDIENCE = "https://api.transparent.city/api";
 export const DEFAULT_API_BASE = "https://api.transparent.city";
-export const DEFAULT_MODEL_KEY = "claude-sonnet-5";
+export const DEFAULT_MODEL_KEY = "claude-sonnet-5.5";
 /** Chat-only groups. "email" and "foia" must be requested explicitly per call. */
 export const DEFAULT_TOOL_GROUPS = ["core", "research", "web_search"];
 export const DEFAULT_SCOPE = "openid profile email offline_access";
