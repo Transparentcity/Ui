@@ -82,7 +82,7 @@ const EST_OUTPUT_TOKENS = 8_000;
  * Keys that aren't available (missing API key) are simply omitted.
  */
 const WORKBENCH_FEATURED_MODEL_KEYS: string[] = [
-  "claude-sonnet-5",
+  "claude-sonnet-5.5",
   "claude-haiku-4.5",
   "claude-sonnet-4.6",
   "claude-opus-4.8",

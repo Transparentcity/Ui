@@ -143,7 +143,7 @@ All settings are environment variables. Only the client id is required.
 | `SEYMOUR_AUTH0_DOMAIN` | `auth.transparent.city` | Auth0 tenant or custom domain. |
 | `SEYMOUR_AUTH0_AUDIENCE` | `https://api.transparent.city/api` | API identifier the token is issued for. |
 | `SEYMOUR_API_BASE` | `https://api.transparent.city` | Backend base URL. Point at `http://localhost:8001` for a local API. |
-| `SEYMOUR_DEFAULT_MODEL` | `claude-sonnet-5` | Seymour model key for new sessions. |
+| `SEYMOUR_DEFAULT_MODEL` | `claude-sonnet-5.5` | Seymour model key for new sessions. |
 | `SEYMOUR_DEFAULT_TOOL_GROUPS` | `core,research,web_search` | Comma-separated tool groups for new sessions. |
 | `SEYMOUR_REQUEST_TIMEOUT_MS` | `300000` | How long to wait for one Seymour answer. |
 | `SEYMOUR_MCP_TOKEN_PATH` | `~/.config/seymour-mcp/tokens.json` | Where tokens are stored. |

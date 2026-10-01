@@ -34,14 +34,14 @@ test("ask creates a session with tool groups then sends the message", async () =
   assert.equal(calls.length, 2);
   const newUrl = new URL(calls[0].url);
   assert.equal(newUrl.pathname, "/api/chat/new");
-  assert.equal(newUrl.searchParams.get("model_key"), "claude-sonnet-5");
+  assert.equal(newUrl.searchParams.get("model_key"), "claude-sonnet-5.5");
   assert.deepEqual(newUrl.searchParams.getAll("tool_groups"), ["core", "research", "web_search"]);
   const headers = calls[1].init.headers as Record<string, string>;
   assert.equal(headers.Authorization, "Bearer tok");
   assert.deepEqual(JSON.parse(String(calls[1].init.body)), {
     message: "hello",
     session_id: "s1",
-    model_key: "claude-sonnet-5",
+    model_key: "claude-sonnet-5.5",
     tool_groups: ["core", "research", "web_search"],
   });
 });
