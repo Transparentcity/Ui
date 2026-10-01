@@ -988,24 +988,24 @@ const AUSTIN: CityGuide = {
   unitPlural: "council districts",
   unitCount: 10,
   datasetsCount: 3760,
-  metricsCount: 32,
+  metricsCount: 37,
   portal: "Socrata",
-  snapshotDate: "September 30, 2026",
+  snapshotDate: "October 1, 2026",
   lede: (
     <>
-      Welcome, Drew, and thank you for taking on Austin. The city is live and public: 23 metrics on the
+      Welcome, Drew, and thank you for taking on Austin. The city is live and public: 24 metrics on the
       dashboard, 3,760 catalogued datasets, all ten council districts drawn, and more than 300 stories
-      already in the feed. The gap is development. Permits are covered, but site plans, zoning cases and
-      variances are not, and those are what neighborhood groups like the Zilker Neighborhood Association
-      spend their time tracking by hand.
+      already in the feed. Development is the newest part. Five metrics now track zoning cases, site plans,
+      subdivisions and Board of Adjustment variances, the cases neighborhood groups like the Zilker
+      Neighborhood Association have been tracking by hand.
     </>
   ),
   welcome: (
     <>
-      Austin publishes almost every development case from Austin Build + Connect on its open data portal,
-      updated daily, with a link back to the case page. Seymour can query those datasets today, even
-      though none of them is a metric yet. The one thing it cannot reach is the documents attached to each
-      case; for those, open the case link in Build + Connect.
+      Each of the five development metrics works citywide, by council district, and for any place a
+      resident saves in My Places. They come from the case records Austin Build + Connect publishes on the
+      open data portal, updated daily, with a link back to each case page. The one thing Seymour cannot
+      reach is the documents attached to a case; for those, open the case link in Build + Connect.
     </>
   ),
   firstSteps: [
@@ -1014,10 +1014,26 @@ const AUSTIN: CityGuide = {
       body: (
         <>
           Open <Link href="/home?city_id=56718">Austin</Link> from <b>My Places</b>, then the{" "}
-          <b>All metrics</b> tab. Twenty-three measures, each compared to the same point last year. Six are
-          permits, all built on the Issued Construction Permits dataset. One already needs a look: New
-          Residential Construction Permits Completed shows 5,664 against 1,171, up 384 percent. Check that
-          before anyone quotes it.
+          <b>All metrics</b> tab. Twenty-four measures, each compared to the same point last year. Six are
+          permits, built on the Issued Construction Permits dataset, and Zoning Cases Filed is the newest.
+          One already needs a look: New Residential Construction Permits Completed shows 5,664 against
+          1,171, up 384 percent. Check that before anyone quotes it.
+        </>
+      ),
+    },
+    {
+      title: "Meet the development metrics",
+      body: (
+        <>
+          Five metrics, built September 30: Zoning Cases Filed (1012), Site Plan Cases Approved (1013), Board
+          of Adjustment Cases Filed (1014), Site Plan Cases Filed (1015) and Subdivision Cases Filed (1016).
+          Only Zoning Cases Filed is on the dashboard so far. In <Link href="/home?view=chat">New Chat</Link>,
+          type:{" "}
+          <i>
+            &ldquo;For metrics 1012 to 1016, show the 2026 count citywide and for each council district, and
+            the cases within one mile of 30.248879, -97.767302.&rdquo;
+          </i>{" "}
+          When the numbers look right, ask Seymour to show the other four on the Austin dashboard.
         </>
       ),
     },
@@ -1058,8 +1074,9 @@ const AUSTIN: CityGuide = {
       body: (
         <>
           In <b>My Places</b>, drop a pin on Zilker and drag the radius to fit. Seymour can then answer
-          &ldquo;what changed near my place&rdquo; questions for any metric without coordinates, and the
-          Sunday newsletter will cover it. Seymour cannot create places for you; this step is by hand.
+          &ldquo;what changed near my place&rdquo; questions for any metric without coordinates, including
+          the five development metrics, and the Sunday newsletter will cover it. Seymour cannot create
+          places for you; this step is by hand.
         </>
       ),
     },
@@ -1076,12 +1093,16 @@ const AUSTIN: CityGuide = {
   ],
   promptsIntro: (
     <>
-      Built around development tracking for a neighborhood. Seymour knows you manage Austin, but for the
-      development datasets, paste the full data.austintexas.gov address as written; a bare dataset id can
-      end up querying another city.
+      Built around development tracking for a neighborhood. Seymour knows you manage Austin, but when a
+      prompt names a data.austintexas.gov dataset, paste the full address as written; a bare dataset id
+      can end up querying another city.
     </>
   ),
   prompts: [
+    {
+      text: "Using metrics 1012 to 1016, show every zoning, site plan, subdivision and Board of Adjustment case near my Zilker place since January 2025, newest first, with case number, name, status and date.",
+      note: "The neighborhood view, from the metrics rather than raw queries. Needs a saved place; see Start here.",
+    },
     {
       text: "Query https://data.austintexas.gov/resource/mavg-96ck for site plan cases within one mile of 30.248879, -97.767302 that are not approved, expired, withdrawn or void. List case number, name, status, filing date and the Build + Connect link.",
       note: "The open-case list for Zilker. Today: 11 cases, from South First and Cumberland to the South Lamar street and utility plan.",
@@ -1093,10 +1114,6 @@ const AUSTIN: CityGuide = {
     {
       text: "Build a timeline for everything at 2001-2007 S Lamar Blvd: site plans from mavg-96ck, zoning cases from edir-dcnf, variances from ykxk-t5y9, and permits from 3syk-w9eu. One row per event, oldest first, with the case link.",
       note: "The page the Zilker Neighborhood Association maintains by hand, generated from the city's own records.",
-    },
-    {
-      text: "How many new housing units did Austin issue building permits for in ZIP 78704 in the last 12 months, and which projects account for most of them? Use https://data.austintexas.gov/resource/3syk-w9eu, permit type BP, work class New.",
-      note: "339 units across 304 building permits as of September 30, 2026. Filter to BP, or the trade permits count the same units again.",
     },
     {
       text: "Austin's New Residential Construction Permits Completed metric shows 5,664 this year against 1,171 last year. Check whether that is real or a data change, using the completed_date and status_current fields in 3syk-w9eu.",
@@ -1126,6 +1143,16 @@ const AUSTIN: CityGuide = {
       count: 6,
     },
     {
+      category: "Development cases",
+      metrics: (
+        <>
+          Zoning Cases Filed · Site Plan Cases Filed · Site Plan Cases Approved · Subdivision Cases Filed ·
+          Board of Adjustment Cases Filed (only Zoning is on the dashboard so far)
+        </>
+      ),
+      count: 5,
+    },
+    {
       category: "Crime",
       metrics: <>Property Crime · Violent Crime · Drug Crime</>,
       count: 3,
@@ -1138,11 +1165,11 @@ const AUSTIN: CityGuide = {
   ],
   standing: (
     <>
-      Thirty-two metrics set up, 23 on the dashboard, 3,760 datasets to draw on. San Francisco runs 79 on
-      its dashboard; Kansas City runs 13. Austin covers 311, crime and permits well. It has nothing on site
-      plans, zoning, variances or city spending. A few existing metrics also need attention:
-      Code Compliance stopped updating on July 12, Noise Complaints has no data after October 2025, and
-      911 EMS calls stop on August 1.
+      Thirty-seven metrics set up, 24 on the dashboard, 3,760 datasets to draw on. San Francisco runs 79 on
+      its dashboard; Kansas City runs 13. Austin now covers 311, crime, permits and development cases. It
+      has nothing yet on city spending. A few existing metrics also need attention: Code Compliance
+      stopped updating on July 12, Noise Complaints has no data after October 2025, and 911 EMS calls stop
+      on August 1.
     </>
   ),
   challengeIntro: (
@@ -1153,14 +1180,15 @@ const AUSTIN: CityGuide = {
   ),
   challenge: [
     {
-      title: "Development cases as standing measures",
+      title: "Put the development metrics in front of residents",
       body: (
         <>
-          Four datasets hold the whole development pipeline, and none is a metric: Site Plan Cases
-          (mavg-96ck), Zoning Cases (edir-dcnf), Subdivision Cases (s7gx-9m54) and Board of Adjustment
-          Cases (ykxk-t5y9). Start with site plans filed per month and open site plans by council district.
-          Once they are metrics they run nightly, show up by district, and reach residents who saved a
-          place nearby.
+          The five development metrics run nightly and work by district and by saved place. Four are still
+          off the dashboard. Check each one&apos;s 2026 count against the city&apos;s own numbers, then turn
+          them on. Two things to know when reading them: about a quarter of site plans and subdivisions have
+          no council district in the city&apos;s data, so district totals add up to less than citywide; and
+          Site Plan Cases Approved counts by the approval date, so a case approved in 2023 that changed
+          status this year is not counted as a 2026 approval.
         </>
       ),
     },
@@ -1200,9 +1228,9 @@ const AUSTIN: CityGuide = {
       title: "Show the neighbors",
       body: (
         <>
-          Once the 2001 S Lamar timeline and the one-mile map look right, share them with the Zilker
+          Once the 2001 S Lamar timeline and the Zilker place view look right, share them with the Zilker
           Neighborhood Association. They are the test: if their volunteers stop updating their page by
-          hand, the metric is doing its job.
+          hand, the metrics are doing their job.
         </>
       ),
     },
@@ -1219,7 +1247,10 @@ const AUSTIN: CityGuide = {
       immediately, and so is a map. Check the numbers before you ask for either. The development datasets
       also carry names and phone numbers of individual owners and applicants. Name companies and
       developers when it matters; leave private homeowners&apos; names and phone numbers out of stories and
-      maps.
+      maps. One lesson from building the development metrics: in some Austin datasets, latitude and
+      longitude are stored as text, and a metric that uses them cannot be filtered to a saved place. When
+      you build a metric, ask Seymour to use the dataset&apos;s point column (usually &ldquo;location&rdquo;)
+      and to test it on a saved place before you put it on the dashboard.
     </>
   ),
   cheatSheet: [
@@ -1228,7 +1259,9 @@ const AUSTIN: CityGuide = {
     { goal: "Near a point", say: "From https://data.austintexas.gov/resource/mavg-96ck, list open site plan cases within [distance] meters of [lat], [lng], with status and case link." },
     { goal: "Upcoming hearings", say: "From https://data.austintexas.gov/resource/edir-dcnf, list District [n] zoning cases scheduled for a hearing, filed in the last three years." },
     { goal: "Map it", say: "Map [dataset] cases within one mile of [lat], [lng] since [date], colored by status." },
-    { goal: "Build one", say: "Create an Austin metric for site plan cases filed per month from https://data.austintexas.gov/resource/mavg-96ck using application_start_date, by council district. Check the numbers look right." },
+    { goal: "Near my place", say: "Using metrics 1012 to 1016, list the development cases near my [place] since [date], newest first, with status and case link." },
+    { goal: "Turn one on", say: "Show Austin metric [id] on the dashboard." },
+    { goal: "Build one", say: "Create an Austin metric for [thing] from [full data.austintexas.gov URL], counted by [date field], monthly, by council district. Use the point column for place filtering, then test it on my saved place." },
     { goal: "Check a feed", say: "Austin's [metric] stopped updating on [date]. Did the source dataset change, and what replaced it?" },
     { goal: "By district", say: "Compare new housing units permitted by Austin council district over the last 12 months, as a map and a table." },
     { goal: "Check a claim", say: "The city says [claim]. Does the data support it? Show the chart and the source dataset." },
