@@ -10809,6 +10809,43 @@ export function opsSetStoryVisibility(
   );
 }
 
+/** Permanently delete a story. Admins only; city leads receive 403. */
+export function opsDeleteStory(
+  cityId: number,
+  storyId: number,
+  token: string
+): Promise<{ success: boolean; story_id: number; deleted: number }> {
+  return request(
+    `/api/ops/cities/${cityId}/stories/${storyId}`,
+    "DELETE",
+    undefined,
+    token
+  );
+}
+
+export interface OpsStoryBulkResult {
+  action: "judge" | "hide" | "show" | "delete";
+  story_ids: number[];
+  affected: number;
+  skipped?: number;
+  job_id?: string | null;
+  judge_model_key?: string | null;
+  status?: string;
+}
+
+/** Hide, show, delete, or judge many stories the caller can manage. */
+export function opsBulkStoryAction(
+  body: {
+    story_ids: number[];
+    action: "judge" | "hide" | "show" | "delete";
+    judge_model_key?: string | null;
+    unjudged_only?: boolean;
+  },
+  token: string
+): Promise<OpsStoryBulkResult> {
+  return request<OpsStoryBulkResult>("/api/ops/stories/bulk", "POST", body, token);
+}
+
 export interface OpsGenerateStoryResult {
   status: string;
   job_id: string | null;

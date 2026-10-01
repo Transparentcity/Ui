@@ -15,14 +15,17 @@ import type { ReactNode } from "react";
 import {
   Building2,
   Eye,
+  EyeOff,
   Heart,
   Landmark,
   MapPin,
   MousePointerClick,
   SquareTerminal,
+  Trash2,
 } from "lucide-react";
 import { ScoreBadge } from "@/components/eval/JudgeScoresPanel";
 import { cleanDescription } from "@/lib/feed/textCleanup";
+import { storyIsPubliclyListed } from "@/lib/stories/staffModeration";
 import styles from "./AdminStoryRow.module.css";
 
 export interface AdminStoryRowData {
@@ -48,6 +51,8 @@ export interface AdminStoryRowData {
   scheduled_job_name?: string | null;
   job_session_id?: string | null;
   accuracy?: number | null;
+  /** feed_stories.status. Hidden, draft, and archived are off the public site. */
+  status?: string | null;
 }
 
 interface AdminStoryRowProps {
@@ -156,6 +161,11 @@ export default function AdminStoryRow({
           <span className={styles.scopeIcon}>{scope.icon}</span>
           <span className={styles.scopeName}>{scope.label}</span>
           {when && <span className={styles.when}>{when}</span>}
+          {!storyIsPubliclyListed(story.status) && story.status && (
+            <span className={styles.hiddenBadge}>
+              {story.status === "hidden" ? "Hidden" : story.status}
+            </span>
+          )}
         </div>
         <div className={styles.title}>{story.headline}</div>
         {preview && <div className={styles.preview}>{preview}</div>}
@@ -235,6 +245,48 @@ export function AdminStoryList({
   bare?: boolean;
 }) {
   return <div className={bare ? styles.listBare : styles.list}>{children}</div>;
+}
+
+/** Show/hide and delete controls for one story row. */
+export function StoryModerationActions({
+  isPublic,
+  canManage,
+  canDelete,
+  busy,
+  onToggleVisibility,
+  onDelete,
+}: {
+  isPublic: boolean;
+  canManage: boolean;
+  canDelete: boolean;
+  busy?: boolean;
+  onToggleVisibility?: () => void;
+  onDelete?: () => void;
+}) {
+  if (!canManage && !canDelete) return null;
+  return (
+    <>
+      {canManage && onToggleVisibility && (
+        <AdminStoryAction
+          label={isPublic ? "Hide from public" : "Make public"}
+          active={!isPublic}
+          disabled={busy}
+          onClick={onToggleVisibility}
+        >
+          {isPublic ? (
+            <EyeOff size={14} aria-hidden="true" />
+          ) : (
+            <Eye size={14} aria-hidden="true" />
+          )}
+        </AdminStoryAction>
+      )}
+      {canDelete && onDelete && (
+        <AdminStoryAction label="Delete story" danger disabled={busy} onClick={onDelete}>
+          <Trash2 size={14} aria-hidden="true" />
+        </AdminStoryAction>
+      )}
+    </>
+  );
 }
 
 /** Compact square action button for the actions slot. */
