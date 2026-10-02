@@ -932,7 +932,7 @@ const KANSAS_CITY: CityGuide = {
       body: (
         <>
           Here the difference is concrete. A chat answer is read once. A metric runs nightly, feeds anomaly
-          detection, becomes stories, reaches the newsletter, and can be compared with nine other cities.
+          detection, becomes stories, reaches the newsletter, and can be compared with ten other cities.
           Something worth knowing twice becomes a metric. Something worth saying once becomes a story. Both
           take a sentence.
         </>
