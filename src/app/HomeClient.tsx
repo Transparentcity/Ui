@@ -48,8 +48,7 @@ export default function HomeClient({ stories, metricCards, launchedCities = [] }
         if (cancelled) return;
         const launched = cities
           .filter((c) => c.is_launched === true)
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .slice(0, 10);
+          .sort((a, b) => a.name.localeCompare(b.name));
         if (launched.length > 0) setCityList(launched);
       } catch {
         /* optional — page works without city links */
