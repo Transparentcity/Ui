@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 import { getUpstreamApiBaseUrl } from "@/lib/apiBase";
-import { getPublicFeedStoryByHash } from "@/lib/publicApiClient";
+import { getPublicFeedStoryByHash, getPublicTimeSeriesChart } from "@/lib/publicApiClient";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
 import {
   STORY_CARD_HEIGHT,
@@ -11,12 +11,20 @@ import {
   truncateHeadline,
   upstreamStoryImageUrl,
 } from "@/lib/feed/storyCardImage";
+import { loadStoryChartCard, storyChartTarget } from "@/lib/feed/storyChartCard";
+
+import { StoryChartCardImage } from "./chartCard";
 
 export const runtime = "edge";
 
 /**
- * Social-card image for a story: the backend's chart or map when the story
- * has one, a generated headline card when it does not.
+ * Social-card image for a story. In order of preference:
+ *
+ * 1. Chart stories: the chart redrawn over the story's own window (this year
+ *    vs last year for YTD stories, the last two years of months otherwise),
+ *    not the backend image's full history. See src/lib/feed/storyChartCard.ts.
+ * 2. The backend's chart or map image.
+ * 3. A generated headline card.
  *
  * Every story's og:image / twitter:image points here rather than at the
  * backend image URL, which sits under the /api prefix that robots.txt
@@ -57,6 +65,36 @@ async function proxyStoryImage(url: string): Promise<Response | null> {
   });
 }
 
+type PublicStory = Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"];
+
+/**
+ * The story's chart cut to its window, or null on any doubt (not a chart
+ * story, unsupported series, upstream error, render failure) so the caller
+ * falls back to the backend image.
+ */
+async function renderWindowedChartCard(story: PublicStory, cityName: string): Promise<Response | null> {
+  const target = storyChartTarget(story);
+  if (!target) return null;
+  try {
+    const loaded = await loadStoryChartCard(target, getPublicTimeSeriesChart);
+    if (!loaded) return null;
+    const image = new ImageResponse(
+      <StoryChartCardImage card={loaded.card} metricName={loaded.metricName} cityName={cityName} />,
+      { width: STORY_CARD_WIDTH, height: STORY_CARD_HEIGHT },
+    );
+    // ImageResponse renders lazily; buffer it so a satori error falls back
+    // instead of sending a 200 with an empty body.
+    const body = await image.arrayBuffer();
+    if (body.byteLength === 0) return null;
+    return new Response(body, {
+      status: 200,
+      headers: { "content-type": "image/png", "cache-control": CARD_CACHE_CONTROL },
+    });
+  } catch {
+    return null;
+  }
+}
+
 function titleCaseSlug(slug: string): string {
   return slug
     .split("-")
@@ -69,7 +107,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
   const { slug, hash } = await context.params;
   if (!HASH_RE.test(hash)) return new Response("Invalid story hash", { status: 400 });
 
-  let story: Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"] | null = null;
+  let story: PublicStory | null = null;
   try {
     story = (await getPublicFeedStoryByHash(hash)).story;
   } catch {
@@ -77,6 +115,11 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
   }
 
   if (!story) return new Response("Story not found", { status: 404 });
+
+  const cityName = story.city_name || titleCaseSlug(slug);
+
+  const chartCard = await renderWindowedChartCard(story, cityName);
+  if (chartCard) return chartCard;
 
   // Stories with a chart or map show it; the rest get the headline card.
   const imageUrl = upstreamStoryImageUrl(story.image_url, getUpstreamApiBaseUrl());
@@ -90,7 +133,6 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     description: story.description,
     cityName: story.city_name,
   });
-  const cityName = story.city_name || titleCaseSlug(slug);
   const dateLabel = formatCardDate(story.published_at ?? story.story_date);
 
   const text = truncateHeadline(headline || `City data from ${cityName}`);
