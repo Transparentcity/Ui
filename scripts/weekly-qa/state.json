@@ -94,19 +94,6 @@
   "knownLags": [
     {
       "city": "SF",
-      "metricName": "⏱️ Avg Days to Permit — Full Review Residential (SF)",
-      "metricKey": "sf_days_to_permit_full_review_residential",
-      "metricId": 496,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_residential",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
       "metricName": "🚴 Bicycle Collisions",
       "metricKey": "bicycle_collisions",
       "metricId": 223,
@@ -166,19 +153,6 @@
       "normalLagRange": [
         90,
         98
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚔 Police Misconduct Allegations",
-      "metricKey": "police_misconduct_allegations",
-      "metricId": 164,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/police_misconduct_allegations",
-      "normalLagRange": [
-        60,
-        68
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
@@ -374,19 +348,6 @@
       "normalLagRange": [
         6,
         14
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Denver",
-      "metricName": "💊 Drug Crime Incidents",
-      "metricKey": "denver_drug_crime_incidents",
-      "metricId": 355,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_drug_crime_incidents",
-      "normalLagRange": [
-        52,
-        60
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-03"
@@ -666,19 +627,6 @@
     },
     {
       "city": "SF",
-      "metricName": "⚖️ DA Convictions",
-      "metricKey": "convictions_da_convictions_7",
-      "metricId": 93,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/convictions_da_convictions_7",
-      "normalLagRange": [
-        8,
-        16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-08-13"
-    },
-    {
-      "city": "SF",
       "metricName": "💰 Total Vendor Payments",
       "metricKey": "sf_total_vendor_payments",
       "metricId": 318,
@@ -730,32 +678,6 @@
       "addedDate": "2026-09-10"
     },
     {
-      "city": "Denver",
-      "metricName": "📦 Property Crime Incidents",
-      "metricKey": "denver_property_crime_incidents",
-      "metricId": 353,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_property_crime_incidents",
-      "normalLagRange": [
-        180,
-        188
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-24"
-    },
-    {
-      "city": "Miami",
-      "metricName": "🏚️ Demolition Permits Issued",
-      "metricKey": "miami_demolition_permits_issued",
-      "metricId": 862,
-      "cardUrl": "https://transparent.city/c/miami/metrics/miami_demolition_permits_issued",
-      "normalLagRange": [
-        65,
-        73
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-24"
-    },
-    {
       "city": "Miami",
       "metricName": "📞 Miami Police Calls for Service",
       "metricKey": "miami_911_calls_for_service",
@@ -783,45 +705,6 @@
     },
     {
       "city": "SF",
-      "metricName": "⏱️ ALS Response Time",
-      "metricKey": "als_response_time",
-      "metricId": 213,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/als_response_time",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 Ambulance Response Time",
-      "metricKey": "ambulance_response_time",
-      "metricId": 208,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/ambulance_response_time",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "SF",
-      "metricName": "⏱️ Avg Days to Permit — Full Review Commercial (SF)",
-      "metricKey": "sf_days_to_permit_full_review_commercial",
-      "metricId": 497,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_commercial",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "SF",
       "metricName": "⏱️ Avg Days to Permit — OTC Commercial (SF)",
       "metricKey": "sf_days_to_permit_otc_commercial",
       "metricId": 495,
@@ -829,45 +712,6 @@
       "normalLagRange": [
         23,
         31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "SF",
-      "metricName": "⏱️ EMS Average Response Time",
-      "metricKey": "ems_avg_response_time",
-      "metricId": 205,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/ems_avg_response_time",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 911 Response (minutes) - Priority C",
-      "metricKey": "response_911_response_minutes_no_danger_to_life_or_property_12",
-      "metricId": 104,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_no_danger_to_life_or_property_12",
-      "normalLagRange": [
-        23,
-        31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "SF",
-      "metricName": "❤️‍🩹 Narcan Overdose Reversals",
-      "metricKey": "sfpd_naloxone_deployments",
-      "metricId": 141,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sfpd_naloxone_deployments",
-      "normalLagRange": [
-        4,
-        12
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-01"
@@ -894,149 +738,6 @@
       "normalLagRange": [
         8,
         16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "📞 911 Calls for Service (NYPD)",
-      "metricKey": "nyc_911_calls_for_service",
-      "metricId": 286,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_911_calls_for_service",
-      "normalLagRange": [
-        88,
-        96
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🏢 Business License Registrations",
-      "metricKey": "nyc_business_license_registrations",
-      "metricId": 284,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_business_license_registrations",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "💊 Drug Crime Arrests",
-      "metricKey": "nyc_drug_crime_arrests",
-      "metricId": 290,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_arrests",
-      "normalLagRange": [
-        88,
-        96
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "💊 Drug Crime Complaints",
-      "metricKey": "nyc_drug_crime_complaints",
-      "metricId": 829,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_drug_crime_complaints",
-      "normalLagRange": [
-        88,
-        96
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "💀 Homicides",
-      "metricKey": "nyc_homicides",
-      "metricId": 808,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_homicides",
-      "normalLagRange": [
-        88,
-        96
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "👮 NYPD Arrests (YTD)",
-      "metricKey": "nyc_nypd_arrests_ytd",
-      "metricId": 558,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_arrests_ytd",
-      "normalLagRange": [
-        59,
-        67
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🔫 NYPD Shooting Incidents",
-      "metricKey": "nyc_nypd_shooting_incidents",
-      "metricId": 555,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_nypd_shooting_incidents",
-      "normalLagRange": [
-        59,
-        67
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "⚠️ Priority Crime Arrests",
-      "metricKey": "nyc_priority_crime_arrests",
-      "metricId": 830,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_priority_crime_arrests",
-      "normalLagRange": [
-        59,
-        67
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "📦 Property Crime Complaints",
-      "metricKey": "nyc_property_crime_complaints",
-      "metricId": 57,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_property_crime_complaints",
-      "normalLagRange": [
-        59,
-        67
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🚨 Violent Crime Arrests",
-      "metricKey": "nyc_violent_crime_arrests",
-      "metricId": 831,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_arrests",
-      "normalLagRange": [
-        59,
-        67
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🚨 Violent Crime Complaints",
-      "metricKey": "nyc_violent_crime_complaints",
-      "metricId": 58,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_violent_crime_complaints",
-      "normalLagRange": [
-        59,
-        67
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-01"
@@ -1105,7 +806,202 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-01"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "💀 Homicides",
+      "metricKey": "oakland_homicides",
+      "metricId": 780,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_homicides",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "🕳️ Pothole Closure Rate",
+      "metricKey": "oakland_pothole_closure_rate",
+      "metricId": 870,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_pothole_closure_rate",
+      "normalLagRange": [
+        29,
+        37
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "🕳️ Pothole Reports (311)",
+      "metricKey": "oakland_311_pothole_reports",
+      "metricId": 867,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_311_pothole_reports",
+      "normalLagRange": [
+        11,
+        19
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "🕳️ Pothole & Street Repair Complaints (311)",
+      "metricKey": "oakland_pothole_street_repair_311",
+      "metricId": 779,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_pothole_street_repair_311",
+      "normalLagRange": [
+        11,
+        19
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "💊 Drug Crime Incidents",
+      "metricKey": "chicago_drug_crime",
+      "metricId": 266,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_drug_crime",
+      "normalLagRange": [
+        5,
+        13
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "💀 Homicides",
+      "metricKey": "chicago_homicides",
+      "metricId": 807,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_homicides",
+      "normalLagRange": [
+        5,
+        13
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "chicago_property_crime_fbi_type_ii",
+      "metricId": 55,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_property_crime_fbi_type_ii",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Chicago",
+      "metricName": "🚨 Violent Crime Incidents",
+      "metricKey": "chicago_violent_crime_fbi_type_i",
+      "metricId": 261,
+      "cardUrl": "https://transparent.city/c/chicago/metrics/chicago_violent_crime_fbi_type_i",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Detroit",
+      "metricName": "💀 Homicides",
+      "metricKey": "detroit_homicides",
+      "metricId": 781,
+      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_homicides",
+      "normalLagRange": [
+        5,
+        13
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📞 911 Calls",
+      "metricKey": "cincinnati_911_calls",
+      "metricId": 296,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_911_calls",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📋🏁 New Residential Construction Permits Completed",
+      "metricKey": "cincinnati_new_residential_construction_permits_completed",
+      "metricId": 584,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_completed",
+      "normalLagRange": [
+        9,
+        17
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Austin",
+      "metricName": "📞 911 Calls (EMS Incidents)",
+      "metricKey": "austin_911_calls_ems_incidents",
+      "metricId": 305,
+      "cardUrl": "https://transparent.city/c/austin/metrics/austin_911_calls_ems_incidents",
+      "normalLagRange": [
+        30,
+        38
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Austin",
+      "metricName": "🏢 New Commercial Construction Permits Filed",
+      "metricKey": "austin_new_commercial_construction_permits_filed",
+      "metricId": 788,
+      "cardUrl": "https://transparent.city/c/austin/metrics/austin_new_commercial_construction_permits_filed",
+      "normalLagRange": [
+        6,
+        14
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Austin",
+      "metricName": "🚗 Traffic Crashes",
+      "metricKey": "austin_traffic_crashes",
+      "metricId": 517,
+      "cardUrl": "https://transparent.city/c/austin/metrics/austin_traffic_crashes",
+      "normalLagRange": [
+        9,
+        17
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
+    },
+    {
+      "city": "Miami",
+      "metricName": "📋📥 New Residential Construction Permits Filed",
+      "metricKey": "miami_new_residential_construction_permits_filed",
+      "metricId": 865,
+      "cardUrl": "https://transparent.city/c/miami/metrics/miami_new_residential_construction_permits_filed",
+      "normalLagRange": [
+        50,
+        58
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-08"
     }
   ],
-  "lastRunDate": "2026-10-01"
+  "lastRunDate": "2026-10-08"
 }
