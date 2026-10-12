@@ -1,78 +1,59 @@
+/* One step in the reply's activity list: a status mark and a plain-language
+   label; click to see the raw arguments and response. */
 .toolCall {
-  display: inline-block;
-  width: auto;
-  margin: 2px 0;
-  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.toolCallContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
   border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  background: none;
+  font: inherit;
+  color: inherit;
   text-align: left;
-  font-size: 11px;
   cursor: pointer;
-  transition: opacity 0.2s;
-  background: var(--bg-tertiary);
-  border-left: 2px solid var(--border-primary);
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  word-break: break-word;
 }
 
-.toolCall:hover {
-  opacity: 0.8;
+.toolCallContent:hover .toolCallName {
+  color: var(--text-primary);
 }
 
-.running {
-  background: var(--bg-secondary);
-  border-left: 2px solid var(--warning);
+.toolCallStatus {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--success);
 }
 
-.completed {
-  background: var(--bg-secondary);
-  border-left: 2px solid var(--success);
-}
-
-.error {
-  background: var(--bg-secondary);
-  border-left: 2px solid var(--error);
-}
-
+.error .toolCallStatus,
 .error .toolCallName {
   color: var(--error);
 }
 
-/* Quieter styling for set_dataset */
-.toolCall[data-tool-name="set_dataset"] {
-  background: var(--bg-secondary);
-  border-left: 2px solid var(--border-primary);
-}
-
-.toolCall[data-tool-name="set_dataset"].running {
-  border-left: 2px solid var(--warning);
-}
-
-.toolCall[data-tool-name="set_dataset"].completed {
-  border-left: 2px solid var(--success);
-}
-
-.toolCall[data-tool-name="set_dataset"].error {
-  border-left: 2px solid var(--error);
-}
-
-.toolCall[data-tool-name="set_dataset"] .toolCallName {
-  color: var(--success);
-}
-
-.toolCallContent {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  width: auto;
-}
-
 .toolCallName {
   font-weight: 500;
-  color: var(--brand-primary);
-  font-size: 11px;
+}
+
+/* The map or chart a tool call produced, placed in the reply body. */
+.embedWrapper {
+  width: 100%;
+  max-width: 100%;
+}
+
+.embedWrapper .mapEmbed {
+  margin: 0;
 }
 
 .toolCallDetails {
@@ -178,32 +159,6 @@
   transform: translateY(-1px);
 }
 
-/* Styling for generate_map tool - keep it compact */
-.toolCall[data-tool-name="generate_map"] {
-  display: inline-block;
-  width: auto;
-  background: var(--bg-secondary);
-  border-left: 2px solid var(--brand-primary);
-}
-
-.toolCall[data-tool-name="generate_map"].completed {
-  border-left: 2px solid var(--success);
-}
-
-/* Styling for show_map tool - make it prominent with full width */
-.toolCall[data-tool-name="show_map"] {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  background: var(--bg-secondary);
-  border-left: 2px solid var(--brand-primary);
-  margin: var(--space-md) 0;
-}
-
-.toolCall[data-tool-name="show_map"].completed {
-  border-left: 2px solid var(--success);
-}
-
 /* Embedded Map Card */
 .mapEmbed {
   margin-top: 12px;
@@ -216,9 +171,7 @@
 }
 
 /* Larger map embed for show_map tool */
-.toolCall[data-tool-name="show_map"] .mapEmbed {
-  margin-top: var(--space-md);
-  margin-bottom: var(--space-lg);
+.embedWrapper[data-tool-name="show_map"] .mapEmbed {
   border-radius: 16px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }
@@ -311,13 +264,13 @@
 }
 
 /* Larger map container for show_map tool */
-.toolCall[data-tool-name="show_map"] .mapEmbedContainer {
+.embedWrapper[data-tool-name="show_map"] .mapEmbedContainer {
   height: 500px;
   min-height: 500px;
 }
 
 @media (min-width: 768px) {
-  .toolCall[data-tool-name="show_map"] .mapEmbedContainer {
+  .embedWrapper[data-tool-name="show_map"] .mapEmbedContainer {
     height: 600px;
     min-height: 600px;
   }

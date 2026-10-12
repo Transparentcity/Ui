@@ -4,10 +4,11 @@ import { useState, useRef, useEffect, useCallback, ReactElement } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import ChatSessionLoader from "./ChatSessionLoader";
 import MarkdownWithEmbeds from "./MarkdownWithEmbeds";
-import ToolCall, { getEmbeddedMapHash } from "./ToolCall";
+import { getEmbeddedMapHash, getToolCallEmbedKind, ToolCallEmbed } from "./ToolCall";
+import ReplyActivity, { type ActivityStep } from "./ReplyActivity";
 import SessionHeader from "./SessionHeader";
+import ChatComposer from "./ChatComposer";
 import Loader from "./Loader";
-import ThinkingTrace from "./ThinkingTrace";
 import styles from "./ChatView.module.css";
 import {
   sendChatMessageStream,
@@ -28,6 +29,7 @@ import { recordProductEvent } from "@/lib/productAnalytics";
 import { buildResumeMessage, type InterruptedTurn } from "@/lib/chatResume";
 import { buildConversationTranscript } from "@/lib/chatTranscript";
 import { copyTextToClipboard } from "@/lib/copyToClipboard";
+import { describeToolCall } from "@/lib/chatToolLabels";
 import {
   appendChatStreamEvent,
   mergeConsecutiveThinkingEvents,
@@ -43,6 +45,7 @@ interface Message {
     type: string;
     content?: string;
     tool_id?: string;
+    tool_name?: string;
     timestamp?: string;
   }>;
   isError?: boolean;
@@ -56,52 +59,12 @@ interface ChatViewProps {
   currentSession?: any; // Store session data for intermediate_steps
 }
 
-type ProviderKey = "anthropic" | "openai" | "google" | "grok" | "xai" | "unknown";
-
-/** "get_metric_data" -> "get metric data" for the status bar. */
-function humanizeToolName(name: string): string {
-  return name.replace(/[_-]+/g, " ").trim();
-}
-
 /** 83000 -> "1:23"; 5000 -> "0:05". */
 function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function normalizeProviderKey(value: string | undefined | null): ProviderKey {
-  const v = (value || "").toLowerCase().trim();
-  if (v.includes("anthropic") || v.includes("claude")) return "anthropic";
-  if (v.includes("openai") || v.includes("gpt")) return "openai";
-  if (v.includes("google") || v.includes("gemini")) return "google";
-  if (v.includes("grok")) return "grok";
-  if (v.includes("xai") || v.includes("x.ai")) return "xai";
-  return "unknown";
-}
-
-function getGroupProviderKey(group: ModelGroupInfo): ProviderKey {
-  // Prefer explicit model provider if present; fall back to label heuristics.
-  const fromModels = group.models?.[0]?.provider;
-  const fromLabel = group.label;
-  return normalizeProviderKey(fromModels || fromLabel);
-}
-
-function getProviderBadgeLetter(provider: ProviderKey): string {
-  switch (provider) {
-    case "anthropic":
-      return "A";
-    case "openai":
-      return "O";
-    case "google":
-      return "G";
-    case "grok":
-    case "xai":
-      return "X";
-    default:
-      return "?";
-  }
 }
 
 export default function ChatView({
@@ -120,7 +83,6 @@ export default function ChatView({
   // Follow new output only while the reader is at the bottom; scrolling up
   // to reread pauses auto-scroll until they return to the bottom or send.
   const stickToBottomRef = useRef(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [currentSessionId, setCurrentSessionIdInternal] = useState<string | null>(sessionId);
   
   // Wrap setCurrentSessionId to log all changes
@@ -138,7 +100,6 @@ export default function ChatView({
   const [copiedShareId, setCopiedShareId] = useState<string | null>(null);
   // True while the conversation-share request (toggleSessionPublic) is in flight.
   const [isSharing, setIsSharing] = useState(false);
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sessionStats, setSessionStats] = useState<SessionStats | null>(() => {
     // Initialize stats if sessionId is provided on mount
@@ -155,8 +116,6 @@ export default function ChatView({
     }
     return null;
   });
-  const modelDropdownRef = useRef<HTMLDivElement>(null);
-  const modelIconWrapperRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasShownWelcome = useRef(false);
   const lastAutoPromptRef = useRef<string | null>(null);
@@ -226,6 +185,7 @@ export default function ChatView({
       // silently discard the new session's messages.
       if (!isBootstrappedSessionAssignment) {
         setMessages([]);
+        setCurrentSession(null);
         setInterruptedTurn(null);
         setStreamOutcome(null);
         setPublicUrl(null);
@@ -268,6 +228,7 @@ export default function ChatView({
       setSessionStats(null);
       statsSetFromSessionLoadRef.current = null;
       setCurrentSessionId(null);
+      setCurrentSession(null);
       setInterruptedTurn(null);
       setStreamOutcome(null);
       setPublicUrl(null);
@@ -330,22 +291,6 @@ export default function ChatView({
     if (!el || !stickToBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [messages]);
-
-  // Auto-resize textarea when message changes
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      const maxHeight = window.innerHeight * 0.25; // 25% of screen height
-      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
-      textarea.style.height = `${newHeight}px`;
-      if (textarea.scrollHeight > maxHeight) {
-        textarea.style.overflowY = 'auto';
-      } else {
-        textarea.style.overflowY = 'hidden';
-      }
-    }
-  }, [message]);
 
   // Fetch session stats when session changes, but NOT during streaming
   // This prevents the header from disappearing during message streaming
@@ -586,11 +531,6 @@ export default function ChatView({
       message_length: userMessageText.length,
     });
     setMessage("");
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.overflowY = 'hidden';
-    }
     setIsTyping(true);
     setIsStreaming(true);
     hasPendingSendRef.current = true;
@@ -780,7 +720,7 @@ export default function ChatView({
             
             const toolId = event.tool_id || `tool-${Date.now()}`;
             const toolName = event.tool_name || "unknown";
-            setStreamActivity(`Running ${humanizeToolName(toolName)}`);
+            setStreamActivity(describeToolCall(toolName, true));
             
             streamingStateRef.current.toolCallMap[toolId] = {
               tool_id: toolId,
@@ -838,7 +778,7 @@ export default function ChatView({
               (call) => call.response === null && call.success === null
             );
             setStreamActivity(
-              stillRunning ? `Running ${humanizeToolName(stillRunning.tool_name)}` : "Thinking"
+              stillRunning ? describeToolCall(stillRunning.tool_name, true) : "Thinking"
             );
 
             streamingStateRef.current.intermediateEvents.push({
@@ -861,6 +801,9 @@ export default function ChatView({
               )
             );
           } else if (event.type === "title_update" && event.title) {
+            // The header reads the title from the session object; keep it current.
+            const newTitle = event.title;
+            setCurrentSession((prev: { title?: string } | null) => ({ ...(prev ?? {}), title: newTitle }));
             // Title update - notify sidebar to update immediately
             // Dispatch event with session ID and title for optimistic update
             if (typeof window !== "undefined" && sessionIdToUse) {
@@ -1171,47 +1114,6 @@ export default function ChatView({
     setCurrentAssistantMessageId(null);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  // Close model dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      // Check if click is outside both the welcome view dropdown and the chat view icon wrapper
-      const isOutsideWelcome = !modelDropdownRef.current || !modelDropdownRef.current.contains(target);
-      const isOutsideChat = !modelIconWrapperRef.current || !modelIconWrapperRef.current.contains(target);
-      
-      if (isOutsideWelcome && isOutsideChat) {
-        setIsModelDropdownOpen(false);
-      }
-    };
-
-    if (isModelDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
-  }, [isModelDropdownOpen]);
-
-  // Get selected model info for display
-  const getSelectedModelInfo = () => {
-    for (const group of availableModels) {
-      const model = group.models.find((m) => m.key === selectedModel);
-      if (model) {
-        return { group, model };
-      }
-    }
-    return null;
-  };
-
-  const selectedModelInfo = getSelectedModelInfo();
-
   // Extract the full plain-text answer for an assistant message, preferring the
   // streamed text_response events (which exclude tool calls) and falling back to content.
   const getAnswerText = (msg: Message): string => {
@@ -1247,6 +1149,10 @@ export default function ChatView({
       // The public link uses a server-generated hash, so rely on public_url
       // rather than fabricating a URL from the session id.
       if (!data.public_url) return;
+      setPublicUrl(data.public_url);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
+      }
       const url = `${window.location.origin}${data.public_url}`;
       await navigator.clipboard.writeText(url);
       setCopiedShareId(msg.id);
@@ -1312,17 +1218,31 @@ export default function ChatView({
     );
   };
 
+  // A reply is an activity line (thinking and tool calls, collapsed once done)
+  // followed by the body: the text Seymour wrote and any map or chart a tool
+  // produced, in the order they happened.
   const renderAssistantMessage = (msg: Message, isActiveStream: boolean = false) => {
-    // Check if we have intermediate events for chronological rendering
-    // Only use message-level events - session-level events contain ALL events from all messages
-    // which would cause tool calls to appear at the top incorrectly
+    // Only message-level events: session-level intermediate_steps hold every
+    // message's events and would put tool calls in the wrong reply.
     const intermediateEvents = msg.intermediate_events || [];
-    
-    // Don't fall back to session-level intermediate_steps as they contain events from all messages
-    // This would cause incorrect chronological ordering
-    
+    const steps: ActivityStep[] = [];
+    const body: ReactElement[] = [];
+    // generate_map and a follow-up show_map return the same map; embed it once.
+    const embeddedMapHashes = new Set<string>();
+    let elapsedMs: number | null = null;
+
+    const pushEmbed = (toolCall: NonNullable<Message["tool_calls"]>[number], key: string) => {
+      const mapHash = getEmbeddedMapHash(toolCall);
+      if (mapHash) {
+        if (embeddedMapHashes.has(mapHash)) return;
+        embeddedMapHashes.add(mapHash);
+      }
+      if (getToolCallEmbedKind(toolCall)) {
+        body.push(<ToolCallEmbed key={key} toolCall={toolCall} />);
+      }
+    };
+
     if (intermediateEvents.length > 0) {
-      // Sort events by timestamp for proper chronological order
       const sortedEvents = mergeConsecutiveThinkingEvents(
         [...intermediateEvents].sort((a, b) => {
           const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
@@ -1331,162 +1251,108 @@ export default function ChatView({
         })
       );
 
-      const elements: ReactElement[] = [];
       let currentTextContent = "";
-      let lastEventType: string | null = null;
-      // generate_map and a follow-up show_map return the same map; embed it once.
-      const embeddedMapHashes = new Set<string>();
+      // Nth tool_call_start pairs with the nth stored tool call when ids don't
+      // line up (older sessions may persist tool_calls without the stream's id).
+      let toolStartOrdinal = 0;
+      const findToolCall = (event: (typeof sortedEvents)[number]) => {
+        const calls = msg.tool_calls || [];
+        const ordinal = toolStartOrdinal++;
+        const byId = event.tool_id ? calls.find((tc) => tc.tool_id === event.tool_id) : undefined;
+        if (byId) return byId;
+        const byOrder = calls[ordinal];
+        if (!byOrder) return undefined;
+        const orderName = byOrder.tool_name || byOrder.toolName;
+        const namesAgree = !event.tool_name || !orderName || event.tool_name === orderName;
+        const idsAbsent = !byOrder.tool_id || !event.tool_id;
+        return idsAbsent && namesAgree ? byOrder : undefined;
+      };
+      const flushText = (key: string) => {
+        if (currentTextContent.trim()) {
+          body.push(
+            <div key={key} className={styles.messageContent}>
+              <MarkdownWithEmbeds content={currentTextContent} />
+            </div>
+          );
+        }
+        currentTextContent = "";
+      };
 
       sortedEvents.forEach((event, idx) => {
         if (event.type === "text_response") {
-          // If this is the first text event or we just had a tool call, create a new text div
-          if (currentTextContent === "" || lastEventType === "tool_call_start") {
-            // Finalize previous text div if it exists
-            if (currentTextContent.trim()) {
-              elements.push(
-                <div key={`text-${idx}`} className={styles.messageContent}>
-                  <MarkdownWithEmbeds content={currentTextContent} />
-                </div>
-              );
-            }
-            currentTextContent = "";
-          }
-
-          // Accumulate text content
-          if (event.content) {
-            currentTextContent += event.content;
-          }
+          if (event.content) currentTextContent += event.content;
         } else if (event.type === "tool_call_start") {
-          // Finalize current text div before adding tool call
-          if (currentTextContent.trim()) {
-            elements.push(
-              <div key={`text-before-tool-${idx}`} className={styles.messageContent}>
-                <MarkdownWithEmbeds content={currentTextContent} />
-              </div>
-            );
-            currentTextContent = "";
-          }
-
-          // Find the corresponding tool call from tool_calls array
-          const toolCall = msg.tool_calls?.find(
-            (tc) => tc.tool_id === event.tool_id
-          );
-          if (toolCall) {
-            const mapHash = getEmbeddedMapHash(toolCall);
-            const isDuplicateMap = mapHash !== null && embeddedMapHashes.has(mapHash);
-            if (mapHash) embeddedMapHashes.add(mapHash);
-            elements.push(
-              <ToolCall
-                key={`${msg.id}-tool-${idx}`}
-                toolCall={toolCall}
-                hideEmbed={isDuplicateMap}
-              />
-            );
-          }
+          flushText(`text-${idx}`);
+          const toolCall = findToolCall(event);
+          const toolName =
+            toolCall?.tool_name || toolCall?.toolName || event.tool_name || "tool";
+          steps.push({
+            kind: "tool",
+            toolName,
+            toolCall: toolCall ?? null,
+            running: !toolCall && isActiveStream,
+          });
+          if (toolCall) pushEmbed(toolCall, `${msg.id}-embed-${idx}`);
         } else if (event.type === "thinking" && event.content) {
-          if (currentTextContent.trim()) {
-            elements.push(
-              <div key={`text-before-thinking-${idx}`} className={styles.messageContent}>
-                <MarkdownWithEmbeds content={currentTextContent} />
-              </div>
-            );
-            currentTextContent = "";
-          }
-
+          flushText(`text-${idx}`);
           const laterEvents = sortedEvents.slice(idx + 1);
           const thinkingStreaming =
-            isActiveStream &&
-            !laterEvents.some(
-              (later) => later.type !== "thinking"
-            );
-
-          elements.push(
-            <ThinkingTrace
-              key={`${msg.id}-thinking-${idx}`}
-              content={event.content}
-              isStreaming={thinkingStreaming}
-            />
-          );
+            isActiveStream && !laterEvents.some((later) => later.type !== "thinking");
+          steps.push({ kind: "thinking", content: event.content, isStreaming: thinkingStreaming });
         }
-
-        lastEventType = event.type;
       });
+      flushText("text-final");
 
-      // Finalize the last text segment
-      if (currentTextContent.trim()) {
-        elements.push(
-          <div key="text-final" className={styles.messageContent}>
-            <MarkdownWithEmbeds content={currentTextContent} />
+      // Content the events did not carry (older sessions) goes at the end.
+      const allTextFromEvents = intermediateEvents
+        .filter((e) => e.type === "text_response" && e.content)
+        .map((e) => e.content)
+        .join("");
+      if (msg.content && msg.content.trim() !== allTextFromEvents.trim()) {
+        body.push(
+          <div key="message-content-final" className={styles.messageContent}>
+            <MarkdownWithEmbeds content={msg.content} />
           </div>
         );
       }
 
-      // If there's additional message content that wasn't in intermediate events, add it at the end
-      if (msg.content && !intermediateEvents.some(e => e.type === "text_response" && e.content === msg.content)) {
-        // Check if the content is already covered by intermediate events
-        const allTextFromEvents = intermediateEvents
-          .filter(e => e.type === "text_response" && e.content)
-          .map(e => e.content)
-          .join("");
-        
-        // Only add if the message content is different from what we've already rendered
-        if (msg.content.trim() !== allTextFromEvents.trim()) {
-          elements.push(
-            <div key="message-content-final" className={styles.messageContent}>
-              <MarkdownWithEmbeds content={msg.content} />
-            </div>
-          );
-        }
+      const stamps = sortedEvents
+        .map((e) => (e.timestamp ? new Date(e.timestamp).getTime() : NaN))
+        .filter((t) => !Number.isNaN(t));
+      if (stamps.length >= 2) {
+        elapsedMs = Math.max(...stamps) - Math.min(...stamps);
       }
-
-      if (isActiveStream && sortedEvents[sortedEvents.length - 1]?.type !== "thinking") {
-        elements.push(
-          <div key="thinking" className={styles.thinkingIndicator}>
-            <span className={styles.thinkingDot} />
-            <span className={styles.thinkingDot} />
-            <span className={styles.thinkingDot} />
-          </div>
-        );
-      }
-      return <>{elements}</>;
     } else {
-      // Fallback: render content and tool calls separately (old behavior)
-      return (
-        <>
-          {/* Render tool calls before content */}
-          {msg.tool_calls &&
-            msg.tool_calls.length > 0 &&
-            (() => {
-              const embeddedMapHashes = new Set<string>();
-              return msg.tool_calls.map((toolCall, idx) => {
-                const mapHash = getEmbeddedMapHash(toolCall);
-                const isDuplicateMap = mapHash !== null && embeddedMapHashes.has(mapHash);
-                if (mapHash) embeddedMapHashes.add(mapHash);
-                return (
-                  <ToolCall
-                    key={`${msg.id}-tool-${idx}`}
-                    toolCall={toolCall}
-                    hideEmbed={isDuplicateMap}
-                  />
-                );
-              });
-            })()}
-          {/* Render markdown content */}
-          {msg.content && (
-            <div className={styles.messageContent}>
-              <MarkdownWithEmbeds content={msg.content} />
-            </div>
-          )}
-          {isActiveStream && (
-            <div className={styles.thinkingIndicator}>
-              <span className={styles.thinkingDot} />
-              <span className={styles.thinkingDot} />
-              <span className={styles.thinkingDot} />
-            </div>
-          )}
-        </>
-      );
+      // No event log (older sessions): tool calls first, then the text.
+      (msg.tool_calls || []).forEach((toolCall, idx) => {
+        steps.push({
+          kind: "tool",
+          toolName: toolCall.tool_name || toolCall.toolName || "tool",
+          toolCall,
+          running: false,
+        });
+        pushEmbed(toolCall, `${msg.id}-embed-${idx}`);
+      });
+      if (msg.content) {
+        body.push(
+          <div key="content" className={styles.messageContent}>
+            <MarkdownWithEmbeds content={msg.content} />
+          </div>
+        );
+      }
     }
+
+    return (
+      <>
+        <ReplyActivity
+          steps={steps}
+          isStreaming={isActiveStream}
+          activity={isActiveStream ? streamActivity : undefined}
+          elapsedMs={isActiveStream ? streamElapsedMs : elapsedMs}
+        />
+        {body}
+      </>
+    );
   };
 
   // Determine if we should show the welcome composer (new chat state)
@@ -1513,115 +1379,6 @@ export default function ChatView({
     setMessage(prompt);
   };
 
-  // Render the model dropdown (reused in both views)
-  const renderModelDropdown = (isWelcome: boolean = false) => (
-    <div
-      ref={modelDropdownRef}
-      className={isWelcome ? styles.welcomeModelSelect : styles.modelDropdownWrapper}
-    >
-      <button
-        id="model-select"
-        className={isWelcome 
-          ? styles.welcomeModelButton 
-          : `${styles.modelSelectButton} ${isModelDropdownOpen ? styles.modelSelectButtonOpen : ""}`
-        }
-        onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-        disabled={isStreaming}
-        type="button"
-        aria-label="Select model"
-      >
-        {availableModels.length === 0 ? (
-          <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectLoading}>Loading...</span>
-        ) : selectedModelInfo ? (
-          <>
-            <span
-              className={`${isWelcome ? styles.welcomeModelEmoji : styles.modelSelectEmoji} ${styles.providerBadge}`}
-              data-provider={getGroupProviderKey(selectedModelInfo.group)}
-              title={selectedModelInfo.group.label}
-              aria-hidden="true"
-            >
-              {getProviderBadgeLetter(getGroupProviderKey(selectedModelInfo.group))}
-            </span>
-            <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectText}>
-              {selectedModelInfo.model.name}
-            </span>
-            {isWelcome && (
-              <span className={`${styles.welcomeModelChevron} ${isModelDropdownOpen ? styles.welcomeModelChevronOpen : ""}`}>
-                ▼
-              </span>
-            )}
-          </>
-        ) : (
-          <span className={isWelcome ? styles.welcomeModelName : styles.modelSelectText}>Select model</span>
-        )}
-      </button>
-      {isModelDropdownOpen && availableModels.length > 0 && (
-        <div className={`${styles.modelDropdownMenu} ${isWelcome ? styles.modelDropdownMenuWelcome : ""}`}>
-          {availableModels.flatMap((group) =>
-            group.models.map((model) => {
-              const isSelected = model.key === selectedModel;
-              const inputPricePerM = model.input_price
-                ? `$${Math.round(model.input_price)}`
-                : "N/A";
-              const outputPricePerM = model.output_price
-                ? `$${Math.round(model.output_price)}`
-                : "N/A";
-              
-              return (
-                <button
-                  key={model.key}
-                  className={`${styles.modelDropdownOption} ${isSelected ? styles.modelDropdownOptionSelected : ""} ${!model.is_available ? styles.modelDropdownOptionDisabled : ""}`}
-                  onClick={() => {
-                    if (model.is_available) {
-                      setSelectedModel(model.key);
-                      setIsModelDropdownOpen(false);
-                    }
-                  }}
-                  disabled={!model.is_available || isStreaming}
-                  type="button"
-                >
-                  <div className={styles.modelDropdownOptionHeader}>
-                        <span
-                          className={`${styles.modelDropdownOptionEmoji} ${styles.providerBadge}`}
-                          data-provider={getGroupProviderKey(group)}
-                          title={group.label}
-                          aria-hidden="true"
-                        >
-                          {getProviderBadgeLetter(getGroupProviderKey(group))}
-                        </span>
-                    <span className={styles.modelDropdownOptionName}>
-                      {model.name}
-                    </span>
-                    {isSelected && (
-                      <span className={styles.modelDropdownOptionCheck}>
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  {model.is_available && (
-                    <div className={styles.modelDropdownOptionDetails}>
-                      <span className={styles.modelDropdownOptionCost}>
-                        Input: {inputPricePerM}/1M tokens
-                      </span>
-                      <span className={styles.modelDropdownOptionCost}>
-                        Output: {outputPricePerM}/1M tokens
-                      </span>
-                    </div>
-                  )}
-                  {!model.is_available && (
-                    <span className={styles.modelDropdownOptionUnavailable}>
-                      API key not configured
-                    </span>
-                  )}
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
-
   // Welcome Composer View (New Chat State)
   // Only show if we truly have no session AND no real messages
   if (showWelcomeComposer && !hasRealMessages) {
@@ -1641,27 +1398,18 @@ export default function ChatView({
             </div>
 
             <div className={styles.welcomeComposer}>
-              <textarea
-                id="chat-input"
-                className={styles.welcomeTextarea}
-                placeholder="Ask me anything about civic data..."
+              <ChatComposer
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onChange={setMessage}
+                onSend={() => handleSend()}
+                disabled={isTyping}
+                placeholder="Ask me anything about city data"
+                minRows={3}
                 autoFocus
+                models={availableModels}
+                selectedModelKey={selectedModel}
+                onSelectModel={setSelectedModel}
               />
-              <div className={styles.welcomeActions}>
-                {renderModelDropdown(true)}
-                <button
-                  id="send-btn"
-                  className={styles.welcomeSendButton}
-                  onClick={() => handleSend()}
-                  disabled={!message.trim() || isTyping}
-                >
-                  <span className={styles.welcomeSendIcon}>→</span>
-                  Send
-                </button>
-              </div>
             </div>
 
             <div className={styles.welcomeHints}>
@@ -1693,8 +1441,17 @@ export default function ChatView({
       <div className={`${styles.sessionHeaderContainer} dashboard-page-header`}>
         <SessionHeader
           sessionId={currentSessionId}
+          title={currentSession?.title}
+          isLoading={isLoadingSession}
           stats={sessionStats}
           model={selectedModel || PREFERRED_DEFAULT_MODEL_KEY}
+          publicUrl={publicUrl}
+          isSharing={isSharing}
+          copiedLink={copiedFooterLink}
+          copiedConversation={copiedTranscript}
+          transcriptFallback={transcriptFallback}
+          onCopyLink={handleCopyConversationLink}
+          onCopyConversation={handleCopyConversation}
         />
       </div>
       <div className={styles.chatContainer}>
@@ -1705,6 +1462,7 @@ export default function ChatView({
           onScroll={handleMessagesScroll}
           className={styles.chatMessages}
         >
+          <div className={styles.chatColumn}>
           {isLoadingSession ? (
             <div style={{ padding: "40px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
               <Loader size="md" color="dark" />
@@ -1746,7 +1504,12 @@ export default function ChatView({
                   >
                     {msg.role === "assistant" ? (
                       <div className={styles.assistantBubble}>
-                        <div className={styles.assistantName}>Seymour</div>
+                        <div className={styles.assistantName}>
+                          <span className={styles.assistantMark} aria-hidden="true">
+                            <Loader size="sm" color="dark" className="loaderStatic" />
+                          </span>
+                          Seymour
+                        </div>
                         {renderAssistantMessage(msg, isStreaming && msg.id === currentAssistantMessageId)}
                         {!(isStreaming && msg.id === currentAssistantMessageId) &&
                           renderMessageActions(msg)}
@@ -1761,12 +1524,18 @@ export default function ChatView({
           {isStreaming && currentAssistantMessageId && !messages.some(m => m.id === currentAssistantMessageId) && (
             <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
               <div className={styles.assistantBubble}>
-                <div className={styles.assistantName}>Seymour</div>
-                <div className={styles.thinkingIndicator}>
-                  <span className={styles.thinkingDot} />
-                  <span className={styles.thinkingDot} />
-                  <span className={styles.thinkingDot} />
+                <div className={styles.assistantName}>
+                  <span className={styles.assistantMark} aria-hidden="true">
+                    <Loader size="sm" color="dark" className="loaderStatic" />
+                  </span>
+                  Seymour
                 </div>
+                <ReplyActivity
+                  steps={[]}
+                  isStreaming
+                  activity={streamActivity}
+                  elapsedMs={streamElapsedMs}
+                />
               </div>
             </div>
           )}
@@ -1803,236 +1572,33 @@ export default function ChatView({
               </div>
             </div>
           )}
-          {!isStreaming && messages.length > 0 && (
-            <div className={styles.conversationFooter}>
-              <button
-                type="button"
-                className={styles.conversationFooterButton}
-                onClick={handleCopyConversation}
-                title="Copy every message in this conversation as text"
-              >
-                {copiedTranscript ? "Conversation copied" : "Copy whole conversation"}
-              </button>
-              {currentSessionId && (
-                <button
-                  type="button"
-                  className={styles.conversationFooterButton}
-                  onClick={handleCopyConversationLink}
-                  disabled={isSharing}
-                  title={publicUrl ? "Copy the link to this conversation" : "Create a link to this conversation and copy it"}
-                >
-                  {copiedFooterLink ? "Link copied" : publicUrl ? "Copy link" : "Get link"}
-                </button>
-              )}
-              {publicUrl && (
-                <a className={styles.conversationFooterLink} href={publicUrl} target="_blank" rel="noreferrer">
-                  {typeof window !== "undefined" ? `${window.location.host}${publicUrl}` : publicUrl}
-                </a>
-              )}
-              {transcriptFallback && (
-                <div className={styles.transcriptFallback}>
-                  <div className={styles.transcriptFallbackNote}>
-                    Your browser blocked the clipboard. Select the text below and copy it.
-                  </div>
-                  <textarea
-                    className={styles.transcriptFallbackText}
-                    readOnly
-                    value={transcriptFallback}
-                    onFocus={(e) => e.currentTarget.select()}
-                    rows={8}
-                  />
-                </div>
-              )}
+          {!isStreaming && streamOutcome?.kind === "stopped" && (
+            <div className={styles.replyOutcome} role="status">
+              Stopped after {formatElapsed(streamOutcome.elapsedMs)}
             </div>
           )}
           <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* Chat Input Area */}
         <div className={styles.chatInputArea}>
-          {(isStreaming || streamOutcome) && (
-            <div
-              className={`${styles.streamStatus} ${
-                isStreaming
-                  ? styles.streamStatusWorking
-                  : streamOutcome?.kind === "interrupted"
-                    ? styles.streamStatusInterrupted
-                    : streamOutcome?.kind === "stopped"
-                      ? styles.streamStatusStopped
-                      : styles.streamStatusDone
-              }`}
-              role="status"
-              aria-live="polite"
-            >
-              {isStreaming ? (
-                <>
-                  <span className={styles.streamSpinner} aria-hidden="true" />
-                  <span className={styles.streamStatusText}>{streamActivity}</span>
-                  <span className={styles.streamStatusTime}>{formatElapsed(streamElapsedMs)}</span>
-                </>
-              ) : (
-                <>
-                  <span className={styles.streamStatusText}>
-                    {streamOutcome?.kind === "interrupted"
-                      ? "Connection dropped"
-                      : streamOutcome?.kind === "stopped"
-                        ? "Stopped"
-                        : "Done"}
-                  </span>
-                  <span className={styles.streamStatusTime}>{formatElapsed(streamOutcome?.elapsedMs ?? 0)}</span>
-                </>
-              )}
-            </div>
-          )}
-          <div className={styles.chatInputWrapper}>
-            {/* Model selector icon inside on the left */}
-            <div ref={modelIconWrapperRef} className={styles.modelIconWrapper}>
-              {availableModels.length > 0 && selectedModelInfo ? (
-                <button
-                  className={styles.modelIconButton}
-                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                  disabled={isStreaming}
-                  type="button"
-                  aria-label="Select model"
-                >
-                  <span
-                    className={`${styles.modelIconEmoji} ${styles.providerBadge}`}
-                    data-provider={getGroupProviderKey(selectedModelInfo.group)}
-                    title={selectedModelInfo.group.label}
-                    aria-hidden="true"
-                  >
-                    {getProviderBadgeLetter(getGroupProviderKey(selectedModelInfo.group))}
-                  </span>
-                </button>
-              ) : (
-                <div className={styles.modelIconButton} aria-label="Loading models">
-                  <span className={styles.modelIconEmoji}>⏳</span>
-                </div>
-              )}
-              {isModelDropdownOpen && availableModels.length > 0 && (
-                <>
-                  <div 
-                    className={styles.modelDropdownBackdrop}
-                    onClick={() => setIsModelDropdownOpen(false)}
-                  />
-                  <div className={styles.modelDropdownMenuCentered}>
-                  {availableModels.flatMap((group) =>
-                    group.models.map((model) => {
-                      const isSelected = model.key === selectedModel;
-                      const inputPricePerM = model.input_price
-                        ? `$${Math.round(model.input_price)}`
-                        : "N/A";
-                      const outputPricePerM = model.output_price
-                        ? `$${Math.round(model.output_price)}`
-                        : "N/A";
-                      
-                      return (
-                        <button
-                          key={model.key}
-                          className={`${styles.modelDropdownOption} ${isSelected ? styles.modelDropdownOptionSelected : ""} ${!model.is_available ? styles.modelDropdownOptionDisabled : ""}`}
-                          onClick={() => {
-                            if (model.is_available) {
-                              setSelectedModel(model.key);
-                              setIsModelDropdownOpen(false);
-                            }
-                          }}
-                          disabled={!model.is_available || isStreaming}
-                          type="button"
-                        >
-                          <div className={styles.modelDropdownOptionHeader}>
-                            <span
-                              className={`${styles.modelDropdownOptionEmoji} ${styles.providerBadge}`}
-                              data-provider={getGroupProviderKey(group)}
-                              title={group.label}
-                              aria-hidden="true"
-                            >
-                              {getProviderBadgeLetter(getGroupProviderKey(group))}
-                            </span>
-                            <span className={styles.modelDropdownOptionName}>
-                              {model.name}
-                            </span>
-                            {isSelected && (
-                              <span className={styles.modelDropdownOptionCheck}>
-                                ✓
-                              </span>
-                            )}
-                          </div>
-                          {model.is_available && (
-                            <div className={styles.modelDropdownOptionDetails}>
-                              <span className={styles.modelDropdownOptionCost}>
-                                Input: {inputPricePerM}/1M tokens
-                              </span>
-                              <span className={styles.modelDropdownOptionCost}>
-                                Output: {outputPricePerM}/1M tokens
-                              </span>
-                            </div>
-                          )}
-                          {!model.is_available && (
-                            <span className={styles.modelDropdownOptionUnavailable}>
-                              API key not configured
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                  </div>
-                </>
-              )}
-            </div>
-            
-            {/* Textarea that grows with content */}
-            <textarea
-              ref={textareaRef}
-              id="chat-input"
-              className={styles.chatInput}
-              placeholder="Ask me anything about civic data..."
-              rows={1}
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                // Auto-resize textarea
-                const textarea = e.target;
-                textarea.style.height = 'auto';
-                const maxHeight = window.innerHeight * 0.25; // 25% of screen height
-                const newHeight = Math.min(textarea.scrollHeight, maxHeight);
-                textarea.style.height = `${newHeight}px`;
-                if (textarea.scrollHeight > maxHeight) {
-                  textarea.style.overflowY = 'auto';
-                } else {
-                  textarea.style.overflowY = 'hidden';
-                }
-              }}
-              onKeyPress={handleKeyPress}
-            />
-            
-            {/* Action icons inside on the right */}
-            {isStreaming ? (
-              <button
-                id="stop-btn"
-                className={styles.stopIconButton}
-                onClick={handleStop}
-                type="button"
-                aria-label="Stop generation"
-              >
-                <span className={styles.stopIcon}>⏹</span>
-              </button>
-            ) : (
-              <button
-                id="send-btn"
-                className={styles.sendIconButton}
-                onClick={() => handleSend()}
-                disabled={!message.trim() || isTyping}
-                type="button"
-                aria-label="Send message"
-              >
-                <span className={styles.sendIcon}>→</span>
-              </button>
-            )}
+          <div className={styles.chatColumn}>
+          <ChatComposer
+            value={message}
+            onChange={setMessage}
+            onSend={() => handleSend()}
+            onStop={handleStop}
+            isStreaming={isStreaming}
+            disabled={isTyping}
+            placeholder="Message Seymour"
+            models={availableModels}
+            selectedModelKey={selectedModel}
+            onSelectModel={setSelectedModel}
+          />
           </div>
         </div>
       </div>
     </div>
   );
 }
-

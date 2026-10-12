@@ -1,0 +1,237 @@
+.composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(17, 24, 39, 0.06);
+  transition: border-color 0.15s ease;
+}
+
+:global([data-theme="dark"]) .composer,
+:global(.dark) .composer {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.composer:focus-within {
+  border-color: var(--border-secondary);
+}
+
+.textarea {
+  width: 100%;
+  padding: 4px 4px 6px;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  max-height: 25vh;
+}
+
+.textarea:focus,
+.textarea:focus-visible {
+  outline: none;
+}
+
+.textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.modelWrapper {
+  position: relative;
+  min-width: 0;
+}
+
+.modelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.modelChip:hover:not(:disabled),
+.modelChipOpen {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.modelChip:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.modelName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.providerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.providerDot[data-provider="anthropic"] {
+  background: var(--brand-primary);
+}
+
+.providerDot[data-provider="openai"] {
+  background: #10a37f;
+}
+
+.providerDot[data-provider="google"] {
+  background: #1a73e8;
+}
+
+.providerDot[data-provider="grok"],
+.providerDot[data-provider="xai"] {
+  background: var(--text-primary);
+}
+
+.modelMenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+}
+
+.modelOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelOption:hover:not(:disabled) {
+  background: var(--bg-secondary);
+}
+
+.modelOptionSelected {
+  background: var(--brand-primary-light);
+}
+
+.modelOption:disabled {
+  cursor: default;
+  color: var(--text-tertiary);
+}
+
+.modelOptionText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.modelOptionName {
+  font-weight: 500;
+}
+
+.modelOptionDetail {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.modelOptionCheck {
+  display: inline-flex;
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.sendButton,
+.stopButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.sendButton {
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+}
+
+.sendButton:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+}
+
+.sendButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stopButton {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+.stopButton:hover {
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .textarea {
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+
+  .sendButton,
+  .stopButton {
+    width: 36px;
+    height: 36px;
+  }
+}

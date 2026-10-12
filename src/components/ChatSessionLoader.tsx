@@ -14,6 +14,7 @@ interface Message {
     type: string;
     content?: string;
     tool_id?: string;
+    tool_name?: string;
     timestamp?: string;
   }>;
 }
