@@ -116,6 +116,10 @@ export default function ChatView({
   const [isTyping, setIsTyping] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Follow new output only while the reader is at the bottom; scrolling up
+  // to reread pauses auto-scroll until they return to the bottom or send.
+  const stickToBottomRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [currentSessionId, setCurrentSessionIdInternal] = useState<string | null>(sessionId);
   
@@ -307,12 +311,24 @@ export default function ChatView({
     }
   }, [currentSessionId, messages.length]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Switching conversations or starting a new chat clears the list; follow
+    // again so the next conversation opens at its latest message. (Keyed on
+    // the clear rather than currentSessionId, which also changes mid-send
+    // when the first message creates the session.)
+    if (messages.length === 0) {
+      stickToBottomRef.current = true;
+      return;
+    }
+    const el = messagesContainerRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // Auto-resize textarea when message changes
@@ -559,6 +575,7 @@ export default function ChatView({
       content: userMessageText,
     };
 
+    stickToBottomRef.current = true;
     setMessages((prev) => [...prev, userMessage]);
     // Count the ask, not its content: the transcript already lives in
     // chat_sessions, and this event is read alongside anonymous traffic.
@@ -1682,7 +1699,12 @@ export default function ChatView({
       </div>
       <div className={styles.chatContainer}>
         {/* Chat Messages Area */}
-        <div id="chat-messages" className={styles.chatMessages}>
+        <div
+          id="chat-messages"
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className={styles.chatMessages}
+        >
           {isLoadingSession ? (
             <div style={{ padding: "40px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
               <Loader size="md" color="dark" />

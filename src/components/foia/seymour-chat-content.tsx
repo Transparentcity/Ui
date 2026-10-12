@@ -76,15 +76,23 @@ export function SeymourChatContent() {
   const [copiedShareIndex, setCopiedShareIndex] = useState<number | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Follow new output only while the reader is at the bottom; scrolling up
+  // to reread pauses auto-scroll until they return to the bottom or send.
+  const stickToBottomRef = useRef(true)
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
   }, [])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+    const el = messagesContainerRef.current
+    if (!el || !stickToBottomRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [messages])
 
   async function getToken(): Promise<string | undefined> {
     if (!isAuthenticated) return undefined
@@ -103,6 +111,7 @@ export function SeymourChatContent() {
     setShowTools(false)
     setSending(true)
 
+    stickToBottomRef.current = true
     // Add user message
     setMessages((prev) => [...prev, { role: "user", content: message }])
 
@@ -285,7 +294,10 @@ export function SeymourChatContent() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Bot className="h-10 w-10 text-gray-300 mb-3" />
