@@ -318,10 +318,14 @@ export default function ChatView({
   };
 
   useEffect(() => {
-    stickToBottomRef.current = true;
-  }, [currentSessionId]);
-
-  useEffect(() => {
+    // Switching conversations or starting a new chat clears the list; follow
+    // again so the next conversation opens at its latest message. (Keyed on
+    // the clear rather than currentSessionId, which also changes mid-send
+    // when the first message creates the session.)
+    if (messages.length === 0) {
+      stickToBottomRef.current = true;
+      return;
+    }
     const el = messagesContainerRef.current;
     if (!el || !stickToBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
