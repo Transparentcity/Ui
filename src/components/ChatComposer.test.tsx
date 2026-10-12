@@ -91,6 +91,13 @@ describe("ChatComposer", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  it("names the model from its key when the list is unavailable", () => {
+    renderComposer({ models: [] });
+    const chip = screen.getByLabelText("Select model");
+    expect(chip).toHaveTextContent("Claude Sonnet 5.5");
+    expect(chip).toBeDisabled();
+  });
+
   it("uses the placeholder it is given", () => {
     renderComposer({ value: "", placeholder: "Ask me anything about city data" });
     expect(screen.getByPlaceholderText("Ask me anything about city data")).toBeInTheDocument();

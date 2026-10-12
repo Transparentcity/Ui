@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import ReplyActivity, { formatDuration, type ActivityStep } from "./ReplyActivity";
+import ReplyActivity, { type ActivityStep } from "./ReplyActivity";
+import { formatDuration } from "@/lib/formatDuration";
 
 const finishedSteps: ActivityStep[] = [
   { kind: "thinking", content: "Need the District 10 metric id.", isStreaming: false },
@@ -43,10 +44,10 @@ describe("ReplyActivity", () => {
     render(<ReplyActivity isStreaming={false} elapsedMs={42000} steps={finishedSteps} />);
     const header = screen.getByRole("button", { name: /Worked for 42s · 2 steps/ });
     expect(header).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("Looked up metric data")).not.toBeInTheDocument();
+    expect(screen.getByText("Looked up metric data")).not.toBeVisible();
 
     fireEvent.click(header);
-    expect(screen.getByText("Looked up metric data")).toBeInTheDocument();
+    expect(screen.getByText("Looked up metric data")).toBeVisible();
     expect(screen.getByRole("button", { name: /thought/i })).toBeInTheDocument();
   });
 
