@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import {
   aggregateEditions,
@@ -11,6 +11,20 @@ import {
   sendDateKey,
 } from "./NewsletterAdminMetricsTab";
 import type { NewsletterMetricsItem } from "@/lib/apiClient";
+
+/**
+ * The formatters render send timestamps in the viewer's local timezone. The
+ * expected strings below are the UTC calendar dates of the fixture ISO
+ * timestamps, so pin the process timezone for this file; otherwise any zone
+ * east of UTC+4 rolls the ~18:30Z sends onto the next day.
+ */
+const previousTz = process.env.TZ;
+process.env.TZ = "UTC";
+
+afterAll(() => {
+  if (previousTz === undefined) delete process.env.TZ;
+  else process.env.TZ = previousTz;
+});
 
 function item(
   overrides: Partial<NewsletterMetricsItem> & Pick<NewsletterMetricsItem, "campaign">,
