@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import ThinkingTrace from "./ThinkingTrace";
 import ToolCall, { type ToolCallData } from "./ToolCall";
 import { describeToolCall } from "@/lib/chatToolLabels";
+import { formatDuration } from "@/lib/formatDuration";
 import styles from "./ReplyActivity.module.css";
 
 export type ActivityStep =
@@ -18,14 +19,6 @@ interface ReplyActivityProps {
   activity?: string;
   /** Live elapsed time while streaming, or the span of the reply's events afterwards. */
   elapsedMs?: number | null;
-}
-
-/** 42000 -> "42s"; 102000 -> "1m 42s". */
-export function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 const CheckIcon = () => (
@@ -108,8 +101,10 @@ export default function ReplyActivity({
           {headerContent}
         </div>
       )}
-      {open && canToggle && (
-        <div className={styles.steps}>
+      {canToggle && (
+        /* Kept mounted while collapsed so an expanded tool's details survive
+           the collapse at the end of a stream. */
+        <div className={styles.steps} hidden={!open}>
           {steps.map((step, idx) => {
             if (step.kind === "thinking") {
               return (

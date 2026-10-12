@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { SessionStats } from "@/lib/apiClient";
+import { formatDuration } from "@/lib/formatDuration";
+import { getModelDisplayName } from "@/lib/modelDisplayName";
+import { useDismissOnOutsideClick } from "@/lib/hooks/useDismissOnOutsideClick";
 import Loader from "./Loader";
 import styles from "./SessionHeader.module.css";
 
@@ -27,18 +30,6 @@ interface SessionHeaderProps {
   onCopyConversation?: () => void;
 }
 
-function formatTime(ms: number): string {
-  if (ms < 1000) {
-    return `${ms}ms`;
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(1)}s`;
-  } else {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}m ${seconds}s`;
-  }
-}
-
 function formatCost(costUsd: number): string {
   if (costUsd === 0) {
     return "$0.00";
@@ -59,37 +50,6 @@ function formatTokens(tokens: number): string {
   } else {
     return `${(tokens / 1000000).toFixed(2)}M`;
   }
-}
-
-function getModelDisplayName(modelKey: string): string {
-  const modelMap: Record<string, string> = {
-    // Claude (latest + one older)
-    "claude-haiku-4.5": "Claude Haiku 4.5",
-    "claude-sonnet-5.5": "Claude Sonnet 5.5",
-    "claude-sonnet-5": "Claude Sonnet 5",
-    "claude-fable-5": "Claude Fable 5",
-    "claude-opus-4.8": "Claude Opus 4.8",
-    "claude-sonnet-4.6": "Claude Sonnet 4.6",
-    "claude-opus-4.6": "Claude Opus 4.6",
-    "claude-sonnet-4.5": "Claude Sonnet 4.5",
-    "claude-opus-4.5": "Claude Opus 4.5",
-
-    // Gemini (latest + one older)
-    "gemini-3-pro": "Gemini 3 Pro",
-    "gemini-3-flash": "Gemini 3 Flash",
-    "gemini-2.5-pro": "Gemini 2.5 Pro",
-    "gemini-2.5-flash": "Gemini 2.5 Flash",
-
-    // Grok (latest + one older)
-    "grok-4": "Grok 4",
-    "grok-3": "Grok 3",
-
-    "gpt-4o": "GPT-4o",
-    "gpt-4-turbo": "GPT-4 Turbo",
-    "gpt-4": "GPT-4",
-    "gpt-3.5-turbo": "GPT-3.5 Turbo",
-  };
-  return modelMap[modelKey] || modelKey;
 }
 
 const CheckIcon = () => (
@@ -136,25 +96,9 @@ export default function SessionHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click or Escape. Clicks inside stay open so the
-  // clipboard-fallback textarea can be selected.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [menuOpen]);
+  // Clicks inside stay open so the clipboard-fallback textarea can be selected.
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useDismissOnOutsideClick(menuRef, menuOpen, closeMenu);
 
   const displayTitle = title?.trim() || (isLoading ? "" : "New conversation");
   // The live selection wins; stats can lag behind a mid-session model switch.
@@ -237,7 +181,7 @@ export default function SessionHeader({
               <div className={styles.stats}>
                 <div className={styles.statsModel}>{displayModel}</div>
                 <div>
-                  {formatTokens(tokens)} tokens · {calls} {calls === 1 ? "call" : "calls"} · {formatTime(time)}
+                  {formatTokens(tokens)} tokens · {calls} {calls === 1 ? "call" : "calls"} · {formatDuration(time)}
                 </div>
                 <div>Estimated cost {formatCost(cost)}</div>
               </div>

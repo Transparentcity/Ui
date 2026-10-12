@@ -30,6 +30,7 @@ import { buildResumeMessage, type InterruptedTurn } from "@/lib/chatResume";
 import { buildConversationTranscript } from "@/lib/chatTranscript";
 import { copyTextToClipboard } from "@/lib/copyToClipboard";
 import { describeToolCall } from "@/lib/chatToolLabels";
+import { formatDuration } from "@/lib/formatDuration";
 import {
   appendChatStreamEvent,
   mergeConsecutiveThinkingEvents,
@@ -57,14 +58,6 @@ interface ChatViewProps {
   initialPrompt?: string | null;
   onInitialPromptHandled?: () => void;
   currentSession?: any; // Store session data for intermediate_steps
-}
-
-/** 83000 -> "1:23"; 5000 -> "0:05". */
-function formatElapsed(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function ChatView({
@@ -1544,7 +1537,7 @@ export default function ChatView({
               <div className={styles.interruptedBubble} role="status">
                 <div className={styles.errorTitle}>
                   Connection dropped
-                  {streamOutcome?.kind === "interrupted" ? ` after ${formatElapsed(streamOutcome.elapsedMs)}` : ""}
+                  {streamOutcome?.kind === "interrupted" ? ` after ${formatDuration(streamOutcome.elapsedMs)}` : ""}
                 </div>
                 <div className={styles.errorContent}>
                   {interruptedTurn.completedToolCalls.length > 0
@@ -1574,7 +1567,7 @@ export default function ChatView({
           )}
           {!isStreaming && streamOutcome?.kind === "stopped" && (
             <div className={styles.replyOutcome} role="status">
-              Stopped after {formatElapsed(streamOutcome.elapsedMs)}
+              Stopped after {formatDuration(streamOutcome.elapsedMs)}
             </div>
           )}
           <div ref={messagesEndRef} />

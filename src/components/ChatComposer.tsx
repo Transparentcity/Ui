@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { ModelGroupInfo } from "@/lib/apiClient";
+import { getModelDisplayName } from "@/lib/modelDisplayName";
+import { useDismissOnOutsideClick } from "@/lib/hooks/useDismissOnOutsideClick";
 import styles from "./ChatComposer.module.css";
 
 export type ProviderKey = "anthropic" | "openai" | "google" | "grok" | "xai" | "unknown";
@@ -105,22 +107,29 @@ export default function ChatComposer({
     el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [value]);
 
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useDismissOnOutsideClick(modelRef, menuOpen, closeMenu);
+
+  // The popover opens upward inside a clipping container (the chat pane or the
+  // welcome view), so cap its height to the room between the chip and that
+  // container's top edge rather than the viewport's.
+  const [menuMaxHeight, setMenuMaxHeight] = useState<number | null>(null);
   useEffect(() => {
     if (!menuOpen) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (modelRef.current && !modelRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
+    const chip = modelRef.current;
+    if (!chip) return;
+    const chipTop = chip.getBoundingClientRect().top;
+    let clipTop = 0;
+    let node: HTMLElement | null = chip.parentElement;
+    while (node) {
+      const overflowY = getComputedStyle(node).overflowY;
+      if (overflowY === "hidden" || overflowY === "clip" || overflowY === "auto" || overflowY === "scroll") {
+        clipTop = node.getBoundingClientRect().top;
+        break;
       }
-    };
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+      node = node.parentElement;
+    }
+    setMenuMaxHeight(Math.max(160, Math.floor(chipTop - clipTop - 12)));
   }, [menuOpen]);
 
   const canSend = value.trim().length > 0 && !disabled && !isStreaming;
@@ -140,11 +149,13 @@ export default function ChatComposer({
       break;
     }
   }
+  // With no list yet (still loading, or the fetch failed) the chip still names
+  // the model that will be used, from its key; it just can't be changed.
   const chipLabel = selected
     ? selected.name
     : models.length > 0
       ? "Select model"
-      : "Loading models";
+      : getModelDisplayName(selectedModelKey) || "Default model";
 
   return (
     <div className={`${styles.composer} ${className ?? ""}`}>
@@ -171,7 +182,7 @@ export default function ChatComposer({
             aria-haspopup="listbox"
             aria-expanded={menuOpen}
             aria-label="Select model"
-            title="Model"
+            title={models.length === 0 ? "Model list unavailable" : "Model"}
           >
             <span
               className={styles.providerDot}
@@ -182,7 +193,12 @@ export default function ChatComposer({
             <ChevronIcon up={!menuOpen} />
           </button>
           {menuOpen && models.length > 0 && (
-            <div className={styles.modelMenu} role="listbox" aria-label="Models">
+            <div
+              className={styles.modelMenu}
+              role="listbox"
+              aria-label="Models"
+              style={menuMaxHeight ? { maxHeight: `min(60vh, ${menuMaxHeight}px)` } : undefined}
+            >
               {models.flatMap((group) =>
                 group.models.map((model) => {
                   const isSelected = model.key === selectedModelKey;
