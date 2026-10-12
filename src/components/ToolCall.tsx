@@ -6,6 +6,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 
 import styles from "./ToolCall.module.css";
 import { API_BASE } from "@/lib/apiBase";
+import { describeToolCall } from "@/lib/chatToolLabels";
 import { enrichChartMetadataForGroupFilter } from "@/lib/enrichChartMetadataForGroupFilter";
 import TimeSeriesChart, { type PeriodType } from "./TimeSeriesChart";
 import CrossCityComparisonChart from "./CrossCityComparisonChart";
@@ -14,6 +15,8 @@ import Loader from "./Loader";
 interface ToolCallProps {
   /** Render the chip only; used when the same map is already embedded above. */
   hideEmbed?: boolean;
+  /** False renders the chip without its embed, for when the embed is placed elsewhere. */
+  showEmbed?: boolean;
   toolCall: {
     tool_id?: string;
     tool_name?: string;
@@ -28,6 +31,8 @@ interface ToolCallProps {
     success?: boolean;
   };
 }
+
+export type ToolCallData = ToolCallProps["toolCall"];
 
 // Try to parse response as JSON if it's a string
 function parseResponse(response: any): any {
@@ -518,7 +523,44 @@ function EmbeddedCrossCityCard({ data }: { data: any }) {
   );
 }
 
-export default function ToolCall({ toolCall, hideEmbed = false }: ToolCallProps) {
+export type ToolCallEmbedKind = "map" | "anomaly" | "timeseries" | "crosscity";
+
+function toolCallName(toolCall: ToolCallData): string {
+  return toolCall.tool_name || toolCall.toolName || "Tool Call";
+}
+
+function toolCallResponse(toolCall: ToolCallData) {
+  return toolCall.response || toolCall.result || toolCall.output;
+}
+
+/** Which card, if any, a successful tool call embeds in the reply. */
+export function getToolCallEmbedKind(toolCall: ToolCallData): ToolCallEmbedKind | null {
+  if (toolCall.success === false) return null;
+  const toolName = toolCallName(toolCall);
+  const response = toolCallResponse(toolCall);
+  if (mapHash(toolName, response) != null) return "map";
+  if (isAnomalyResult(toolName, response)) return "anomaly";
+  if (isTimeSeriesResult(toolName, response)) return "timeseries";
+  if (isCrossCityResult(toolName, response)) return "crosscity";
+  return null;
+}
+
+/** The map or chart a tool call produced, rendered on its own in the reply body. */
+export function ToolCallEmbed({ toolCall }: { toolCall: ToolCallData }) {
+  const kind = getToolCallEmbedKind(toolCall);
+  if (!kind) return null;
+  const response = toolCallResponse(toolCall);
+  return (
+    <div className={styles.embedWrapper} data-tool-name={toolCallName(toolCall)}>
+      {kind === "map" && <EmbeddedMapCard data={response} />}
+      {kind === "anomaly" && <EmbeddedAnomalyCard data={response} />}
+      {kind === "timeseries" && <EmbeddedTimeSeriesCard data={response} />}
+      {kind === "crosscity" && <EmbeddedCrossCityCard data={response} />}
+    </div>
+  );
+}
+
+export default function ToolCall({ toolCall, hideEmbed = false, showEmbed = true }: ToolCallProps) {
   const [showDetails, setShowDetails] = useState(false);
   const fallbackId = useId();
 
@@ -544,50 +586,39 @@ export default function ToolCall({ toolCall, hideEmbed = false }: ToolCallProps)
     }
   };
 
-  // Check if this is a successful map generation
-  const showMapPreview = success && mapHash(toolName, response) != null;
-  // Check if this is a successful anomaly display
-  const showAnomalyPreview = success && isAnomalyResult(toolName, response);
-  // Check if this is a successful time series display
-  const showTimeSeriesPreview = success && isTimeSeriesResult(toolName, response);
-  // Check if this is a cross-city comparison display
-  const showCrossCityPreview = success && isCrossCityResult(toolName, response);
-
   return (
     <div
       id={toolId}
-      className={`${styles.toolCall} ${success ? styles.completed : styles.error}` }
+      className={`${styles.toolCall} ${success ? "" : styles.error}`}
       data-tool-name={toolName}
     >
-      <div
+      <button
+        type="button"
         className={styles.toolCallContent}
         onClick={() => setShowDetails(!showDetails)}
-        style={{ cursor: "pointer" }}
+        aria-expanded={showDetails}
+        title={toolName}
       >
-        <div className={styles.toolCallName}>
-          {showMapPreview ? "🗺️" : showAnomalyPreview ? "📊" : showCrossCityPreview ? "🌆" : showTimeSeriesPreview ? "📈" : "🔧"} {toolName}
-        </div>
-      </div>
-      
-      {showMapPreview && !hideEmbed && (
-        <EmbeddedMapCard data={response} />
-      )}
-      
-      {/* Show embedded anomaly chart for show_anomaly tool */}
-      {showAnomalyPreview && (
-        <EmbeddedAnomalyCard data={response} />
-      )}
-      
-      {/* Show embedded time series chart for show_time_series tool */}
-      {showTimeSeriesPreview && (
-        <EmbeddedTimeSeriesCard data={response} />
-      )}
+        <span className={styles.toolCallStatus} aria-hidden="true">
+          {success ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="M6 6l12 12" />
+            </svg>
+          )}
+        </span>
+        <span className={styles.toolCallName}>
+          {describeToolCall(toolName)}
+          {!success ? " (failed)" : ""}
+        </span>
+      </button>
 
-      {/* Show cross-city comparison chart for show_cross_city_comparison tool */}
-      {showCrossCityPreview && (
-        <EmbeddedCrossCityCard data={response} />
-      )}
-      
+      {showEmbed && !hideEmbed && <ToolCallEmbed toolCall={toolCall} />}
+
       {showDetails && (
         <div className={styles.toolCallDetails}>
           <h4>Tool Call Details</h4>

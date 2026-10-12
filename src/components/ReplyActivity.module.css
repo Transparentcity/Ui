@@ -1,0 +1,111 @@
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 100%;
+}
+
+.header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.header:hover {
+  color: var(--text-secondary);
+}
+
+.headerStatic {
+  cursor: default;
+}
+
+.live {
+  color: var(--text-secondary);
+}
+
+.headerContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.check {
+  display: inline-flex;
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 6px;
+  padding-left: var(--space-md);
+  border-left: 2px solid var(--border-primary);
+}
+
+.runningStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.unfinishedStep {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--brand-primary);
+  border-right-color: transparent;
+  animation: activitySpin 0.8s linear infinite;
+}
+
+@keyframes activitySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
