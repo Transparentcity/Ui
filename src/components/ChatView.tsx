@@ -29,6 +29,7 @@ import { recordProductEvent } from "@/lib/productAnalytics";
 import { buildResumeMessage, type InterruptedTurn } from "@/lib/chatResume";
 import { buildConversationTranscript } from "@/lib/chatTranscript";
 import { copyTextToClipboard } from "@/lib/copyToClipboard";
+import { toast } from "sonner";
 import { describeToolCall } from "@/lib/chatToolLabels";
 import {
   appendChatStreamEvent,
@@ -1140,6 +1141,8 @@ export default function ChatView({
 
   // Share the whole conversation: make the session public (idempotent) and copy
   // its /chat/{hash} link. Mirrors the share flow in SessionList's handleCopyUrl.
+  // The button only swaps its icon for a moment, so a toast confirms what
+  // happened (or that it didn't) in words.
   const handleShareConversation = async (msg: Message) => {
     if (!currentSessionId || isSharing) return;
     setIsSharing(true);
@@ -1148,19 +1151,35 @@ export default function ChatView({
       const data = await toggleSessionPublic(currentSessionId, true, token);
       // The public link uses a server-generated hash, so rely on public_url
       // rather than fabricating a URL from the session id.
-      if (!data.public_url) return;
+      if (!data.public_url) {
+        toast.error("Couldn't create a share link for this conversation.");
+        return;
+      }
       setPublicUrl(data.public_url);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("chat:sessions:invalidate"));
       }
       const url = `${window.location.origin}${data.public_url}`;
-      await navigator.clipboard.writeText(url);
+      // The helper falls back to execCommand when the clipboard API rejects
+      // (e.g. Safari after the await above has used up the click gesture).
+      const ok = await copyTextToClipboard(url);
+      if (!ok) {
+        toast.error("Couldn't copy the link to your clipboard.", {
+          description: url,
+        });
+        return;
+      }
       setCopiedShareId(msg.id);
       setTimeout(() => {
         setCopiedShareId((id) => (id === msg.id ? null : id));
       }, 1500);
+      toast.success("Link copied to clipboard", {
+        description: "Anyone with the link can view this conversation.",
+      });
     } catch {
-      // Share/clipboard may fail (offline, insecure context); fail silently.
+      // Share may fail (offline, expired session); tell the user rather than
+      // leaving the click with no visible effect.
+      toast.error("Couldn't share this conversation. Please try again.");
     } finally {
       setIsSharing(false);
     }
