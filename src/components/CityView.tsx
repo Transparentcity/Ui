@@ -119,6 +119,8 @@ interface CityViewProps {
    *  the "All metrics" tab selected. Consumed via {@link onConsumeOpenAllMetrics}. */
   openAllMetrics?: boolean;
   onConsumeOpenAllMetrics?: () => void;
+  /** Open a background job from a city admin monitoring panel. */
+  onViewJob?: (jobId: string) => void;
 }
 
 interface MetricWithYTD {
@@ -2055,6 +2057,7 @@ export default function CityView({
   pendingPlaceLabel = null,
   openAllMetrics = false,
   onConsumeOpenAllMetrics,
+  onViewJob,
 }: CityViewProps) {
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
   // alertsSectionVisible removed – anomalies section hidden
@@ -3141,7 +3144,12 @@ export default function CityView({
               </button>
             </div>
             <div className="city-view-admin-drawer-content">
-              <CityDataAdmin cityId={cityId} embedded />
+              <CityDataAdmin
+                cityId={cityId}
+                embedded
+                isGlobalAdmin={isGlobalAdmin}
+                onViewJob={onViewJob}
+              />
             </div>
           </div>
         </div>
