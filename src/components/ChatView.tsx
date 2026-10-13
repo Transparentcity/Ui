@@ -1383,11 +1383,24 @@ export default function ChatView({
     (messages.length === 0 || (messages.length === 1 && messages[0]?.id === "welcome"));
 
   // Quick prompts for the welcome view
+  // Short chip labels; clicking one fills the composer with the full question.
   const quickPrompts = [
-    "What are the crime trends in my neighborhood?",
-    "How's the budget allocated this year?",
-    "Show me 311 complaints by district",
-    "What is the drug crime enforcement data?",
+    {
+      label: "Crime trends in my neighborhood",
+      prompt: "What are the crime trends in my neighborhood?",
+    },
+    {
+      label: "How this year's budget is allocated",
+      prompt: "How is the budget allocated this year?",
+    },
+    {
+      label: "311 complaints by district",
+      prompt: "Show me 311 complaints by district",
+    },
+    {
+      label: "Drug enforcement data",
+      prompt: "What does the drug crime enforcement data show?",
+    },
   ];
 
   const handleQuickPrompt = (prompt: string) => {
@@ -1428,13 +1441,15 @@ export default function ChatView({
             </div>
 
             <div className={styles.welcomeHints}>
-              {quickPrompts.map((prompt, idx) => (
+              {quickPrompts.map(({ label, prompt }) => (
                 <button
-                  key={idx}
+                  key={label}
+                  type="button"
                   className={styles.welcomeHint}
                   onClick={() => handleQuickPrompt(prompt)}
+                  title={prompt}
                 >
-                  {prompt}
+                  {label}
                 </button>
               ))}
             </div>
