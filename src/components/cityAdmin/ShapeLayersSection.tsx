@@ -502,7 +502,8 @@ export default function ShapeLayersSection({ cityId }: ShapeLayersSectionProps) 
         <div className={styles.coverageBox}>
           <div className={styles.coverageHeader}>Template Coverage</div>
           <div className={styles.coverageChips}>
-            {statusObj.templates.map((t) => {
+            {statusObj.templates.map((t, templateIndex) => {
+              const templateKey = `${t.template_id}-${t.instance_id ?? "missing"}-${templateIndex}`;
               const chipStyle = {
                 background: t.has_instance
                   ? t.is_official_district_layer
@@ -524,7 +525,7 @@ export default function ShapeLayersSection({ cityId }: ShapeLayersSectionProps) 
               );
               return t.has_instance && t.instance_id ? (
                 <button
-                  key={t.template_id}
+                  key={templateKey}
                   className={`${styles.chip} ${styles.chipClickable}`}
                   style={chipStyle}
                   title={title}
@@ -533,7 +534,7 @@ export default function ShapeLayersSection({ cityId }: ShapeLayersSectionProps) 
                   {label}
                 </button>
               ) : (
-                <span key={t.template_id} className={styles.chip} style={chipStyle} title={title}>
+                <span key={templateKey} className={styles.chip} style={chipStyle} title={title}>
                   {label}
                 </span>
               );

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CityScheduleHealth } from "@/lib/apiClient";
-import { classifyCityAttention, ensureCitiesAttention } from "@/lib/cityHealthAttention";
+import {
+  classifyCityAttention,
+  countCriticalAlerts,
+  ensureCitiesAttention,
+} from "@/lib/cityHealthAttention";
 
 function city(partial: Partial<CityScheduleHealth> = {}): CityScheduleHealth {
   return {
@@ -80,6 +84,61 @@ describe("cityHealthAttention", () => {
     expect(cities[0].attention?.total_issues).toBeGreaterThan(0);
     expect(summary.cities_needing_attention).toBe(1);
     expect(summary.by_category.jobs).toBeGreaterThan(0);
+  });
+
+  it("adds each civic fetch failure to attention and the red badge count", () => {
+    const healthyMetrics = city({
+      freshness_metrics: [],
+      schedules: {
+        daily_metrics: { last_run: null, recent_runs: [], is_overdue: false },
+        weekly_metrics: { last_run: null, recent_runs: [], is_overdue: false },
+        monthly_metrics: { last_run: null, recent_runs: [], is_overdue: false },
+        annual_metrics: { last_run: null, recent_runs: [], is_overdue: false },
+      },
+      civic_failures: [
+        {
+          source_name: "City Council",
+          endpoint_id: 10,
+          adapter_key: "legistar",
+          status: "active",
+          consecutive_failures: 2,
+          last_error: "503",
+        },
+        {
+          source_name: "Mayor",
+          endpoint_id: 11,
+          adapter_key: "rss",
+          status: "error",
+          consecutive_failures: 10,
+        },
+        {
+          source_name: "SF Standard",
+          endpoint_id: 12,
+          adapter_key: "civic_rss_feed",
+          status: "active",
+          consecutive_failures: 0,
+          empty_fetch: true,
+        },
+      ],
+    });
+    const { cities, summary } = ensureCitiesAttention([healthyMetrics]);
+
+    expect(cities[0].attention?.issue_counts.civic).toBe(3);
+    expect(summary.by_category.civic).toBe(3);
+    expect(countCriticalAlerts(cities)).toBe(3);
+    expect(
+      cities[0].attention?.issues.some((issue) => issue.kind === "civic_fetch_empty"),
+    ).toBe(true);
+    expect(
+      cities[0].attention?.issues.map((issue) => [
+        issue.endpoint_id,
+        issue.suggested_action,
+      ]),
+    ).toEqual([
+      [10, "retry_civic_source"],
+      [11, "retry_civic_source"],
+      [12, "retry_civic_source"],
+    ]);
   });
 
   it("splits needing-attention counts by launch status", () => {
