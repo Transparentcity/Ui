@@ -20,6 +20,7 @@ const CATEGORIES: CityHealthAttentionCategory[] = [
   "wiring",
   "mapping",
   "structure",
+  "civic",
 ];
 
 const SEV_RANK: Record<string, number> = {
@@ -30,7 +31,14 @@ const SEV_RANK: Record<string, number> = {
 };
 
 function emptyCounts(): Record<CityHealthAttentionCategory, number> {
-  return { jobs: 0, data: 0, wiring: 0, mapping: 0, structure: 0 };
+  return {
+    jobs: 0,
+    data: 0,
+    wiring: 0,
+    mapping: 0,
+    structure: 0,
+    civic: 0,
+  };
 }
 
 function issue(
@@ -301,6 +309,38 @@ function metricIssues(city: CityScheduleHealth): CityHealthAttentionIssue[] {
   return out;
 }
 
+function civicIssues(city: CityScheduleHealth): CityHealthAttentionIssue[] {
+  return (city.civic_failures ?? []).map((failure): CityHealthAttentionIssue => {
+    if (failure.empty_fetch) {
+      return {
+        kind: "civic_fetch_empty",
+        category: "civic",
+        severity: "critical",
+        title: `${failure.source_name}: fetch returned no items`,
+        suggested_action: "retry_civic_source",
+        endpoint_id: failure.endpoint_id,
+        detail: `Latest RSS fetch was empty · ${failure.adapter_key}`,
+        explanation:
+          "The source connected successfully but produced no articles. Check the feed URL and topic filters.",
+      };
+    }
+    return {
+      kind: "civic_fetch_failed",
+      category: "civic",
+      severity: "critical",
+      title: `${failure.source_name}: civic fetch failed`,
+      suggested_action: "retry_civic_source",
+      endpoint_id: failure.endpoint_id,
+      detail: failure.consecutive_failures
+        ? `${failure.consecutive_failures} consecutive failures · ${failure.adapter_key}`
+        : `Endpoint is in error status · ${failure.adapter_key}`,
+      explanation:
+        failure.last_error ??
+        "The civic conversation source could not be collected.",
+    };
+  });
+}
+
 function worstSeverity(issues: CityHealthAttentionIssue[]): CityHealthAttention["severity"] {
   if (issues.length === 0) return "ok";
   let best = 9;
@@ -314,7 +354,12 @@ function worstSeverity(issues: CityHealthAttentionIssue[]): CityHealthAttention[
 }
 
 export function classifyCityAttention(city: CityScheduleHealth): CityHealthAttention {
-  const issues = [...structureIssues(city), ...scheduleIssues(city), ...metricIssues(city)].sort(
+  const issues = [
+    ...structureIssues(city),
+    ...scheduleIssues(city),
+    ...metricIssues(city),
+    ...civicIssues(city),
+  ].sort(
     (a, b) =>
       (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9) ||
       a.category.localeCompare(b.category) ||

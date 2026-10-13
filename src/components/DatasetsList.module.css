@@ -3,6 +3,37 @@
   width: 100%;
 }
 
+.compact .filtersContainer {
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.compact .filtersRow {
+  gap: 8px;
+}
+
+.compact .tableHeader {
+  padding: 10px 12px;
+}
+
+.compact .tableHeaderCell,
+.compact .tableCell {
+  padding: 8px 10px;
+}
+
+.compact .tableHeaderCell {
+  white-space: nowrap;
+}
+
+.compact .tableCell {
+  font-size: 12px;
+}
+
+.compact .tableCellText,
+.compact .tableCellSubtext {
+  font-size: 12px;
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
@@ -484,9 +515,9 @@
 
 .urlBlock {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: min(36rem, 100%);
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 110px;
 }
 
 .urlLabel {
@@ -500,10 +531,9 @@
 }
 
 .urlLink {
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--brand-primary);
-  word-break: break-all;
   line-height: 1.35;
 }
 

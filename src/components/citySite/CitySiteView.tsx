@@ -241,11 +241,14 @@ function CitySiteForCity({ cityId, scope, onViewJob, onEditMetric }: CitySitePro
       />
 
       {/* Category groups — public metrics only */}
-      {site.categories.map((cat) => {
+      {site.categories.map((cat, categoryIndex) => {
         const publicMetrics = cat.metrics.filter((m) => m.show_on_dash);
         if (publicMetrics.length === 0) return null;
         return (
-          <div key={cat.category} className={styles.categoryGroup}>
+          <div
+            key={`${cat.category}-${categoryIndex}`}
+            className={styles.categoryGroup}
+          >
             <div className={styles.categoryHeader}>
               <span className={styles.categoryName}>{cat.category}</span>
               <a
@@ -262,9 +265,9 @@ function CitySiteForCity({ cityId, scope, onViewJob, onEditMetric }: CitySitePro
               </span>
             </div>
             <div className={styles.categoryMetrics}>
-              {publicMetrics.map((m) => (
+              {publicMetrics.map((m, metricIndex) => (
                 <MetricRow
-                  key={m.metric_id}
+                  key={`${cat.category}-${m.metric_id}-${metricIndex}`}
                   metric={m}
                   canManage={scope.canManage}
                   onOpen={setOpenMetric}
@@ -290,9 +293,9 @@ function CitySiteForCity({ cityId, scope, onViewJob, onEditMetric }: CitySitePro
           </button>
           {showHidden && (
             <div className={styles.categoryMetrics} style={{ marginTop: 4 }}>
-              {hiddenMetrics.map((m) => (
+              {hiddenMetrics.map((m, metricIndex) => (
                 <MetricRow
-                  key={m.metric_id}
+                  key={`hidden-${m.metric_id}-${metricIndex}`}
                   metric={m}
                   canManage={scope.canManage}
                   onOpen={setOpenMetric}
@@ -309,9 +312,9 @@ function CitySiteForCity({ cityId, scope, onViewJob, onEditMetric }: CitySitePro
       {site.districts.length > 0 && (
         <div className={styles.districtsWrap}>
           <span className={styles.districtsLabel}>Districts</span>
-          {site.districts.map((d) => (
+          {site.districts.map((d, districtIndex) => (
             <a
-              key={d.district_number ?? d.id}
+              key={`${d.id}-${d.district_number ?? "none"}-${districtIndex}`}
               href={d.permalink}
               target="_blank"
               rel="noopener noreferrer"

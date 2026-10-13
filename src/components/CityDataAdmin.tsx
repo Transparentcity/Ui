@@ -3,8 +3,10 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
 import {
+  clearCityAdminCache,
   clearCityStructureCache,
   getPopulationSource,
+  getOpsCityHealth,
   refreshPopulation,
   syncPopulationToMetric,
   lookupCensusGeoid,
@@ -33,9 +35,13 @@ import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import DatasetsList from "@/components/DatasetsList";
 import Loader from "./Loader";
 import NewslettersTabPanel from "@/components/NewslettersTabPanel";
-import CityMetricsTab from "./cityAdmin/CityMetricsTab";
+import CityOpsDashboard from "@/components/CityOpsDashboard";
 import ShapeLayersSection from "./cityAdmin/ShapeLayersSection";
 import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
+import {
+  countCriticalAlerts,
+  ensureCitiesAttention,
+} from "@/lib/cityHealthAttention";
 import styles from "./CityDataAdmin.module.css";
 
 interface CityData {
@@ -113,12 +119,16 @@ interface CityDataAdminProps {
   cityId: number;
   onBack?: () => void;
   embedded?: boolean;
+  onViewJob?: (jobId: string) => void;
+  isGlobalAdmin?: boolean;
 }
 
 export default function CityDataAdmin({
   cityId,
   onBack,
   embedded = false,
+  onViewJob,
+  isGlobalAdmin = true,
 }: CityDataAdminProps) {
   const { getAccessTokenSilently } = useAuth0();
   
@@ -164,7 +174,16 @@ export default function CityDataAdmin({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"data" | "structure" | "metrics" | "datasets" | "newsletters">("data");
+  const [activeTab, setActiveTab] = useState<
+    | "structure"
+    | "metrics"
+    | "datasets"
+    | "newsletters"
+    | "health"
+    | "llm-costs"
+    | "civic"
+    | "stories"
+  >("structure");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -208,11 +227,34 @@ export default function CityDataAdmin({
     message?: string;
   } | null>(null);
   const [populationMetricId, setPopulationMetricId] = useState<number | null>(null);
+  const [cityHealthCriticalAlerts, setCityHealthCriticalAlerts] = useState(0);
 
-
-  // Load population source config when Data tab is active
   useEffect(() => {
-    if (activeTab !== "data" || !cityId) return;
+    let cancelled = false;
+    getAccessTokenSilently()
+      .then((token) => getOpsCityHealth(cityId, token, { daysBack: 14 }))
+      .then((response) => {
+        if (cancelled) return;
+        const { cities } = ensureCitiesAttention(
+          response.cities ?? [],
+          response.attention_summary ?? null,
+        );
+        setCityHealthCriticalAlerts(countCriticalAlerts(cities));
+      })
+      .catch((healthError: unknown) => {
+        if (!cancelled) {
+          console.error("Failed to load city health alert count:", healthError);
+          setCityHealthCriticalAlerts(0);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cityId, getAccessTokenSilently]);
+
+  // City information now lives in the combined City Structure tab.
+  useEffect(() => {
+    if (activeTab !== "structure" || !cityId) return;
     let cancelled = false;
     getAccessTokenSilently()
       .then((token) => getPopulationSource(cityId, token))
@@ -432,6 +474,7 @@ export default function CityDataAdmin({
 
       await updateCityMutation.mutateAsync({ cityId, data: updateData });
       alert("City data saved successfully!");
+      clearCityAdminCache(cityId);
       await refetchCity();
     } catch (err: any) {
       setError(err.message || "Failed to save city data");
@@ -718,12 +761,6 @@ export default function CityDataAdmin({
         className={`${styles.tabsContainer} ${embedded ? styles.tabsContainerEmbedded : ""}` }
       >
         <button
-          className={`${styles.tabBtn} ${activeTab === "data" ? styles.tabBtnActive : ""}` }
-          onClick={() => setActiveTab("data")}
-        >
-          City Data
-        </button>
-        <button
           className={`${styles.tabBtn} ${activeTab === "structure" ? styles.tabBtnActive : ""}` }
           onClick={() => setActiveTab("structure")}
         >
@@ -747,10 +784,44 @@ export default function CityDataAdmin({
         >
           Newsletters
         </button>
+        <button
+          className={`${styles.tabBtn} ${activeTab === "health" ? styles.tabBtnActive : ""}` }
+          onClick={() => setActiveTab("health")}
+        >
+          City Health
+          {cityHealthCriticalAlerts > 0 && (
+            <span
+              className={styles.tabBadge}
+              title="Critical issues needing attention"
+            >
+              {cityHealthCriticalAlerts}
+            </span>
+          )}
+        </button>
+        <button
+          className={`${styles.tabBtn} ${activeTab === "llm-costs" ? styles.tabBtnActive : ""}` }
+          onClick={() => setActiveTab("llm-costs")}
+        >
+          LLM Costs
+        </button>
+        {isGlobalAdmin && (
+          <button
+            className={`${styles.tabBtn} ${activeTab === "civic" ? styles.tabBtnActive : ""}` }
+            onClick={() => setActiveTab("civic")}
+          >
+            Civic Discussion
+          </button>
+        )}
+        <button
+          className={`${styles.tabBtn} ${activeTab === "stories" ? styles.tabBtnActive : ""}` }
+          onClick={() => setActiveTab("stories")}
+        >
+          Stories
+        </button>
       </div>
 
-      {/* City Data Tab */}
-      {activeTab === "data" && (
+      {/* City information and structure share one tab. */}
+      {activeTab === "structure" && (
         <div>
           {/* Statistics Section */}
           <div style={{ marginBottom: "20px" }}>
@@ -2940,12 +3011,14 @@ export default function CityDataAdmin({
       )}
 
       {/* Metrics Tab */}
-      {activeTab === "metrics" && cityDataTyped && (
-        <CityMetricsTab
-          cityId={cityId}
-          metrics={cityDataTyped.metrics ?? []}
-          cityName={cityDataTyped.city_name || cityDataTyped.name || ""}
-          onMetricChange={refetchCity}
+      {activeTab === "metrics" && (
+        <CityOpsDashboard
+          isAdmin={isGlobalAdmin}
+          embedded
+          fixedCityId={cityId}
+          initialTab="metrics"
+          singlePanel
+          onViewJob={onViewJob}
         />
       )}
 
@@ -2953,7 +3026,12 @@ export default function CityDataAdmin({
       {/* Datasets Tab */}
       {activeTab === "datasets" && (
         <div>
-          <DatasetsList cityId={cityId} showStats={false} showCityFilter={false} />
+          <DatasetsList
+            cityId={cityId}
+            showStats={false}
+            showCityFilter={false}
+            compact
+          />
         </div>
       )}
 
@@ -2963,9 +3041,53 @@ export default function CityDataAdmin({
           <NewslettersTabPanel
             cityId={cityId}
             cityName={cityData?.name || ""}
-            onClose={() => setActiveTab("data")}
+            onClose={() => setActiveTab("structure")}
           />
         </div>
+      )}
+
+      {activeTab === "health" && (
+        <CityOpsDashboard
+          isAdmin={isGlobalAdmin}
+          embedded
+          fixedCityId={cityId}
+          initialTab="health"
+          singlePanel
+          onViewJob={onViewJob}
+        />
+      )}
+
+      {activeTab === "llm-costs" && (
+        <CityOpsDashboard
+          isAdmin={isGlobalAdmin}
+          embedded
+          fixedCityId={cityId}
+          initialTab="llm-costs"
+          singlePanel
+          onViewJob={onViewJob}
+        />
+      )}
+
+      {isGlobalAdmin && activeTab === "civic" && (
+        <CityOpsDashboard
+          isAdmin={isGlobalAdmin}
+          embedded
+          fixedCityId={cityId}
+          initialTab="civic"
+          singlePanel
+          onViewJob={onViewJob}
+        />
+      )}
+
+      {activeTab === "stories" && (
+        <CityOpsDashboard
+          isAdmin={isGlobalAdmin}
+          embedded
+          fixedCityId={cityId}
+          initialTab="stories"
+          singlePanel
+          onViewJob={onViewJob}
+        />
       )}
 
       {/* Query Popup */}

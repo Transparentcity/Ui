@@ -20,12 +20,14 @@ interface DatasetsListProps {
   cityId?: number;
   showStats?: boolean;
   showCityFilter?: boolean;
+  compact?: boolean;
 }
 
 export default function DatasetsList({
   cityId,
   showStats = true,
   showCityFilter = true,
+  compact = false,
 }: DatasetsListProps) {
   const { getAccessTokenSilently } = useAuth0();
   const [stats, setStats] = useState<DatasetStats | null>(null);
@@ -216,7 +218,7 @@ External / file URL: ${dataset.source_data_url || "N/A"}
   }
 
   return (
-    <div className={styles.datasetsList}>
+    <div className={`${styles.datasetsList} ${compact ? styles.compact : ""}`}>
       {/* Stats Cards */}
       {showStats && stats && (
         <div className={styles.statsGrid}>
@@ -469,7 +471,7 @@ External / file URL: ${dataset.source_data_url || "N/A"}
                 {!cityId && <th className={styles.tableHeaderCell}>City</th>}
                 <th className={styles.tableHeaderCell}>Category</th>
                 <th className={styles.tableHeaderCell}>Department</th>
-                <th className={styles.tableHeaderCell}>Portal &amp; resource URL</th>
+                <th className={styles.tableHeaderCell}>Links</th>
                 <th className={styles.tableHeaderCell}>Update Frequency</th>
                 <th className={styles.tableHeaderCell}>Rows</th>
                 <th className={styles.tableHeaderCell}>Status</th>
@@ -517,7 +519,7 @@ External / file URL: ${dataset.source_data_url || "N/A"}
                           {dataset.title || dataset.dataset_id}
                         </div>
                         <div className={styles.tableCellSubtext}>{dataset.dataset_id}</div>
-                        {dataset.description && (
+                        {!compact && dataset.description && (
                           <div className={styles.tableCellDescription}>
                             {dataset.description.length > 100
                               ? `${dataset.description.substring(0, 100)}...`
@@ -538,54 +540,43 @@ External / file URL: ${dataset.source_data_url || "N/A"}
                       </td>
                       <td className={styles.tableCell}>
                         <div className={styles.urlBlock}>
-                          <div>
-                            <span className={styles.urlLabel}>Portal</span>
-                            {dataset.url ? (
-                              <a
-                                href={dataset.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={styles.urlLink}
-                                title={dataset.url}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {dataset.url}
-                              </a>
-                            ) : (
-                              <span className={styles.urlMissing}>N/A</span>
-                            )}
-                          </div>
-                          <div>
-                            <span className={styles.urlLabel}>Resource (set_dataset)</span>
-                            {dataset.api_url ? (
-                              <a
-                                href={dataset.api_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={styles.urlLink}
-                                title={dataset.api_url}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {dataset.api_url}
-                              </a>
-                            ) : (
-                              <span className={styles.urlMissing}>N/A</span>
-                            )}
-                          </div>
+                          {dataset.url ? (
+                            <a
+                              href={dataset.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.urlLink}
+                              title={dataset.url}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Portal
+                            </a>
+                          ) : (
+                            <span className={styles.urlMissing}>No portal</span>
+                          )}
+                          {dataset.api_url && (
+                            <a
+                              href={dataset.api_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.urlLink}
+                              title={dataset.api_url}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              API
+                            </a>
+                          )}
                           {dataset.source_data_url && (
-                            <div>
-                              <span className={styles.urlLabel}>External data / file</span>
-                              <a
-                                href={dataset.source_data_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={styles.urlLink}
-                                title={dataset.source_data_url}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {dataset.source_data_url}
-                              </a>
-                            </div>
+                            <a
+                              href={dataset.source_data_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.urlLink}
+                              title={dataset.source_data_url}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              File
+                            </a>
                           )}
                         </div>
                       </td>
