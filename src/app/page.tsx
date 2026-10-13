@@ -128,8 +128,7 @@ export default async function HomePage() {
   }
   const launched = cities
     .filter((c) => c.is_launched === true)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .slice(0, 10);
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const launchedCityIds = new Set(launched.map((c) => c.id));
   const [stories, metricCards] = await Promise.all([

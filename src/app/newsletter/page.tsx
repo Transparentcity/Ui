@@ -24,8 +24,7 @@ export default async function NewsletterLandingPage() {
   const cities = await listPublicCitiesForSitemap().catch(() => []);
   const launched = cities
     .filter((c) => c.is_launched === true)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .slice(0, 8);
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return <NewsletterLandingClient launchedCities={launched} />;
 }

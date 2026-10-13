@@ -481,7 +481,7 @@ const SAN_FRANCISCO: CityGuide = {
     <>
       San Francisco is the city Adam and Rob built first, and the deepest one on Transparent City:
       76 live metrics over 1,222 catalogued datasets, and the source of most templates the other
-      nine cities run. So it does not need building out. What it needs is someone looking at it
+      ten cities run. So it does not need building out. What it needs is someone looking at it
       closely: finding the things that are not working, and adding the things you are curious about.
     </>
   ),
@@ -650,7 +650,7 @@ const SAN_FRANCISCO: CityGuide = {
   standing: (
     <>
       San Francisco is the reference city. When a metric is written well here, it becomes a template
-      the other cities inherit, so a fix you make can propagate to nine other places. The flip side
+      the other cities inherit, so a fix you make can propagate to ten other places. The flip side
       is that a change here ripples too, which is why adding and flagging are easy calls and
       rearranging what already exists is worth a conversation first.
     </>
@@ -724,7 +724,7 @@ const SAN_FRANCISCO: CityGuide = {
   careNote: (
     <>
       One more, specific to this city. San Francisco is the one Adam and Rob built from scratch, and
-      its metrics are the templates the other nine inherit. Adding things is welcome, and so is
+      its metrics are the templates the other ten inherit. Adding things is welcome, and so is
       telling us what looks broken. Reworking what is already there, including the dashboard order,
       is worth a message first, because a change here can ripple everywhere else.
     </>
@@ -932,7 +932,7 @@ const KANSAS_CITY: CityGuide = {
       body: (
         <>
           Here the difference is concrete. A chat answer is read once. A metric runs nightly, feeds anomaly
-          detection, becomes stories, reaches the newsletter, and can be compared with nine other cities.
+          detection, becomes stories, reaches the newsletter, and can be compared with ten other cities.
           Something worth knowing twice becomes a metric. Something worth saying once becomes a story. Both
           take a sentence.
         </>

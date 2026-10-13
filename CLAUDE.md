@@ -40,6 +40,7 @@ The abbreviated forms (`/c/sf`, `/c/nyc`) do not exist.
 | Austin      | https://transparent.city/c/austin            |
 | Seattle     | https://transparent.city/c/seattle           |
 | Miami       | https://transparent.city/c/miami             |
+| Kansas City | https://transparent.city/c/kansas-city       |
 
 Confirm the live list before each run:
 `curl -s https://api.transparent.city/api/public/cities/sitemap | jq '[.[] | select(.is_launched) | .name]'`

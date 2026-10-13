@@ -52,6 +52,7 @@ const TARGET_CITIES = [
   { label: "Austin",     slugPatterns: ["austin"], canonicalSlug: "austin" },
   { label: "Seattle",    slugPatterns: ["seattle"], canonicalSlug: "seattle" },
   { label: "Miami",      slugPatterns: ["miami"], canonicalSlug: "miami" },
+  { label: "Kansas City", slugPatterns: ["kansas-city"], canonicalSlug: "kansas-city" },
 ];
 
 // ---------------------------------------------------------------------------
