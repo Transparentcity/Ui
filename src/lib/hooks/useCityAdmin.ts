@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
+  clearCityAdminCache,
   getCityAdmin,
   getCityStats,
   getCityStructure,
@@ -177,6 +178,9 @@ export function useUpdateCity() {
       return updateCity(cityId, data, token);
     },
     onSuccess: (_, variables) => {
+      // Bust the hand-rolled getCityAdmin cache too — react-query
+      // invalidation alone still returns the stale manually-cached GET.
+      clearCityAdminCache(variables.cityId);
       // Invalidate city admin data and stats
       queryClient.invalidateQueries({ queryKey: cityAdminKeys.detail(variables.cityId) });
       queryClient.invalidateQueries({ queryKey: cityAdminKeys.stats(variables.cityId) });

@@ -5,8 +5,10 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useRouter } from "next/navigation";
 import {
   listNewsletterEditionsAdmin,
+  listNewsletterPending,
   type InboxItem,
   type NewsletterEditionAdminItem,
+  type NewsletterPendingListItem,
 } from "@/lib/apiClient";
 import InboxCard from "./InboxCard";
 import Loader from "./Loader";
@@ -26,6 +28,7 @@ export default function NewslettersTabPanel({
   const router = useRouter();
   const { getAccessTokenSilently } = useAuth0();
   const [editions, setEditions] = useState<NewsletterEditionAdminItem[]>([]);
+  const [drafts, setDrafts] = useState<NewsletterPendingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,10 +38,17 @@ export default function NewslettersTabPanel({
       setError(null);
       try {
         const token = await getAccessTokenSilently();
-        const response = await listNewsletterEditionsAdmin(token, {
-          cityId,
-          limit: 200,
-        });
+        const [response, pendingResponse] = await Promise.all([
+          listNewsletterEditionsAdmin(token, {
+            cityId,
+            limit: 200,
+          }),
+          listNewsletterPending(token, {
+            city_id: cityId,
+            unsent_only: false,
+            page_size: 200,
+          }),
+        ]);
         setEditions(
           [...response.items].sort((a, b) => {
             const dateOrder = (b.edition_date ?? "").localeCompare(
@@ -47,6 +57,13 @@ export default function NewslettersTabPanel({
             if (dateOrder !== 0) return dateOrder;
             return (b.created_at ?? "").localeCompare(a.created_at ?? "");
           }),
+        );
+        setDrafts(
+          pendingResponse.items.filter(
+            (item) =>
+              item.draft_type === "shared_city_district" &&
+              item.canonical_pending_id == null,
+          ),
         );
       } catch (err: unknown) {
         console.error("Failed to load newsletter editions:", err);
@@ -61,7 +78,7 @@ export default function NewslettersTabPanel({
     void loadEditions();
   }, [cityId, getAccessTokenSilently]);
 
-  const inboxItems: InboxItem[] = editions.map((edition) => {
+  const editionItems: InboxItem[] = editions.map((edition) => {
     const district = edition.district > 0 ? String(edition.district) : null;
     const sentAt = edition.edition_date
       ? `${edition.edition_date}T12:00:00Z`
@@ -90,6 +107,44 @@ export default function NewslettersTabPanel({
           : null,
     };
   });
+  const editionUrls = new Set(
+    editionItems
+      .map((item) => item.public_url)
+      .filter((url): url is string => Boolean(url)),
+  );
+  const draftItems: InboxItem[] = drafts
+    .filter((draft) => !draft.public_url || !editionUrls.has(draft.public_url))
+    .map((draft) => {
+      const district =
+        draft.district && draft.district !== "0" ? draft.district : null;
+      return {
+        id: `pending:${draft.id}`,
+        type: "edition",
+        subject: draft.subject,
+        preview: draft.draft_failed
+          ? "Generation failed. Open Newsletter Admin for details."
+          : draft.sent_at
+            ? "Sent shared newsletter"
+            : "Shared draft awaiting review",
+        cover_image_url: null,
+        sent_at: draft.sent_at ?? draft.created_at ?? new Date(0).toISOString(),
+        is_read: true,
+        is_private: true,
+        scope: district ? "district" : "city",
+        city_id: draft.city_id ?? cityId,
+        city_name: cityName,
+        city_slug: null,
+        city_emoji: null,
+        district,
+        district_label: district ? `D${district}` : null,
+        place_id: null,
+        place_name: null,
+        public_url: draft.public_url ?? null,
+      };
+    });
+  const inboxItems = [...editionItems, ...draftItems].sort((a, b) =>
+    b.sent_at.localeCompare(a.sent_at),
+  );
 
   if (loading) {
     return (

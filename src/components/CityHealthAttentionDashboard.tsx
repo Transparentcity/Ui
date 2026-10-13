@@ -12,6 +12,7 @@ import {
   batchExecuteMetrics,
   instantiateAllTemplates,
   opsBatchExecute,
+  refreshCivicEndpoint,
   restructureCity,
   retryMissingShapeLayers,
 } from "@/lib/apiClient";
@@ -36,6 +37,7 @@ const CATEGORIES: {
   { key: "wiring", label: "Wiring", hint: "District fields & working status" },
   { key: "mapping", label: "Mapping", hint: "map_query / lat-lon fields" },
   { key: "structure", label: "City", hint: "Leaders, shapes, districts" },
+  { key: "civic", label: "Civic conversation", hint: "Source fetch failures" },
 ];
 
 const SEV_CLASS: Record<string, string> = {
@@ -69,7 +71,7 @@ function matchesLaunchScope(city: CityScheduleHealth, scope: ScopeFilter): boole
 type ActionKey = string;
 
 function actionKey(cityId: number, issue: CityHealthAttentionIssue, action: string): ActionKey {
-  return `${cityId}:${issue.kind}:${issue.metric_id ?? ""}:${issue.schedule_key ?? ""}:${action}`;
+  return `${cityId}:${issue.kind}:${issue.metric_id ?? ""}:${issue.endpoint_id ?? ""}:${issue.schedule_key ?? ""}:${action}`;
 }
 
 function actionLabel(action: CityHealthSuggestedAction, issue: CityHealthAttentionIssue): string {
@@ -78,6 +80,8 @@ function actionLabel(action: CityHealthSuggestedAction, issue: CityHealthAttenti
       return "Re-run batch";
     case "re_run_metric":
       return (issue.metric_ids?.length ?? 0) > 1 ? "Re-run failed metrics" : "Re-run metric";
+    case "retry_civic_source":
+      return "Retry source";
     case "edit_metric":
       return "Edit";
     case "restructure_city":
@@ -208,6 +212,7 @@ export default function CityHealthAttentionDashboard({
       wiring: 0,
       mapping: 0,
       structure: 0,
+      civic: 0,
     };
     for (const c of enriched.cities) {
       if (!matchesLaunchScope(c, scope)) continue;
@@ -290,6 +295,14 @@ export default function CityHealthAttentionDashboard({
         if (result.job_id && onViewJob) onViewJob(String(result.job_id));
       } else if (action === "structure_metrics") {
         await instantiateAllTemplates(city.city_id, token, { only_missing: true });
+      } else if (action === "retry_civic_source") {
+        if (issue.endpoint_id == null) {
+          throw new Error("This civic issue has no endpoint to retry.");
+        }
+        const result = await refreshCivicEndpoint(issue.endpoint_id, token);
+        if (result.status === "error") {
+          throw new Error(result.error || "Civic source retry failed.");
+        }
       }
       setBusyState(key, "done");
       window.setTimeout(() => onRefresh(), 2500);

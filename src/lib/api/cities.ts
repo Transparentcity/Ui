@@ -61,6 +61,8 @@ export interface CityAdminData {
   is_active: boolean;
   /** Gates public metric visibility; editable from the city admin form. */
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
+  is_dark_launched?: boolean;
   datasets_count?: number;
   vector_db_points?: number;
   vector_db_size_mb?: number;
@@ -172,6 +174,8 @@ export interface UpdateCityRequest {
   main_portal_url?: string | null;
   all_portal_urls?: string[];
   is_active?: boolean;
+  is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
 }
 
 export interface UpdateCityStructureRequest {
@@ -286,7 +290,14 @@ export function updateCity(
   data: UpdateCityRequest,
   token: string
 ): Promise<CityAdminData> {
-  return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token);
+  return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token).then(
+    (result) => {
+      // Bust the hand-rolled GET cache so the next fetch sees the saved values
+      // (react-query invalidation alone is not enough — getCityAdmin caches manually).
+      clearCityAdminCache(cityId);
+      return result;
+    }
+  );
 }
 
 // --- Population by district (admin) ---
