@@ -9,6 +9,7 @@
 
 .tabsContainer {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   border-bottom: 1px solid var(--border-primary);
   margin-bottom: 24px;
@@ -19,7 +20,7 @@
 }
 
 .tabBtn {
-  padding: 12px 24px;
+  padding: 10px 14px;
   border: none;
   background: none;
   cursor: pointer;
@@ -28,6 +29,22 @@
   transition: all 0.2s;
   font-size: 14px;
   font-weight: 500;
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--error);
+  color: var(--text-on-brand);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .tabBtn:hover {

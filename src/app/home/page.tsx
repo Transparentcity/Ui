@@ -126,11 +126,12 @@ const EmailAdmin = dynamic(() => import("@/components/EmailAdmin"), { ssr: false
 const FeedAdmin = dynamic(() => import("@/components/FeedAdmin"), { ssr: false });
 const NewsletterAdmin = dynamic(() => import("@/components/NewsletterAdmin"), { ssr: false });
 const ProductAnalyticsDashboard = dynamic(() => import("@/components/ProductAnalyticsDashboard"), { ssr: false });
+const CivicAdminPage = dynamic(() => import("@/app/admin/civic/page"), { ssr: false });
 
 import MobileBottomNav from "@/components/MobileBottomNav";
 import { listInbox, getPlaceMetrics } from "@/lib/apiClient";
 
-type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "feed";
+type ViewType = "chat" | "city-data" | "system-stats" | "user-management" | "metrics-admin" | "datasets-admin" | "feed-stories-admin" | "feed-admin" | "newsletter-admin" | "city" | "job-logs" | "feed" | "civic-intel";
 
 
 // Mobile breakpoint (matches CSS media query)
@@ -2371,7 +2372,11 @@ export default function DashboardPage() {
             <div id="city-data-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
               {selectedCityId ? (
                 <div className={styles.adminContainer}>
-                  <CityDataAdmin cityId={selectedCityId} onBack={() => setSelectedCityId(null)} />
+                  <CityDataAdmin
+                    cityId={selectedCityId}
+                    onBack={() => setSelectedCityId(null)}
+                    onViewJob={handleOpenJobLogsFromCityData}
+                  />
                 </div>
               ) : (
                 <CityDataTable
@@ -2438,6 +2443,7 @@ export default function DashboardPage() {
                   bootstrapPlaceMetricsForPlaceId={placeIdPendingPlaceMetricsBootstrap}
                   onConsumePlaceMetricsBootstrap={consumePlaceMetricsBootstrap}
                   onRequestPlaceMetricsBootstrap={setPlaceIdPendingPlaceMetricsBootstrap}
+                  onViewJob={handleOpenJobLogsFromCityData}
                   onCityChange={(newCityId, section) => {
                     setInitialSection(section === "alerts" ? null : section);
                     setActiveCityId(newCityId);
@@ -2506,6 +2512,14 @@ export default function DashboardPage() {
                   isAdmin={isAdmin}
                   onViewJob={isAdmin ? handleOpenJobLogsFromCityData : undefined}
                 />
+              </div>
+            </div>
+          )}
+
+          {currentView === "civic-intel" && isAdmin && (
+            <div id="civic-intel-view" className={`${styles.contentView} ${styles.contentViewActive}`}>
+              <div className={styles.adminContainer}>
+                <CivicAdminPage />
               </div>
             </div>
           )}

@@ -308,6 +308,7 @@ export interface UpdateCityRequest {
   all_portal_urls?: string[];
   is_active?: boolean;
   is_launched?: boolean;
+  launch_status?: "not_launched" | "dark_launched" | "launched";
 }
 
 export interface UpdateCityStructureRequest {
@@ -421,7 +422,14 @@ export function updateCity(
   data: UpdateCityRequest,
   token: string
 ): Promise<CityAdminData> {
-  return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token);
+  return request<CityAdminData>(`/api/admin/cities/${cityId}`, "PUT", data, token).then(
+    (result) => {
+      // Bust the hand-rolled GET cache so the next fetch sees the saved values
+      // (react-query invalidation alone is not enough — getCityAdmin caches manually).
+      clearCityAdminCache(cityId);
+      return result;
+    }
+  );
 }
 
 export interface DeleteCityResponse {
@@ -2585,7 +2593,8 @@ export type CityHealthAttentionCategory =
   | "data"
   | "wiring"
   | "mapping"
-  | "structure";
+  | "structure"
+  | "civic";
 
 export type CityHealthAttentionSeverity =
   | "critical"
@@ -2597,6 +2606,7 @@ export type CityHealthAttentionSeverity =
 export type CityHealthSuggestedAction =
   | "re_run_schedule"
   | "re_run_metric"
+  | "retry_civic_source"
   | "edit_metric"
   | "restructure_city"
   | "retry_shapes"
@@ -2614,6 +2624,7 @@ export interface CityHealthAttentionIssue {
   metric_id?: number | null;
   metric_name?: string | null;
   schedule_key?: string | null;
+  endpoint_id?: number | null;
   detail?: string | null;
   /** Plain-language summary of what happened and what it likely means. */
   explanation?: string | null;
@@ -2655,6 +2666,17 @@ export interface CityScheduleHealth {
   freshness_metrics: CityFreshnessMetricRow[];
   schedules: Record<string, CityScheduleSlot>;
   structure?: CityScheduleStructureSummary;
+  civic_failures?: Array<{
+    source_name: string;
+    endpoint_id: number;
+    adapter_key: string;
+    status: string;
+    consecutive_failures: number;
+    last_attempted_at?: string | null;
+    last_error?: string | null;
+    empty_fetch?: boolean;
+    latest_item_count?: number | null;
+  }>;
   attention?: CityHealthAttention;
 }
 
@@ -2662,6 +2684,442 @@ export interface CityScheduleHealthResponse {
   status: string;
   cities: CityScheduleHealth[];
   attention_summary?: CityHealthAttentionSummary;
+}
+
+export interface CivicEndpointRefreshResult {
+  run_id: number;
+  endpoint_id: number;
+  status: string;
+  item_count: number;
+  latency_ms: number;
+  error: string | null;
+}
+
+export interface CivicEndpointHealth {
+  endpoint_id: number;
+  adapter_key: string;
+  canonical_url: string | null;
+  content_types: string | null;
+  schedule_policy: string | null;
+  endpoint_status: string;
+  consecutive_failures: number;
+  last_success_at: string | null;
+  last_attempted_at: string | null;
+  last_error: string | null;
+}
+
+export interface CivicSource {
+  id: number;
+  slug: string;
+  display_name: string;
+  authority_tier: number;
+  source_kind: string | null;
+  status: string;
+  endpoints: CivicEndpointHealth[];
+}
+
+export interface CivicRunRecord {
+  run_id: number;
+  endpoint_id: number;
+  observed_at: string | null;
+  status: string;
+  latency_ms: number | null;
+  item_count: number | null;
+  error_class: string | null;
+  error_message: string | null;
+  schema_drift: boolean | null;
+}
+
+export interface CivicLatestItem {
+  id: number;
+  content_type: string;
+  authority_tier: number;
+  source_kind: string | null;
+  source_name: string;
+  source_slug: string;
+  external_id: string;
+  title: string | null;
+  url: string | null;
+  published_at: string | null;
+  author: string | null;
+  body: string | null;
+  meta: Record<string, unknown>;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+}
+
+export interface CivicItemsResponse<T extends CivicLatestItem = CivicLatestItem> {
+  city_id: number;
+  total: number;
+  offset: number;
+  limit: number;
+  days_back: number;
+  items: T[];
+}
+
+export interface CivicCoverageReport {
+  report_generated_at: string;
+  window_hours: number;
+  summary: {
+    total_active_sources: number;
+    total_active_endpoints: number;
+    healthy_endpoints: number;
+    stale_endpoints: number;
+    never_run_endpoints: number;
+    error_endpoints: number;
+    healthy_fraction: number;
+    total_runs_in_window: number;
+    total_error_runs: number;
+    pending_candidates: number;
+  };
+  gate: {
+    passed: boolean;
+    failures: string[];
+    min_healthy_fraction: number;
+    max_stale_tier1: number;
+  };
+  coverage_gaps: Array<{
+    source_slug: string;
+    source_name: string;
+    authority_tier: number;
+    content_types: string;
+    freshness: string;
+    last_success_at: string | null;
+    consecutive_failures: number;
+  }>;
+}
+
+export interface CivicDiscussionSummaryResult {
+  summary_markdown: string;
+  session_id: string;
+  city_id: number;
+  city_name: string;
+  days_back: number;
+  days_forward: number;
+  item_count: number;
+  social_item_count: number;
+  model_key: string;
+  generated_at: string;
+  execution_time_ms: number;
+  estimated_cost_usd: number;
+}
+
+export interface CivicDiscussionSummaryJobResponse {
+  job_id: string;
+  status: string;
+  message: string;
+}
+
+export function startCivicDiscussionSummary(
+  cityId: number,
+  modelKey: string,
+  token: string
+): Promise<CivicDiscussionSummaryJobResponse> {
+  return request<CivicDiscussionSummaryJobResponse>(
+    "/api/admin/civic/summary",
+    "POST",
+    { city_id: cityId, days_back: 7, days_forward: 7, model_key: modelKey },
+    token
+  );
+}
+
+export function getLatestCivicDiscussionSummary(
+  cityId: number,
+  token: string
+): Promise<{
+  summary: CivicDiscussionSummaryResult | null;
+  job_id?: string;
+  next_run_at: string | null;
+}> {
+  return request<{
+    summary: CivicDiscussionSummaryResult | null;
+    job_id?: string;
+    next_run_at: string | null;
+  }>(
+    `/api/admin/civic/summary/latest?city_id=${cityId}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function refreshCivicEndpoint(
+  endpointId: number,
+  token: string
+): Promise<CivicEndpointRefreshResult> {
+  return request<CivicEndpointRefreshResult>(
+    `/api/admin/civic/endpoints/${endpointId}/refresh`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export function getCivicEndpointLatestItem(
+  endpointId: number,
+  token: string
+): Promise<CivicLatestItem> {
+  return request<CivicLatestItem>(
+    `/api/admin/civic/endpoints/${endpointId}/latest-item`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function getCivicItems<T extends CivicLatestItem = CivicLatestItem>(
+  cityId: number,
+  token: string,
+  options?: { contentType?: string; daysBack?: number; limit?: number }
+): Promise<CivicItemsResponse<T>> {
+  const params = new URLSearchParams({
+    city_id: String(cityId),
+    days_back: String(options?.daysBack ?? 7),
+    limit: String(options?.limit ?? 500),
+  });
+  if (options?.contentType) params.set("content_type", options.contentType);
+  return request<CivicItemsResponse<T>>(
+    `/api/admin/civic/items?${params}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function deleteCivicItem(
+  itemId: number,
+  token: string
+): Promise<{ deleted: boolean; item_id: number }> {
+  return request(`/api/admin/civic/items/${itemId}`, "DELETE", undefined, token);
+}
+
+export function clearCivicRunItems(
+  runId: number,
+  token: string
+): Promise<{ run_id: number; endpoint_id: number; deleted: number }> {
+  return request(`/api/admin/civic/runs/${runId}/items`, "DELETE", undefined, token);
+}
+
+export function getCivicSources(
+  cityId: number,
+  token: string
+): Promise<CivicSource[]> {
+  return request(`/api/admin/civic/sources?city_id=${cityId}`, "GET", undefined, token);
+}
+
+export function getCivicCoverage(
+  cityId: number,
+  token: string,
+  cityName?: string
+): Promise<CivicCoverageReport> {
+  const params = new URLSearchParams({ city_id: String(cityId) });
+  if (cityName) params.set("city_name", cityName);
+  return request(`/api/admin/civic/coverage?${params}`, "GET", undefined, token);
+}
+
+// ---------------------------------------------------------------------------
+// Civic candidate onboarding
+// ---------------------------------------------------------------------------
+
+export interface CivicCandidate {
+  id: number;
+  city_id: number;
+  display_name: string;
+  candidate_url: string;
+  proposed_kind: string | null;
+  proposed_tier: number | null;
+  discovery_method: string;
+  rationale: string | null;
+  review_status: string;
+  source_id: number | null;
+  review_notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  adapter_key: string | null;
+  endpoint_config: Record<string, unknown>;
+  content_types: string | null;
+  schedule_policy: string;
+  proposed_publisher: string | null;
+  scope_governing_body: string | null;
+  test_status: string;
+  test_run_at: string | null;
+  test_item_count: number | null;
+  test_latency_ms: number | null;
+  test_error: string | null;
+  test_sample_raw: Record<string, unknown> | null;
+  discovery_job_id: string | null;
+  discovery_session_id: string | null;
+  proposed_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CivicAdapterMeta {
+  adapter_key: string;
+  display_name: string;
+  description: string;
+  required_config: Array<{ key: string; hint: string }>;
+  optional_config: Array<{ key: string; hint: string }>;
+  compatible_content_types: string[];
+  generic: boolean;
+}
+
+export function getCivicCandidates(
+  cityId: number,
+  token: string,
+  reviewStatus = "pending"
+): Promise<CivicCandidate[]> {
+  return request(
+    `/api/admin/civic/candidates?city_id=${cityId}&review_status=${reviewStatus}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function createCivicCandidate(
+  body: {
+    city_id: number;
+    display_name: string;
+    candidate_url: string;
+    proposed_kind?: string;
+    proposed_tier?: number;
+    rationale?: string;
+    discovery_method?: string;
+    adapter_key?: string;
+    endpoint_config?: Record<string, unknown>;
+    content_types?: string;
+    schedule_policy?: string;
+    proposed_publisher?: string;
+    scope_governing_body?: string;
+  },
+  token: string
+): Promise<CivicCandidate> {
+  return request("/api/admin/civic/candidates", "POST", body, token);
+}
+
+export function updateCivicCandidate(
+  candidateId: number,
+  body: {
+    city_id: number;
+    adapter_key?: string;
+    endpoint_config?: Record<string, unknown>;
+    content_types?: string;
+    schedule_policy?: string;
+    proposed_kind?: string;
+    proposed_tier?: number;
+    rationale?: string;
+    proposed_publisher?: string;
+    scope_governing_body?: string;
+  },
+  token: string
+): Promise<CivicCandidate> {
+  return request(`/api/admin/civic/candidates/${candidateId}`, "PATCH", body, token);
+}
+
+export function testCivicCandidate(
+  candidateId: number,
+  cityId: number,
+  token: string
+): Promise<{
+  candidate_id: number;
+  test_status: string;
+  test_item_count: number;
+  test_latency_ms: number;
+  test_error: string | null;
+  sample: Record<string, unknown> | null;
+  candidate: CivicCandidate;
+}> {
+  return request(
+    `/api/admin/civic/candidates/${candidateId}/test`,
+    "POST",
+    { city_id: cityId },
+    token
+  );
+}
+
+export function reviewCivicCandidate(
+  candidateId: number,
+  body: { city_id: number; action: "approve" | "reject" | "defer"; notes?: string },
+  token: string
+): Promise<CivicCandidate> {
+  return request(
+    `/api/admin/civic/candidates/${candidateId}/review`,
+    "POST",
+    body,
+    token
+  );
+}
+
+export function listCivicAdapters(
+  cityId: number,
+  token: string
+): Promise<CivicAdapterMeta[]> {
+  return request(`/api/admin/civic/adapters?city_id=${cityId}`, "GET", undefined, token);
+}
+
+export function startCivicDiscovery(
+  cityId: number,
+  modelKey: string,
+  token: string
+): Promise<{ job_id: string; status: string; message: string }> {
+  return request(
+    "/api/admin/civic/onboarding/discover",
+    "POST",
+    { city_id: cityId, model_key: modelKey },
+    token
+  );
+}
+
+export function retireCivicSource(
+  sourceId: number,
+  cityId: number,
+  token: string
+): Promise<Record<string, unknown>> {
+  return request(`/api/admin/civic/sources/${sourceId}`, "DELETE", { city_id: cityId }, token);
+}
+
+export function getCivicEndpointRuns(
+  endpointId: number,
+  token: string,
+  limit = 30
+): Promise<CivicRunRecord[]> {
+  return request(
+    `/api/admin/civic/endpoints/${endpointId}/runs?limit=${limit}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+export function setCivicEndpointPaused(
+  endpointId: number,
+  paused: boolean,
+  token: string
+): Promise<{ endpoint_id: number; status: string; message: string }> {
+  return request(
+    `/api/admin/civic/endpoints/${endpointId}/${paused ? "pause" : "resume"}`,
+    "POST",
+    undefined,
+    token
+  );
+}
+
+export function refreshCivicSources(
+  cityId: number,
+  token: string
+): Promise<{
+  city_id: number;
+  endpoints_run: number;
+  succeeded: number;
+  failed: number;
+}> {
+  return request(
+    `/api/admin/civic/refresh?city_id=${cityId}`,
+    "POST",
+    undefined,
+    token
+  );
 }
 
 export function getCityScheduleHealth(
@@ -2735,6 +3193,7 @@ export interface CityExpansionCityScorecard {
   checks: Record<string, boolean>;
   gate_issues: string[];
   finished_at?: string | null;
+  retry_after?: string | null;
 }
 
 export interface CityExpansionRun {
@@ -2760,11 +3219,21 @@ export interface CityExpansionLearning {
   created_at?: string | null;
 }
 
+export interface CityExpansionRetryState {
+  city_id: number;
+  city_name: string;
+  retry_after: string;
+  reason?: string | null;
+  status?: string | null;
+  last_attempt_at?: string | null;
+}
+
 export interface CityExpansionHistory {
   queue: CityExpansionQueueItem[];
   budget?: CityExpansionBudget;
   runs: CityExpansionRun[];
   learnings: CityExpansionLearning[];
+  retry_after?: CityExpansionRetryState[];
 }
 
 export function getCityExpansionHistory(
