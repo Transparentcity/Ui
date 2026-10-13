@@ -1125,18 +1125,21 @@ export default function ChatView({
     return (fromEvents.trim() ? fromEvents : msg.content || "").trim();
   };
 
+  // Copy the answer text. As with sharing, a toast says what happened so the
+  // click doesn't look like a no-op.
   const handleCopyAnswer = async (msg: Message) => {
     const text = getAnswerText(msg);
     if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedMessageId(msg.id);
-      setTimeout(() => {
-        setCopiedMessageId((id) => (id === msg.id ? null : id));
-      }, 1500);
-    } catch {
-      // Clipboard may be unavailable (e.g. insecure context); fail silently.
+    const ok = await copyTextToClipboard(text);
+    if (!ok) {
+      toast.error("Couldn't copy the answer to your clipboard.");
+      return;
     }
+    setCopiedMessageId(msg.id);
+    setTimeout(() => {
+      setCopiedMessageId((id) => (id === msg.id ? null : id));
+    }, 1500);
+    toast.success("Answer copied to clipboard");
   };
 
   // Share the whole conversation: make the session public (idempotent) and copy
