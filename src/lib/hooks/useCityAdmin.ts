@@ -33,6 +33,7 @@ import {
   getTemplateInstantiationStatus,
   instantiateSingleTemplate,
   instantiateAllTemplates,
+  getMetricRecordCounts,
   type CityAdminData,
   type CityMetricForCustomize,
   type CityStatsResponse,
@@ -66,6 +67,7 @@ export const cityAdminKeys = {
   metricOrdering: (id: number) => [...cityAdminKeys.all, "metricOrdering", id] as const,
   templateInstantiationStatus: (id: number) =>
     [...cityAdminKeys.all, "templateInstantiationStatus", id] as const,
+  metricRecordCounts: (id: number) => [...cityAdminKeys.all, "metricRecordCounts", id] as const,
 };
 
 /** Query keys for per-user metric ordering (dashboard personalization). */
@@ -358,6 +360,23 @@ export function useTemplateInstantiationStatus(cityId: number | null) {
       return getTemplateInstantiationStatus(cityId!, token);
     },
     enabled: !!cityId,
+  });
+}
+
+/**
+ * Hook to fetch per-metric record counts for a city. The backend runs an
+ * expensive count query, so only enable it while the counts are on screen.
+ */
+export function useMetricRecordCounts(cityId: number | null, enabled = true) {
+  const { getAccessTokenSilently } = useAuth0();
+
+  return useQuery({
+    queryKey: cityAdminKeys.metricRecordCounts(cityId!),
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return getMetricRecordCounts(cityId!, token);
+    },
+    enabled: !!cityId && enabled,
   });
 }
 
