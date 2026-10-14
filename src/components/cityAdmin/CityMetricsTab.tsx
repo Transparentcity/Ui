@@ -1,42 +1,33 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth0 } from "@auth0/auth0-react";
 import {
-  getMetricRecordCounts,
   getDefaultExecuteStartDateByPeriod,
   clearCityAdminCache,
 } from "@/lib/apiClient";
 import {
-  useCityMetricOrdering,
   useTemplateInstantiationStatus,
   useInstantiateSingleTemplate,
   useInstantiateAllTemplates,
   useAvailableModels,
+  useMetricRecordCounts,
 } from "@/lib/hooks/useCityAdmin";
 import {
   useDeleteMetric,
   useExecuteMetric,
   usePurgeMetricData,
   useUpdateMetric,
-  useMetricTimeSeries,
-  useMetricTimeSeriesDetail,
-  useMetric,
 } from "@/lib/hooks/useMetrics";
-import { useAnomalies, useAnomalyDetail } from "@/lib/hooks/useAnomalies";
 import { useJobWebSocketContext } from "@/contexts/JobWebSocketContext";
 import { notifyJobCreated } from "@/lib/useJobWebSocket";
 import { pickDefaultModelKey } from "@/lib/modelDefaults";
+import { slugify } from "@/lib/utils";
+import MetricDrawer from "@/components/citySite/MetricDrawer";
 import MetricEditModal from "@/components/MetricEditModal";
-import MetricChartsModal from "@/components/MetricChartsModal";
-import MetricMapsModal from "@/components/MetricMapsModal";
 import MetricOrderEditor from "@/components/MetricOrderEditor";
-import RunAllMetricsModal from "@/components/RunAllMetricsModal";
 import StructuringNotesModal from "@/components/StructuringNotesModal";
-import TimeSeriesChart from "@/components/TimeSeriesChart";
-import AnomalyChart from "@/components/AnomalyChart";
 import styles from "./CityMetricsTab.module.css";
 import metricStyles from "@/components/MetricsAdmin.module.css";
 import cityAdminStyles from "@/components/CityDataAdmin.module.css";
@@ -48,40 +39,23 @@ type MetricSection = "active" | "templates" | "settings" | "cleanup";
 interface CityMetric {
   id: number;
   metric_name: string;
-  metric_key: string;
-  category?: string | null;
+  category?: string;
   subcategory?: string | null;
   is_active?: boolean;
   show_on_dash?: boolean;
-  /** Week Replay inclusion: true = always, false = never, null = auto. */
-  show_on_week_replay?: boolean | null;
   last_execution_status?: string | null;
   last_execution_at?: string | null;
   most_recent_data_date?: string | null;
-  record_counts?: {
-    total_active?: number;
-    total_inactive?: number;
-    active_data_points?: number;
-    inactive_data_points?: number;
-  } | null;
-}
-
-interface TemplateRow {
-  template_id: number;
-  template_name: string;
-  category?: string | null;
-  category_slug?: string | null;
-  subcategory?: string | null;
-  status: string;
-  metric_id?: number | null;
-  has_notes?: boolean;
 }
 
 export interface CityMetricsTabProps {
   cityId: number;
-  metrics: any[];
+  metrics: CityMetric[];
   cityName: string;
   onMetricChange: () => void;
+  /** Rendered as the Metrics section. */
+  metricsPanel: ReactNode;
+  onViewJob?: (jobId: string) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -95,302 +69,6 @@ function templateCategorySlug(category?: string | null, apiSlug?: string | null)
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-US", { timeZone: "UTC" });
-}
-
-function citySlugFrom(name?: string): string | null {
-  if (!name) return null;
-  return name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-|-$/g, "");
-}
-
-// ─── DrawerChart: inline mini chart inside the detail drawer ─────────────────
-
-function DrawerChart({ metricId }: { metricId: number }) {
-  const chartsQuery = useMetricTimeSeries(metricId, { exclude_group_fields: true });
-  const [selectedChartId, setSelectedChartId] = useState<number | null>(null);
-
-  const charts = chartsQuery.data?.time_series ?? [];
-
-  // Auto-select best chart: prefer monthly citywide
-  useEffect(() => {
-    if (!charts.length) return;
-    if (selectedChartId && charts.find((c) => c.chart_id === selectedChartId)) return;
-
-    const preferred =
-      charts.find((c) => c.period_type === "month" && (c.district === 0 || c.district == null)) ||
-      charts.find((c) => c.period_type === "month") ||
-      charts.find((c) => c.district === 0 || c.district == null) ||
-      charts[0];
-
-    setSelectedChartId(preferred?.chart_id ?? null);
-  }, [charts, selectedChartId]);
-
-  const detailQuery = useMetricTimeSeriesDetail(metricId, selectedChartId);
-  const detail = detailQuery.data;
-
-  const periodOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return charts.filter((c) => {
-      if (seen.has(c.period_type)) return false;
-      seen.add(c.period_type);
-      return true;
-    });
-  }, [charts]);
-
-  if (chartsQuery.isLoading) {
-    return (
-      <div className={styles.drawerChartPlaceholder}>
-        <i className="fas fa-spinner fa-spin" />
-        <span>Loading chart…</span>
-      </div>
-    );
-  }
-
-  if (!charts.length) {
-    return (
-      <div className={styles.drawerChartPlaceholder}>
-        <i className="fas fa-chart-line" style={{ fontSize: 24, opacity: 0.3 }} />
-        <span>No chart data available</span>
-      </div>
-    );
-  }
-
-  const points = detail?.data ?? [];
-  const basePoints = points.filter((p) => !p.group_value || p.group_value === "—");
-
-  // Find the period type of the selected chart for TimeSeriesChart metadata
-  const selectedChart = charts.find((c) => c.chart_id === selectedChartId);
-  const periodType = selectedChart?.period_type;
-
-  return (
-    <>
-      {periodOptions.length > 1 && (
-        <div className={styles.drawerChartSelector}>
-          {periodOptions.map((opt) => (
-            <button
-              key={opt.chart_id}
-              className={`${styles.chartSelectorBtn} ${selectedChartId === opt.chart_id ? styles.chartSelectorBtnActive : ""}`}
-              onClick={() => setSelectedChartId(opt.chart_id)}
-            >
-              {opt.period_type}
-            </button>
-          ))}
-        </div>
-      )}
-      {detailQuery.isLoading ? (
-        <div className={styles.drawerChartPlaceholder}>
-          <i className="fas fa-spinner fa-spin" />
-        </div>
-      ) : basePoints.length ? (
-        <TimeSeriesChart
-          data={basePoints}
-          metadata={{ period_type: periodType }}
-          height={200}
-          hidePeriodSelector={true}
-        />
-      ) : (
-        <div className={styles.drawerChartPlaceholder}>
-          <span>No data points for this series</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ─── AnomaliesModal (inlined, same as CityDataAdmin) ────────────────────────
-
-function AnomaliesModal({
-  metricId,
-  onClose,
-}: {
-  metricId: number;
-  onClose: () => void;
-}) {
-  const [periodFilter, setPeriodFilter] = useState<string>("all");
-  const [yesNoFilter, setYesNoFilter] = useState<"yes" | "no" | "all">("yes");
-  const [selectedPeriodDate, setSelectedPeriodDate] = useState<string | null>(null);
-  const [selectedAnomalyId, setSelectedAnomalyId] = useState<number | null>(null);
-  const metricQuery = useMetric(metricId);
-  const metricData = metricQuery.data ?? null;
-
-  const anomaliesQuery = useAnomalies({
-    metric_id: metricId,
-    limit: 100,
-    ...(periodFilter !== "all" ? { period_type: periodFilter } : {}),
-    ...(selectedPeriodDate ? { period_date: selectedPeriodDate } : {}),
-    ...(yesNoFilter === "yes" ? { is_anomaly: true } : yesNoFilter === "no" ? { is_anomaly: false } : {}),
-  });
-  const anomalyDetailQuery = useAnomalyDetail(selectedAnomalyId);
-
-  const anomaliesData = anomaliesQuery.data ?? null;
-  const anomalyDetail = anomalyDetailQuery.data ?? null;
-
-  useEffect(() => {
-    if (anomaliesQuery.data !== undefined) anomaliesQuery.refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodFilter, yesNoFilter, selectedPeriodDate]);
-
-  useEffect(() => { setSelectedPeriodDate(null); }, [periodFilter]);
-
-  const getAnomalyRecentDate = (anomaly: any): string | null => {
-    const dates = anomaly.chart_payload?.dates;
-    const periods = anomaly.chart_payload?.periods;
-    if (Array.isArray(periods) && Array.isArray(dates)) {
-      for (let i = dates.length - 1; i >= 0; i--) {
-        if (periods[i] === "recent" && dates[i]) return dates[i];
-      }
-    }
-    return Array.isArray(dates) && dates.length > 0 ? dates[dates.length - 1] : null;
-  };
-
-  const filtered = useMemo(() => {
-    let results = anomaliesData?.results ?? [];
-    if (periodFilter !== "all") results = results.filter((a: any) => a.period_type === periodFilter);
-    return [...results].sort((a: any, b: any) => (getAnomalyRecentDate(b) ?? "").localeCompare(getAnomalyRecentDate(a) ?? ""));
-  }, [anomaliesData, periodFilter]);
-
-  const goTo = (dir: 1 | -1) => {
-    if (!selectedAnomalyId || !filtered.length) return;
-    const idx = filtered.findIndex((a: any) => a.id === selectedAnomalyId);
-    const next = (idx + dir + filtered.length) % filtered.length;
-    setSelectedAnomalyId(filtered[next]?.id ?? null);
-  };
-
-  return createPortal(
-    <div className={metricStyles.modalOverlay} onMouseDown={onClose}>
-      <div
-        className={metricStyles.modal}
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{ maxWidth: "95vw", width: "1200px" }}
-      >
-        <div className={metricStyles.modalHeader}>
-          <div className={metricStyles.modalTitle}>
-            <i className="fas fa-exclamation-triangle" style={{ marginRight: 8, color: "var(--warning-text, #f59e0b)" }} />
-            <span className={metricStyles.modalTitleText}>
-              Anomaly Detection: {metricData?.metric_name || `Metric ${metricId}`}
-              {anomaliesData ? ` (${anomaliesData.count} results)` : ""}
-            </span>
-          </div>
-          <button className={metricStyles.iconBtn} onClick={onClose} title="Close">
-            <i className="fas fa-times" />
-          </button>
-        </div>
-        <div className={metricStyles.modalBody}>
-          {selectedAnomalyId ? (
-            anomalyDetailQuery.isLoading ? (
-              <div className={metricStyles.muted} style={{ padding: 16, textAlign: "center" }}>
-                <i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }} />Loading…
-              </div>
-            ) : anomalyDetail ? (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-                  <button className={metricStyles.secondaryBtn} onClick={() => setSelectedAnomalyId(null)}>
-                    <i className="fas fa-arrow-left" /> Back
-                  </button>
-                  {filtered.length > 1 && (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button className={metricStyles.iconBtn} onClick={() => goTo(-1)} title="Previous">
-                        <i className="fas fa-chevron-left" />
-                      </button>
-                      <span style={{ fontSize: 12, color: "var(--text-secondary)", alignSelf: "center" }}>
-                        {filtered.findIndex((a: any) => a.id === selectedAnomalyId) + 1} / {filtered.length}
-                      </span>
-                      <button className={metricStyles.iconBtn} onClick={() => goTo(1)} title="Next">
-                        <i className="fas fa-chevron-right" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {anomalyDetail.chart_payload ? (
-                  <AnomalyChart
-                    chartData={{
-                      dates: anomalyDetail.chart_payload.dates || [],
-                      values: anomalyDetail.chart_payload.values || [],
-                      periods: anomalyDetail.chart_payload.periods || [],
-                    }}
-                    anomaly={{
-                      comparison_mean: anomalyDetail.comparison_mean || 0,
-                      recent_mean: anomalyDetail.recent_mean || 0,
-                      std_dev: anomalyDetail.stddev || 0,
-                      percent_change: anomalyDetail.pct_change || 0,
-                      period_type: anomalyDetail.period_type || "month",
-                    }}
-                    metadata={{
-                      object_name: anomalyDetail.object_name ?? undefined,
-                      field_name: anomalyDetail.metric_name ?? undefined,
-                      period_type: anomalyDetail.period_type,
-                    }}
-                    height={400}
-                  />
-                ) : (
-                  <div className={metricStyles.muted} style={{ padding: 16, textAlign: "center" }}>No chart data</div>
-                )}
-              </>
-            ) : null
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-                <select
-                  value={yesNoFilter}
-                  onChange={(e) => setYesNoFilter(e.target.value as "yes" | "no" | "all")}
-                  style={{ padding: "4px 8px", fontSize: 12, border: "1px solid var(--border-primary)", borderRadius: 4, background: "var(--bg-primary)", color: "var(--text-primary)" }}
-                >
-                  <option value="yes">Anomalies only</option>
-                  <option value="no">Non-anomalies only</option>
-                  <option value="all">All</option>
-                </select>
-                <select
-                  value={periodFilter}
-                  onChange={(e) => setPeriodFilter(e.target.value)}
-                  style={{ padding: "4px 8px", fontSize: 12, border: "1px solid var(--border-primary)", borderRadius: 4, background: "var(--bg-primary)", color: "var(--text-primary)" }}
-                >
-                  <option value="all">All periods</option>
-                  <option value="day">Daily</option>
-                  <option value="week">Weekly</option>
-                  <option value="month">Monthly</option>
-                  <option value="year">Yearly</option>
-                </select>
-              </div>
-              {anomaliesQuery.isLoading ? (
-                <div className={metricStyles.muted} style={{ padding: 24, textAlign: "center" }}>
-                  <i className="fas fa-spinner fa-spin" /> Loading…
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className={metricStyles.muted} style={{ padding: 24, textAlign: "center" }}>No results</div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: "var(--bg-secondary)" }}>
-                      <th style={{ padding: "6px 10px", textAlign: "left" }}>Date</th>
-                      <th style={{ padding: "6px 10px", textAlign: "left" }}>Period</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right" }}>Change</th>
-                      <th style={{ padding: "6px 10px", textAlign: "left" }}>Anomaly</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((a: any) => (
-                      <tr
-                        key={a.id}
-                        style={{ borderBottom: "1px solid var(--border-primary)", cursor: "pointer" }}
-                        onClick={() => setSelectedAnomalyId(a.id)}
-                      >
-                        <td style={{ padding: "6px 10px" }}>{getAnomalyRecentDate(a) ?? "—"}</td>
-                        <td style={{ padding: "6px 10px" }}>{a.period_type}</td>
-                        <td style={{ padding: "6px 10px", textAlign: "right", color: (a.pct_change ?? 0) > 0 ? "var(--color-success, #22c55e)" : "var(--color-error, #ef4444)", fontWeight: 600 }}>
-                          {a.pct_change != null ? `${a.pct_change > 0 ? "+" : ""}${a.pct_change.toFixed(1)}%` : "—"}
-                        </td>
-                        <td style={{ padding: "6px 10px" }}>{a.is_anomaly ? "Yes" : "No"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
 }
 
 // ─── ExecuteModal ─────────────────────────────────────────────────────────────
@@ -474,209 +152,23 @@ function ExecuteModal({
   );
 }
 
-// ─── MetricDetailDrawer ───────────────────────────────────────────────────────
-
-interface DrawerProps {
-  metric: CityMetric;
-  cityName: string;
-  onClose: () => void;
-  onSettings: () => void;
-  onCharts: () => void;
-  onMaps: () => void;
-  onAnomalies: () => void;
-  onExecute: () => void;
-  onDeactivate: () => void;
-  onDelete: () => void;
-  onWeekReplayChange: (choice: "always" | "never" | "auto") => void;
-  weekReplayUpdating?: boolean;
-  deactivating?: boolean;
-  deleting?: boolean;
-}
-
-function MetricDetailDrawer({
-  metric,
-  cityName,
-  onClose,
-  onSettings,
-  onCharts,
-  onMaps,
-  onAnomalies,
-  onExecute,
-  onDeactivate,
-  onDelete,
-  onWeekReplayChange,
-  weekReplayUpdating,
-  deactivating,
-  deleting,
-}: DrawerProps) {
-  const isActive = metric.is_active !== false;
-  const isSuccess = metric.last_execution_status === "completed" || metric.last_execution_status === "success";
-  const isFailure = ["failed", "failure", "error"].includes(metric.last_execution_status ?? "");
-
-  return (
-    <>
-      <div className={styles.drawerBackdrop} onClick={onClose} />
-      <div className={styles.drawer} role="complementary" aria-label={`Details for ${metric.metric_name}`}>
-        {/* Header */}
-        <div className={styles.drawerHeader}>
-          <div className={styles.drawerTitle}>
-            <p className={styles.drawerMetricName}>{metric.metric_name}</p>
-            <div className={styles.drawerMetricMeta}>
-              <span className={styles.drawerMetricKey}>{metric.metric_key}</span>
-              {metric.category && (
-                <span className={styles.drawerBadge}>{metric.category}</span>
-              )}
-              {!isActive && (
-                <span className={`${styles.drawerBadge}`} style={{ borderColor: "var(--color-error, #ef4444)", color: "var(--color-error, #ef4444)" }}>
-                  Inactive
-                </span>
-              )}
-            </div>
-          </div>
-          <button className={styles.drawerCloseBtn} onClick={onClose} aria-label="Close drawer">
-            ×
-          </button>
-        </div>
-
-        <div className={styles.drawerBody}>
-          {/* Inline chart */}
-          <div className={styles.drawerChartSection}>
-            <div className={styles.drawerChartHeader}>
-              <span className={styles.drawerSectionLabel}>Time Series</span>
-              <button className={styles.actionBtn} style={{ fontSize: 11, padding: "3px 10px" }} onClick={onCharts}>
-                <i className="fas fa-expand-alt" /> Full charts
-              </button>
-            </div>
-            <DrawerChart metricId={metric.id} />
-          </div>
-
-          {/* Key facts */}
-          <div className={styles.drawerFactsSection}>
-            <div className={styles.drawerSectionLabel} style={{ marginBottom: 8 }}>Details</div>
-            <div className={styles.drawerFactsGrid}>
-              <div className={styles.drawerFact}>
-                <span className={styles.drawerFactLabel}>Metric ID</span>
-                <span className={`${styles.drawerFactValue} ${styles.drawerFactValueMono}`}>{metric.id}</span>
-              </div>
-              <div className={styles.drawerFact}>
-                <span className={styles.drawerFactLabel}>Last data date</span>
-                <span className={styles.drawerFactValue}>{formatDate(metric.most_recent_data_date)}</span>
-              </div>
-              <div className={styles.drawerFact}>
-                <span className={styles.drawerFactLabel}>Last run</span>
-                <span className={styles.drawerFactValue}>
-                  {metric.last_execution_at ? (
-                    <>
-                      <span
-                        className={`${styles.statusDot} ${isSuccess ? styles.statusSuccess : isFailure ? styles.statusFailed : styles.statusNone}`}
-                      />
-                      {formatDate(metric.last_execution_at)}
-                    </>
-                  ) : (
-                    "Never"
-                  )}
-                </span>
-              </div>
-              <div className={styles.drawerFact}>
-                <span className={styles.drawerFactLabel}>Status</span>
-                <span className={styles.drawerFactValue}>
-                  {metric.last_execution_status ?? "—"}
-                </span>
-              </div>
-              <div className={styles.drawerFact}>
-                <span
-                  className={styles.drawerFactLabel}
-                  title="Whether this metric's events are fetched for the weekly replay map. Always = fetched even off-dash; Never = excluded; Auto = follows the dashboard flag."
-                >
-                  Week replay
-                </span>
-                <span className={styles.drawerFactValue}>
-                  <select
-                    value={
-                      metric.show_on_week_replay === true
-                        ? "always"
-                        : metric.show_on_week_replay === false
-                          ? "never"
-                          : "auto"
-                    }
-                    disabled={weekReplayUpdating}
-                    onChange={(e) =>
-                      onWeekReplayChange(
-                        e.target.value as "always" | "never" | "auto",
-                      )
-                    }
-                    style={{ fontSize: 12, padding: "2px 6px" }}
-                    aria-label="Week replay inclusion"
-                  >
-                    <option value="auto">Auto (follows dashboard)</option>
-                    <option value="always">Always</option>
-                    <option value="never">Never</option>
-                  </select>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className={styles.drawerActionsSection}>
-            <button className={`${styles.actionBtn} ${styles.actionBtnPrimary}`} onClick={onSettings}>
-              <i className="fas fa-cog" /> Settings
-            </button>
-            <button className={styles.actionBtn} onClick={onMaps}>
-              <i className="fas fa-map" /> Maps
-            </button>
-            <button className={styles.actionBtn} onClick={onAnomalies}>
-              <i className="fas fa-exclamation-triangle" /> Anomalies
-            </button>
-            <button className={styles.actionBtn} onClick={onExecute}>
-              <i className="fas fa-play" /> Execute
-            </button>
-            <button
-              className={`${styles.actionBtn} ${styles.actionBtnWarning}`}
-              onClick={onDeactivate}
-              disabled={deactivating}
-              title={isActive ? "Deactivate this metric" : "Reactivate this metric"}
-            >
-              {isActive ? (
-                <><i className="fas fa-pause" /> Deactivate</>
-              ) : (
-                <><i className="fas fa-check" /> Reactivate</>
-              )}
-            </button>
-            <button
-              className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-              onClick={onDelete}
-              disabled={deleting}
-            >
-              <i className="fas fa-trash" /> Delete
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
+/** Global admins only: the cleanup actions call admin-only metric routes. */
 export default function CityMetricsTab({
   cityId,
-  metrics: rawMetrics,
+  metrics,
   cityName,
   onMetricChange,
+  metricsPanel,
+  onViewJob,
 }: CityMetricsTabProps) {
-  const { getAccessTokenSilently } = useAuth0();
   const queryClient = useQueryClient();
-  const [isClient, setIsClient] = useState(false);
-  useEffect(() => setIsClient(true), []);
-
-  const metrics = (rawMetrics ?? []) as CityMetric[];
 
   // ── Section switcher ──────────────────────────────────────────────────────
   const [section, setSection] = useState<MetricSection>("active");
 
   // ── Shared data hooks ─────────────────────────────────────────────────────
-  const { data: orderingData } = useCityMetricOrdering(cityId);
   const { data: availableModelsData } = useAvailableModels();
   const templateStatusQuery = useTemplateInstantiationStatus(cityId);
   const instantiateSingleMutation = useInstantiateSingleTemplate();
@@ -689,25 +181,11 @@ export default function CityMetricsTab({
   const purgeMetricMutation = usePurgeMetricData();
 
   // ── Modals state ──────────────────────────────────────────────────────────
-  const [editModalOpen, setEditModalOpen] = useState(false);
   const [editModalMetricId, setEditModalMetricId] = useState<number | null>(null);
-  const [chartsOpen, setChartsOpen] = useState(false);
-  const [chartsMetricId, setChartsMetricId] = useState<number | null>(null);
-  const [mapsOpen, setMapsOpen] = useState(false);
-  const [mapsMetricId, setMapsMetricId] = useState<number | null>(null);
-  const [executeOpen, setExecuteOpen] = useState(false);
   const [executeMetricId, setExecuteMetricId] = useState<number | null>(null);
-  const [anomaliesOpen, setAnomaliesOpen] = useState(false);
-  const [anomaliesMetricId, setAnomaliesMetricId] = useState<number | null>(null);
-  const [runAllOpen, setRunAllOpen] = useState(false);
 
   // ── Detail drawer ─────────────────────────────────────────────────────────
   const [drawerMetricId, setDrawerMetricId] = useState<number | null>(null);
-  const drawerMetric = useMemo(() => metrics.find((m) => m.id === drawerMetricId) ?? null, [metrics, drawerMetricId]);
-
-  // ── Active section state ──────────────────────────────────────────────────
-  const [search, setSearch] = useState("");
-  const [metricSort, setMetricSort] = useState<"asc" | "desc" | null>(null);
 
   // ── Template section state ────────────────────────────────────────────────
   const [templateShowAll, setTemplateShowAll] = useState(true);
@@ -718,8 +196,11 @@ export default function CityMetricsTab({
   const [structuringNotesTarget, setStructuringNotesTarget] = useState<{ metricId?: number | null; templateId: number } | null>(null);
 
   // ── Cleanup section state ─────────────────────────────────────────────────
-  const [recordCounts, setRecordCounts] = useState<Record<number, any> | null>(null);
-  const [loadingRecordCounts, setLoadingRecordCounts] = useState(false);
+  const { data: recordCountsData, isLoading: loadingRecordCounts } = useMetricRecordCounts(
+    cityId,
+    section === "cleanup"
+  );
+  const recordCounts = recordCountsData?.counts;
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -758,44 +239,15 @@ export default function CityMetricsTab({
     }
   }, [jobs, runningAllJobId, runningSingleJobByTemplateId, templateStatusQuery, queryClient]);
 
-  // ── Auto-load record counts when entering cleanup section ─────────────────
-  useEffect(() => {
-    if (section !== "cleanup" || recordCounts || loadingRecordCounts) return;
-    (async () => {
-      try {
-        setLoadingRecordCounts(true);
-        const token = await getAccessTokenSilently();
-        const res = await getMetricRecordCounts(cityId, token);
-        setRecordCounts(res.counts);
-      } catch {
-        // silently fail — cleanup still works without counts
-      } finally {
-        setLoadingRecordCounts(false);
-      }
-    })();
-  }, [section, cityId, recordCounts, loadingRecordCounts, getAccessTokenSilently]);
-
   // ── Derived data ──────────────────────────────────────────────────────────
 
-  const orderingMap = useMemo(() => {
-    const map = new Map<number, { categoryOrder: number; metricOrder: number; categoryName: string }>();
-    orderingData?.orderings?.forEach((o) => {
-      if (o.metric_id) {
-        map.set(o.metric_id, { categoryOrder: o.category_order, metricOrder: o.metric_order, categoryName: o.category_name });
-      }
-    });
-    return map;
-  }, [orderingData]);
-
   const dashboardMetrics = useMemo(() => metrics.filter((m) => m.show_on_dash === true), [metrics]);
-
-  const activeMetrics = useMemo(() => metrics.filter((m) => m.is_active !== false), [metrics]);
 
   const inactiveMetrics = useMemo(() => metrics.filter((m) => m.is_active === false), [metrics]);
 
   const noDataActiveMetrics = useMemo(
-    () => activeMetrics.filter((m) => !m.most_recent_data_date),
-    [activeMetrics]
+    () => metrics.filter((m) => m.is_active !== false && !m.most_recent_data_date),
+    [metrics]
   );
 
   const metricNameById = useMemo(() => {
@@ -807,8 +259,8 @@ export default function CityMetricsTab({
   const sortedTemplates = useMemo(() => {
     const raw = templateStatusQuery.data?.templates ?? [];
     return [...raw].sort((a, b) => {
-      const slugCmp = templateCategorySlug(a.category, (a as TemplateRow).category_slug).localeCompare(
-        templateCategorySlug(b.category, (b as TemplateRow).category_slug),
+      const slugCmp = templateCategorySlug(a.category, a.category_slug).localeCompare(
+        templateCategorySlug(b.category, b.category_slug),
         undefined,
         { sensitivity: "base" }
       );
@@ -831,76 +283,20 @@ export default function CityMetricsTab({
     [sortedTemplates, templateShowAll]
   );
 
-  // Grouped active metrics with search + sort
-  const groupedActiveMetrics = useMemo(() => {
-    const lastDataDateKey = (m: CityMetric) => m.most_recent_data_date ? new Date(m.most_recent_data_date).getTime() : 0;
-
-    let filtered = activeMetrics;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      filtered = filtered.filter((m) => m.metric_name.toLowerCase().includes(q) || m.metric_key.toLowerCase().includes(q));
-    }
-
-    const grouped: Record<string, { metrics: (CityMetric & { metricOrder: number })[]; categoryOrder: number }> = {};
-    filtered.forEach((metric) => {
-      const ordering = orderingMap.get(metric.id);
-      const category = ordering?.categoryName || metric.category || "Uncategorized";
-      const categoryOrder = ordering?.categoryOrder ?? 1000;
-      const metricOrder = ordering?.metricOrder ?? 1000;
-      if (!grouped[category]) grouped[category] = { metrics: [], categoryOrder };
-      grouped[category].categoryOrder = Math.min(grouped[category].categoryOrder, categoryOrder);
-      grouped[category].metrics.push({ ...metric, metricOrder });
-    });
-
-    const sortedCats = Object.keys(grouped).sort((a, b) => {
-      const diff = grouped[a].categoryOrder - grouped[b].categoryOrder;
-      return diff !== 0 ? diff : a.localeCompare(b);
-    });
-
-    sortedCats.forEach((cat) => {
-      grouped[cat].metrics.sort((a, b) => {
-        if (metricSort === "desc") {
-          const tA = a.last_execution_at ? new Date(a.last_execution_at).getTime() : 0;
-          const tB = b.last_execution_at ? new Date(b.last_execution_at).getTime() : 0;
-          return tB - tA;
-        }
-        if (metricSort === "asc") {
-          const tA = a.last_execution_at ? new Date(a.last_execution_at).getTime() : 0;
-          const tB = b.last_execution_at ? new Date(b.last_execution_at).getTime() : 0;
-          return tA - tB;
-        }
-        const dA = lastDataDateKey(a);
-        const dB = lastDataDateKey(b);
-        if (dB !== dA) return dB - dA;
-        return a.metricOrder !== b.metricOrder ? a.metricOrder - b.metricOrder : a.metric_name.localeCompare(b.metric_name);
-      });
-    });
-
-    return { sortedCats, grouped };
-  }, [activeMetrics, search, metricSort, orderingMap]);
-
   // ── Handlers ──────────────────────────────────────────────────────────────
-
-  const openEditModal = (metricId: number) => { setEditModalMetricId(metricId); setEditModalOpen(true); };
-  const closeEditModal = () => { setEditModalOpen(false); setEditModalMetricId(null); };
-
-  const openCharts = (metricId: number) => { setChartsMetricId(metricId); setChartsOpen(true); };
-  const closeCharts = () => { setChartsOpen(false); setChartsMetricId(null); };
-
-  const openMaps = (metricId: number) => { setMapsMetricId(metricId); setMapsOpen(true); };
-  const closeMaps = () => { setMapsOpen(false); setMapsMetricId(null); };
-
-  const openExecute = (metricId: number) => { setExecuteMetricId(metricId); setExecuteOpen(true); };
-  const closeExecute = () => { setExecuteOpen(false); setExecuteMetricId(null); };
-
-  const openAnomalies = (metricId: number) => { setAnomaliesMetricId(metricId); setAnomaliesOpen(true); };
-  const closeAnomalies = () => { setAnomaliesOpen(false); setAnomaliesMetricId(null); };
 
   // The city admin payload (including its metrics) is cached client-side for
   // 60s in apiClient; clear it before refetching or mutations appear to no-op.
   const refreshMetrics = () => {
     clearCityAdminCache(cityId);
     onMetricChange();
+  };
+
+  const selectSection = (next: MetricSection) => {
+    // The Metrics panel saves through the ops API, which leaves the city admin
+    // payload behind it stale (e.g. a metric deactivated there).
+    if (section === "active" && next !== "active") refreshMetrics();
+    setSection(next);
   };
 
   const handleDelete = (metricId: number) => {
@@ -915,25 +311,13 @@ export default function CityMetricsTab({
     });
   };
 
-  const handleDeactivate = (metric: CityMetric) => {
-    const nextActive = metric.is_active === false; // toggle
-    if (!nextActive) {
-      const ok = confirm(
-        `Deactivate "${metric.metric_name}"?\n\nIt will be hidden from the public dashboard and excluded from scheduled runs. Its data is kept, and you can reactivate it any time from the Inactive & Cleanup tab.`
-      );
-      if (!ok) return;
-    }
+  const handleReactivate = (metric: CityMetric) => {
     updateMetricMutation.mutate(
-      { metricId: metric.id, payload: { is_active: nextActive } },
+      { metricId: metric.id, payload: { is_active: true } },
       {
         onSuccess: () => {
           refreshMetrics();
-          if (drawerMetricId === metric.id) setDrawerMetricId(null);
-          alert(
-            nextActive
-              ? `"${metric.metric_name}" reactivated. It is back in the Metrics tab.`
-              : `"${metric.metric_name}" deactivated. You can find it in the Inactive & Cleanup tab.`
-          );
+          alert(`"${metric.metric_name}" reactivated. It is back in the Metrics tab.`);
         },
         onError: (err) => alert(err instanceof Error ? err.message : "Failed to update metric"),
       }
@@ -943,7 +327,7 @@ export default function CityMetricsTab({
   const handlePurge = (metricId: number) => {
     if (!confirm("Purge all data for this metric? The definition will be kept.")) return;
     purgeMetricMutation.mutate({ metricId }, {
-      onSuccess: (res: any) => {
+      onSuccess: (res) => {
         alert(res.message || "Data purged");
         refreshMetrics();
       },
@@ -961,24 +345,15 @@ export default function CityMetricsTab({
       try {
         await deleteMetricMutation.mutateAsync(m.id);
         deleted++;
-      } catch {
+      } catch (err) {
         failed++;
+        console.error(`Failed to delete metric ${m.id}:`, err);
       }
     }
     setBulkDeleting(false);
     alert(`Deleted ${deleted} metric${deleted !== 1 ? "s" : ""}.${failed > 0 ? ` ${failed} failed — check console.` : ""}`);
     refreshMetrics();
   };
-
-  // ── Helpers for drawer ────────────────────────────────────────────────────
-
-  const openDrawer = (metricId: number) => setDrawerMetricId(metricId);
-  const closeDrawer = () => setDrawerMetricId(null);
-
-  const chartsMetricKey = useMemo(
-    () => (chartsMetricId ? metrics.find((m) => m.id === chartsMetricId)?.metric_key ?? null : null),
-    [chartsMetricId, metrics]
-  );
 
   // ── Badge counts ──────────────────────────────────────────────────────────
   const cleanupCount = inactiveMetrics.length + noDataActiveMetrics.length;
@@ -1002,7 +377,7 @@ export default function CityMetricsTab({
           <button
             key={key}
             className={`${styles.sectionBtn} ${section === key ? styles.sectionBtnActive : ""}`}
-            onClick={() => setSection(key as MetricSection)}
+            onClick={() => selectSection(key)}
             aria-current={section === key ? "true" : undefined}
           >
             {label}
@@ -1015,117 +390,7 @@ export default function CityMetricsTab({
         ))}
       </nav>
 
-      {/* ── Section: Active Metrics ──────────────────────────────────────── */}
-      {section === "active" && (
-        <div>
-          <div className={styles.toolbar}>
-            <input
-              type="search"
-              placeholder="Search metrics…"
-              className={styles.searchInput}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <select
-              className={styles.sortSelect}
-              value={metricSort ?? ""}
-              onChange={(e) => setMetricSort((e.target.value as "asc" | "desc") || null)}
-              aria-label="Sort metrics"
-            >
-              <option value="">Sort: by last data date</option>
-              <option value="desc">Sort: last run newest first</option>
-              <option value="asc">Sort: last run oldest first</option>
-            </select>
-            <button
-              className={styles.runAllBtn}
-              onClick={() => setRunAllOpen(true)}
-              disabled={activeMetrics.length === 0}
-            >
-              ▶ Run All Metrics
-            </button>
-          </div>
-
-          {activeMetrics.length === 0 ? (
-            <div className={styles.emptyState}>
-              <i className={`fas fa-chart-bar ${styles.emptyStateIcon}`} />
-              <p>No active metrics for this city.</p>
-            </div>
-          ) : groupedActiveMetrics.sortedCats.length === 0 ? (
-            <div className={styles.emptyState}>
-              <p>No metrics match &ldquo;{search}&rdquo;</p>
-            </div>
-          ) : (
-            groupedActiveMetrics.sortedCats.map((category) => (
-              <div key={category} style={{ marginBottom: 28 }}>
-                <h4 className={styles.categoryHeading}>{category}</h4>
-                <div className={cityAdminStyles.metricsTableContainer}>
-                  <table className={cityAdminStyles.metricsTable}>
-                    <thead>
-                      <tr>
-                        <th>Metric</th>
-                        <th>Last data</th>
-                        <th>Last run</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupedActiveMetrics.grouped[category].metrics.map((metric) => {
-                        const isSelected = drawerMetricId === metric.id;
-                        const hasNoData = !metric.most_recent_data_date;
-                        const isSuccess = metric.last_execution_status === "completed" || metric.last_execution_status === "success";
-                        const isFailure = ["failed", "failure", "error"].includes(metric.last_execution_status ?? "");
-
-                        return (
-                          <tr
-                            key={metric.id}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Open details for ${metric.metric_name}`}
-                            className={`${cityAdminStyles.metricTableRow} ${isSelected ? styles.metricRowSelected : ""} ${hasNoData ? cityAdminStyles.metricTableRowNoData : ""}`}
-                            style={{
-                              backgroundColor: !isSelected && !hasNoData
-                                ? isSuccess
-                                  ? "rgba(76, 175, 80, 0.07)"
-                                  : isFailure
-                                  ? "rgba(244, 67, 54, 0.07)"
-                                  : undefined
-                                : undefined,
-                            }}
-                            onClick={() => openDrawer(metric.id)}
-                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(metric.id); } }}
-                          >
-                            <td className={cityAdminStyles.metricNameCell}>
-                              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                                <span style={{ fontWeight: 500 }}>{metric.metric_name}</span>
-                                <span className={cityAdminStyles.metricIdInline}>({metric.id})</span>
-                              </div>
-                            </td>
-                            <td className={cityAdminStyles.metricDateCell}>
-                              {metric.most_recent_data_date
-                                ? <span>{new Date(metric.most_recent_data_date).toLocaleDateString("en-US", { timeZone: "UTC" })}</span>
-                                : <span style={{ color: "var(--color-error, #ef4444)" }}>No data</span>
-                              }
-                            </td>
-                            <td className={cityAdminStyles.metricExecutionCell}>
-                              {metric.last_execution_at ? (
-                                <span>
-                                  <span className={`${styles.statusDot} ${isSuccess ? styles.statusSuccess : isFailure ? styles.statusFailed : styles.statusNone}`} />
-                                  {new Date(metric.last_execution_at).toLocaleDateString("en-US", { timeZone: "UTC" })}
-                                </span>
-                              ) : (
-                                <span style={{ color: "var(--text-tertiary)" }}>Never</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      {section === "active" && metricsPanel}
 
       {/* ── Section: Templates ───────────────────────────────────────────── */}
       {section === "templates" && (
@@ -1331,8 +596,8 @@ export default function CityMetricsTab({
           {dashboardMetrics.length > 0 ? (
             <MetricOrderEditor
               cityId={cityId}
-              metrics={dashboardMetrics as any}
-              citySlug={citySlugFrom(cityName)}
+              metrics={dashboardMetrics}
+              citySlug={slugify(cityName) || null}
             />
           ) : (
             <div className={styles.emptyState}>
@@ -1411,7 +676,7 @@ export default function CityMetricsTab({
                             <div style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
                               <button
                                 className={`${styles.rowActionBtn} ${styles.rowActionBtnSuccess}`}
-                                onClick={() => handleDeactivate(metric)}
+                                onClick={() => handleReactivate(metric)}
                                 disabled={updateMetricMutation.isPending}
                               >
                                 Reactivate
@@ -1494,14 +759,14 @@ export default function CityMetricsTab({
                             <div style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
                               <button
                                 className={styles.rowActionBtn}
-                                onClick={() => { openDrawer(metric.id); setSection("active"); }}
-                                title="View and execute this metric"
+                                onClick={() => setDrawerMetricId(metric.id)}
+                                title="View run history and errors for this metric"
                               >
                                 Open
                               </button>
                               <button
                                 className={styles.rowActionBtn}
-                                onClick={() => openExecute(metric.id)}
+                                onClick={() => setExecuteMetricId(metric.id)}
                               >
                                 Execute
                               </button>
@@ -1525,27 +790,16 @@ export default function CityMetricsTab({
       )}
 
       {/* ── Detail Drawer ────────────────────────────────────────────────── */}
-      {drawerMetric && (
-        <MetricDetailDrawer
-          metric={drawerMetric}
-          cityName={cityName}
-          onClose={closeDrawer}
-          onSettings={() => openEditModal(drawerMetric.id)}
-          onCharts={() => openCharts(drawerMetric.id)}
-          onMaps={() => openMaps(drawerMetric.id)}
-          onAnomalies={() => openAnomalies(drawerMetric.id)}
-          onExecute={() => openExecute(drawerMetric.id)}
-          onDeactivate={() => handleDeactivate(drawerMetric)}
-          onDelete={() => handleDelete(drawerMetric.id)}
-          onWeekReplayChange={(choice) =>
-            updateMetricMutation.mutate(
-              { metricId: drawerMetric.id, payload: { show_on_week_replay: choice } },
-              { onSuccess: refreshMetrics },
-            )
-          }
-          weekReplayUpdating={updateMetricMutation.isPending}
-          deactivating={updateMetricMutation.isPending}
-          deleting={deleteMetricMutation.isPending}
+      {drawerMetricId != null && (
+        <MetricDrawer
+          cityId={cityId}
+          metricId={drawerMetricId}
+          canManage
+          isAdmin
+          onClose={() => setDrawerMetricId(null)}
+          onViewJob={(jobId) => onViewJob?.(jobId)}
+          onEditMetric={setEditModalMetricId}
+          onTogglePublic={refreshMetrics}
         />
       )}
 
@@ -1570,30 +824,18 @@ export default function CityMetricsTab({
       )}
 
       {/* ── Shared modals ────────────────────────────────────────────────── */}
-      {editModalMetricId && (
+      {editModalMetricId != null && (
         <MetricEditModal
           metricId={editModalMetricId}
-          isOpen={editModalOpen}
-          onClose={closeEditModal}
-          onExecute={(metricId) => { closeEditModal(); openExecute(metricId); }}
-          onSave={() => { refreshMetrics(); }}
+          isOpen
+          onClose={() => setEditModalMetricId(null)}
+          onExecute={(metricId) => {
+            setEditModalMetricId(null);
+            setExecuteMetricId(metricId);
+          }}
+          onSave={refreshMetrics}
         />
       )}
-
-      <MetricChartsModal
-        metricId={chartsMetricId}
-        isOpen={chartsOpen}
-        onClose={closeCharts}
-        metricKey={chartsMetricKey}
-        citySlug={citySlugFrom(cityName)}
-      />
-
-      <MetricMapsModal
-        metricId={mapsMetricId}
-        metricName={mapsMetricId ? metrics.find((m) => m.id === mapsMetricId)?.metric_name : undefined}
-        isOpen={mapsOpen}
-        onClose={closeMaps}
-      />
 
       <StructuringNotesModal
         metricId={structuringNotesTarget?.metricId}
@@ -1603,20 +845,8 @@ export default function CityMetricsTab({
         onClose={() => setStructuringNotesTarget(null)}
       />
 
-      <RunAllMetricsModal
-        isOpen={runAllOpen}
-        onClose={() => setRunAllOpen(false)}
-        cityId={cityId}
-        cityName={cityName}
-        metrics={activeMetrics as any}
-      />
-
-      {isClient && executeOpen && executeMetricId && (
-        <ExecuteModal metricId={executeMetricId} onClose={closeExecute} />
-      )}
-
-      {isClient && anomaliesOpen && anomaliesMetricId && (
-        <AnomaliesModal metricId={anomaliesMetricId} onClose={closeAnomalies} />
+      {executeMetricId != null && (
+        <ExecuteModal metricId={executeMetricId} onClose={() => setExecuteMetricId(null)} />
       )}
     </div>
   );

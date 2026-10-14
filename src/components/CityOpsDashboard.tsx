@@ -2265,8 +2265,9 @@ export default function CityOpsDashboard({
       setCriticalAlerts(0);
       return;
     }
-    // The health tab loads this payload itself. Skip the badge request then.
-    if (tab === "health") return;
+    // The health tab loads this payload itself, and single-panel embeds have no
+    // tab bar to put the badge on. Skip the badge request in both cases.
+    if (tab === "health" || singlePanel) return;
     let cancelled = false;
     setCriticalAlerts(0);
     (async () => {
@@ -2282,7 +2283,7 @@ export default function CityOpsDashboard({
     return () => {
       cancelled = true;
     };
-  }, [cityId, tab, getAccessTokenSilently]);
+  }, [cityId, tab, singlePanel, getAccessTokenSilently]);
 
   const selected = cities?.find((c) => c.city_id === cityId) ?? null;
   // Civic Discussion is visible to global admins and to city leads

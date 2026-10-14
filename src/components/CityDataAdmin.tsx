@@ -36,6 +36,7 @@ import DatasetsList from "@/components/DatasetsList";
 import Loader from "./Loader";
 import NewslettersTabPanel from "@/components/NewslettersTabPanel";
 import CityOpsDashboard from "@/components/CityOpsDashboard";
+import CityMetricsTab from "./cityAdmin/CityMetricsTab";
 import ShapeLayersSection from "./cityAdmin/ShapeLayersSection";
 import { portalPlatformLabel } from "@/lib/portalPlatformLabel";
 import {
@@ -76,6 +77,7 @@ interface Metric {
   metric_key: string;
   category?: string;
   subcategory?: string;
+  is_active?: boolean;
   show_on_dash?: boolean;
   last_execution_status?: string;
   last_execution_at?: string | null;
@@ -735,6 +737,16 @@ export default function CityDataAdmin({
     ? `${cityDataTyped.vector_db_size_mb.toFixed(2)} MB`
     : "N/A";
   const metricsCount = cityDataTyped.metrics?.length || 0;
+  const metricsPanel = (
+    <CityOpsDashboard
+      isAdmin={isGlobalAdmin}
+      embedded
+      fixedCityId={cityId}
+      initialTab="metrics"
+      singlePanel
+      onViewJob={onViewJob}
+    />
+  );
 
   return (
     <div className={`${styles.container} ${embedded ? styles.containerEmbedded : ""}`}>
@@ -3011,16 +3023,19 @@ export default function CityDataAdmin({
       )}
 
       {/* Metrics Tab */}
-      {activeTab === "metrics" && (
-        <CityOpsDashboard
-          isAdmin={isGlobalAdmin}
-          embedded
-          fixedCityId={cityId}
-          initialTab="metrics"
-          singlePanel
-          onViewJob={onViewJob}
-        />
-      )}
+      {activeTab === "metrics" &&
+        (isGlobalAdmin ? (
+          <CityMetricsTab
+            cityId={cityId}
+            metrics={cityDataTyped.metrics ?? []}
+            cityName={cityDataTyped.city_name || cityDataTyped.name || ""}
+            onMetricChange={refetchCity}
+            metricsPanel={metricsPanel}
+            onViewJob={onViewJob}
+          />
+        ) : (
+          metricsPanel
+        ))}
 
 
       {/* Datasets Tab */}
@@ -3168,11 +3183,6 @@ export default function CityDataAdmin({
           )}
         </div>
       )}
-
-      {/* metrics modals moved to CityMetricsTab */}
-
-
-
     </div>
   );
 }
