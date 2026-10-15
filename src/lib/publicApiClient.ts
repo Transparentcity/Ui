@@ -655,10 +655,10 @@ export type PublicMetricDetail = {
  * compares a cumulative value to the expected pace (rendered like ">=");
  * "tracked" means the law sets no numeric threshold.
  */
-export type MandateOperator = ">=" | "<=" | "pace" | "tracked";
+export type MandateOperator = ">=" | "<=" | "==" | "pace" | "tracked";
 
 /** Per-period status from compliance.status_for(). */
-export type MandatePeriodStatusValue = "met" | "missed" | "no_data" | "tracked";
+export type MandatePeriodStatusValue = "met" | "missed" | "off_pace" | "no_data" | "tracked";
 
 /**
  * `MandateDef.standard_metadata()`: the MandateStandard dataclass plus the

@@ -5,6 +5,7 @@ import styles from "./Mandates.module.css";
 const STATUS_CLASS: Record<string, string> = {
   met: styles.sparkMet,
   missed: styles.sparkMissed,
+  off_pace: styles.sparkMissed,
   tracked: styles.sparkTracked,
   no_data: styles.sparkNoData,
 };

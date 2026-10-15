@@ -64,6 +64,7 @@ export function mandatePillKind(
         ? "at_risk"
         : "met";
     case "missed":
+    case "off_pace":
       return "missed";
     case "tracked":
       return "tracked";
@@ -93,7 +94,9 @@ export function mandateStreakText(
       ? "Met"
       : compliance.streak_status === "missed"
         ? "Missed"
-        : null;
+        : compliance.streak_status === "off_pace"
+          ? "Behind pace for"
+          : null;
   if (!verb) return null;
   if (n === 1) return `${verb} the latest ${grainNoun(grain, 1)}`;
   return `${verb} ${n} ${grainNoun(grain, n)} running`;
@@ -121,7 +124,9 @@ export function formatMandateTarget(standard: MandateStandard | null | undefined
   const sym =
     standard.operator === "<="
       ? "≤"
-      : standard.operator === "pace"
+      : standard.operator === "=="
+        ? "="
+        : standard.operator === "pace"
         ? "On pace for"
         : "≥";
   return `${sym} ${formatMandateValue(standard.target, standard.unit)}`;
