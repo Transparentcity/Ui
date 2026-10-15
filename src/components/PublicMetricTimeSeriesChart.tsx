@@ -6,7 +6,7 @@ import {
   getPublicTimeSeriesChart,
   type PublicTimeSeriesChartResponse,
 } from "@/lib/publicApiClient";
-import TimeSeriesChart, { type PeriodType } from "./TimeSeriesChart";
+import TimeSeriesChart, { type ChartReferenceLine, type PeriodType } from "./TimeSeriesChart";
 import Loader from "./Loader";
 
 /**
@@ -48,6 +48,9 @@ export default function PublicMetricTimeSeriesChart({
   staleness_days,
   reportingCompletenessHref,
   measurementType = "flow",
+  referenceLines,
+  valueUnit,
+  preferredPeriod,
 }: {
   primaryChartId: number | null;
   yearChartId: number | null;
@@ -56,6 +59,15 @@ export default function PublicMetricTimeSeriesChart({
   reportingCompletenessHref?: string | null;
   /** "flow" (default) or "stock" — controls how duplicate points are aggregated. */
   measurementType?: "flow" | "stock";
+  /** Horizontal target lines (e.g. a legal standard), passed to TimeSeriesChart. */
+  referenceLines?: ChartReferenceLine[];
+  /** Overrides the series' value unit, e.g. "percentage" for a "%" legal standard. */
+  valueUnit?: string | null;
+  /**
+   * Initial period view. Legal-standard metrics are judged per period, so they
+   * open on their grain rather than the cumulative YTD view.
+   */
+  preferredPeriod?: PeriodType;
 }) {
   const [useNativeYearSeries, setUseNativeYearSeries] = useState(false);
 
@@ -128,8 +140,11 @@ export default function PublicMetricTimeSeriesChart({
   );
   // Stock metrics don't have a meaningful "year-to-date" overlay — default to the plain
   // monthly view so the level series renders as a continuous line without YTD summing.
-  const defaultPeriod: PeriodType =
-    measurementType === "stock"
+  const defaultPeriod: PeriodType = preferredPeriod
+    ? useNativeYearSeries && yearChartId != null
+      ? "year"
+      : preferredPeriod
+    : measurementType === "stock"
       ? "month"
       : useNativeYearSeries && yearChartId != null
         ? "year"
@@ -140,13 +155,14 @@ export default function PublicMetricTimeSeriesChart({
       <TimeSeriesChart
         key={activeChartId}
         data={aggregated}
-        metadata={data.metadata}
+        metadata={valueUnit ? { ...data.metadata, value_unit: valueUnit } : data.metadata}
         height={320}
         defaultPeriod={defaultPeriod}
         fullBleed={true}
         hidePeriodSelector={false}
         showExternalTitle={true}
         staleness_days={staleness_days}
+        referenceLines={referenceLines}
         onPeriodChange={(p) => {
           if (p === "year" && yearChartId != null) {
             setUseNativeYearSeries(true);

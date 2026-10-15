@@ -54,9 +54,18 @@ function getCachedOrFetch<T>(
 
 async function requestPublic<T>(
   path: string,
-  options?: { next?: { revalidate?: number | false; tags?: string[] } }
+  options?: {
+    next?: { revalidate?: number | false; tags?: string[] };
+    /**
+     * Optional bearer token for public endpoints that widen access for signed-in
+     * users (e.g. dark-launched features that are admin-only until public).
+     * Authenticated responses are never cached.
+     */
+    token?: string | null;
+  }
 ): Promise<T> {
   const url = `${resolvePublicApiBaseUrl()}${path}`;
+  const token = options?.token ?? null;
 
   try {
     const res = await fetch(url, {
@@ -64,12 +73,14 @@ async function requestPublic<T>(
       // Public endpoints should not require cookies/auth headers.
       // Omitting credentials avoids cross-origin credential/CORS failures.
       credentials: "omit",
-      headers: {
-        Accept: "application/json",
-      },
+      headers: token
+        ? { Accept: "application/json", Authorization: `Bearer ${token}` }
+        : { Accept: "application/json" },
       // Cache public API responses for 1 hour, matching page-level ISR revalidation.
       // Callers may override (e.g. metric-ordering uses tags for on-demand bust).
-      next: options?.next ?? { revalidate: 3600 },
+      ...(token
+        ? { cache: "no-store" as const }
+        : { next: options?.next ?? { revalidate: 3600 } }),
     });
 
     if (!res.ok) {
@@ -626,7 +637,112 @@ export type PublicMetricDetail = {
   most_recent_data_date: string | null;
   earliest_data_date: string | null;
   city_name?: string | null;
+  /** Legal standard the metric is judged against (legal-mandate metrics only). */
+  standard?: MandateStandard | null;
+  /** Where the standard comes from when it is not a single legal citation. */
+  standards_basis?: string | null;
+  /** Longer methodology write-up (Markdown). */
+  methodology_md?: string | null;
 };
+
+// ============================================================================
+// LEGAL MANDATES
+// Mirrors platform services/mandates/{registry,compliance,service}.py.
+// ============================================================================
+
+/**
+ * Comparison operator. ">=" / "<=" compare each period to `target`; "pace"
+ * compares a cumulative value to the expected pace (rendered like ">=");
+ * "tracked" means the law sets no numeric threshold.
+ */
+export type MandateOperator = ">=" | "<=" | "pace" | "tracked";
+
+/** Per-period status from compliance.status_for(). */
+export type MandatePeriodStatusValue = "met" | "missed" | "no_data" | "tracked";
+
+/**
+ * `MandateDef.standard_metadata()`: the MandateStandard dataclass plus the
+ * mandate's owner/report/sanction fields. Everything beyond the core standard
+ * is optional so the metric-detail `standard` object can carry a subset.
+ */
+export type MandateStandard = {
+  operator: MandateOperator | (string & {});
+  target: number | null;
+  /** "%", "people", "units", "quarters" */
+  unit: string;
+  /** "month" | "quarter" | "year" (the metric's period_type) */
+  grain: string;
+  /** Plain-language standard shown to readers. */
+  text: string;
+  /** Legal source for the standard. */
+  citation: string;
+  mandate_id?: string | null;
+  title?: string | null;
+  area?: string | null;
+  owner_department?: string | null;
+  owner_official?: string | null;
+  owner_contact?: string | null;
+  report_name?: string | null;
+  report_url?: string | null;
+  sanctions?: string | null;
+  /** "High" | "Medium" | "Low" */
+  sanction_severity?: string | null;
+  past_enforcement?: string | null;
+  method_note?: string | null;
+};
+
+export type MandatePeriodStatus = {
+  /** ISO date of the period start. */
+  period: string;
+  value: number | null;
+  status: MandatePeriodStatusValue;
+};
+
+/** compliance.ComplianceSummary.to_dict() */
+export type MandateCompliance = {
+  latest_period: string | null;
+  latest_value: number | null;
+  latest_status: MandatePeriodStatusValue;
+  streak_status: MandatePeriodStatusValue;
+  streak_length: number;
+  /** Periods that met the standard among the last 12. */
+  met_count_recent: number;
+  /** Periods evaluated (met or missed) among the last 12. */
+  evaluated_count_recent: number;
+  last_met_period: string | null;
+  last_missed_period: string | null;
+  /** Up to the last 24 periods, oldest first. */
+  periods: MandatePeriodStatus[];
+};
+
+export type PublicCityMandate = {
+  metric_id: number;
+  metric_key: string;
+  metric_name: string;
+  most_recent_data_date: string | null;
+  standard: MandateStandard;
+  compliance: MandateCompliance;
+};
+
+export type PublicCityMandatesResponse = {
+  city_id: number;
+  mandates: PublicCityMandate[];
+};
+
+/**
+ * Legal mandates for a city with compliance against each standard.
+ * The API answers 403 for non-admins while the feature is dark-launched, so
+ * pass the signed-in user's token; the thrown error carries `status`.
+ */
+export function getPublicCityMandates(
+  cityId: number,
+  token?: string | null
+): Promise<PublicCityMandatesResponse> {
+  return requestPublic<PublicCityMandatesResponse>(
+    `/api/public/cities/${cityId}/mandates`,
+    { token: token ?? null, next: { revalidate: 600 } }
+  );
+}
 
 /** For derived metrics: shows A/B=C formula with component values for transparency */
 export type CalculationBreakdown = {

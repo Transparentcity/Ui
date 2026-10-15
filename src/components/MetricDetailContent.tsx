@@ -36,6 +36,10 @@ import CompletenessSparkline from "./CompletenessSparkline";
 import MetricSourceAttribution from "./MetricSourceAttribution";
 import MetricChainView from "./MetricChainView";
 import { formatPercentValue, isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
+import LegalStandardPanel from "./mandates/LegalStandardPanel";
+import { mandateReferenceLine, mandatesEnabled } from "@/lib/mandates";
+import { useCityMandates } from "@/lib/hooks/useCityMandates";
+import type { PeriodType } from "./TimeSeriesChart";
 import "./MetricChainView.css";
 
 interface MetricDetailContentProps {
@@ -251,7 +255,25 @@ export default function MetricDetailContent({
   // Rate metrics carry percentage wording in item_noun ("% Closed"), so their
   // headline numbers need a "%" — a bare "32" next to a "46.8" reads as a count
   // and hides that these are rates.
-  const isPercentMetric = isPercentageNoun(metric.item_noun);
+  // Legal-mandate metrics carry their unit on `standard`; "%" standards read
+  // as percentages with one decimal even when item_noun is plain wording.
+  const legalStandard = mandatesEnabled() ? metric.standard ?? null : null;
+  const isPercentMetric =
+    isPercentageNoun(metric.item_noun) || legalStandard?.unit === "%";
+  const mandatesState = useCityMandates(metric.city_id ?? null, {
+    enabled: Boolean(legalStandard) && metric.city_id != null,
+  });
+  const mandateCompliance =
+    mandatesState.mandates.find((m) => m.metric_key === metric.metric_key)?.compliance ?? null;
+  const standardReferenceLines = useMemo(() => {
+    const line = mandateReferenceLine(legalStandard);
+    return line ? [line] : undefined;
+  }, [legalStandard]);
+  const standardPreferredPeriod: PeriodType | undefined = legalStandard
+    ? legalStandard.grain === "year"
+      ? "year"
+      : "month"
+    : undefined;
 
   const formatValue = (value: number | null | undefined, isLoading?: boolean): string => {
     if (isLoading) return "Loading...";
@@ -548,6 +570,9 @@ export default function MetricDetailContent({
               staleness_days={staleness_days}
               reportingCompletenessHref={reportingCompletenessHref}
               measurementType={isStockMetric ? "stock" : "flow"}
+              referenceLines={standardReferenceLines}
+              valueUnit={legalStandard?.unit === "%" ? "percentage" : undefined}
+              preferredPeriod={standardPreferredPeriod}
             />
             <MetricSourceAttribution
               sourceInfo={datasetAttribution}
@@ -677,6 +702,18 @@ export default function MetricDetailContent({
             district={selectedDistrict}
           />
         </section>
+      )}
+
+      {/* Legal standard (legal-mandate metrics only) */}
+      {legalStandard && (
+        <LegalStandardPanel
+          standard={legalStandard}
+          standardsBasis={metric.standards_basis}
+          compliance={mandateCompliance}
+          scorecardHref={
+            mandateCompliance && citySlug ? `/c/${citySlug}/mandates` : null
+          }
+        />
       )}
 
       {/* About This Data */}

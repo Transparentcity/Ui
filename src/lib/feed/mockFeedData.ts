@@ -187,6 +187,15 @@ const KNOWN_CARD_TYPES = new Set<string>([
   "comparison", "milestone", "traction",
 ]);
 
+// Backend story types that render with an existing card. Legal-mandate
+// stories: a missed standard or falling off pace is an alert; returning to the
+// standard is good news (traction), not an alert.
+const STORY_TYPE_CARD_ALIASES: Record<string, CardType> = {
+  missed_standard: "alert",
+  off_pace: "alert",
+  back_to_standard: "traction",
+};
+
 function deriveCardType(story: FeedStory): CardType {
   const storyType = (story.story_type ?? "").toLowerCase();
   const meta = story.metadata ?? {};
@@ -203,7 +212,8 @@ function deriveCardType(story: FeedStory): CardType {
     return "business";
   }
 
-  // 1. Trust the backend story_type if it's a known card type
+  // 1. Trust the backend story_type if it's a known card type (or an alias)
+  if (STORY_TYPE_CARD_ALIASES[storyType]) return STORY_TYPE_CARD_ALIASES[storyType];
   if (KNOWN_CARD_TYPES.has(storyType)) return storyType as CardType;
 
   // 2. Fallback: read metadata.angle (interim for stories still typed 'research')

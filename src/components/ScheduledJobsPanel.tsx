@@ -913,6 +913,7 @@ export default function ScheduledJobsPanel({
                   "feed_stories",
                   "district_feed_stories",
                   "context_stories",
+                  "mandate_stories",
                   "batch_metric_execution",
                   "daily_metrics",
                   "weekly_metrics",

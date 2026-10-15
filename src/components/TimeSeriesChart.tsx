@@ -113,7 +113,22 @@ export interface TimeSeriesChartProps {
    * and recent-period highlight. Shown only when the selected grain matches.
    */
   anomalyOverlay?: AnomalyOverlay | null;
+  /**
+   * Horizontal reference lines (e.g. a legal standard's target), drawn as
+   * dashed Plotly shapes across the plot in every period view. The y-axis
+   * range expands so each line stays visible.
+   */
+  referenceLines?: ChartReferenceLine[];
 }
+
+export interface ChartReferenceLine {
+  y: number;
+  label?: string;
+  /** CSS color; defaults to the brand purple. */
+  color?: string;
+}
+
+const EMPTY_REFERENCE_LINES: ChartReferenceLine[] = [];
 
 /**
  * Build the unit suffix shown after a value, e.g. "3" -> "3 days".
@@ -857,6 +872,7 @@ export default function TimeSeriesChart({
   parentProvidesTitle = false,
   layoutDensity = "auto",
   anomalyOverlay = null,
+  referenceLines = EMPTY_REFERENCE_LINES,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -1614,7 +1630,7 @@ export default function TimeSeriesChart({
       : null;
 
   // Calculate maximum Y value for Y-axis range (stacked: max period total; otherwise max single value)
-  const maxYValue = useMemo(() => {
+  const dataMaxYValue = useMemo(() => {
     if (periodType === "ytd" && useCompactLayout) {
       const currentYear = new Date().getFullYear();
       const displayMax = maxYtdSevenDayAverage(aggregatedByGroup, {
@@ -1666,6 +1682,15 @@ export default function TimeSeriesChart({
     anomalyOverlay,
   ]);
 
+  // Keep reference lines (targets) inside the plotted range.
+  const maxYValue = useMemo(() => {
+    let max = dataMaxYValue;
+    for (const line of referenceLines) {
+      if (Number.isFinite(line.y) && line.y * 1.08 > max) max = line.y * 1.08;
+    }
+    return max;
+  }, [dataMaxYValue, referenceLines]);
+
   // Use lighter, more visible colors in dark mode
   const textColor = resolvedTheme === "dark" ? "#f8fafc" : "#222222";
   const axisLineColor = resolvedTheme === "dark" ? "#475569" : "#e5e7eb";
@@ -1683,6 +1708,41 @@ export default function TimeSeriesChart({
     resolvedTheme === "dark"
       ? "rgba(30, 41, 59, 0.8)"
       : "rgba(246, 241, 234, 0.7)";
+
+  const referenceLayout = useMemo(() => {
+    const lines = referenceLines.filter((l) => Number.isFinite(l.y));
+    if (lines.length === 0) return {};
+    return {
+      shapes: lines.map((l) => ({
+        type: "line" as const,
+        xref: "paper" as const,
+        x0: 0,
+        x1: 1,
+        yref: "y" as const,
+        y0: l.y,
+        y1: l.y,
+        layer: "above" as const,
+        line: { color: l.color ?? "#ad35fa", width: 1.5, dash: "dash" as const },
+      })),
+      annotations: lines
+        .filter((l) => l.label)
+        .map((l) => ({
+          xref: "paper" as const,
+          x: 1,
+          xanchor: "right" as const,
+          yref: "y" as const,
+          y: l.y,
+          yanchor: "bottom" as const,
+          text: l.label,
+          showarrow: false,
+          font: {
+            family: PLOT_AXIS_FONT_FAMILY,
+            size: isMobile ? 8 : 10,
+            color: l.color ?? "#ad35fa",
+          },
+        })),
+    };
+  }, [referenceLines, isMobile]);
 
   const layout = useMemo(() => {
     // Special layout for YTD charts
@@ -1858,6 +1918,7 @@ export default function TimeSeriesChart({
           },
         },
         height,
+        ...referenceLayout,
       };
     }
     
@@ -1954,8 +2015,9 @@ export default function TimeSeriesChart({
         bgcolor: legendBgColor,
       },
       height,
+      ...referenceLayout,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, isPercentageUnit]);
+  }, [referenceLayout, plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, isPercentageUnit]);
 
   const config = {
     responsive: true,
