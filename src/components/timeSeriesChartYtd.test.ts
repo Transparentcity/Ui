@@ -4,6 +4,7 @@ import {
   isDenseMultiGroupYtd,
   maxYtdSevenDayAverage,
   niceYAxisMax,
+  referenceLinesForPeriod,
   trailingSevenDayAverage,
 } from "./timeSeriesChartYtd";
 
@@ -50,5 +51,17 @@ describe("timeSeriesChartYtd", () => {
     expect(
       maxYtdSevenDayAverage(map, { currentYear, showPriorYear: true }),
     ).toBe(100);
+  });
+});
+
+describe("referenceLinesForPeriod", () => {
+  const lines = [{ y: 90 }];
+  it("drops reference lines in the YTD view", () => {
+    expect(referenceLinesForPeriod(lines, "ytd")).toEqual([]);
+  });
+  it("keeps reference lines in per-period views", () => {
+    for (const p of ["day", "week", "month", "year"]) {
+      expect(referenceLinesForPeriod(lines, p)).toBe(lines);
+    }
   });
 });
