@@ -579,6 +579,9 @@ export default function MetricDetailContent({
               valueUnit={legalStandard?.unit === "%" ? "percentage" : undefined}
               preferredPeriod={standardPreferredPeriod}
               disableYtd={disableChartYtd}
+              allowedPeriods={
+                legalStandard ? [legalStandard.grain === "year" ? "year" : "month"] : undefined
+              }
             />
             <MetricSourceAttribution
               sourceInfo={datasetAttribution}

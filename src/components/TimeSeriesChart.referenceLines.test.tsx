@@ -69,6 +69,21 @@ describe("TimeSeriesChart reference lines", () => {
     expect(lastLayout().shapes).toHaveLength(1);
   });
 
+  it("offers only the allowed periods and opens on one of them", () => {
+    render(
+      <TimeSeriesChart
+        data={data}
+        defaultPeriod="year"
+        referenceLines={target}
+        hideYtdPeriod
+        allowedPeriods={["month"]}
+      />
+    );
+    const select = screen.getByRole("combobox") as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["month"]);
+    expect(select.value).toBe("month");
+  });
+
   it("still offers YTD by default", () => {
     render(<TimeSeriesChart data={data} defaultPeriod="month" />);
     const select = screen.getByRole("combobox") as HTMLSelectElement;

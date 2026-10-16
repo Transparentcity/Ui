@@ -125,6 +125,11 @@ export interface TimeSeriesChartProps {
    * running total is meaningless, e.g. percentages or averages.
    */
   hideYtdPeriod?: boolean;
+  /**
+   * Restrict the period dropdown to these periods (e.g. a legal mandate's own
+   * grain, where day/week/year views would sum rates into nonsense).
+   */
+  allowedPeriods?: PeriodType[];
 }
 
 export interface ChartReferenceLine {
@@ -863,6 +868,14 @@ function formatDateLabel(dateStr: string, periodType: PeriodType): string {
   }
 }
 
+const PERIOD_OPTION_LABELS: Record<string, string> = {
+  day: "Day",
+  week: "Week",
+  month: "Month",
+  year: "Year",
+  ytd: "Year-to-Date",
+};
+
 export default function TimeSeriesChart({
   data,
   metadata,
@@ -880,6 +893,7 @@ export default function TimeSeriesChart({
   anomalyOverlay = null,
   referenceLines = EMPTY_REFERENCE_LINES,
   hideYtdPeriod = false,
+  allowedPeriods,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -912,8 +926,14 @@ export default function TimeSeriesChart({
     : defaultPeriod !== "month"
       ? defaultPeriod
       : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
-  const effectiveDefaultPeriod: PeriodType =
+  const periodOptions = (["day", "week", "month", "year", "ytd"] as PeriodType[]).filter(
+    (p) =>
+      (allowedPeriods ? allowedPeriods.includes(p) : true) && !(hideYtdPeriod && p === "ytd")
+  );
+  const ytdSafeDefault: PeriodType =
     hideYtdPeriod && resolvedDefaultPeriod === "ytd" ? "month" : resolvedDefaultPeriod;
+  const effectiveDefaultPeriod: PeriodType =
+    periodOptions.includes(ytdSafeDefault) ? ytdSafeDefault : (periodOptions[0] ?? ytdSafeDefault);
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
   // Default to "by series" lines; one-click toggle to stacked areas
@@ -2054,11 +2074,11 @@ export default function TimeSeriesChart({
                 onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
                 className={styles.select}
               >
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-                <option value="year">Year</option>
-                {!hideYtdPeriod && <option value="ytd">Year-to-Date</option>}
+                {periodOptions.map((p) => (
+                  <option key={p} value={p}>
+                    {PERIOD_OPTION_LABELS[p]}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -2095,11 +2115,11 @@ export default function TimeSeriesChart({
               onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
               className={styles.select}
             >
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
-              {!hideYtdPeriod && <option value="ytd">Year-to-Date</option>}
+              {periodOptions.map((p) => (
+                <option key={p} value={p}>
+                  {PERIOD_OPTION_LABELS[p]}
+                </option>
+              ))}
             </select>
           </div>
           {useCompactLayout && periodType === "ytd" && (

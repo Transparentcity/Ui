@@ -52,6 +52,7 @@ export default function PublicMetricTimeSeriesChart({
   valueUnit,
   preferredPeriod,
   disableYtd = false,
+  allowedPeriods,
 }: {
   primaryChartId: number | null;
   yearChartId: number | null;
@@ -71,6 +72,8 @@ export default function PublicMetricTimeSeriesChart({
   preferredPeriod?: PeriodType;
   /** Hide the Year-to-Date view (running totals are meaningless for this series). */
   disableYtd?: boolean;
+  /** Restrict the chart's period dropdown (see TimeSeriesChart). */
+  allowedPeriods?: Array<"day" | "week" | "month" | "year" | "ytd">;
 }) {
   const [useNativeYearSeries, setUseNativeYearSeries] = useState(false);
 
@@ -167,6 +170,7 @@ export default function PublicMetricTimeSeriesChart({
         staleness_days={staleness_days}
         referenceLines={referenceLines}
         hideYtdPeriod={disableYtd}
+        allowedPeriods={allowedPeriods}
         onPeriodChange={(p) => {
           if (p === "year" && yearChartId != null) {
             setUseNativeYearSeries(true);
