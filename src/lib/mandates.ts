@@ -25,8 +25,9 @@ export const MANDATE_PILL_LABELS: Record<MandatePillKind, string> = {
  * deliberately loose; it exists to stop a years-old result reading as current.
  */
 const STALE_AFTER_MONTHS: Record<string, number> = {
-  // State sources lag: Medi-Cal renewals publish about 6 months behind.
-  month: 6,
+  // State sources lag: Medi-Cal renewals publish about 6 months behind, so
+  // allow one month of slack before calling a monthly series stale.
+  month: 7,
   quarter: 9,
   year: 24,
 };
