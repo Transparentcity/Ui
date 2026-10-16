@@ -6,6 +6,7 @@ import {
   formatMandatePeriod,
   formatMandateTarget,
   formatMandateValue,
+  splitMandateValue,
   mandatePillKind,
   mandateStreakText,
   type MandatePillKind,
@@ -46,6 +47,18 @@ function MandateRow({
   const target = formatMandateTarget(standard);
   const latestPeriod = formatMandatePeriod(compliance.latest_period, standard.grain);
   const title = standard.title || mandate.metric_name;
+  // A pace standard is judged on the running total, not the latest period.
+  const isPace = standard.operator === "pace";
+  const lastPace = isPace
+    ? [...compliance.periods].reverse().find((p) => p.cumulative_actual != null)
+    : undefined;
+  const shown = splitMandateValue(
+    lastPace ? lastPace.cumulative_actual : compliance.latest_value,
+    standard.unit
+  );
+  const sparkPeriods = isPace
+    ? compliance.periods.map((p) => ({ ...p, value: p.cumulative_actual ?? null }))
+    : compliance.periods;
 
   return (
     <li className={styles.row} data-testid="mandate-row">
@@ -80,16 +93,20 @@ function MandateRow({
       </div>
       <div className={styles.rowStats}>
         <div className={styles.latest}>
-          <span className={styles.latestValue}>
-            {formatMandateValue(compliance.latest_value, standard.unit)}
-          </span>
+          <span className={styles.latestValue}>{shown.number}</span>
+          {shown.unit && <span className={styles.latestUnit}>{shown.unit}</span>}
           {latestPeriod && <span className={styles.latestPeriod}>{latestPeriod}</span>}
         </div>
+        {lastPace?.cumulative_expected != null && (
+          <div className={styles.target}>
+            Expected by now: {formatMandateValue(Math.round(lastPace.cumulative_expected), standard.unit)}
+          </div>
+        )}
         {target && <div className={styles.target}>Standard: {target}</div>}
         {streak && <div className={styles.streak}>{streak}</div>}
         <MandateSparkline
-          periods={compliance.periods}
-          target={standard.operator === "tracked" ? null : standard.target}
+          periods={sparkPeriods}
+          target={standard.operator === "tracked" || isPace ? null : standard.target}
           label={`${title}: last ${compliance.periods.length} periods`}
         />
       </div>

@@ -25,7 +25,8 @@ export const MANDATE_PILL_LABELS: Record<MandatePillKind, string> = {
  * deliberately loose; it exists to stop a years-old result reading as current.
  */
 const STALE_AFTER_MONTHS: Record<string, number> = {
-  month: 4,
+  // State sources lag: Medi-Cal renewals publish about 6 months behind.
+  month: 6,
   quarter: 9,
   year: 24,
 };
@@ -100,6 +101,27 @@ export function mandateStreakText(
   if (!verb) return null;
   if (n === 1) return `${verb} the latest ${grainNoun(grain, 1)}`;
   return `${verb} ${n} ${grainNoun(grain, n)} running`;
+}
+
+/**
+ * Split a value into its number and unit for display, e.g. 1,047 + "people".
+ * "%" stays attached to the number; a count of exactly 1 takes the singular
+ * of a plural unit ("1 permit in violation").
+ */
+export function splitMandateValue(
+  value: number | null | undefined,
+  unit: string | null | undefined
+): { number: string; unit: string | null } {
+  if (value == null || Number.isNaN(value)) return { number: "No data", unit: null };
+  if (unit === "%") return { number: formatMandateValue(value, unit), unit: null };
+  const number = value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  if (!unit) return { number, unit: null };
+  if (value === 1) {
+    const [head, ...rest] = unit.split(" ");
+    const singular = head.endsWith("s") && head !== "people" ? head.slice(0, -1) : head;
+    return { number, unit: [singular, ...rest].join(" ") };
+  }
+  return { number, unit };
 }
 
 /** Format a value in the standard's unit: "%" gets one decimal and a suffix. */

@@ -696,6 +696,10 @@ export type MandatePeriodStatus = {
   period: string;
   value: number | null;
   status: MandatePeriodStatusValue;
+  /** `pace` only: running total since the cycle began. */
+  cumulative_actual?: number | null;
+  /** `pace` only: straight-line total expected by the end of this period. */
+  cumulative_expected?: number | null;
 };
 
 /** compliance.ComplianceSummary.to_dict() */

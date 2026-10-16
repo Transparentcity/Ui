@@ -76,7 +76,9 @@ export default function LegalStandardPanel({
         <div className="provenance-item">
           <h3 className="provenance-label">Legal source</h3>
           {standard.citation && <p className="provenance-value">{standard.citation}</p>}
-          {standardsBasis && <p className="provenance-value">{standardsBasis}</p>}
+          {standardsBasis && standardsBasis.trim() !== standard.citation?.trim() && (
+            <p className="provenance-value">{standardsBasis}</p>
+          )}
         </div>
       )}
 

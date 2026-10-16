@@ -94,14 +94,25 @@
 
 .latest {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-sm);
+  column-gap: var(--space-sm);
 }
 
 .latestValue {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.latestUnit {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.latestPeriod {
+  white-space: nowrap;
 }
 
 .latestPeriod,
