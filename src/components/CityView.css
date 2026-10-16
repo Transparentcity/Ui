@@ -3416,3 +3416,38 @@ button.metrics-table-row {
   padding-right: 0;
 }
 
+
+/* Legal Mandates dashboard section (NEXT_PUBLIC_MANDATES_ENABLED): no YTD
+   columns, since standards are judged per period. Compound selectors keep the
+   single-column grid ahead of the responsive 4-column rules above. */
+.metrics-table-header.metrics-mandates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md, 12px);
+}
+
+.metrics-mandates-scorecard-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.metrics-mandates-scorecard-link:hover {
+  text-decoration: underline;
+}
+
+.metrics-mandates-note {
+  padding: 6px var(--space-lg, 16px);
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-bottom: none;
+}
+
+.metrics-table-row.metrics-mandates-row {
+  grid-template-columns: minmax(0, 1fr);
+}

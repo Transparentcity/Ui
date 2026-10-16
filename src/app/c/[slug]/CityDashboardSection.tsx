@@ -18,6 +18,7 @@ import {
   resolveDisplayCategory,
   resolveDisplaySubcategory,
 } from "@/lib/metricOrderingDisplay";
+import { isLegalMandateCategory, mandatesEnabled } from "@/lib/mandates";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
 export type MetricOrderingEntry = {
@@ -105,7 +106,23 @@ export default function CityDashboardSection({
     Map<string | null, { m: PublicCityMetricItem; ytd: NonNullable<PublicMetricComparisons["comparisons"]["ytd"]> | null; categoryOrder: number; metricOrder: number }[]>
   >();
 
-  metrics.forEach((m) => {
+  // Legal-mandate metrics get their own section (no YTD columns) when the
+  // mandates UI is on. With the flag off every metric stays in `tableMetrics`.
+  const mandateMetrics = mandatesEnabled()
+    ? metrics.filter((m) => isLegalMandateCategory(m.category))
+    : [];
+  const tableMetrics =
+    mandateMetrics.length > 0
+      ? metrics.filter((m) => !mandateMetrics.includes(m))
+      : metrics;
+  const sortedMandateMetrics = mandateMetrics.slice().sort((a, b) => {
+    const oa = orderingMap?.get(a.id)?.metricOrder ?? 1000;
+    const ob = orderingMap?.get(b.id)?.metricOrder ?? 1000;
+    if (oa !== ob) return oa - ob;
+    return a.metric_name.localeCompare(b.metric_name);
+  });
+
+  tableMetrics.forEach((m) => {
     const comp = comparisonsMap[m.id];
     const ytd = comp?.comparisons?.ytd ?? null;
     const ord = orderingMap?.get(m.id);
@@ -161,7 +178,7 @@ export default function CityDashboardSection({
     }
   }
 
-  if (sortedCategories.length === 0) {
+  if (sortedCategories.length === 0 && mandateMetrics.length === 0) {
     return (
       <section className="dashboard-section" style={{ marginTop: 0 }}>
         <div className="dashboard-comparison-selector">
@@ -448,6 +465,40 @@ export default function CityDashboardSection({
             </div>
           );
         })}
+
+        {sortedMandateMetrics.length > 0 && (
+          <div className="metrics-category-section metrics-mandates-section">
+            <div className="metrics-table-header metrics-mandates-header">
+              <div className="metric-col metric-col-name">Legal Mandates</div>
+              <Link href={`${base}/mandates`} className="metrics-mandates-scorecard-link">
+                See compliance scorecard →
+              </Link>
+            </div>
+            <div className="metrics-mandates-note">
+              Each legal standard is judged period by period, so year-to-date totals aren&rsquo;t
+              shown here.
+            </div>
+            <div className="metrics-table-body">
+              {sortedMandateMetrics.map((m) => {
+                const metricHref = isDistrictView
+                  ? `${base}/metrics/${m.metric_key}?district=${districtFilter}`
+                  : `${base}/metrics/${m.metric_key}`;
+                return (
+                  <Link
+                    key={m.id}
+                    href={metricHref}
+                    className="metrics-table-row metrics-table-row-clickable metrics-mandates-row"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <div className="metric-col metric-col-name">
+                      <span className="metric-name">{m.metric_name}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {storiesSlot}
