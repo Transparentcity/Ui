@@ -37,7 +37,11 @@ import MetricSourceAttribution from "./MetricSourceAttribution";
 import MetricChainView from "./MetricChainView";
 import { formatPercentValue, isPercentageNoun } from "@/lib/maps/formatChoroplethValue";
 import LegalStandardPanel from "./mandates/LegalStandardPanel";
-import { mandateReferenceLine, mandatesEnabled } from "@/lib/mandates";
+import {
+  mandateChartDisablesYtd,
+  mandateReferenceLine,
+  mandatesEnabled,
+} from "@/lib/mandates";
 import { useCityMandates } from "@/lib/hooks/useCityMandates";
 import type { PeriodType } from "./TimeSeriesChart";
 import "./MetricChainView.css";
@@ -274,6 +278,7 @@ export default function MetricDetailContent({
       ? "year"
       : "month"
     : undefined;
+  const disableChartYtd = mandateChartDisablesYtd(legalStandard, metric.measurement_type);
 
   const formatValue = (value: number | null | undefined, isLoading?: boolean): string => {
     if (isLoading) return "Loading...";
@@ -573,6 +578,7 @@ export default function MetricDetailContent({
               referenceLines={standardReferenceLines}
               valueUnit={legalStandard?.unit === "%" ? "percentage" : undefined}
               preferredPeriod={standardPreferredPeriod}
+              disableYtd={disableChartYtd}
             />
             <MetricSourceAttribution
               sourceInfo={datasetAttribution}

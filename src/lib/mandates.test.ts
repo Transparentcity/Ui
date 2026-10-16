@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { MandateCompliance, MandateStandard } from "@/lib/publicApiClient";
-import { formatMandateTarget, mandatePillKind, mandateStreakText } from "@/lib/mandates";
+import {
+  formatMandateTarget,
+  isLegalMandateCategory,
+  mandateChartDisablesYtd,
+  mandatePillKind,
+  mandateStreakText,
+} from "@/lib/mandates";
 
 const now = new Date("2026-03-15T00:00:00Z");
 
@@ -34,5 +40,36 @@ describe("pace and equality standards", () => {
   it("formats an equality target with =", () => {
     const standard = { operator: "==", target: 0, unit: "quarters" } as MandateStandard;
     expect(formatMandateTarget(standard)).toBe("= 0 quarters");
+  });
+});
+
+describe("mandateChartDisablesYtd", () => {
+  const pct = { operator: ">=", target: 90, unit: "%", grain: "month" } as MandateStandard;
+  const count = { operator: "<=", target: 1562, unit: "people", grain: "month" } as MandateStandard;
+
+  it("drops YTD for percentage standards", () => {
+    expect(mandateChartDisablesYtd(pct, "flow")).toBe(true);
+  });
+
+  it("drops YTD for level (stock) series", () => {
+    expect(mandateChartDisablesYtd(count, "stock")).toBe(true);
+  });
+
+  it("keeps YTD for count flows and for metrics without a standard", () => {
+    expect(mandateChartDisablesYtd(count, "flow")).toBe(false);
+    expect(mandateChartDisablesYtd(null, "stock")).toBe(false);
+  });
+});
+
+describe("isLegalMandateCategory", () => {
+  it("matches the legal mandates category loosely", () => {
+    expect(isLegalMandateCategory("Legal mandates")).toBe(true);
+    expect(isLegalMandateCategory(" legal Mandates ")).toBe(true);
+    expect(isLegalMandateCategory("legal_mandates")).toBe(true);
+  });
+
+  it("ignores other categories", () => {
+    expect(isLegalMandateCategory("Public safety")).toBe(false);
+    expect(isLegalMandateCategory(null)).toBe(false);
   });
 });

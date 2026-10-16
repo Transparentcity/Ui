@@ -160,3 +160,30 @@ export function formatMandatePeriod(
   }
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
+
+/**
+ * Whether a legal-standard metric's chart should drop the Year-to-Date view.
+ * YTD sums each period, which is meaningless for a "%" standard (summed
+ * percentages) or a level/average series (stock metrics). No aggregation
+ * field reaches the UI yet, so measurement_type "stock" is the proxy for
+ * averaged/level series.
+ */
+export function mandateChartDisablesYtd(
+  standard: MandateStandard | null | undefined,
+  measurementType?: string | null
+): boolean {
+  if (!standard) return false;
+  return standard.unit === "%" || measurementType === "stock";
+}
+
+/** Category name the platform assigns to legal-mandate metrics. */
+export const LEGAL_MANDATES_CATEGORY = "Legal mandates";
+
+/** True for the legal-mandates category, tolerant of case, spacing and snake_case. */
+export function isLegalMandateCategory(category: string | null | undefined): boolean {
+  if (!category) return false;
+  return (
+    category.trim().toLowerCase().replace(/[_\s]+/g, " ") ===
+    LEGAL_MANDATES_CATEGORY.toLowerCase()
+  );
+}

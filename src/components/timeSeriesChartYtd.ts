@@ -121,3 +121,13 @@ export function trailingSevenDayAverage(values: number[]): number[] {
     return window.reduce((acc, v) => acc + v, 0) / window.length;
   });
 }
+
+/**
+ * Reference lines (e.g. a legal standard's per-period target) only apply to
+ * per-period views. The YTD view plots running totals, so a per-period target
+ * line there is meaningless and is dropped (along with its y-axis padding).
+ */
+export function referenceLinesForPeriod<T>(lines: T[], periodType: string): T[] {
+  if (periodType === "ytd" && lines.length > 0) return [];
+  return lines;
+}

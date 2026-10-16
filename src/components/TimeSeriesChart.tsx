@@ -17,6 +17,7 @@ import {
   isDenseMultiGroupYtd,
   maxYtdSevenDayAverage,
   niceYAxisMax,
+  referenceLinesForPeriod,
   trailingSevenDayAverage,
 } from "./timeSeriesChartYtd";
 import {
@@ -119,6 +120,11 @@ export interface TimeSeriesChartProps {
    * range expands so each line stays visible.
    */
   referenceLines?: ChartReferenceLine[];
+  /**
+   * Remove the Year-to-Date option (and never open on it). For series where a
+   * running total is meaningless, e.g. percentages or averages.
+   */
+  hideYtdPeriod?: boolean;
 }
 
 export interface ChartReferenceLine {
@@ -873,6 +879,7 @@ export default function TimeSeriesChart({
   layoutDensity = "auto",
   anomalyOverlay = null,
   referenceLines = EMPTY_REFERENCE_LINES,
+  hideYtdPeriod = false,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -900,11 +907,13 @@ export default function TimeSeriesChart({
 
   // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
   // Only fall back to metadata.period_type if no explicit default was provided
-  const effectiveDefaultPeriod = anomalyOverlay?.periodType
+  const resolvedDefaultPeriod = anomalyOverlay?.periodType
     ? anomalyOverlay.periodType
     : defaultPeriod !== "month"
       ? defaultPeriod
       : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
+  const effectiveDefaultPeriod: PeriodType =
+    hideYtdPeriod && resolvedDefaultPeriod === "ytd" ? "month" : resolvedDefaultPeriod;
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
   // Default to "by series" lines; one-click toggle to stacked areas
@@ -1682,14 +1691,20 @@ export default function TimeSeriesChart({
     anomalyOverlay,
   ]);
 
+  // Per-period targets don't apply to the cumulative YTD view.
+  const activeReferenceLines = useMemo(
+    () => referenceLinesForPeriod(referenceLines, periodType),
+    [referenceLines, periodType]
+  );
+
   // Keep reference lines (targets) inside the plotted range.
   const maxYValue = useMemo(() => {
     let max = dataMaxYValue;
-    for (const line of referenceLines) {
+    for (const line of activeReferenceLines) {
       if (Number.isFinite(line.y) && line.y * 1.08 > max) max = line.y * 1.08;
     }
     return max;
-  }, [dataMaxYValue, referenceLines]);
+  }, [dataMaxYValue, activeReferenceLines]);
 
   // Use lighter, more visible colors in dark mode
   const textColor = resolvedTheme === "dark" ? "#f8fafc" : "#222222";
@@ -1710,7 +1725,7 @@ export default function TimeSeriesChart({
       : "rgba(246, 241, 234, 0.7)";
 
   const referenceLayout = useMemo(() => {
-    const lines = referenceLines.filter((l) => Number.isFinite(l.y));
+    const lines = activeReferenceLines.filter((l) => Number.isFinite(l.y));
     if (lines.length === 0) return {};
     return {
       shapes: lines.map((l) => ({
@@ -1742,7 +1757,7 @@ export default function TimeSeriesChart({
           },
         })),
     };
-  }, [referenceLines, isMobile]);
+  }, [activeReferenceLines, isMobile]);
 
   const layout = useMemo(() => {
     // Special layout for YTD charts
@@ -2043,7 +2058,7 @@ export default function TimeSeriesChart({
                 <option value="week">Week</option>
                 <option value="month">Month</option>
                 <option value="year">Year</option>
-                <option value="ytd">Year-to-Date</option>
+                {!hideYtdPeriod && <option value="ytd">Year-to-Date</option>}
               </select>
             </div>
           </div>
@@ -2084,7 +2099,7 @@ export default function TimeSeriesChart({
               <option value="week">Week</option>
               <option value="month">Month</option>
               <option value="year">Year</option>
-              <option value="ytd">Year-to-Date</option>
+              {!hideYtdPeriod && <option value="ytd">Year-to-Date</option>}
             </select>
           </div>
           {useCompactLayout && periodType === "ytd" && (
