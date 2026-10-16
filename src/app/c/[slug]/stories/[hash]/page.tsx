@@ -246,7 +246,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
         {/* Story type badge */}
         <div className="story-badge-wrapper">
           <span
-            className={`story-badge ${story.story_type === "traction" ? "story-badge-traction" : "story-badge-default"}`}
+            className={`story-badge ${(story.story_type === "traction" || story.story_type === "back_to_standard") ? "story-badge-traction" : "story-badge-default"}`}
           >
             {(story.story_type ?? "story").replace(/_/g, " ")}
           </span>
@@ -412,7 +412,7 @@ export default async function CanonicalStoryPage({ params }: PageProps) {
                   className="story-related-card"
                 >
                   <span className="story-related-emoji">
-                    {rs.story_type === "off_the_charts" ? "\u{1F92F}" : rs.story_type === "alert" ? "\u{1F6A8}" : rs.story_type === "trend" ? "\u{1F4C8}" : rs.story_type === "milestone" ? "\u{1F3C6}" : "\u{1F4CB}"}
+                    {rs.story_type === "off_the_charts" ? "\u{1F92F}" : (rs.story_type === "alert" || rs.story_type === "missed_standard" || rs.story_type === "off_pace") ? "\u{1F6A8}" : rs.story_type === "trend" ? "\u{1F4C8}" : rs.story_type === "milestone" ? "\u{1F3C6}" : "\u{1F4CB}"}
                   </span>
                   <div className="story-related-text">
                     <span className="story-related-headline">

@@ -17,6 +17,7 @@ import {
   isDenseMultiGroupYtd,
   maxYtdSevenDayAverage,
   niceYAxisMax,
+  referenceLinesForPeriod,
   trailingSevenDayAverage,
 } from "./timeSeriesChartYtd";
 import {
@@ -113,7 +114,32 @@ export interface TimeSeriesChartProps {
    * and recent-period highlight. Shown only when the selected grain matches.
    */
   anomalyOverlay?: AnomalyOverlay | null;
+  /**
+   * Horizontal reference lines (e.g. a legal standard's target), drawn as
+   * dashed Plotly shapes across the plot in every period view. The y-axis
+   * range expands so each line stays visible.
+   */
+  referenceLines?: ChartReferenceLine[];
+  /**
+   * Remove the Year-to-Date option (and never open on it). For series where a
+   * running total is meaningless, e.g. percentages or averages.
+   */
+  hideYtdPeriod?: boolean;
+  /**
+   * Restrict the period dropdown to these periods (e.g. a legal mandate's own
+   * grain, where day/week/year views would sum rates into nonsense).
+   */
+  allowedPeriods?: PeriodType[];
 }
+
+export interface ChartReferenceLine {
+  y: number;
+  label?: string;
+  /** CSS color; defaults to the brand purple. */
+  color?: string;
+}
+
+const EMPTY_REFERENCE_LINES: ChartReferenceLine[] = [];
 
 /**
  * Build the unit suffix shown after a value, e.g. "3" -> "3 days".
@@ -842,6 +868,14 @@ function formatDateLabel(dateStr: string, periodType: PeriodType): string {
   }
 }
 
+const PERIOD_OPTION_LABELS: Record<string, string> = {
+  day: "Day",
+  week: "Week",
+  month: "Month",
+  year: "Year",
+  ytd: "Year-to-Date",
+};
+
 export default function TimeSeriesChart({
   data,
   metadata,
@@ -857,6 +891,9 @@ export default function TimeSeriesChart({
   parentProvidesTitle = false,
   layoutDensity = "auto",
   anomalyOverlay = null,
+  referenceLines = EMPTY_REFERENCE_LINES,
+  hideYtdPeriod = false,
+  allowedPeriods,
 }: TimeSeriesChartProps) {
   const { theme } = useTheme();
   const resolvedTheme = forcedTheme ?? theme;
@@ -884,11 +921,19 @@ export default function TimeSeriesChart({
 
   // Use explicitly passed defaultPeriod first (e.g., "ytd" from modal)
   // Only fall back to metadata.period_type if no explicit default was provided
-  const effectiveDefaultPeriod = anomalyOverlay?.periodType
+  const resolvedDefaultPeriod = anomalyOverlay?.periodType
     ? anomalyOverlay.periodType
     : defaultPeriod !== "month"
       ? defaultPeriod
       : (metadata?.period_type?.toLowerCase() as PeriodType) || defaultPeriod;
+  const periodOptions = (["day", "week", "month", "year", "ytd"] as PeriodType[]).filter(
+    (p) =>
+      (allowedPeriods ? allowedPeriods.includes(p) : true) && !(hideYtdPeriod && p === "ytd")
+  );
+  const ytdSafeDefault: PeriodType =
+    hideYtdPeriod && resolvedDefaultPeriod === "ytd" ? "month" : resolvedDefaultPeriod;
+  const effectiveDefaultPeriod: PeriodType =
+    periodOptions.includes(ytdSafeDefault) ? ytdSafeDefault : (periodOptions[0] ?? ytdSafeDefault);
   const [periodType, setPeriodType] = useState<PeriodType>(effectiveDefaultPeriod);
   const [showPartialInfo, setShowPartialInfo] = useState(false);
   // Default to "by series" lines; one-click toggle to stacked areas
@@ -1614,7 +1659,7 @@ export default function TimeSeriesChart({
       : null;
 
   // Calculate maximum Y value for Y-axis range (stacked: max period total; otherwise max single value)
-  const maxYValue = useMemo(() => {
+  const dataMaxYValue = useMemo(() => {
     if (periodType === "ytd" && useCompactLayout) {
       const currentYear = new Date().getFullYear();
       const displayMax = maxYtdSevenDayAverage(aggregatedByGroup, {
@@ -1666,6 +1711,21 @@ export default function TimeSeriesChart({
     anomalyOverlay,
   ]);
 
+  // Per-period targets don't apply to the cumulative YTD view.
+  const activeReferenceLines = useMemo(
+    () => referenceLinesForPeriod(referenceLines, periodType),
+    [referenceLines, periodType]
+  );
+
+  // Keep reference lines (targets) inside the plotted range.
+  const maxYValue = useMemo(() => {
+    let max = dataMaxYValue;
+    for (const line of activeReferenceLines) {
+      if (Number.isFinite(line.y) && line.y * 1.08 > max) max = line.y * 1.08;
+    }
+    return max;
+  }, [dataMaxYValue, activeReferenceLines]);
+
   // Use lighter, more visible colors in dark mode
   const textColor = resolvedTheme === "dark" ? "#f8fafc" : "#222222";
   const axisLineColor = resolvedTheme === "dark" ? "#475569" : "#e5e7eb";
@@ -1683,6 +1743,41 @@ export default function TimeSeriesChart({
     resolvedTheme === "dark"
       ? "rgba(30, 41, 59, 0.8)"
       : "rgba(246, 241, 234, 0.7)";
+
+  const referenceLayout = useMemo(() => {
+    const lines = activeReferenceLines.filter((l) => Number.isFinite(l.y));
+    if (lines.length === 0) return {};
+    return {
+      shapes: lines.map((l) => ({
+        type: "line" as const,
+        xref: "paper" as const,
+        x0: 0,
+        x1: 1,
+        yref: "y" as const,
+        y0: l.y,
+        y1: l.y,
+        layer: "above" as const,
+        line: { color: l.color ?? "#ad35fa", width: 1.5, dash: "dash" as const },
+      })),
+      annotations: lines
+        .filter((l) => l.label)
+        .map((l) => ({
+          xref: "paper" as const,
+          x: 1,
+          xanchor: "right" as const,
+          yref: "y" as const,
+          y: l.y,
+          yanchor: "bottom" as const,
+          text: l.label,
+          showarrow: false,
+          font: {
+            family: PLOT_AXIS_FONT_FAMILY,
+            size: isMobile ? 8 : 10,
+            color: l.color ?? "#ad35fa",
+          },
+        })),
+    };
+  }, [activeReferenceLines, isMobile]);
 
   const layout = useMemo(() => {
     // Special layout for YTD charts
@@ -1858,6 +1953,7 @@ export default function TimeSeriesChart({
           },
         },
         height,
+        ...referenceLayout,
       };
     }
     
@@ -1954,8 +2050,9 @@ export default function TimeSeriesChart({
         bgcolor: legendBgColor,
       },
       height,
+      ...referenceLayout,
     };
-  }, [plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, isPercentageUnit]);
+  }, [referenceLayout, plotlyTitleText, cityName, chartTitle, yAxisLabel, periodType, height, hasGroups, traces.length, maxYValue, aggregatedByGroup, resolvedTheme, textColor, axisLineColor, gridColor, gridColorLight, hoverBgColor, hoverTextColor, legendBgColor, isMobile, useCompactLayout, isPercentageUnit]);
 
   const config = {
     responsive: true,
@@ -1977,11 +2074,11 @@ export default function TimeSeriesChart({
                 onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
                 className={styles.select}
               >
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-                <option value="year">Year</option>
-                <option value="ytd">Year-to-Date</option>
+                {periodOptions.map((p) => (
+                  <option key={p} value={p}>
+                    {PERIOD_OPTION_LABELS[p]}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -2018,11 +2115,11 @@ export default function TimeSeriesChart({
               onChange={(e) => handlePeriodChange(e.target.value as PeriodType)}
               className={styles.select}
             >
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
-              <option value="ytd">Year-to-Date</option>
+              {periodOptions.map((p) => (
+                <option key={p} value={p}>
+                  {PERIOD_OPTION_LABELS[p]}
+                </option>
+              ))}
             </select>
           </div>
           {useCompactLayout && periodType === "ytd" && (

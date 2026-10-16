@@ -66,6 +66,10 @@ describe("deriveCardType", () => {
     ["trusts backend story_type 'off_the_charts'", { story_type: "off_the_charts" }, "off_the_charts"],
     ["falls back to alert for unknown 'my_block'", { story_type: "my_block" }, "alert"],
     ["trusts backend story_type '311_images'", { story_type: "311_images" }, "311_images"],
+    ["maps legal-mandate 'missed_standard' → alert", { story_type: "missed_standard" }, "alert"],
+    ["maps legal-mandate 'off_pace' → alert", { story_type: "off_pace" }, "alert"],
+    ["maps legal-mandate 'back_to_standard' → traction", { story_type: "back_to_standard" }, "traction"],
+    ["maps 'back_to_standard' → traction even with an 'improved' headline", { story_type: "back_to_standard", headline: "911 answer times improved" }, "traction"],
   ])("%s", (_label, overrides, expected) => {
     const enriched = enrichStory(makeStory(overrides));
     expect(enriched.card_type).toBe(expected);
