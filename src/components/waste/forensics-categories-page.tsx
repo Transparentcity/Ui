@@ -87,7 +87,8 @@ export function ForensicsCategoriesPage() {
 
   // One headline metric per category card: the underlying citywide number
   // (e.g. overtime share on the payroll card) next to the findings count.
-  const { byCategory: keyMetricsByCategory } = useWasteKeyMetrics(cityId)
+  const { byCategory: keyMetricsByCategory, isError: keyMetricsError } =
+    useWasteKeyMetrics(cityId)
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, { total: number; critical: number; amount: number }> = {}
@@ -147,6 +148,15 @@ export function ForensicsCategoriesPage() {
           </div>
         ) : (
           <div>
+            {keyMetricsError && (
+              <p
+                className="px-3 pb-2 text-xs italic text-gray-400"
+                data-testid="key-metrics-error"
+              >
+                Key metrics couldn&apos;t load. Finding counts below are
+                unaffected.
+              </p>
+            )}
             {/* Band header: section label + right-aligned column headers. */}
             <div
               className="flex items-center px-3 py-[10px] border-t border-b"
