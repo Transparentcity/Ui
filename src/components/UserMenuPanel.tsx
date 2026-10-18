@@ -8,6 +8,7 @@ import {
   ADMIN_API_DOCS_ICON,
   ADMIN_GUIDE_ICON,
   ADMIN_SITEMAP_ICON,
+  ADMIN_WASTE_ICON,
 } from "@/lib/adminMenuItems";
 import { API_BASE_FOR_ASSETS } from "@/lib/apiBase";
 import { clearPersistedWasteCache } from "@/lib/wasteQueryPersister";
@@ -97,6 +98,10 @@ export default function UserMenuPanel({
           <Link href="/sitemap" className={styles.item} id="sitemap-menu-item" role="menuitem" onClick={onClose}>
             <MenuIcon>{ADMIN_SITEMAP_ICON}</MenuIcon>
             <span>Sitemap</span>
+          </Link>
+          <Link href="/waste" className={styles.item} id="waste-menu-item" role="menuitem" onClick={onClose}>
+            <MenuIcon>{ADMIN_WASTE_ICON}</MenuIcon>
+            <span>Waste detection</span>
           </Link>
           <a
             href={`${API_BASE_FOR_ASSETS}/admin/docs`}
