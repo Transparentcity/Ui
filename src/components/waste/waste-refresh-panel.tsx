@@ -41,6 +41,16 @@ function parseCityResults(result: unknown): CityRunResult[] {
   )
 }
 
+/** Weekly schedule plus a day of grace. */
+const OVERDUE_DAYS = 8
+
+function isOverdue(iso: string | null | undefined): boolean {
+  if (!iso) return false
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return false
+  return Date.now() - t > OVERDUE_DAYS * 86_400_000
+}
+
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return "—"
   const d = parseWasteTimestamp(iso)
@@ -226,21 +236,34 @@ export function WasteRefreshPanel() {
             Last run {formatWhen(schedule.last_run_at)} · next{" "}
             {formatWhen(schedule.next_run_at)}
           </p>
+          {isOverdue(schedule.last_run_at) && (
+            <p
+              className="mt-1 text-xs font-medium text-red-600"
+              data-testid="refresh-overdue"
+            >
+              The weekly refresh hasn&apos;t run in over {OVERDUE_DAYS} days.
+              Check Job Administration.
+            </p>
+          )}
           {cityResults.length > 0 && (
             <ul className="mt-1 space-y-0.5">
               {cityResults.map((c) => {
                 const status = c.status ?? ""
-                const ok = status === "completed" || status === "success"
-                // A city can finish with findings persisted but some detector
-                // families errored — the backend reports that as a
-                // "completed…"-prefixed status and/or a non-empty errors array.
-                // That is a partial success (amber), not a hard failure (red).
+                // A city can finish with findings persisted but some datasets
+                // or detector families errored. The backend reports that as a
+                // "completed…"/"success" status with a non-empty errors array.
+                // That is a partial success (amber), not "ok": the old check
+                // read status alone, so a city whose business registry failed
+                // every week still showed a green "ok".
                 const errs = c.errors ?? (c.error ? [c.error] : [])
+                const finished =
+                  status === "completed" || status === "success"
+                const ok = finished && errs.length === 0
                 const partial =
                   !ok &&
                   (status === "partial" ||
                     status.startsWith("completed") ||
-                    (errs.length > 0 && status.startsWith("success")))
+                    status.startsWith("success"))
                 const tooltip = errs.length > 0 ? errs.join("\n") : undefined
                 return (
                   <li
@@ -265,7 +288,11 @@ export function WasteRefreshPanel() {
                             : "text-red-600"
                       }
                     >
-                      {ok ? "ok" : status || "unknown"}
+                      {ok
+                        ? "ok"
+                        : partial && errs.length > 0
+                          ? `partial, ${errs.length} error${errs.length === 1 ? "" : "s"}`
+                          : status || "unknown"}
                     </span>
                   </li>
                 )
