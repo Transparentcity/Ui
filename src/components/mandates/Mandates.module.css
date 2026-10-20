@@ -62,7 +62,8 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr) 210px 120px;
+  align-items: center;
   gap: var(--space-xl);
   padding: var(--space-lg) var(--space-xl);
   border: 1px solid var(--border);
@@ -84,12 +85,19 @@
   border-left-color: var(--success);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 760px) {
   .row {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-lg);
+    align-items: start;
+    gap: var(--space-md);
     padding: var(--space-lg);
   }
+}
+
+.rowSpark {
+  min-width: 0;
+  /* On a phone the row stacks; keep the sparkline a glance, not a chart. */
+  max-width: 220px;
 }
 
 .rowMain {
@@ -225,7 +233,8 @@
 /* Sparkline */
 .sparkline {
   display: block;
-  margin-top: var(--space-xs);
+  width: 100%;
+  height: auto;
   overflow: visible;
 }
 

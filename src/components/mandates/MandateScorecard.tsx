@@ -129,6 +129,8 @@ function MandateRow({
         )}
         {target && <div className={styles.target}>Standard: {target}</div>}
         {streak && <div className={styles.streak}>{streak}</div>}
+      </div>
+      <div className={styles.rowSpark}>
         <MandateSparkline
           periods={sparkPeriods}
           target={standard.operator === "tracked" || isPace ? null : standard.target}

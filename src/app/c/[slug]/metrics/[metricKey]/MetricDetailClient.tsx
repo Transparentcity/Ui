@@ -12,6 +12,7 @@ import LoggedOutOnly from "../../LoggedOutOnly";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { trackMetricView } from "@/lib/analytics";
 import Breadcrumb from "@/components/Breadcrumb";
+import { LEGAL_STANDARDS_LABEL, isLegalMandateCategory, mandatesEnabled } from "@/lib/mandates";
 import "@/app/landing.css";
 import "@/components/MetricDetailModal.css";
 import "./styles.css";
@@ -54,7 +55,10 @@ export default function MetricDetailClient({
       <div className="metric-detail-content-wrapper">
         <Breadcrumb items={[
           { label: cityName, href: `/c/${citySlug}` },
-          { label: metric.category || "Metrics", href: `/c/${citySlug}/category/${encodeURIComponent(metric.category || "Metrics")}` },
+          // Legal-standard metrics crumb to the scorecard, under the name readers see.
+          mandatesEnabled() && isLegalMandateCategory(metric.category)
+            ? { label: LEGAL_STANDARDS_LABEL, href: `/c/${citySlug}/mandates` }
+            : { label: metric.category || "Metrics", href: `/c/${citySlug}/category/${encodeURIComponent(metric.category || "Metrics")}` },
         ]} />
         <h1 className="metric-detail-page-title">
           <span className="metric-detail-title-text">{metric.metric_name} in {year}</span>
