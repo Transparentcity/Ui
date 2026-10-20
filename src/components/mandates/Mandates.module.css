@@ -1,56 +1,31 @@
 /* Legal standards: summary strip, scorecard rows, status pills, sparkline, legal standard panel. */
 
-/* Summary strip: counts by status, then the one-line headline. */
+/* Summary strip: the site's stat cards (CityView.css), tinted by status, then the one-line headline. */
 .summary {
   padding: var(--space-lg) 0 var(--space-md);
 }
 
-.summaryCounts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-lg);
-  font-family: var(--font-data);
-  font-size: 0.95rem;
-  color: var(--text-secondary);
+.summaryGrid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
-.summaryCount {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-xs);
-}
-
-.summaryNumber {
-  font-family: var(--font-heading);
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text-primary);
-}
-
-.summaryCount[data-kind="missed"] .summaryNumber,
-.summaryCount[data-kind="behind_pace"] .summaryNumber {
+.summaryCard[data-kind="missed"] :global(.stat-value),
+.summaryCard[data-kind="behind_pace"] :global(.stat-value) {
   color: var(--error);
 }
 
-.summaryCount[data-kind="at_risk"] .summaryNumber {
+.summaryCard[data-kind="at_risk"] :global(.stat-value),
+.summaryCard[data-kind="stale"] :global(.stat-value) {
   color: var(--warning);
 }
 
-.summaryCount[data-kind="met"] .summaryNumber {
+.summaryCard[data-kind="met"] :global(.stat-value) {
   color: var(--success);
-}
-
-.summaryCount[data-kind="stale"] .summaryNumber {
-  color: var(--warning);
 }
 
 .summaryLead {
   margin: var(--space-md) 0 0;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   line-height: 1.4;
   color: var(--text-primary);
 }
