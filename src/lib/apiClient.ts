@@ -2789,8 +2789,30 @@ export interface CivicCoverageReport {
   }>;
 }
 
+/** One theme from the civic summary, parsed from its topics block. */
+export interface CivicSummaryTopic {
+  title: string;
+  /** A factual question city data could answer, or null when the theme raises none. */
+  question: string | null;
+  voices: string[] | null;
+  numbers_cited: Array<{
+    claim: string | null;
+    source: string | null;
+    source_url: string | null;
+  }> | null;
+  decision: {
+    body: string | null;
+    date: string | null;
+    status: string | null;
+  } | null;
+  /** IDs of the city's active metrics that may help answer the question. */
+  metric_hints: number[];
+}
+
 export interface CivicDiscussionSummaryResult {
   summary_markdown: string;
+  /** Absent on summaries generated before topics were extracted. */
+  topics?: CivicSummaryTopic[] | null;
   session_id: string;
   city_id: number;
   city_name: string;
@@ -2839,6 +2861,79 @@ export function getLatestCivicDiscussionSummary(
     `/api/admin/civic/summary/latest?city_id=${cityId}`,
     "GET",
     undefined,
+    token
+  );
+}
+
+export interface CivicResearchStory {
+  id: number;
+  headline: string | null;
+  short_hash: string | null;
+  status: string | null;
+  eval_accuracy: string | null;
+}
+
+export interface CivicResearchEntry {
+  job_id: string;
+  job_status: string;
+  researched_at: string | null;
+  mode: "scheduled" | "topic" | "question" | null;
+  topic: string | null;
+  question: string | null;
+  /** story, already_covered, no_city_data, no_story, or error; for a run that
+   *  researched nothing, "none" or its job status (failed, running, ...). */
+  outcome: string;
+  reason: string | null;
+  session_id: string | null;
+  story_ids: number[];
+  created_metric_ids: number[];
+  stories: CivicResearchStory[];
+}
+
+/** A hidden metric the research job built to answer a question. */
+export interface CivicResearchMetric {
+  id: number;
+  metric_name: string;
+  show_on_dash: boolean;
+  is_active: boolean;
+  created_at: string;
+  question: string | null;
+}
+
+export interface CivicResearchLog {
+  city_id: number;
+  days: number;
+  entries: CivicResearchEntry[];
+  created_metrics: CivicResearchMetric[];
+}
+
+export function getCivicResearchLog(
+  cityId: number,
+  token: string,
+  days = 30
+): Promise<CivicResearchLog> {
+  return request<CivicResearchLog>(
+    `/api/admin/civic/research-log?city_id=${cityId}&days=${days}`,
+    "GET",
+    undefined,
+    token
+  );
+}
+
+/** Research one summary topic or a typed question in the background. */
+export function startCivicResearch(
+  cityId: number,
+  target: { topicTitle: string } | { question: string },
+  token: string
+): Promise<CivicDiscussionSummaryJobResponse> {
+  const body =
+    "question" in target
+      ? { city_id: cityId, question: target.question }
+      : { city_id: cityId, topic_title: target.topicTitle };
+  return request<CivicDiscussionSummaryJobResponse>(
+    "/api/admin/civic/context-story",
+    "POST",
+    body,
     token
   );
 }

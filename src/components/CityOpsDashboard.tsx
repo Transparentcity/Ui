@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import ScheduleHealthDashboard from "@/components/ScheduleHealthDashboard";
 import CitySiteView from "@/components/citySite/CitySiteView";
+import CivicResearchPanel from "@/components/CivicResearchPanel";
 import Loader from "@/components/Loader";
 import MarkdownWithEmbeds from "@/components/MarkdownWithEmbeds";
 import MetricEditModal from "@/components/MetricEditModal";
@@ -1359,6 +1360,15 @@ function CivicIntelPanel({ cityId, cities, onCityChange, canManage = false, isAd
             </>
           )}
         </section>
+      )}
+
+      {canManage && (
+        <CivicResearchPanel
+          key={cityId}
+          cityId={cityId}
+          topics={summary?.topics}
+          isAdmin={isAdmin}
+        />
       )}
 
       {/* Error */}
