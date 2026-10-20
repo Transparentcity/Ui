@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import LegalStandardPanel from "./LegalStandardPanel";
-import { compliance, standard911 } from "./mandateFixtures";
+import { NOW, compliance, standard911 } from "./mandateFixtures";
 
 describe("LegalStandardPanel", () => {
   it("renders nothing without a standard", () => {
@@ -65,5 +65,17 @@ describe("LegalStandardPanel", () => {
     expect(screen.getByText("Report housing production annually")).toBeInTheDocument();
     expect(screen.queryByText(/target:/i)).toBeNull();
     expect(screen.queryByText(/legal source/i)).toBeNull();
+  });
+
+  it("says when a stale result was last reported", () => {
+    render(
+      <LegalStandardPanel
+        standard={standard911}
+        compliance={compliance(["met"], { latest_period: "2025-01-01" })}
+        now={NOW}
+      />
+    );
+    expect(screen.getByText("Meets standard")).toBeInTheDocument();
+    expect(screen.getByText(/Last report Jan 2025; a newer one is overdue/)).toBeInTheDocument();
   });
 });

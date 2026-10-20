@@ -4,7 +4,7 @@ import {
   formatMandateTarget,
   formatMandateValue,
   formatMandatePeriod,
-  mandatePillKind,
+  mandateStatus,
   mandateStreakText,
 } from "@/lib/mandates";
 import { MandateStatusPill } from "./MandateScorecard";
@@ -21,6 +21,7 @@ export default function LegalStandardPanel({
   standardsBasis,
   compliance,
   scorecardHref,
+  now,
 }: {
   standard: MandateStandard | null | undefined;
   standardsBasis?: string | null;
@@ -28,11 +29,14 @@ export default function LegalStandardPanel({
   compliance?: MandateCompliance | null;
   /** Link to the city's legal standards scorecard. */
   scorecardHref?: string | null;
+  /** Clock for the staleness rule (tests). */
+  now?: Date;
 }) {
   if (!standard) return null;
 
   const target = formatMandateTarget(standard);
-  const kind = compliance ? mandatePillKind(compliance) : null;
+  const status = compliance ? mandateStatus(compliance, standard.grain, now) : null;
+  const kind = status?.kind ?? null;
   const streak =
     compliance && kind !== "no_data" ? mandateStreakText(compliance, standard.grain) : null;
   const latestPeriod = compliance
@@ -54,6 +58,9 @@ export default function LegalStandardPanel({
             </span>
           )}
           {streak && <span className={styles.streak}>{streak}</span>}
+          {status?.stale && latestPeriod && (
+            <span className={styles.stalePeriod}>Last report {latestPeriod}; a newer one is overdue</span>
+          )}
         </div>
       )}
 

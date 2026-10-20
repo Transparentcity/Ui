@@ -99,23 +99,42 @@ export function mandatePillKind(
   }
 }
 
-/** Sort mandates for the scorecard: failures first, no-target last; stable within a group. */
+export type MandateStatus = { kind: MandatePillKind; stale: boolean };
+
+/**
+ * The status every consumer should show: the pill kind plus whether the
+ * latest data is older than its grain's window. One call, so no view can
+ * show a status without also knowing it may be out of date.
+ */
+export function mandateStatus(
+  compliance: MandateCompliance | null | undefined,
+  grain: string | null | undefined,
+  now: Date = new Date()
+): MandateStatus {
+  return {
+    kind: mandatePillKind(compliance),
+    stale: mandateIsStale(compliance, grain, now),
+  };
+}
+
+/** Sort mandates for the scorecard: failures first, no-target last (sort is stable). */
 export function sortMandatesForScorecard<T extends { standard: MandateStandard; compliance: MandateCompliance }>(
   mandates: T[]
 ): T[] {
-  const rank = (m: T) =>
-    MANDATE_PILL_ORDER.indexOf(mandatePillKind(m.compliance));
-  return mandates
-    .map((m, i) => ({ m, i, r: rank(m) }))
-    .sort((a, b) => a.r - b.r || a.i - b.i)
-    .map((x) => x.m);
+  const rank = (m: T) => MANDATE_PILL_ORDER.indexOf(mandatePillKind(m.compliance));
+  return [...mandates].sort((a, b) => rank(a) - rank(b));
 }
 
 export type MandateSummary = {
   counts: Partial<Record<MandatePillKind, number>>;
+  /** Rows whose latest data is older than their grain's window. */
+  stale: number;
   /** One sentence with the headline, e.g. the longest-running miss. */
   lead: string | null;
 };
+
+/** Periods per month, to compare streaks across grains. */
+const MONTHS_PER_PERIOD: Record<string, number> = { month: 1, quarter: 3, year: 12 };
 
 /**
  * Headline for the top of the scorecard: how many standards sit in each
@@ -124,20 +143,26 @@ export type MandateSummary = {
  */
 export function summarizeMandates<T extends { standard: MandateStandard; metric_name: string; compliance: MandateCompliance }>(
   mandates: T[],
-  cityName: string
+  cityName: string,
+  now: Date = new Date()
 ): MandateSummary {
   const counts: Partial<Record<MandatePillKind, number>> = {};
-  let worst: { title: string; kind: MandatePillKind; streak: number; grain: string } | null = null;
+  let stale = 0;
+  let worst: { title: string; kind: MandatePillKind; streak: number; months: number; grain: string } | null = null;
   for (const m of mandates) {
-    const kind = mandatePillKind(m.compliance);
-    counts[kind] = (counts[kind] ?? 0) + 1;
-    if (kind === "missed" || kind === "behind_pace") {
+    const status = mandateStatus(m.compliance, m.standard.grain, now);
+    counts[status.kind] = (counts[status.kind] ?? 0) + 1;
+    if (status.stale) stale += 1;
+    if (status.kind === "missed" || status.kind === "behind_pace") {
       const streak = m.compliance.streak_length ?? 0;
-      if (!worst || streak > worst.streak) {
+      // Compare streaks in months, so 9 quarters outranks 12 months.
+      const months = streak * (MONTHS_PER_PERIOD[m.standard.grain] ?? 1);
+      if (!worst || months > worst.months) {
         worst = {
           title: m.standard.title || m.metric_name,
-          kind,
+          kind: status.kind,
           streak,
+          months,
           grain: m.standard.grain,
         };
       }
@@ -148,14 +173,17 @@ export function summarizeMandates<T extends { standard: MandateStandard; metric_
   if (worst) {
     const n = worst.streak;
     const span = n > 1 ? ` for ${n} ${grainNoun(worst.grain, n)} running` : "";
+    // "<title>: ..." sidesteps verb agreement with plural titles.
     lead =
       worst.kind === "behind_pace"
-        ? `${worst.title} has been behind the pace the law requires${span}.`
-        : `${worst.title} has missed its standard${span}.`;
-  } else if (judged > 0) {
+        ? `${worst.title}: behind the pace the law requires${span}.`
+        : `${worst.title}: standard missed${span}.`;
+  } else if (judged > 0 && stale === 0) {
     lead = `${cityName} is meeting every legal standard with a numeric target.`;
+  } else if (judged > 0) {
+    lead = `${cityName} met every standard in its latest reports, but ${stale} of them ${stale === 1 ? "is" : "are"} overdue.`;
   }
-  return { counts, lead };
+  return { counts, stale, lead };
 }
 
 function grainNoun(grain: string | null | undefined, n: number): string {

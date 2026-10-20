@@ -55,13 +55,41 @@ describe("mandate status rules", () => {
       metric_key: "c",
       standard: { ...standard911, title: "Ambulances on scene within 10 minutes" },
     });
-    const s = summarizeMandates([met, short, long], "San Francisco");
+    const s = summarizeMandates([met, short, long], "San Francisco", NOW);
     expect(s.counts).toEqual({ met: 1, missed: 2 });
+    expect(s.stale).toBe(0);
     expect(s.lead).toBe(
-      "Ambulances on scene within 10 minutes has missed its standard for 12 months running."
+      "Ambulances on scene within 10 minutes: standard missed for 12 months running."
     );
-    expect(summarizeMandates([met], "San Francisco").lead).toBe(
+    expect(summarizeMandates([met], "San Francisco", NOW).lead).toBe(
       "San Francisco is meeting every legal standard with a numeric target."
+    );
+  });
+
+  it("compares streaks across grains in months", () => {
+    const months = mandate(compliance(twelve("missed" as const)), {
+      metric_key: "a",
+      standard: { ...standard911, title: "Monthly thing" },
+    });
+    const quarters = mandate(
+      compliance(Array.from({ length: 9 }, () => "missed" as const), { latest_period: "2026-07-01" }),
+      { metric_key: "b", standard: { ...standard911, grain: "quarter", title: "Quarterly thing" } }
+    );
+    expect(summarizeMandates([months, quarters], "SF", NOW).lead).toBe(
+      "Quarterly thing: standard missed for 9 quarters running."
+    );
+  });
+
+  it("counts overdue reports and never claims all met from stale data", () => {
+    const fresh = mandate(compliance(twelve("met" as const)), { metric_key: "a" });
+    const old = mandate(compliance(twelve("met" as const), { latest_period: "2025-01-01" }), {
+      metric_key: "b",
+    });
+    const s = summarizeMandates([fresh, old], "San Francisco", NOW);
+    expect(s.counts).toEqual({ met: 2 });
+    expect(s.stale).toBe(1);
+    expect(s.lead).toBe(
+      "San Francisco met every standard in its latest reports, but 1 of them is overdue."
     );
   });
 
@@ -154,7 +182,7 @@ describe("MandateScorecard", () => {
     const summary = within(screen.getByTestId("mandate-summary"));
     expect(summary.getByText("missed")).toBeInTheDocument();
     expect(summary.getByText("meeting the standard")).toBeInTheDocument();
-    expect(summary.getByText(/has missed its standard for 12 months running/)).toBeInTheDocument();
+    expect(summary.getByText(/standard missed for 12 months running/)).toBeInTheDocument();
   });
 
   it("labels a tracked standard as having no legal target and an off-pace one as behind pace", () => {
@@ -175,6 +203,7 @@ describe("MandateScorecard", () => {
     render(<MandateScorecard mandates={[stale]} slug="sf" state="ready" now={NOW} />);
     expect(screen.getByText("Missed")).toHaveAttribute("data-kind", "missed");
     expect(screen.getByText("Last report Q3 2025")).toBeInTheDocument();
+    expect(within(screen.getByTestId("mandate-summary")).getByText("report overdue")).toBeInTheDocument();
   });
 
   it("shows At risk and No recent data pills", () => {

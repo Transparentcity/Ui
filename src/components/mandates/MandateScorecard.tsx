@@ -7,8 +7,7 @@ import {
   formatMandatePeriod,
   formatMandateTarget,
   formatMandateValue,
-  mandateIsStale,
-  mandatePillKind,
+  mandateStatus,
   mandateStreakText,
   sortMandatesForScorecard,
   splitMandateValue,
@@ -50,11 +49,13 @@ export function MandateStatusPill({ kind }: { kind: MandatePillKind }) {
 function MandateSummaryStrip({
   mandates,
   cityName,
+  now,
 }: {
   mandates: PublicCityMandate[];
   cityName: string;
+  now?: Date;
 }) {
-  const { counts, lead } = summarizeMandates(mandates, cityName);
+  const { counts, stale, lead } = summarizeMandates(mandates, cityName, now);
   return (
     <div className={styles.summary} data-testid="mandate-summary">
       <ul className={styles.summaryCounts} aria-label="Standards by status">
@@ -63,6 +64,12 @@ function MandateSummaryStrip({
             <span className={styles.summaryNumber}>{counts[k]}</span> {SUMMARY_LABELS[k]}
           </li>
         ))}
+        {stale > 0 && (
+          <li className={styles.summaryCount} data-kind="stale">
+            <span className={styles.summaryNumber}>{stale}</span>{" "}
+            {stale === 1 ? "report overdue" : "reports overdue"}
+          </li>
+        )}
       </ul>
       {lead && <p className={styles.summaryLead}>{lead}</p>}
     </div>
@@ -79,8 +86,7 @@ function MandateRow({
   now?: Date;
 }) {
   const { standard, compliance } = mandate;
-  const kind = mandatePillKind(compliance);
-  const stale = mandateIsStale(compliance, standard.grain, now);
+  const { kind, stale } = mandateStatus(compliance, standard.grain, now);
   const streak = kind === "no_data" ? null : mandateStreakText(compliance, standard.grain);
   const target = formatMandateTarget(standard);
   const latestPeriod = formatMandatePeriod(compliance.latest_period, standard.grain);
@@ -198,7 +204,7 @@ export default function MandateScorecard({
   const sorted = sortMandatesForScorecard(mandates);
   return (
     <>
-      <MandateSummaryStrip mandates={mandates} cityName={cityName ?? "The city"} />
+      <MandateSummaryStrip mandates={mandates} cityName={cityName ?? "The city"} now={now} />
       <ul className={styles.scorecard} aria-label="Legal standards">
         {sorted.map((m) => (
           <MandateRow key={m.metric_key} mandate={m} slug={slug} now={now} />

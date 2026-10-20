@@ -44,6 +44,10 @@
   color: var(--success);
 }
 
+.summaryCount[data-kind="stale"] .summaryNumber {
+  color: var(--warning);
+}
+
 .summaryLead {
   margin: var(--space-md) 0 0;
   font-size: 1.1rem;
