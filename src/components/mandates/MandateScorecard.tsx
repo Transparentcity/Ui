@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import type { PublicCityMandate } from "@/lib/publicApiClient";
 import {
+  LEGAL_STANDARDS_LABEL,
   MANDATE_PILL_LABELS,
   MANDATE_PILL_ORDER,
   formatMandatePeriod,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/mandates";
 import MandateSparkline from "./MandateSparkline";
 import styles from "./Mandates.module.css";
+import "@/components/CityView.css";
 
 export type MandateScorecardState = "loading" | "ready" | "forbidden" | "error";
 
@@ -76,6 +78,7 @@ function MandateSummaryStrip({
   );
 }
 
+/** One table row, in the same chrome as the city dashboard's metric rows. */
 function MandateRow({
   mandate,
   slug,
@@ -105,54 +108,68 @@ function MandateRow({
     : compliance.periods;
 
   return (
-    <li className={styles.row} data-testid="mandate-row" data-kind={kind}>
-      <div className={styles.rowMain}>
-        <h3 className={styles.rowTitle}>
-          <Link href={`/c/${slug}/metrics/${mandate.metric_key}`} className={styles.rowTitleLink}>
-            {title}
-          </Link>
-        </h3>
-        <p className={styles.standardText}>{standard.text}</p>
-        <Link href={`/c/${slug}/metrics/${mandate.metric_key}`} className={styles.link}>
-          See the data and the law →
-        </Link>
+    <Link
+      href={`/c/${slug}/metrics/${mandate.metric_key}`}
+      className={`metrics-table-row metrics-table-row-clickable ${styles.tableRow}`}
+      data-testid="mandate-row"
+      data-kind={kind}
+      style={{ textDecoration: "none", color: "inherit" }}
+    >
+      <div className="metric-col metric-col-name">
+        <span className="metric-name">{title}</span>
+        <span className={`metric-metadata ${styles.rowStandard}`}>{standard.text}</span>
       </div>
-      <div className={styles.rowStats}>
-        <div className={styles.latest}>
-          <span className={styles.latestValue}>{shown.number}</span>
-          {shown.unit && <span className={styles.latestUnit}>{shown.unit}</span>}
-          <MandateStatusPill kind={kind} />
-        </div>
+      <div className="metric-col metric-col-value">
         {latestPeriod && (
-          <div className={stale ? styles.stalePeriod : styles.latestPeriod}>
+          <span className={stale ? `metric-date-label ${styles.stalePeriod}` : "metric-date-label"}>
             {stale ? `Last report ${latestPeriod}` : latestPeriod}
-          </div>
+          </span>
         )}
+        <span className="metric-value">
+          {shown.number}
+          {shown.unit && <span className={styles.latestUnit}> {shown.unit}</span>}
+        </span>
         {lastPace?.cumulative_expected != null && (
-          <div className={styles.target}>
+          <span className={`metric-metadata ${styles.rowNote}`}>
             Expected by now: {formatMandateValue(Math.round(lastPace.cumulative_expected), standard.unit)}
-          </div>
+          </span>
         )}
-        {target && <div className={styles.target}>Standard: {target}</div>}
-        {streak && <div className={styles.streak}>{streak}</div>}
+        {target && <span className={`metric-metadata ${styles.rowNote}`}>Standard: {target}</span>}
       </div>
-      <div className={styles.rowSpark}>
+      <div className={`metric-col metric-col-value ${styles.statusCol}`}>
+        <MandateStatusPill kind={kind} />
+        {streak && <span className={`metric-metadata ${styles.streak}`}>{streak}</span>}
+      </div>
+      <div className={`metric-col metric-col-change ${styles.trendCol}`}>
         <MandateSparkline
           periods={sparkPeriods}
           target={standard.operator === "tracked" || isPace ? null : standard.target}
           label={`${title}: last ${compliance.periods.length} periods`}
         />
       </div>
-    </li>
+    </Link>
+  );
+}
+
+function Notice({ role, children }: { role: "status" | "alert"; children: React.ReactNode }) {
+  return (
+    <section className="dashboard-section">
+      <div className="container">
+        <div className={styles.notice} role={role}>
+          {children}
+        </div>
+      </div>
+    </section>
   );
 }
 
 /**
- * Legal standards scorecard: a summary strip, then one row per standard
- * sorted by status (failures first) with the latest value, status pill,
- * streak and a 24-period sparkline. The law, the responsible official and
- * the mandated report live on the metric page's Legal standard panel.
- * Presentational only; the caller fetches and passes `state`.
+ * Legal standards scorecard in the city dashboard's table chrome: a section
+ * header, the summary strip, then one row per standard sorted by status
+ * (failures first) with the latest figure, status pill, streak and a
+ * sparkline. The law, the responsible official and the mandated report live
+ * on the metric page's Legal standard panel. Presentational only; the caller
+ * fetches and passes `state`.
  */
 export default function MandateScorecard({
   mandates,
@@ -172,44 +189,59 @@ export default function MandateScorecard({
   now?: Date;
 }) {
   if (state === "loading") {
-    return (
-      <div className={styles.notice} role="status">
-        Loading legal standards…
-      </div>
-    );
+    return <Notice role="status">Loading legal standards…</Notice>;
   }
   if (state === "forbidden") {
     return (
-      <div className={styles.notice} role="status">
+      <Notice role="status">
         <strong>The legal standards scorecard is not public yet.</strong>
         <p>Sign in with an admin account to preview it.</p>
-      </div>
+      </Notice>
     );
   }
   if (state === "error") {
     return (
-      <div className={styles.notice} role="alert">
+      <Notice role="alert">
         <strong>Could not load legal standards.</strong>
         {errorMessage && <p>{errorMessage}</p>}
-      </div>
+      </Notice>
     );
   }
   if (mandates.length === 0) {
-    return (
-      <div className={styles.notice} role="status">
-        No legal standards are tracked for this city yet.
-      </div>
-    );
+    return <Notice role="status">No legal standards are tracked for this city yet.</Notice>;
   }
   const sorted = sortMandatesForScorecard(mandates);
+  const latest = mandates
+    .map((m) => m.compliance.latest_period)
+    .filter((p): p is string => !!p)
+    .sort()
+    .at(-1);
+  const asOf = latest ? formatMandatePeriod(latest, "month") : null;
   return (
-    <>
-      <MandateSummaryStrip mandates={mandates} cityName={cityName ?? "The city"} now={now} />
-      <ul className={styles.scorecard} aria-label="Legal standards">
-        {sorted.map((m) => (
-          <MandateRow key={m.metric_key} mandate={m} slug={slug} now={now} />
-        ))}
-      </ul>
-    </>
+    <section className="dashboard-section" aria-label={LEGAL_STANDARDS_LABEL}>
+      <div className="container">
+        <div className="dashboard-comparison-selector">
+          <span className="comparison-selector-scope">{LEGAL_STANDARDS_LABEL}</span>
+          <span className="comparison-selector-label">
+            {mandates.length} {mandates.length === 1 ? "standard" : "standards"}
+            {asOf ? ` · latest report ${asOf}` : ""}
+          </span>
+        </div>
+        <MandateSummaryStrip mandates={mandates} cityName={cityName ?? "The city"} now={now} />
+        <div className="metrics-category-section">
+          <div className="metrics-table-header">
+            <div className="metric-col metric-col-name">Standard</div>
+            <div className="metric-col metric-col-value">Latest</div>
+            <div className="metric-col metric-col-value">Status</div>
+            <div className="metric-col metric-col-change">Trend</div>
+          </div>
+          <div className="metrics-table-body">
+            {sorted.map((m) => (
+              <MandateRow key={m.metric_key} mandate={m} slug={slug} now={now} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
