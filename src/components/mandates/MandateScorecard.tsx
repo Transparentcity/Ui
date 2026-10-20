@@ -58,21 +58,23 @@ function MandateSummaryStrip({
   now?: Date;
 }) {
   const { counts, stale, lead } = summarizeMandates(mandates, cityName, now);
+  // The site's stat cards (CityView.css): uppercase label over a 20px figure.
   return (
     <div className={styles.summary} data-testid="mandate-summary">
-      <ul className={styles.summaryCounts} aria-label="Standards by status">
+      <div className={`statistics-grid ${styles.summaryGrid}`} role="list" aria-label="Standards by status">
         {MANDATE_PILL_ORDER.filter((k) => counts[k]).map((k) => (
-          <li key={k} className={styles.summaryCount} data-kind={k}>
-            <span className={styles.summaryNumber}>{counts[k]}</span> {SUMMARY_LABELS[k]}
-          </li>
+          <div key={k} className={`stat-card ${styles.summaryCard}`} data-kind={k} role="listitem">
+            <div className="stat-label">{SUMMARY_LABELS[k]}</div>
+            <div className="stat-value">{counts[k]}</div>
+          </div>
         ))}
         {stale > 0 && (
-          <li className={styles.summaryCount} data-kind="stale">
-            <span className={styles.summaryNumber}>{stale}</span>{" "}
-            {stale === 1 ? "report overdue" : "reports overdue"}
-          </li>
+          <div className={`stat-card ${styles.summaryCard}`} data-kind="stale" role="listitem">
+            <div className="stat-label">{stale === 1 ? "report overdue" : "reports overdue"}</div>
+            <div className="stat-value">{stale}</div>
+          </div>
         )}
-      </ul>
+      </div>
       {lead && <p className={styles.summaryLead}>{lead}</p>}
     </div>
   );
