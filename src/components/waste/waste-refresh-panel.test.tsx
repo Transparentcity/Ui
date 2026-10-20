@@ -153,4 +153,45 @@ describe("WasteRefreshPanel terminal states", () => {
     expect(await screen.findByText("Run now")).toBeInTheDocument()
     expect(screen.getByRole("button")).not.toBeDisabled()
   })
+
+  it("marks a completed city with errors as partial, not ok", async () => {
+    getJob.mockResolvedValue({
+      ...COMPLETED_JOB,
+      result: {
+        execution_result: {
+          status: "completed",
+          results: [
+            {
+              city_id: 57260,
+              city_name: "San Francisco",
+              status: "completed",
+              errors: ["Error fetching registered_businesses: HTTP 400"],
+            },
+          ],
+        },
+      },
+    })
+    renderPanel()
+    expect(await screen.findByText("San Francisco")).toBeInTheDocument()
+    expect(screen.getByText("partial, 1 error")).toBeInTheDocument()
+    expect(screen.queryByText("ok")).not.toBeInTheDocument()
+  })
+
+  it("warns when the weekly refresh is overdue", async () => {
+    renderPanel()
+    // SCHEDULE.last_run_at is months before "now".
+    expect(await screen.findByTestId("refresh-overdue")).toBeInTheDocument()
+  })
+
+  it("does not warn when the last run is recent", async () => {
+    getAllScheduledJobs.mockResolvedValue({
+      custom_schedules: [
+        { ...SCHEDULE, last_run_at: new Date(Date.now() - 86_400_000).toISOString() },
+      ],
+      total_count: 1,
+    })
+    renderPanel()
+    expect(await screen.findByText(/Last run/)).toBeInTheDocument()
+    expect(screen.queryByTestId("refresh-overdue")).not.toBeInTheDocument()
+  })
 })

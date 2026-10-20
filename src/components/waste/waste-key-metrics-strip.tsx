@@ -32,11 +32,21 @@ function TrendIcon({ trend }: { trend: WasteKeyMetric["trend"] }) {
  */
 export function WasteKeyMetricsStrip({ category }: { category: string }) {
   const { selectedCityId, selectedCitySlug } = useWasteCity()
-  const { byCategory, isLoading, valuesLoading } =
+  const { byCategory, isLoading, isError, valuesLoading } =
     useWasteKeyMetrics(selectedCityId)
   const [openMetric, setOpenMetric] = useState<WasteKeyMetric | null>(null)
 
   const metrics = byCategory[category] ?? []
+  if (isError) {
+    return (
+      <p
+        className="mb-4 text-xs italic text-gray-400"
+        data-testid="waste-key-metrics-error"
+      >
+        Key metrics couldn&apos;t load. Findings below are unaffected.
+      </p>
+    )
+  }
   if (!isLoading && metrics.length === 0) return null
 
   const valued = metrics.filter((m) => m.value != null)

@@ -167,4 +167,20 @@ describe("ForensicsCategoriesPage error handling", () => {
     expect(screen.queryByText(/No analysis has run/)).not.toBeInTheDocument()
     expect(screen.queryByTestId("refresh-panel")).not.toBeInTheDocument()
   })
+
+  it("notes once when key metrics fail to load, without hiding findings", () => {
+    useWasteKeyMetrics.mockReturnValue({
+      byCategory: {},
+      isLoading: false,
+      isError: true,
+      valuesLoading: false,
+    })
+    useLatestPersistedWasteResult.mockReturnValue({
+      data: { findings: [] },
+      isLoading: false,
+    })
+    render(<ForensicsCategoriesPage />)
+    expect(screen.getAllByTestId("key-metrics-error")).toHaveLength(1)
+    expect(screen.getByText("Payroll & Personnel")).toBeInTheDocument()
+  })
 })

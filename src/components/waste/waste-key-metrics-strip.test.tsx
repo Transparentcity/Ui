@@ -88,4 +88,18 @@ describe("WasteKeyMetricsStrip", () => {
       }),
     )
   })
+
+  it("says key metrics could not load when the metrics list errors", () => {
+    useWasteKeyMetrics.mockReturnValue({
+      byCategory: {},
+      isLoading: false,
+      isError: true,
+      valuesLoading: false,
+    })
+    render(<WasteKeyMetricsStrip category="payroll" />)
+    expect(screen.getByTestId("waste-key-metrics-error").textContent).toMatch(
+      /couldn.t load/,
+    )
+    expect(screen.queryByTestId("waste-key-metrics")).not.toBeInTheDocument()
+  })
 })

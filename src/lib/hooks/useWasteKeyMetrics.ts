@@ -234,6 +234,9 @@ export function useWasteKeyMetrics(cityId: number | null) {
   return {
     byCategory,
     isLoading: metricsQuery.isLoading,
+    // The metrics list itself failed (e.g. the admin metrics endpoint 500s):
+    // distinct from "no waste metrics configured", which is an empty list.
+    isError: metricsQuery.isError,
     valuesLoading: comparisonsQuery.isLoading || latestLoading,
   }
 }

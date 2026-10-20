@@ -5,6 +5,7 @@ import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { useWasteCity } from "./WasteCityContext"
 import { TCScoreBadge, TCTierBadge } from "./tc-score-badge"
+import { formatDetectorKey } from "./detector-info"
 import {
   TrendingUp,
   TrendingDown,
@@ -22,6 +23,12 @@ export function ForensicsDepartmentsPage() {
   })
 
   const depts = data?.items ?? []
+  // Trend is the change since the previous scoring. When no department has
+  // one (first scoring, or the backend doesn't compute deltas yet), the
+  // column would be a wall of dashes, so leave it out.
+  const hasTrend = depts.some(
+    (d) => d.score_delta != null && d.score_delta !== 0,
+  )
 
   return (
     <WasteShell
@@ -59,9 +66,11 @@ export function ForensicsDepartmentsPage() {
                   <th className="text-left py-3 px-3 text-xs font-medium text-gray-500">
                     Top Detector
                   </th>
-                  <th className="text-center py-3 px-3 text-xs font-medium text-gray-500">
-                    Trend
-                  </th>
+                  {hasTrend && (
+                    <th className="text-center py-3 px-3 text-xs font-medium text-gray-500">
+                      Trend
+                    </th>
+                  )}
                   <th className="text-right py-3 px-3 text-xs font-medium text-gray-500">
                     Severity
                   </th>
@@ -85,25 +94,27 @@ export function ForensicsDepartmentsPage() {
                         {dept.signal_count}
                       </td>
                       <td className="py-3 px-3 text-xs text-gray-500">
-                        {dept.top_detector?.replace(/_/g, " ") ?? "--"}
+                        {formatDetectorKey(dept.top_detector)}
                       </td>
-                      <td className="py-3 px-3 text-center">
-                        {delta > 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-xs text-red-600">
-                            <TrendingUp className="w-3.5 h-3.5" />
-                            +{delta.toFixed(0)}
-                          </span>
-                        ) : delta < 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600">
-                            <TrendingDown className="w-3.5 h-3.5" />
-                            {delta.toFixed(0)}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center text-xs text-gray-500">
-                            <Minus className="w-3.5 h-3.5" />
-                          </span>
-                        )}
-                      </td>
+                      {hasTrend && (
+                        <td className="py-3 px-3 text-center">
+                          {delta > 0 ? (
+                            <span className="inline-flex items-center gap-0.5 text-xs text-red-600">
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              +{delta.toFixed(0)}
+                            </span>
+                          ) : delta < 0 ? (
+                            <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600">
+                              <TrendingDown className="w-3.5 h-3.5" />
+                              {delta.toFixed(0)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-xs text-gray-500">
+                              <Minus className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </td>
+                      )}
                       <td className="py-3 px-3 text-right">
                         <TCTierBadge score={dept.composite_score} />
                       </td>

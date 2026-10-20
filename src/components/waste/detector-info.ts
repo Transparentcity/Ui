@@ -175,3 +175,56 @@ export function stripDetectorCodes(text: string | null | undefined): string {
     .replace(/\s{2,}/g, " ")
     .trim()
 }
+
+// Backend detector-key family prefixes mapped onto detector-info categories.
+const KEY_FAMILY: Record<string, string> = {
+  vendor: "vendor",
+  contracts: "vendor",
+  payroll: "payroll",
+  overtime: "payroll",
+  infrastructure: "infrastructure",
+  integrity: "integrity",
+  influence: "influence",
+  nonprofit: "nonprofit",
+}
+
+function humanizeKey(s: string): string {
+  const t = s.replace(/_+/g, " ").trim()
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t
+}
+
+/**
+ * Render a backend detector key (e.g. "infrastructure_d5_budget_variance",
+ * "entity_consolidation_4_signals__multi_signal_investigation_target") as a
+ * readable label. Known family codes resolve through the detector table;
+ * composite keys get a short plain-English label; anything else is
+ * humanized rather than shown raw.
+ */
+export function formatDetectorKey(key: string | null | undefined): string {
+  if (!key || !key.trim()) return "—"
+  const k = key.trim().toLowerCase()
+
+  const coded = k.match(/^([a-z]+)_((?:d|rd|np)\d+[a-z]?)_(.*)$/)
+  if (coded) {
+    const [, familyRaw, codeRaw, rest] = coded
+    const code = codeRaw.replace(
+      /^(d|rd|np)(\d+)([a-z]?)$/,
+      (_m, p: string, n: string, suffix: string) => `${p.toUpperCase()}${n}${suffix}`,
+    )
+    const family = KEY_FAMILY[familyRaw]
+    const info = family ? lookupDetector(code, family) : null
+    if (info && info.category === family) return `${info.code} ${info.name}`
+    return `${code} ${humanizeKey(rest)}`
+  }
+
+  const consolidated = k.match(/^entity_consolidation_(\d+)_signals/)
+  if (consolidated) return `Multiple signals on one entity (${consolidated[1]})`
+
+  if (k.startsWith("convergence_detector")) {
+    return k.includes("full_fraud_triangle")
+      ? "Cross-domain convergence (full fraud triangle)"
+      : "Cross-domain convergence"
+  }
+
+  return humanizeKey(k)
+}
