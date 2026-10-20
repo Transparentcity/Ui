@@ -73,6 +73,57 @@ export function resolveStorySocialImage(
 }
 
 /**
+ * Cache-Control for the card-image route.
+ *
+ * - "versioned": the request carries the ?v= token from
+ *   resolveStorySocialImage, so the URL changes whenever the story does and
+ *   the CDN can keep the image for a year. A crawler's first fetch after a
+ *   share then hits a cached image instead of waiting on a render (X drops
+ *   the image when that wait runs long).
+ * - "unversioned": a bare /card-image URL can change under the same name, so
+ *   it keeps the shorter day-long CDN lifetime.
+ * - "degraded": the headline card drawn because the story's own image could
+ *   not be fetched. Kept for minutes only, so the next fetch retries the real
+ *   image rather than pinning the fallback for a year.
+ */
+export type StoryCardCacheKind = "versioned" | "unversioned" | "degraded";
+
+export function storyCardCacheControl(kind: StoryCardCacheKind): string {
+  switch (kind) {
+    case "versioned":
+      return "public, max-age=604800, s-maxage=31536000, stale-while-revalidate=31536000";
+    case "unversioned":
+      return "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+    case "degraded":
+      return "public, max-age=300, s-maxage=300";
+  }
+}
+
+/** How long a warm-up fetch may run before it is abandoned. */
+const WARM_TIMEOUT_MS = 20_000;
+
+/**
+ * Fetch a story's card image once so the CDN holds it before any crawler
+ * asks. Called after the story page renders (see generateMetadata in
+ * src/app/c/[slug]/stories/[hash]/page.tsx); X fetches the page HTML before
+ * the image, so a fresh story's first share still finds the image cached.
+ * Never throws: a failed warm-up only means the crawler pays for the render.
+ */
+export async function warmStoryCardImage(absoluteUrl: string): Promise<void> {
+  try {
+    const res = await fetch(absoluteUrl, {
+      headers: { Accept: "image/*" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(WARM_TIMEOUT_MS),
+    });
+    // Drain the body so the CDN sees a complete response and stores it.
+    await res.arrayBuffer();
+  } catch {
+    // Best effort only.
+  }
+}
+
+/**
  * Absolute URL of the backend image behind a story's `image_url`, for the
  * card-image route to fetch. Backend-relative paths (`/api/feed/public/...`,
  * `/api/time-series/...`) hang off the API origin; absolute http(s) URLs are
