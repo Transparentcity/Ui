@@ -21,20 +21,18 @@ export default function LegalStandardPanel({
   standardsBasis,
   compliance,
   scorecardHref,
-  now,
 }: {
   standard: MandateStandard | null | undefined;
   standardsBasis?: string | null;
   /** Compliance from the mandates API; omitted while dark-launched for non-admins. */
   compliance?: MandateCompliance | null;
-  /** Link to the city's mandate scorecard. */
+  /** Link to the city's legal standards scorecard. */
   scorecardHref?: string | null;
-  now?: Date;
 }) {
   if (!standard) return null;
 
   const target = formatMandateTarget(standard);
-  const kind = compliance ? mandatePillKind(compliance, standard.grain, now) : null;
+  const kind = compliance ? mandatePillKind(compliance) : null;
   const streak =
     compliance && kind !== "no_data" ? mandateStreakText(compliance, standard.grain) : null;
   const latestPeriod = compliance
@@ -138,7 +136,7 @@ export default function LegalStandardPanel({
       {scorecardHref && (
         <p className="provenance-value">
           <a href={scorecardHref} className="provenance-link-inline">
-            See the compliance scorecard →
+            See all of the city&rsquo;s legal standards →
           </a>
         </p>
       )}

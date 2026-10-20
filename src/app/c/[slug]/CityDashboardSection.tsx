@@ -18,7 +18,7 @@ import {
   resolveDisplayCategory,
   resolveDisplaySubcategory,
 } from "@/lib/metricOrderingDisplay";
-import { isLegalMandateCategory, mandatesEnabled } from "@/lib/mandates";
+import { LEGAL_STANDARDS_LABEL, isLegalMandateCategory, mandatesEnabled } from "@/lib/mandates";
 
 /** Optional ordering: when provided, categories and metrics are sorted by it. */
 export type MetricOrderingEntry = {
@@ -469,9 +469,9 @@ export default function CityDashboardSection({
         {sortedMandateMetrics.length > 0 && (
           <div className="metrics-category-section metrics-mandates-section">
             <div className="metrics-table-header metrics-mandates-header">
-              <div className="metric-col metric-col-name">Legal Mandates</div>
+              <div className="metric-col metric-col-name">{LEGAL_STANDARDS_LABEL}</div>
               <Link href={`${base}/mandates`} className="metrics-mandates-scorecard-link">
-                See compliance scorecard →
+                Is the city meeting them? →
               </Link>
             </div>
             <div className="metrics-mandates-note">

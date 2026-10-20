@@ -46,8 +46,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Keep fallback
   }
   return {
-    title: `Legal mandates | ${display}`,
-    description: `How ${display} measures up against the legal standards it is required to meet, with the law, the responsible department, and the mandated report for each.`,
+    title: `Legal standards | ${display}`,
+    description: `Is ${display} meeting the standards state and local law require? Each one with the latest figure, whether it was met, and the law behind it.`,
     alternates: { canonical: `/c/${slug}/mandates` },
     // Dark launch: keep out of search until the scorecard is public.
     robots: { index: false, follow: false },
@@ -77,19 +77,13 @@ export default async function CityMandatesPage({ params }: PageProps) {
         <CitySignupButton citySlug={slug} cityName={city.display} />
       </PublicNavBar>
 
-      <section className="hero" style={{ paddingTop: 96 }}>
+      <section className="hero" style={{ padding: "96px 0 40px" }}>
         <div className="container">
           <div className="hero-content">
             <div className="hero-text">
-              <span className="badge">Legal mandates</span>
               <h1 className="hero-title">
-                {`${city.emoji || "🏙️"} ${city.display}`}: compliance scorecard
+                {`${city.emoji || "🏙️"} Is ${city.name} meeting its legal standards?`}
               </h1>
-              <p className="hero-description">
-                State and local law sets standards that {city.name} must meet. Each row
-                shows the standard, the latest reported value, and whether the city met
-                it, with links to the data and to the report the law requires.
-              </p>
               <div className="hero-category-links">
                 <Link href={`/c/${slug}`} className="hero-category-link">
                   ← {city.name} dashboard
@@ -105,9 +99,9 @@ export default async function CityMandatesPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section style={{ padding: "32px 0 64px" }}>
+      <section style={{ padding: "8px 0 64px" }}>
         <div className="container">
-          <MandateScorecardClient cityId={city.id} slug={slug} />
+          <MandateScorecardClient cityId={city.id} slug={slug} cityName={city.name} />
         </div>
       </section>
 

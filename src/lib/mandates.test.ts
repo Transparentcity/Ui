@@ -8,7 +8,6 @@ import {
   mandateStreakText,
 } from "@/lib/mandates";
 
-const now = new Date("2026-03-15T00:00:00Z");
 
 function compliance(overrides: Partial<MandateCompliance>): MandateCompliance {
   return {
@@ -27,9 +26,9 @@ function compliance(overrides: Partial<MandateCompliance>): MandateCompliance {
 }
 
 describe("pace and equality standards", () => {
-  it("shows an off-pace period as missed", () => {
+  it("shows an off-pace period as behind pace", () => {
     const c = compliance({ latest_status: "off_pace", streak_status: "off_pace", streak_length: 3 });
-    expect(mandatePillKind(c, "year", now)).toBe("missed");
+    expect(mandatePillKind(c)).toBe("behind_pace");
   });
 
   it("describes an off-pace streak", () => {

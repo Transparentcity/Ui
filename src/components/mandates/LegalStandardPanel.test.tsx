@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import LegalStandardPanel from "./LegalStandardPanel";
-import { NOW, compliance, standard911 } from "./mandateFixtures";
+import { compliance, standard911 } from "./mandateFixtures";
 
 describe("LegalStandardPanel", () => {
   it("renders nothing without a standard", () => {
@@ -38,13 +38,12 @@ describe("LegalStandardPanel", () => {
         standard={standard911}
         compliance={c}
         scorecardHref="/c/san-francisco/mandates"
-        now={NOW}
       />
     );
     expect(screen.getByText("Missed")).toBeInTheDocument();
     expect(screen.getByText("75.0% in Jun 2026")).toBeInTheDocument();
     expect(screen.getByText("Missed 5 months running")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /compliance scorecard/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /all of the city.s legal standards/i })).toHaveAttribute(
       "href",
       "/c/san-francisco/mandates"
     );
