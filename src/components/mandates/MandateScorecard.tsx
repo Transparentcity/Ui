@@ -3,12 +3,15 @@ import Link from "next/link";
 import type { PublicCityMandate } from "@/lib/publicApiClient";
 import {
   MANDATE_PILL_LABELS,
+  MANDATE_PILL_ORDER,
   formatMandatePeriod,
   formatMandateTarget,
   formatMandateValue,
-  splitMandateValue,
-  mandatePillKind,
+  mandateStatus,
   mandateStreakText,
+  sortMandatesForScorecard,
+  splitMandateValue,
+  summarizeMandates,
   type MandatePillKind,
 } from "@/lib/mandates";
 import MandateSparkline from "./MandateSparkline";
@@ -19,9 +22,20 @@ export type MandateScorecardState = "loading" | "ready" | "forbidden" | "error";
 const PILL_CLASS: Record<MandatePillKind, string> = {
   met: styles.pillMet,
   missed: styles.pillMissed,
+  behind_pace: styles.pillMissed,
   at_risk: styles.pillAtRisk,
   no_data: styles.pillNoData,
   tracked: styles.pillTracked,
+};
+
+/** Short, lower-case form for the summary strip ("2 missed", "5 meeting"). */
+const SUMMARY_LABELS: Record<MandatePillKind, string> = {
+  met: "meeting the standard",
+  missed: "missed",
+  behind_pace: "behind pace",
+  at_risk: "at risk",
+  no_data: "no recent data",
+  tracked: "no legal target",
 };
 
 export function MandateStatusPill({ kind }: { kind: MandatePillKind }) {
@@ -29,6 +43,36 @@ export function MandateStatusPill({ kind }: { kind: MandatePillKind }) {
     <span className={`${styles.pill} ${PILL_CLASS[kind]}`} data-kind={kind}>
       {MANDATE_PILL_LABELS[kind]}
     </span>
+  );
+}
+
+function MandateSummaryStrip({
+  mandates,
+  cityName,
+  now,
+}: {
+  mandates: PublicCityMandate[];
+  cityName: string;
+  now?: Date;
+}) {
+  const { counts, stale, lead } = summarizeMandates(mandates, cityName, now);
+  return (
+    <div className={styles.summary} data-testid="mandate-summary">
+      <ul className={styles.summaryCounts} aria-label="Standards by status">
+        {MANDATE_PILL_ORDER.filter((k) => counts[k]).map((k) => (
+          <li key={k} className={styles.summaryCount} data-kind={k}>
+            <span className={styles.summaryNumber}>{counts[k]}</span> {SUMMARY_LABELS[k]}
+          </li>
+        ))}
+        {stale > 0 && (
+          <li className={styles.summaryCount} data-kind="stale">
+            <span className={styles.summaryNumber}>{stale}</span>{" "}
+            {stale === 1 ? "report overdue" : "reports overdue"}
+          </li>
+        )}
+      </ul>
+      {lead && <p className={styles.summaryLead}>{lead}</p>}
+    </div>
   );
 }
 
@@ -42,7 +86,7 @@ function MandateRow({
   now?: Date;
 }) {
   const { standard, compliance } = mandate;
-  const kind = mandatePillKind(compliance, standard.grain, now);
+  const { kind, stale } = mandateStatus(compliance, standard.grain, now);
   const streak = kind === "no_data" ? null : mandateStreakText(compliance, standard.grain);
   const target = formatMandateTarget(standard);
   const latestPeriod = formatMandatePeriod(compliance.latest_period, standard.grain);
@@ -61,42 +105,29 @@ function MandateRow({
     : compliance.periods;
 
   return (
-    <li className={styles.row} data-testid="mandate-row">
+    <li className={styles.row} data-testid="mandate-row" data-kind={kind}>
       <div className={styles.rowMain}>
-        <div className={styles.rowHeader}>
-          <h3 className={styles.rowTitle}>{title}</h3>
-          <MandateStatusPill kind={kind} />
-        </div>
-        <p className={styles.standardText}>{standard.text}</p>
-        {standard.citation && <p className={styles.citation}>{standard.citation}</p>}
-        {standard.owner_department && (
-          <p className={styles.owner}>
-            <span className={styles.metaLabel}>Responsible: </span>
-            {standard.owner_department}
-          </p>
-        )}
-        <div className={styles.links}>
-          <Link href={`/c/${slug}/metrics/${mandate.metric_key}`} className={styles.link}>
-            See the data →
+        <h3 className={styles.rowTitle}>
+          <Link href={`/c/${slug}/metrics/${mandate.metric_key}`} className={styles.rowTitleLink}>
+            {title}
           </Link>
-          {standard.report_url && (
-            <a
-              href={standard.report_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.link}
-            >
-              {standard.report_name ? `Mandated report: ${standard.report_name}` : "Mandated report"} ↗
-            </a>
-          )}
-        </div>
+        </h3>
+        <p className={styles.standardText}>{standard.text}</p>
+        <Link href={`/c/${slug}/metrics/${mandate.metric_key}`} className={styles.link}>
+          See the data and the law →
+        </Link>
       </div>
       <div className={styles.rowStats}>
         <div className={styles.latest}>
           <span className={styles.latestValue}>{shown.number}</span>
           {shown.unit && <span className={styles.latestUnit}>{shown.unit}</span>}
-          {latestPeriod && <span className={styles.latestPeriod}>{latestPeriod}</span>}
+          <MandateStatusPill kind={kind} />
         </div>
+        {latestPeriod && (
+          <div className={stale ? styles.stalePeriod : styles.latestPeriod}>
+            {stale ? `Last report ${latestPeriod}` : latestPeriod}
+          </div>
+        )}
         {lastPace?.cumulative_expected != null && (
           <div className={styles.target}>
             Expected by now: {formatMandateValue(Math.round(lastPace.cumulative_expected), standard.unit)}
@@ -104,6 +135,8 @@ function MandateRow({
         )}
         {target && <div className={styles.target}>Standard: {target}</div>}
         {streak && <div className={styles.streak}>{streak}</div>}
+      </div>
+      <div className={styles.rowSpark}>
         <MandateSparkline
           periods={sparkPeriods}
           target={standard.operator === "tracked" || isPace ? null : standard.target}
@@ -115,20 +148,24 @@ function MandateRow({
 }
 
 /**
- * Legal mandate scorecard: one row per mandate with its standard, latest
- * value, status pill, streak, a 24-period sparkline, the responsible
- * department, and links to the metric page and the mandated report.
+ * Legal standards scorecard: a summary strip, then one row per standard
+ * sorted by status (failures first) with the latest value, status pill,
+ * streak and a 24-period sparkline. The law, the responsible official and
+ * the mandated report live on the metric page's Legal standard panel.
  * Presentational only; the caller fetches and passes `state`.
  */
 export default function MandateScorecard({
   mandates,
   slug,
+  cityName,
   state,
   errorMessage,
   now,
 }: {
   mandates: PublicCityMandate[];
   slug: string;
+  /** For the summary lead, e.g. "San Francisco is meeting every legal standard…". */
+  cityName?: string;
   state: MandateScorecardState;
   errorMessage?: string;
   /** Clock for the staleness rule (tests). */
@@ -137,14 +174,14 @@ export default function MandateScorecard({
   if (state === "loading") {
     return (
       <div className={styles.notice} role="status">
-        Loading legal mandates…
+        Loading legal standards…
       </div>
     );
   }
   if (state === "forbidden") {
     return (
       <div className={styles.notice} role="status">
-        <strong>The legal mandates scorecard is not public yet.</strong>
+        <strong>The legal standards scorecard is not public yet.</strong>
         <p>Sign in with an admin account to preview it.</p>
       </div>
     );
@@ -152,7 +189,7 @@ export default function MandateScorecard({
   if (state === "error") {
     return (
       <div className={styles.notice} role="alert">
-        <strong>Could not load legal mandates.</strong>
+        <strong>Could not load legal standards.</strong>
         {errorMessage && <p>{errorMessage}</p>}
       </div>
     );
@@ -160,15 +197,19 @@ export default function MandateScorecard({
   if (mandates.length === 0) {
     return (
       <div className={styles.notice} role="status">
-        No legal mandates are tracked for this city yet.
+        No legal standards are tracked for this city yet.
       </div>
     );
   }
+  const sorted = sortMandatesForScorecard(mandates);
   return (
-    <ul className={styles.scorecard} aria-label="Legal mandates">
-      {mandates.map((m) => (
-        <MandateRow key={m.metric_key} mandate={m} slug={slug} now={now} />
-      ))}
-    </ul>
+    <>
+      <MandateSummaryStrip mandates={mandates} cityName={cityName ?? "The city"} now={now} />
+      <ul className={styles.scorecard} aria-label="Legal standards">
+        {sorted.map((m) => (
+          <MandateRow key={m.metric_key} mandate={m} slug={slug} now={now} />
+        ))}
+      </ul>
+    </>
   );
 }

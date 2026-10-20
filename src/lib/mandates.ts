@@ -3,26 +3,44 @@ import type {
   MandateStandard,
 } from "@/lib/publicApiClient";
 
-/** Legal mandates UI is gated until launch (scorecard page and metric panel). */
+/** Legal standards UI is gated until launch (scorecard page and metric panel). */
 export function mandatesEnabled(): boolean {
   const raw = (process.env.NEXT_PUBLIC_MANDATES_ENABLED ?? "").trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
-export type MandatePillKind = "met" | "missed" | "at_risk" | "no_data" | "tracked";
+export type MandatePillKind =
+  | "met"
+  | "missed"
+  | "behind_pace"
+  | "at_risk"
+  | "no_data"
+  | "tracked";
 
 export const MANDATE_PILL_LABELS: Record<MandatePillKind, string> = {
   met: "Meets standard",
   missed: "Missed",
+  behind_pace: "Behind pace",
   at_risk: "At risk",
   no_data: "No recent data",
-  tracked: "Tracked",
+  tracked: "No legal target",
 };
 
+/** Scorecard order: what needs attention first, what has no target last. */
+export const MANDATE_PILL_ORDER: MandatePillKind[] = [
+  "missed",
+  "behind_pace",
+  "at_risk",
+  "met",
+  "no_data",
+  "tracked",
+];
+
 /**
- * How many periods old the latest data may be before the status reads
- * "No recent data". Scorecard figures often lag a month or two, so this is
- * deliberately loose; it exists to stop a years-old result reading as current.
+ * How many months old the latest data may be before it counts as stale.
+ * Scorecard figures often lag a month or two, so this is deliberately loose.
+ * A stale result keeps its real status; the card says when it was last
+ * reported, so a known violation is never hidden behind "No recent data".
  */
 const STALE_AFTER_MONTHS: Record<string, number> = {
   // State sources lag: Medi-Cal renewals publish about 6 months behind, so
@@ -41,38 +59,131 @@ function monthsBetween(fromIso: string, to: Date): number | null {
   );
 }
 
-/**
- * Status pill for a mandate.
- *
- * The backend reports met / missed / tracked / no_data for the latest period.
- * Two states are derived here:
- * - "At risk": the latest period meets the standard but at least one of the
- *   last 12 evaluated periods missed it (met_count_recent < evaluated_count_recent).
- * - "No recent data": no periods, a latest status of no_data, or a latest
- *   period older than the grain's staleness window.
- */
-export function mandatePillKind(
+/** True when the latest period is older than the grain's staleness window. */
+export function mandateIsStale(
   compliance: MandateCompliance | null | undefined,
   grain: string | null | undefined,
   now: Date = new Date()
-): MandatePillKind {
-  if (!compliance || !compliance.latest_period) return "no_data";
+): boolean {
+  if (!compliance?.latest_period) return false;
   const staleAfter = STALE_AFTER_MONTHS[grain ?? "month"] ?? STALE_AFTER_MONTHS.month;
   const age = monthsBetween(compliance.latest_period, now);
-  if (age != null && age > staleAfter) return "no_data";
+  return age != null && age > staleAfter;
+}
+
+/**
+ * Status pill for a mandate.
+ *
+ * The backend reports met / missed / off_pace / tracked / no_data for the
+ * latest period. "At risk" is derived here: the latest period meets the
+ * standard but at least one of the last 12 evaluated periods missed it.
+ * Staleness does not change the pill (see mandateIsStale).
+ */
+export function mandatePillKind(
+  compliance: MandateCompliance | null | undefined
+): MandatePillKind {
+  if (!compliance || !compliance.latest_period) return "no_data";
   switch (compliance.latest_status) {
     case "met":
       return compliance.met_count_recent < compliance.evaluated_count_recent
         ? "at_risk"
         : "met";
     case "missed":
-    case "off_pace":
       return "missed";
+    case "off_pace":
+      return "behind_pace";
     case "tracked":
       return "tracked";
     default:
       return "no_data";
   }
+}
+
+export type MandateStatus = { kind: MandatePillKind; stale: boolean };
+
+/**
+ * The status every consumer should show: the pill kind plus whether the
+ * latest data is older than its grain's window. One call, so no view can
+ * show a status without also knowing it may be out of date.
+ */
+export function mandateStatus(
+  compliance: MandateCompliance | null | undefined,
+  grain: string | null | undefined,
+  now: Date = new Date()
+): MandateStatus {
+  return {
+    kind: mandatePillKind(compliance),
+    stale: mandateIsStale(compliance, grain, now),
+  };
+}
+
+/** Sort mandates for the scorecard: failures first, no-target last (sort is stable). */
+export function sortMandatesForScorecard<T extends { standard: MandateStandard; compliance: MandateCompliance }>(
+  mandates: T[]
+): T[] {
+  const rank = (m: T) => MANDATE_PILL_ORDER.indexOf(mandatePillKind(m.compliance));
+  return [...mandates].sort((a, b) => rank(a) - rank(b));
+}
+
+export type MandateSummary = {
+  counts: Partial<Record<MandatePillKind, number>>;
+  /** Rows whose latest data is older than their grain's window. */
+  stale: number;
+  /** One sentence with the headline, e.g. the longest-running miss. */
+  lead: string | null;
+};
+
+/** Periods per month, to compare streaks across grains. */
+const MONTHS_PER_PERIOD: Record<string, number> = { month: 1, quarter: 3, year: 12 };
+
+/**
+ * Headline for the top of the scorecard: how many standards sit in each
+ * state, and the single most important fact (the longest-running failure,
+ * or that every standard with a target is being met).
+ */
+export function summarizeMandates<T extends { standard: MandateStandard; metric_name: string; compliance: MandateCompliance }>(
+  mandates: T[],
+  cityName: string,
+  now: Date = new Date()
+): MandateSummary {
+  const counts: Partial<Record<MandatePillKind, number>> = {};
+  let stale = 0;
+  let worst: { title: string; kind: MandatePillKind; streak: number; months: number; grain: string } | null = null;
+  for (const m of mandates) {
+    const status = mandateStatus(m.compliance, m.standard.grain, now);
+    counts[status.kind] = (counts[status.kind] ?? 0) + 1;
+    if (status.stale) stale += 1;
+    if (status.kind === "missed" || status.kind === "behind_pace") {
+      const streak = m.compliance.streak_length ?? 0;
+      // Compare streaks in months, so 9 quarters outranks 12 months.
+      const months = streak * (MONTHS_PER_PERIOD[m.standard.grain] ?? 1);
+      if (!worst || months > worst.months) {
+        worst = {
+          title: m.standard.title || m.metric_name,
+          kind: status.kind,
+          streak,
+          months,
+          grain: m.standard.grain,
+        };
+      }
+    }
+  }
+  const judged = mandates.length - (counts.tracked ?? 0) - (counts.no_data ?? 0);
+  let lead: string | null = null;
+  if (worst) {
+    const n = worst.streak;
+    const span = n > 1 ? ` for ${n} ${grainNoun(worst.grain, n)} running` : "";
+    // "<title>: ..." sidesteps verb agreement with plural titles.
+    lead =
+      worst.kind === "behind_pace"
+        ? `${worst.title}: behind the pace the law requires${span}.`
+        : `${worst.title}: standard missed${span}.`;
+  } else if (judged > 0 && stale === 0) {
+    lead = `${cityName} is meeting every legal standard with a numeric target.`;
+  } else if (judged > 0) {
+    lead = `${cityName} met every standard in its latest reports, but ${stale} of them ${stale === 1 ? "is" : "are"} overdue.`;
+  }
+  return { counts, stale, lead };
 }
 
 function grainNoun(grain: string | null | undefined, n: number): string {
@@ -199,10 +310,13 @@ export function mandateChartDisablesYtd(
   return standard.unit === "%" || measurementType === "stock";
 }
 
-/** Category name the platform assigns to legal-mandate metrics. */
+/** Category name the platform assigns to legal-standard metrics (backend value; do not rename). */
 export const LEGAL_MANDATES_CATEGORY = "Legal mandates";
 
-/** True for the legal-mandates category, tolerant of case, spacing and snake_case. */
+/** What readers see for that category. */
+export const LEGAL_STANDARDS_LABEL = "Legal standards";
+
+/** True for the legal-standards category, tolerant of case, spacing and snake_case. */
 export function isLegalMandateCategory(category: string | null | undefined): boolean {
   if (!category) return false;
   return (

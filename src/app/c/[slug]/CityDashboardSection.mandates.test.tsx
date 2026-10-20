@@ -40,18 +40,18 @@ describe("CityDashboardSection legal mandates", () => {
   it("renders mandate metrics as an ordinary YTD category when the flag is off", () => {
     vi.stubEnv("NEXT_PUBLIC_MANDATES_ENABLED", "");
     renderDashboard();
-    expect(screen.queryByText(/compliance scorecard/i)).toBeNull();
+    expect(screen.queryByText(/meeting them/i)).toBeNull();
     expect(screen.queryByText(/judged period by period/)).toBeNull();
     const section = sectionFor("911 calls answered in 15 seconds");
     expect(within(section).getByText("Change")).toBeInTheDocument();
     expect(within(section).getAllByText(/YTD$/)).toHaveLength(2);
   });
 
-  it("renders a Legal Mandates section with a scorecard link and no YTD columns when on", () => {
+  it("renders a Legal standards section with a scorecard link and no YTD columns when on", () => {
     vi.stubEnv("NEXT_PUBLIC_MANDATES_ENABLED", "true");
     renderDashboard();
-    const section = sectionFor("Legal Mandates");
-    expect(within(section).getByRole("link", { name: /See compliance scorecard/ })).toHaveAttribute(
+    const section = sectionFor("Legal standards");
+    expect(within(section).getByRole("link", { name: /Is the city meeting them/ })).toHaveAttribute(
       "href",
       "/c/san-francisco/mandates"
     );
@@ -69,6 +69,6 @@ describe("CityDashboardSection legal mandates", () => {
     vi.stubEnv("NEXT_PUBLIC_MANDATES_ENABLED", "1");
     renderDashboard([metrics[1]]);
     expect(screen.queryByText(/No dashboard metrics/)).toBeNull();
-    expect(screen.getByText("Legal Mandates")).toBeInTheDocument();
+    expect(screen.getByText("Legal standards")).toBeInTheDocument();
   });
 });

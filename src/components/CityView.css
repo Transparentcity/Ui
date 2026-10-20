@@ -3417,7 +3417,7 @@ button.metrics-table-row {
 }
 
 
-/* Legal Mandates dashboard section (NEXT_PUBLIC_MANDATES_ENABLED): no YTD
+/* Legal standards dashboard section (NEXT_PUBLIC_MANDATES_ENABLED): no YTD
    columns, since standards are judged per period. Compound selectors keep the
    single-column grid ahead of the responsive 4-column rules above. */
 .metrics-table-header.metrics-mandates-header {

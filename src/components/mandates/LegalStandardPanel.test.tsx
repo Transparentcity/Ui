@@ -38,13 +38,12 @@ describe("LegalStandardPanel", () => {
         standard={standard911}
         compliance={c}
         scorecardHref="/c/san-francisco/mandates"
-        now={NOW}
       />
     );
     expect(screen.getByText("Missed")).toBeInTheDocument();
     expect(screen.getByText("75.0% in Jun 2026")).toBeInTheDocument();
     expect(screen.getByText("Missed 5 months running")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /compliance scorecard/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /all of the city.s legal standards/i })).toHaveAttribute(
       "href",
       "/c/san-francisco/mandates"
     );
@@ -66,5 +65,17 @@ describe("LegalStandardPanel", () => {
     expect(screen.getByText("Report housing production annually")).toBeInTheDocument();
     expect(screen.queryByText(/target:/i)).toBeNull();
     expect(screen.queryByText(/legal source/i)).toBeNull();
+  });
+
+  it("says when a stale result was last reported", () => {
+    render(
+      <LegalStandardPanel
+        standard={standard911}
+        compliance={compliance(["met"], { latest_period: "2025-01-01" })}
+        now={NOW}
+      />
+    );
+    expect(screen.getByText("Meets standard")).toBeInTheDocument();
+    expect(screen.getByText(/Last report Jan 2025; a newer one is overdue/)).toBeInTheDocument();
   });
 });
