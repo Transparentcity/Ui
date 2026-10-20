@@ -8,14 +8,13 @@ import {
   STORY_CARD_WIDTH,
   formatCardDate,
   headlineFontSize,
+  storyCardCacheControl,
   truncateHeadline,
   upstreamStoryImageUrl,
 } from "@/lib/feed/storyCardImage";
 import { loadStoryChartCard, storyChartTarget } from "@/lib/feed/storyChartCard";
 
 import { StoryChartCardImage } from "./chartCard";
-
-export const runtime = "edge";
 
 /**
  * Social-card image for a story. In order of preference:
@@ -33,36 +32,55 @@ export const runtime = "edge";
  *
  * Deliberately a plain route handler rather than the opengraph-image file
  * convention: that convention overrides config metadata for every story.
+ *
+ * Runs on the default Node runtime. The Edge runtime is deprecated in this
+ * Next version and streamed every response chunked, so crawlers never got a
+ * Content-Length for the image.
  */
 
 type RouteContext = { params: Promise<{ slug: string; hash: string }> };
 
 const HASH_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/**
- * Card images are versioned by the story's last update (?v=...), so they can
- * sit in caches for a while; the CDN keeps serving one while it revalidates.
- */
-const CARD_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+/** Which branch drew the card; sent as x-card-source for debugging previews. */
+type CardSource = "chart" | "upstream" | "headline";
+
+type CardImage = { body: ArrayBuffer; contentType: string };
 
 /**
- * Stream the backend's story image through this route. Returns null on any
- * doubt (upstream error, non-image body, network failure) so the caller draws
- * the headline card instead.
+ * Every branch buffers its image so the response carries a Content-Length.
+ * Some crawlers handle a chunked image body worse than a sized one, and a
+ * buffered body also means a render error falls back instead of sending a
+ * 200 with an empty or truncated image.
  */
-async function proxyStoryImage(url: string): Promise<Response | null> {
-  let upstream: Response;
+function cardResponse(image: CardImage, cacheControl: string, source: CardSource): Response {
+  return new Response(image.body, {
+    status: 200,
+    headers: {
+      "content-type": image.contentType,
+      "content-length": String(image.body.byteLength),
+      "cache-control": cacheControl,
+      "x-card-source": source,
+    },
+  });
+}
+
+/**
+ * Fetch the backend's story image for this route to serve. Returns null on
+ * any doubt (upstream error, non-image body, network failure) so the caller
+ * draws the headline card instead.
+ */
+async function fetchStoryImage(url: string): Promise<CardImage | null> {
   try {
-    upstream = await fetch(url, { headers: { Accept: "image/*" }, cache: "no-store" });
+    const upstream = await fetch(url, { headers: { Accept: "image/*" }, cache: "no-store" });
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (!upstream.ok || !contentType.startsWith("image/")) return null;
+    const body = await upstream.arrayBuffer();
+    if (body.byteLength === 0) return null;
+    return { body, contentType };
   } catch {
     return null;
   }
-  const contentType = upstream.headers.get("content-type") ?? "";
-  if (!upstream.ok || !contentType.startsWith("image/") || !upstream.body) return null;
-  return new Response(upstream.body, {
-    status: 200,
-    headers: { "content-type": contentType, "cache-control": CARD_CACHE_CONTROL },
-  });
 }
 
 type PublicStory = Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"];
@@ -72,7 +90,7 @@ type PublicStory = Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"]
  * story, unsupported series, upstream error, render failure) so the caller
  * falls back to the backend image.
  */
-async function renderWindowedChartCard(story: PublicStory, cityName: string): Promise<Response | null> {
+async function renderWindowedChartCard(story: PublicStory, cityName: string): Promise<CardImage | null> {
   const target = storyChartTarget(story);
   if (!target) return null;
   try {
@@ -86,10 +104,7 @@ async function renderWindowedChartCard(story: PublicStory, cityName: string): Pr
     // instead of sending a 200 with an empty body.
     const body = await image.arrayBuffer();
     if (body.byteLength === 0) return null;
-    return new Response(body, {
-      status: 200,
-      headers: { "content-type": "image/png", "cache-control": CARD_CACHE_CONTROL },
-    });
+    return { body, contentType: "image/png" };
   } catch {
     return null;
   }
@@ -103,7 +118,7 @@ function titleCaseSlug(slug: string): string {
     .join(" ");
 }
 
-export async function GET(_request: Request, context: RouteContext): Promise<Response> {
+export async function GET(request: Request, context: RouteContext): Promise<Response> {
   const { slug, hash } = await context.params;
   if (!HASH_RE.test(hash)) return new Response("Invalid story hash", { status: 400 });
 
@@ -118,15 +133,20 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
 
   const cityName = story.city_name || titleCaseSlug(slug);
 
+  const versioned = new URL(request.url).searchParams.has("v");
+  const cacheControl = storyCardCacheControl(versioned ? "versioned" : "unversioned");
+
   const chartCard = await renderWindowedChartCard(story, cityName);
-  if (chartCard) return chartCard;
+  if (chartCard) return cardResponse(chartCard, cacheControl, "chart");
 
   // Stories with a chart or map show it; the rest get the headline card.
   const imageUrl = upstreamStoryImageUrl(story.image_url, getUpstreamApiBaseUrl());
   if (imageUrl) {
-    const proxied = await proxyStoryImage(imageUrl);
-    if (proxied) return proxied;
+    const upstreamImage = await fetchStoryImage(imageUrl);
+    if (upstreamImage) return cardResponse(upstreamImage, cacheControl, "upstream");
   }
+  // A story whose own image failed gets the headline card only briefly.
+  const headlineCacheControl = imageUrl ? storyCardCacheControl("degraded") : cacheControl;
 
   const headline = improveGenericHeadline(story.headline ?? "", {
     summary: story.summary,
@@ -138,7 +158,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
   const text = truncateHeadline(headline || `City data from ${cityName}`);
   const fontSize = headlineFontSize(text);
 
-  return new ImageResponse(
+  const headlineCard = new ImageResponse(
     (
       <div
         style={{
@@ -236,10 +256,8 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
         </div>
       </div>
     ),
-    {
-      width: STORY_CARD_WIDTH,
-      height: STORY_CARD_HEIGHT,
-      headers: { "Cache-Control": CARD_CACHE_CONTROL },
-    },
+    { width: STORY_CARD_WIDTH, height: STORY_CARD_HEIGHT },
   );
+  const body = await headlineCard.arrayBuffer();
+  return cardResponse({ body, contentType: "image/png" }, headlineCacheControl, "headline");
 }

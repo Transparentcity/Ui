@@ -139,6 +139,54 @@ describe("GET /c/[slug]/stories/[hash]/card-image", () => {
     expect(await res.text()).toBe("generated-card");
   });
 
+  it("sends a Content-Length on every branch", async () => {
+    getPublicFeedStoryByHash.mockResolvedValue(story());
+    fetchMock.mockResolvedValue(
+      new Response(PNG_BYTES, { status: 200, headers: { "content-type": "image/png" } }),
+    );
+    const upstream = await GET(new Request("https://transparent.city/x"), ctx());
+    expect(upstream.headers.get("content-length")).toBe(String(PNG_BYTES.byteLength));
+    expect(upstream.headers.get("x-card-source")).toBe("upstream");
+
+    getPublicFeedStoryByHash.mockResolvedValue(story({ image_url: null }));
+    const headline = await GET(new Request("https://transparent.city/x"), ctx());
+    expect(headline.headers.get("content-length")).toBe(String("generated-card".length));
+    expect(headline.headers.get("x-card-source")).toBe("headline");
+  });
+
+  it("lets the CDN keep a versioned card for a year", async () => {
+    getPublicFeedStoryByHash.mockResolvedValue(story());
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(PNG_BYTES, { status: 200, headers: { "content-type": "image/png" } }),
+      ),
+    );
+
+    const versioned = await GET(new Request("https://transparent.city/x?v=abc123"), ctx());
+    expect(versioned.headers.get("cache-control")).toContain("s-maxage=31536000");
+
+    const bare = await GET(new Request("https://transparent.city/x"), ctx());
+    expect(bare.headers.get("cache-control")).toContain("s-maxage=86400");
+  });
+
+  it("caches the headline fallback only briefly when the story image failed", async () => {
+    getPublicFeedStoryByHash.mockResolvedValue(story());
+    fetchMock.mockResolvedValue(new Response("nope", { status: 502 }));
+
+    const res = await GET(new Request("https://transparent.city/x?v=abc123"), ctx());
+
+    expect(await res.text()).toBe("generated-card");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+  });
+
+  it("caches a headline card long when the story has no image at all", async () => {
+    getPublicFeedStoryByHash.mockResolvedValue(story({ image_url: null }));
+
+    const res = await GET(new Request("https://transparent.city/x?v=abc123"), ctx());
+
+    expect(res.headers.get("cache-control")).toContain("s-maxage=31536000");
+  });
+
   it("404s an unknown story and 400s a malformed hash", async () => {
     getPublicFeedStoryByHash.mockRejectedValue(new Error("404"));
     const missing = await GET(new Request("https://transparent.city/x"), ctx());

@@ -1,14 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 
 import {
   STORY_CARD_HEADLINE_MAX,
   formatCardDate,
   headlineFontSize,
   resolveStorySocialImage,
+  storyCardCacheControl,
   storyCardImagePath,
   storyImageVersion,
   truncateHeadline,
   upstreamStoryImageUrl,
+  warmStoryCardImage,
 } from "./storyCardImage";
 
 describe("resolveStorySocialImage", () => {
@@ -142,5 +144,38 @@ describe("upstreamStoryImageUrl", () => {
     for (const value of [null, undefined, "", "   ", "photo.jpg", "//evil.example/x.png"]) {
       expect(upstreamStoryImageUrl(value, origin)).toBe("");
     }
+  });
+});
+
+describe("storyCardCacheControl", () => {
+  it("keeps versioned cards a year at the CDN and degraded ones for minutes", () => {
+    expect(storyCardCacheControl("versioned")).toContain("s-maxage=31536000");
+    expect(storyCardCacheControl("unversioned")).toContain("s-maxage=86400");
+    expect(storyCardCacheControl("degraded")).toBe("public, max-age=300, s-maxage=300");
+  });
+});
+
+describe("warmStoryCardImage", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fetches the card URL and reads the whole body", async () => {
+    const body = vi.fn().mockResolvedValue(new ArrayBuffer(4));
+    const fetchMock = vi.fn().mockResolvedValue({ arrayBuffer: body });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await warmStoryCardImage("https://transparent.city/c/detroit/stories/abc/card-image?v=x");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://transparent.city/c/detroit/stories/abc/card-image?v=x",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(body).toHaveBeenCalled();
+  });
+
+  it("swallows failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNRESET")));
+    await expect(warmStoryCardImage("https://transparent.city/x")).resolves.toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 
 import "../../../../landing.css";
 
@@ -26,7 +27,8 @@ import StoryStaffControls from "@/components/feed/StoryStaffControls";
 import CitySignupCTA from "../../CitySignupCTA";
 import { SignupEmailProvider } from "../../SignupEmailContext";
 import { improveGenericHeadline } from "@/lib/feed/headlineCleanup";
-import { resolveStorySocialImage } from "@/lib/feed/storyCardImage";
+import { resolveStorySocialImage, warmStoryCardImage } from "@/lib/feed/storyCardImage";
+import { getSiteOrigin } from "@/lib/siteUrl";
 import { slugify } from "@/lib/utils";
 import Breadcrumb from "@/components/Breadcrumb";
 import { enrichStory } from "@/lib/feed/mockFeedData";
@@ -61,10 +63,46 @@ type PageProps = {
   params: Promise<{ slug: string; hash: string }>;
 };
 
+/** True when the backend answered that no story has this hash. */
+function isStoryNotFound(error: unknown): boolean {
+  return (error as { status?: number } | null)?.status === 404;
+}
+
+/**
+ * Metadata for a mistyped or deleted story id. The page body still renders
+ * the not-found UI, but the HTTP status stays 200 because this segment
+ * streams (loading.tsx), and calling notFound() here would fall back to the
+ * root layout's homepage card. Overriding openGraph and twitter without an
+ * image means a bad link unfurls as a plain "not found" preview instead of
+ * the generic site card.
+ */
+const STORY_NOT_FOUND_METADATA: Metadata = {
+  title: "Story not found",
+  description: "This story link is mistyped or the story no longer exists.",
+  robots: { index: false, follow: true },
+  openGraph: {
+    title: "Story not found – Transparent.city",
+    description: "This story link is mistyped or the story no longer exists.",
+    siteName: "Transparent.city",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Story not found – Transparent.city",
+    description: "This story link is mistyped or the story no longer exists.",
+  },
+};
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, hash } = await params;
+  let story: Awaited<ReturnType<typeof getPublicFeedStoryByHash>>["story"];
   try {
-    const { story } = await getPublicFeedStoryByHash(hash);
+    story = (await getPublicFeedStoryByHash(hash)).story;
+  } catch (error) {
+    if (isStoryNotFound(error)) return STORY_NOT_FOUND_METADATA;
+    return { title: "Story – Transparent.city" };
+  }
+  try {
     const cityName = story.city_name ?? slug;
     const headline = improveGenericHeadline(story.headline ?? "", {
       summary: story.summary,
@@ -79,6 +117,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // when there is not. Never the backend /api image URL: robots.txt
     // disallows /api and X's crawler drops the thumbnail.
     const social = resolveStorySocialImage(story, slug, hash);
+    // Render the card image as soon as the page is generated, so the CDN
+    // holds it before a crawler's image fetch: X reads this HTML first, then
+    // fetches the image, and drops it when that fetch is slow.
+    const cardUrl = new URL(social.url, getSiteOrigin()).toString();
+    after(() => warmStoryCardImage(cardUrl));
     return {
       title: headline || "Story",
       description: descSnippet,
