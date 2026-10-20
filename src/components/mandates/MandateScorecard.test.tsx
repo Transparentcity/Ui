@@ -152,10 +152,7 @@ describe("MandateScorecard", () => {
     // The law and the responsible department live on the metric page now.
     expect(first.queryByText("Dept of Emergency Management")).toBeNull();
     expect(first.queryByRole("link", { name: /mandated report/i })).toBeNull();
-    expect(first.getByRole("link", { name: /see the data and the law/i })).toHaveAttribute(
-      "href",
-      "/c/san-francisco/metrics/sf_mandate_911_answer_15s"
-    );
+    expect(rows[0]).toHaveAttribute("href", "/c/san-francisco/metrics/sf_mandate_911_answer_15s");
     expect(first.getByRole("img")).toBeInTheDocument();
 
     const second = within(rows[1]);
