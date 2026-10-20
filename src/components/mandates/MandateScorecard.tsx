@@ -219,13 +219,14 @@ export default function MandateScorecard({
   const asOf = latest ? formatMandatePeriod(latest, "month") : null;
   return (
     <section className="dashboard-section" aria-label={LEGAL_STANDARDS_LABEL}>
-      <div className="dashboard-comparison-selector">
-        <span className="comparison-selector-scope">{LEGAL_STANDARDS_LABEL}</span>
-        <span className="comparison-selector-label">
-          {mandates.length} standards{asOf ? ` · latest report ${asOf}` : ""}
-        </span>
-      </div>
       <div className="container">
+        <div className="dashboard-comparison-selector">
+          <span className="comparison-selector-scope">{LEGAL_STANDARDS_LABEL}</span>
+          <span className="comparison-selector-label">
+            {mandates.length} {mandates.length === 1 ? "standard" : "standards"}
+            {asOf ? ` · latest report ${asOf}` : ""}
+          </span>
+        </div>
         <MandateSummaryStrip mandates={mandates} cityName={cityName ?? "The city"} now={now} />
         <div className="metrics-category-section">
           <div className="metrics-table-header">

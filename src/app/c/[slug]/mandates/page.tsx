@@ -80,16 +80,11 @@ export default async function CityMandatesPage({ params }: PageProps) {
   const city = { ...match, display: cityDisplay(match) };
 
   // Same hero as the category page: mayor row, signup, category chips.
-  let cityDetail: Awaited<ReturnType<typeof getPublicCityDetail>> | null = null;
-  let cityOrdering: PublicMetricOrderingResponse | null = null;
-  try {
-    [cityDetail, cityOrdering] = await Promise.all([
-      getPublicCityDetail(city.id).catch(() => null),
-      getPublicCityMetricOrdering(city.id).catch(() => null),
-    ]);
-  } catch {
-    // The scorecard still renders without the chips.
-  }
+  // Each call swallows its own failure; the scorecard still renders without the chips.
+  const [cityDetail, cityOrdering] = await Promise.all([
+    getPublicCityDetail(city.id).catch(() => null),
+    getPublicCityMetricOrdering(city.id).catch((): PublicMetricOrderingResponse | null => null),
+  ]);
   const orderingByMetricId = new Map(
     (cityOrdering?.orderings ?? [])
       .filter((o) => o.metric_id != null)

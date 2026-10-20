@@ -123,7 +123,9 @@
 /* Phones: the dashboard's four narrow columns can't hold a pill, a figure and a
    sparkline side by side, so stack the row: name, then figure + status, then trend. */
 @media (max-width: 640px) {
-  .tableRow {
+  /* Two classes so this outranks CityView.css's single-class mobile grid
+     whatever order the stylesheets load in. */
+  :global(.metrics-table-row).tableRow {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "name name"
