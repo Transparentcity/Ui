@@ -8,6 +8,7 @@ import CivicResearchPanel from "./CivicResearchPanel";
 
 const api = vi.hoisted(() => ({
   getCivicResearchLog: vi.fn(),
+  setCivicTopicDismissed: vi.fn(),
   startCivicResearch: vi.fn(),
   updateAdminMetric: vi.fn(),
   notifyJobCreated: vi.fn(),
@@ -18,6 +19,7 @@ const auth = vi.hoisted(() => ({ getAccessTokenSilently: async () => "tok" }));
 vi.mock("@auth0/auth0-react", () => ({ useAuth0: () => auth }));
 vi.mock("@/lib/apiClient", () => ({
   getCivicResearchLog: api.getCivicResearchLog,
+  setCivicTopicDismissed: api.setCivicTopicDismissed,
   startCivicResearch: api.startCivicResearch,
   updateAdminMetric: api.updateAdminMetric,
 }));
@@ -101,6 +103,7 @@ async function renderExpanded(isAdmin = true) {
 describe("CivicResearchPanel", () => {
   beforeEach(() => {
     api.getCivicResearchLog.mockResolvedValue(LOG);
+    api.setCivicTopicDismissed.mockResolvedValue({ topic_title: "Drug markets", dismissed: true });
     api.startCivicResearch.mockResolvedValue({ job_id: "job-12345678", status: "started", message: "" });
     api.updateAdminMetric.mockResolvedValue({ message: "ok" });
   });
@@ -109,11 +112,16 @@ describe("CivicResearchPanel", () => {
     vi.restoreAllMocks();
   });
 
-  it("summarizes topics, researched questions, and metrics to review", async () => {
+  it("starts collapsed and summarizes topics, researched questions, and metrics to review", async () => {
     render(<CivicResearchPanel cityId={57260} topics={TOPICS} isAdmin />);
     expect(
       await screen.findByText("2 topics · 2 researched in 30 days · 1 hidden metric to review")
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Civic research/ })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.queryByLabelText("Question to research")).not.toBeInTheDocument();
     expect(api.getCivicResearchLog).toHaveBeenCalledWith(57260, "tok");
   });
 
@@ -134,6 +142,49 @@ describe("CivicResearchPanel", () => {
     expect(api.startCivicResearch).toHaveBeenCalledWith(57260, { topicTitle: "Budget" }, "tok");
     expect(api.notifyJobCreated).toHaveBeenCalledWith("job-12345678");
     expect(await screen.findByText(/Research started \(job job-1234\)/)).toBeInTheDocument();
+  });
+
+  it("dismisses a topic and restores it", async () => {
+    const drugMarkets = {
+      topicTitle: "Drug markets",
+      question: "Have drug arrests in the Tenderloin risen this year?",
+    };
+    const user = await renderExpanded();
+    expect(screen.getAllByRole("button", { name: "Research" })).toHaveLength(3);
+
+    await user.click(screen.getAllByRole("button", { name: "Dismiss" })[0]);
+    expect(api.setCivicTopicDismissed).toHaveBeenCalledWith(57260, drugMarkets, true, "tok");
+    await user.click(await screen.findByRole("button", { name: "Show 1 dismissed" }));
+    expect(screen.getAllByRole("button", { name: "Research" })).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(api.setCivicTopicDismissed).toHaveBeenLastCalledWith(57260, drugMarkets, false, "tok");
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Research" })).toHaveLength(3)
+    );
+  });
+
+  it("leaves topics the log lists as dismissed out of the topic count", async () => {
+    api.getCivicResearchLog.mockResolvedValue({ ...LOG, dismissed_topics: ["Budget"] });
+    render(<CivicResearchPanel cityId={57260} topics={TOPICS} isAdmin />);
+    expect(
+      await screen.findByText("1 topic · 2 researched in 30 days · 1 hidden metric to review")
+    ).toBeInTheDocument();
+  });
+
+  it("says when the weekly research job runs next, or that none is scheduled", async () => {
+    const user = await renderExpanded();
+    expect(screen.getByText(/No automatic research is scheduled/)).toBeInTheDocument();
+
+    api.getCivicResearchLog.mockResolvedValue({
+      ...LOG,
+      next_run_at: "2026-10-22T18:00:00+00:00",
+      max_stories: 2,
+    });
+    await user.click(screen.getByRole("button", { name: "↻ Refresh" }));
+    expect(
+      await screen.findByText(/^Next automatic research: .+ It picks up to 2 topics/)
+    ).toBeInTheDocument();
   });
 
   it("researches a typed question once it reads as a sentence", async () => {

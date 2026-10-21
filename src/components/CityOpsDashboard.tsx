@@ -1268,6 +1268,15 @@ function CivicIntelPanel({ cityId, cities, onCityChange, canManage = false, isAd
         </button>
       </div>
 
+      {canManage && (
+        <CivicResearchPanel
+          key={cityId}
+          cityId={cityId}
+          topics={summary?.topics}
+          isAdmin={isAdmin}
+        />
+      )}
+
       {(summaryRunning || summary || summaryError) && (
         <section style={{
           background: "var(--bg-secondary, #f8f9fa)",
@@ -1360,15 +1369,6 @@ function CivicIntelPanel({ cityId, cities, onCityChange, canManage = false, isAd
             </>
           )}
         </section>
-      )}
-
-      {canManage && (
-        <CivicResearchPanel
-          key={cityId}
-          cityId={cityId}
-          topics={summary?.topics}
-          isAdmin={isAdmin}
-        />
       )}
 
       {/* Error */}

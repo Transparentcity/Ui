@@ -6,6 +6,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import MetricEditModal from "@/components/MetricEditModal";
 import {
   getCivicResearchLog,
+  setCivicTopicDismissed,
   startCivicResearch,
   updateAdminMetric,
   type CivicResearchEntry,
@@ -98,17 +99,21 @@ function StartStatus({ jobId, error }: { jobId?: string; error?: string }) {
 function TopicRow({
   topic,
   busy,
+  dismissing,
   disabled,
   jobId,
   error,
   onResearch,
+  onDismiss,
 }: {
   topic: CivicSummaryTopic;
   busy: boolean;
+  dismissing: boolean;
   disabled: boolean;
   jobId?: string;
   error?: string;
   onResearch: () => void;
+  onDismiss: () => void;
 }) {
   const voices = topic.voices ?? [];
   const decision = topic.decision;
@@ -136,17 +141,39 @@ function TopicRow({
               .join(" · ")}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onResearch}
-          disabled={disabled}
-          title="Answer this with city data and publish a context story, or log that the data cannot answer it"
-          style={{ ...primaryButtonStyle, opacity: disabled ? 0.6 : 1, alignSelf: "flex-start" }}
-        >
-          {busy ? "Starting…" : "Research"}
-        </button>
+        <div style={{ display: "flex", gap: 6, alignSelf: "flex-start", flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={disabled}
+            title="Hide this topic; the weekly research job skips it for two weeks"
+            style={{ ...secondaryButtonStyle, opacity: disabled ? 0.6 : 1 }}
+          >
+            {dismissing ? "Dismissing…" : "Dismiss"}
+          </button>
+          <button
+            type="button"
+            onClick={onResearch}
+            disabled={disabled}
+            title="Answer this with city data and publish a context story, or log that the data cannot answer it"
+            style={{ ...primaryButtonStyle, opacity: disabled ? 0.6 : 1 }}
+          >
+            {busy ? "Starting…" : "Research"}
+          </button>
+        </div>
       </div>
       <StartStatus jobId={jobId} error={error} />
+    </div>
+  );
+}
+
+function ScheduleNote({ log }: { log: CivicResearchLog | null }) {
+  if (!log) return null;
+  return (
+    <div style={{ ...mutedStyle, marginBottom: 6 }}>
+      {log.next_run_at
+        ? `Next automatic research: ${new Date(log.next_run_at).toLocaleString()}. It picks up to ${log.max_stories ?? 2} topics nobody has researched or dismissed.`
+        : "No automatic research is scheduled; topics are researched only when someone clicks Research."}
     </div>
   );
 }
@@ -278,6 +305,10 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
   const [metricBusyId, setMetricBusyId] = useState<number | null>(null);
   const [metricError, setMetricError] = useState<string | null>(null);
   const [editingMetricId, setEditingMetricId] = useState<number | null>(null);
+  const [dismissedTitles, setDismissedTitles] = useState<string[]>([]);
+  const [dismissing, setDismissing] = useState<string | null>(null);
+  const [dismissError, setDismissError] = useState<string | null>(null);
+  const [showDismissed, setShowDismissed] = useState(false);
 
   const fetchLog = useCallback(async () => {
     const token = await getAccessTokenSilently();
@@ -290,6 +321,7 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
       .then((data) => {
         if (cancelled) return;
         setLog(data);
+        setDismissedTitles(data.dismissed_topics ?? []);
         setLogError(null);
       })
       .catch((e: unknown) => {
@@ -306,7 +338,9 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
   const refreshLog = useCallback(async () => {
     setLogLoading(true);
     try {
-      setLog(await fetchLog());
+      const data = await fetchLog();
+      setLog(data);
+      setDismissedTitles(data.dismissed_topics ?? []);
       setLogError(null);
     } catch (e) {
       setLogError(errorText(e));
@@ -329,6 +363,31 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
         setStartErrors((prev) => ({ ...prev, [key]: errorText(e) }));
       } finally {
         setStarting(null);
+      }
+    },
+    [cityId, getAccessTokenSilently]
+  );
+
+  const changeDismissed = useCallback(
+    async (topic: CivicSummaryTopic, dismissed: boolean) => {
+      setDismissing(topic.title);
+      setDismissError(null);
+      try {
+        const token = await getAccessTokenSilently();
+        await setCivicTopicDismissed(
+          cityId,
+          { topicTitle: topic.title, question: topic.question },
+          dismissed,
+          token
+        );
+        setDismissedTitles((prev) => {
+          const others = prev.filter((title) => title !== topic.title);
+          return dismissed ? [...others, topic.title] : others;
+        });
+      } catch (e) {
+        setDismissError(errorText(e));
+      } finally {
+        setDismissing(null);
       }
     },
     [cityId, getAccessTokenSilently]
@@ -364,6 +423,8 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
     [log]
   );
   const topicList = topics ?? [];
+  const activeTopics = topicList.filter((topic) => !dismissedTitles.includes(topic.title));
+  const dismissedTopics = topicList.filter((topic) => dismissedTitles.includes(topic.title));
   const entries = log?.entries ?? [];
   const toReview = (log?.created_metrics ?? []).filter((m) => m.is_active && !m.show_on_dash);
   const typedQuestion = question.trim();
@@ -404,7 +465,7 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
           {logLoading && !log
             ? "Loading research log…"
             : [
-                `${topicList.length} topic${topicList.length === 1 ? "" : "s"}`,
+                `${activeTopics.length} topic${activeTopics.length === 1 ? "" : "s"}`,
                 `${entries.length} researched in ${log?.days ?? 30} days`,
                 `${toReview.length} hidden metric${toReview.length === 1 ? "" : "s"} to review`,
               ].join(" · ")}
@@ -454,23 +515,73 @@ export default function CivicResearchPanel({ cityId, topics, isAdmin }: CivicRes
             error={startErrors[TYPED_QUESTION_KEY]}
           />
 
-          {topicList.length > 0 && (
-            <>
-              <div style={sectionTitleStyle}>Topics in the latest summary</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {topicList.map((topic) => (
-                  <TopicRow
-                    key={topic.title}
-                    topic={topic}
-                    busy={starting === topic.title}
-                    disabled={starting !== null}
-                    jobId={startedJobs[topic.title]}
-                    error={startErrors[topic.title]}
-                    onResearch={() => void research(topic.title, { topicTitle: topic.title })}
-                  />
-                ))}
-              </div>
-            </>
+          <div style={sectionTitleStyle}>Topics in the latest summary</div>
+          <ScheduleNote log={log} />
+          {dismissError && (
+            <div style={{ color: "var(--error, #ef4444)", fontSize: 12, marginBottom: 6 }}>
+              {dismissError}
+            </div>
+          )}
+          {topicList.length === 0 && (
+            <div style={mutedStyle}>
+              No topics in the latest summary. Run a new Seymour summary to list them.
+            </div>
+          )}
+          {topicList.length > 0 && activeTopics.length === 0 && (
+            <div style={mutedStyle}>Every topic is dismissed.</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {activeTopics.map((topic) => (
+              <TopicRow
+                key={topic.title}
+                topic={topic}
+                busy={starting === topic.title}
+                dismissing={dismissing === topic.title}
+                disabled={starting !== null || dismissing !== null}
+                jobId={startedJobs[topic.title]}
+                error={startErrors[topic.title]}
+                onResearch={() => void research(topic.title, { topicTitle: topic.title })}
+                onDismiss={() => void changeDismissed(topic, true)}
+              />
+            ))}
+          </div>
+          {dismissedTopics.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => setShowDismissed((open) => !open)}
+                aria-expanded={showDismissed}
+                style={secondaryButtonStyle}
+              >
+                {showDismissed ? "Hide" : "Show"} {dismissedTopics.length} dismissed
+              </button>
+              {showDismissed && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                  {dismissedTopics.map((topic) => (
+                    <div
+                      key={topic.title}
+                      style={{
+                        ...rowStyle,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ color: "var(--text-tertiary, #6b7280)" }}>{topic.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => void changeDismissed(topic, false)}
+                        disabled={dismissing !== null}
+                        style={secondaryButtonStyle}
+                      >
+                        {dismissing === topic.title ? "Restoring…" : "Restore"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           <div style={{ ...sectionTitleStyle, display: "flex", alignItems: "center", gap: 8 }}>

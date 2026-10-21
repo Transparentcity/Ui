@@ -2905,6 +2905,11 @@ export interface CivicResearchLog {
   days: number;
   entries: CivicResearchEntry[];
   created_metrics: CivicResearchMetric[];
+  /** Titles in the latest summary that the weekly research job will skip. */
+  dismissed_topics?: string[];
+  /** Next run of the weekly research job; null when none is active. */
+  next_run_at?: string | null;
+  max_stories?: number | null;
 }
 
 export function getCivicResearchLog(
@@ -2934,6 +2939,29 @@ export function startCivicResearch(
     "/api/admin/civic/context-story",
     "POST",
     body,
+    token
+  );
+}
+
+/**
+ * Dismiss a summary topic so the weekly research job skips it for two weeks,
+ * or restore it.
+ */
+export function setCivicTopicDismissed(
+  cityId: number,
+  topic: { topicTitle: string; question: string | null },
+  dismissed: boolean,
+  token: string
+): Promise<{ topic_title: string; dismissed: boolean }> {
+  return request<{ topic_title: string; dismissed: boolean }>(
+    "/api/admin/civic/research/topic-dismissal",
+    "POST",
+    {
+      city_id: cityId,
+      topic_title: topic.topicTitle,
+      question: topic.question,
+      dismissed,
+    },
     token
   );
 }
