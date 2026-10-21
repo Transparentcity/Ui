@@ -924,6 +924,7 @@ export type PublicTimeSeriesChartResponse = {
     district?: number | null;
     [key: string]: unknown;
   };
+  source_info?: { city_name?: string | null; [key: string]: unknown } | null;
   data: PublicTimeSeriesChartPoint[];
 };
 
