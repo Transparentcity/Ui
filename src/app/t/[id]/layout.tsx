@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { chartCardImagePath } from "@/lib/linkCardImage";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     typeof meta?.seo_og_image_url === "string" && meta.seo_og_image_url.startsWith("/")
       ? meta.seo_og_image_url
       : null;
-  const ogImage = seoPath ? absoluteApiUrl(seoPath) : undefined;
+  const ogImage = seoPath
+    ? absoluteApiUrl(seoPath)
+    : data
+      ? `${getSiteOrigin()}${chartCardImagePath(id)}`
+      : undefined;
   return {
     title: `${title} | TransparentCity`,
     description,

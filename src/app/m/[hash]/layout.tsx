@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { mapCardImagePath } from "@/lib/linkCardImage";
 import { getSiteOrigin } from "@/lib/siteUrl";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +68,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `${getSiteOrigin()}/m/${hash}`;
   const ogImageUrl = mapData.seoOgImagePath
     ? absoluteApiUrl(mapData.seoOgImagePath)
-    : `${getSiteOrigin()}/images/og-map-default.png`;
+    : `${getSiteOrigin()}${mapCardImagePath(hash)}`;
 
   return {
     title,

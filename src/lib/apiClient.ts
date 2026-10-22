@@ -3016,6 +3016,36 @@ export function deleteCivicItem(
   return request(`/api/admin/civic/items/${itemId}`, "DELETE", undefined, token);
 }
 
+/** Result of a `civic_x_reply` job: Seymour's draft reply to one X post. */
+export interface CivicXReplyDraft {
+  item_id: number;
+  city_id: number;
+  tweet_id: string;
+  author_handle: string;
+  reply_text: string;
+  /** What Seymour checked and anything to verify before posting. */
+  note: string | null;
+  session_id: string | null;
+  execution_time_ms: number;
+}
+
+/**
+ * Start a Seymour job that drafts a reply to a collected X post. `coaching` is
+ * the admin's direction; `previousDraft` is the draft that coaching is about.
+ */
+export function startCivicXReply(
+  itemId: number,
+  options: { coaching?: string; previousDraft?: string },
+  token: string
+): Promise<CivicDiscussionSummaryJobResponse> {
+  return request<CivicDiscussionSummaryJobResponse>(
+    `/api/admin/civic/items/${itemId}/x-reply`,
+    "POST",
+    { coaching: options.coaching, previous_draft: options.previousDraft },
+    token
+  );
+}
+
 export function clearCivicRunItems(
   runId: number,
   token: string

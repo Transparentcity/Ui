@@ -30,6 +30,7 @@ import CivicResearchPanel from "@/components/CivicResearchPanel";
 import Loader from "@/components/Loader";
 import MarkdownWithEmbeds from "@/components/MarkdownWithEmbeds";
 import MetricEditModal from "@/components/MetricEditModal";
+import SeymourXReply from "@/components/SeymourXReply";
 import OpsStoriesTab, {
   StoryList,
   StorySortSelect,
@@ -1511,7 +1512,7 @@ function CivicIntelPanel({ cityId, cities, onCityChange, canManage = false, isAd
                   </div>
 
                   {/* Metrics */}
-                  <div style={{ display: "flex", gap: 14, fontSize: 11, color: "var(--text-tertiary, #94a3b8)" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 11, color: "var(--text-tertiary, #94a3b8)" }}>
                     {(post.meta.reply_count ?? 0) > 0 && (
                       <span>💬 {post.meta.reply_count}</span>
                     )}
@@ -1528,6 +1529,7 @@ function CivicIntelPanel({ cityId, cities, onCityChange, canManage = false, isAd
                         View ↗
                       </a>
                     )}
+                    {canManage && !post.meta.is_retweet && <SeymourXReply itemId={post.id} />}
                   </div>
                 </div>
 
