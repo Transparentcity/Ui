@@ -366,32 +366,6 @@
       "addedDate": "2026-06-03"
     },
     {
-      "city": "Denver",
-      "metricName": "👮 Total Crime Incidents",
-      "metricKey": "denver_total_crime_incidents",
-      "metricId": 741,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_total_crime_incidents",
-      "normalLagRange": [
-        77,
-        85
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "💀 Homicides",
-      "metricKey": "cincinnati_homicides",
-      "metricId": 586,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_homicides",
-      "normalLagRange": [
-        8,
-        16
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
       "city": "NYC",
       "metricName": "🗽 NYC 311 Service Requests",
       "metricKey": "nyc_311_service_requests",
@@ -504,19 +478,6 @@
       "normalLagRange": [
         12,
         20
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-18"
-    },
-    {
-      "city": "SF",
-      "metricName": "📊 DA Conviction Rate",
-      "metricKey": "da_conviction_rate",
-      "metricId": 167,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/da_conviction_rate",
-      "normalLagRange": [
-        9,
-        17
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-18"
@@ -678,32 +639,6 @@
       "addedDate": "2026-09-10"
     },
     {
-      "city": "Miami",
-      "metricName": "📞 Miami Police Calls for Service",
-      "metricKey": "miami_911_calls_for_service",
-      "metricId": 851,
-      "cardUrl": "https://transparent.city/c/miami/metrics/miami_911_calls_for_service",
-      "normalLagRange": [
-        260,
-        268
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-24"
-    },
-    {
-      "city": "Miami",
-      "metricName": "🚗 Miami Traffic Calls for Service",
-      "metricKey": "miami_traffic_911_calls",
-      "metricId": 852,
-      "cardUrl": "https://transparent.city/c/miami/metrics/miami_traffic_911_calls",
-      "normalLagRange": [
-        201,
-        209
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-09-24"
-    },
-    {
       "city": "SF",
       "metricName": "⏱️ Avg Days to Permit — OTC Commercial (SF)",
       "metricKey": "sf_days_to_permit_otc_commercial",
@@ -725,19 +660,6 @@
       "normalLagRange": [
         23,
         31
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-01"
-    },
-    {
-      "city": "Detroit",
-      "metricName": "🏚️ Blight Tickets Issued",
-      "metricKey": "detroit_blight_tickets",
-      "metricId": 547,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_blight_tickets",
-      "normalLagRange": [
-        8,
-        16
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-01"
@@ -912,32 +834,6 @@
       "addedDate": "2026-10-08"
     },
     {
-      "city": "Detroit",
-      "metricName": "💀 Homicides",
-      "metricKey": "detroit_homicides",
-      "metricId": 781,
-      "cardUrl": "https://transparent.city/c/detroit/metrics/detroit_homicides",
-      "normalLagRange": [
-        5,
-        13
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-08"
-    },
-    {
-      "city": "Cincinnati",
-      "metricName": "📞 911 Calls",
-      "metricKey": "cincinnati_911_calls",
-      "metricId": 296,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_911_calls",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-08"
-    },
-    {
       "city": "Cincinnati",
       "metricName": "📋🏁 New Residential Construction Permits Completed",
       "metricKey": "cincinnati_new_residential_construction_permits_completed",
@@ -959,19 +855,6 @@
       "normalLagRange": [
         30,
         38
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-08"
-    },
-    {
-      "city": "Austin",
-      "metricName": "🏢 New Commercial Construction Permits Filed",
-      "metricKey": "austin_new_commercial_construction_permits_filed",
-      "metricId": 788,
-      "cardUrl": "https://transparent.city/c/austin/metrics/austin_new_commercial_construction_permits_filed",
-      "normalLagRange": [
-        6,
-        14
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-08"
@@ -1001,7 +884,85 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-08"
+    },
+    {
+      "city": "SF",
+      "metricName": "⏱️ Avg Days to Permit — Full Review Commercial (SF)",
+      "metricKey": "sf_days_to_permit_full_review_commercial",
+      "metricId": 497,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_days_to_permit_full_review_commercial",
+      "normalLagRange": [
+        7,
+        15
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-15"
+    },
+    {
+      "city": "SF",
+      "metricName": "🕳️ Pothole & Street Repair Complaints (311)",
+      "metricKey": "sf_pothole_street_repair_complaints_311",
+      "metricId": 942,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_pothole_street_repair_complaints_311",
+      "normalLagRange": [
+        7,
+        15
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-15"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "⏱️ Avg Days to Close a Pothole (Oakland)",
+      "metricKey": "oak_pothole_avg_days_to_close",
+      "metricId": 876,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oak_pothole_avg_days_to_close",
+      "normalLagRange": [
+        6,
+        14
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-15"
+    },
+    {
+      "city": "Oakland",
+      "metricName": "🚨 Violent Crime Incidents",
+      "metricKey": "oakland_violent_crime_incidents",
+      "metricId": 160,
+      "cardUrl": "https://transparent.city/c/oakland/metrics/oakland_violent_crime_incidents",
+      "normalLagRange": [
+        6,
+        14
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-15"
+    },
+    {
+      "city": "Seattle",
+      "metricName": "⏱️ 911 Response Time — Medium Priority (Avg Minutes)",
+      "metricKey": "seattle_911_response_time_medium_priority_minutes",
+      "metricId": 646,
+      "cardUrl": "https://transparent.city/c/seattle/metrics/seattle_911_response_time_medium_priority_minutes",
+      "normalLagRange": [
+        7,
+        15
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-15"
+    },
+    {
+      "city": "Kansas City",
+      "metricName": "💀 Homicides",
+      "metricKey": "kc_homicides",
+      "metricId": 669,
+      "cardUrl": "https://transparent.city/c/kansas-city/metrics/kc_homicides",
+      "normalLagRange": [
+        8,
+        16
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-15"
     }
   ],
-  "lastRunDate": "2026-10-08"
+  "lastRunDate": "2026-10-15"
 }
