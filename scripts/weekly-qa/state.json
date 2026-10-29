@@ -432,19 +432,6 @@
     },
     {
       "city": "SF",
-      "metricName": "💀 Homicides",
-      "metricKey": "homicides",
-      "metricId": 109,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/homicides",
-      "normalLagRange": [
-        5,
-        13
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-11"
-    },
-    {
-      "city": "SF",
       "metricName": "⚖️ Sustained Police Misconduct",
       "metricKey": "sustained_police_misconduct",
       "metricId": 165,
@@ -795,19 +782,6 @@
       "addedDate": "2026-10-08"
     },
     {
-      "city": "Cincinnati",
-      "metricName": "📋🏁 New Residential Construction Permits Completed",
-      "metricKey": "cincinnati_new_residential_construction_permits_completed",
-      "metricId": 584,
-      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_completed",
-      "normalLagRange": [
-        9,
-        17
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-08"
-    },
-    {
       "city": "Austin",
       "metricName": "📞 911 Calls (EMS Incidents)",
       "metricKey": "austin_911_calls_ems_incidents",
@@ -847,123 +821,6 @@
       "addedDate": "2026-10-08"
     },
     {
-      "city": "SF",
-      "metricName": "⏱️ ALS Response Time",
-      "metricKey": "als_response_time",
-      "metricId": 213,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/als_response_time",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 Ambulance Response Time",
-      "metricKey": "ambulance_response_time",
-      "metricId": 208,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/ambulance_response_time",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "🦠 Beach Fecal Coliform Level",
-      "metricKey": "beach_fecal_coliform",
-      "metricId": 226,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/beach_fecal_coliform",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "⏱️ EMS Average Response Time",
-      "metricKey": "ems_avg_response_time",
-      "metricId": 205,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/ems_avg_response_time",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "🗑️ Illegal Dumping Complaints (311)",
-      "metricKey": "sf_illegal_dumping_complaints_311",
-      "metricId": 834,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_illegal_dumping_complaints_311",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "🐀 Rodent & Pest Complaints (311)",
-      "metricKey": "sf_rodent_pest_complaints_311",
-      "metricId": 748,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_rodent_pest_complaints_311",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 911 Response (minutes) - Priority B",
-      "metricKey": "response_911_response_minutes_danger_to_property_11",
-      "metricId": 95,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_danger_to_property_11",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "SF",
-      "metricName": "🚑 911 Response (minutes) - Priority C",
-      "metricKey": "response_911_response_minutes_no_danger_to_life_or_property_12",
-      "metricId": 104,
-      "cardUrl": "https://transparent.city/c/san-francisco/metrics/response_911_response_minutes_no_danger_to_life_or_property_12",
-      "normalLagRange": [
-        15,
-        23
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "Oakland",
-      "metricName": "🕳️ Pothole Closure Rate (Oakland)",
-      "metricKey": "oak_pothole_closure_rate",
-      "metricId": 877,
-      "cardUrl": "https://transparent.city/c/oakland/metrics/oak_pothole_closure_rate",
-      "normalLagRange": [
-        13,
-        21
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
       "city": "Detroit",
       "metricName": "💀 Homicides",
       "metricKey": "detroit_homicides",
@@ -972,19 +829,6 @@
       "normalLagRange": [
         16,
         24
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-10-22"
-    },
-    {
-      "city": "Denver",
-      "metricName": "💊 Drug Crime Incidents",
-      "metricKey": "denver_drug_crime_incidents",
-      "metricId": 355,
-      "cardUrl": "https://transparent.city/c/denver/metrics/denver_drug_crime_incidents",
-      "normalLagRange": [
-        14,
-        22
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-22"
@@ -1029,31 +873,83 @@
       "addedDate": "2026-10-22"
     },
     {
-      "city": "Kansas City",
-      "metricName": "💊 Drug Crime Incidents",
-      "metricKey": "kc_drug_crime_incidents",
-      "metricId": 668,
-      "cardUrl": "https://transparent.city/c/kansas-city/metrics/kc_drug_crime_incidents",
+      "city": "SF",
+      "metricName": "📋🏁 New Residential Construction Permits Completed",
+      "metricKey": "sf_new_residential_construction_permits_completed",
+      "metricId": 570,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/sf_new_residential_construction_permits_completed",
       "normalLagRange": [
-        8,
-        16
+        10,
+        18
       ],
       "source": "unconfirmed",
-      "addedDate": "2026-10-22"
+      "addedDate": "2026-10-29"
     },
     {
-      "city": "Kansas City",
-      "metricName": "🎨 Graffiti Removal Requests (311)",
-      "metricKey": "graffiti_removal_requests_311_kcmo",
-      "metricId": 888,
-      "cardUrl": "https://transparent.city/c/kansas-city/metrics/graffiti_removal_requests_311_kcmo",
+      "city": "Cincinnati",
+      "metricName": "🏠 Homeless Shelter / Welfare Check Police Calls",
+      "metricKey": "cincinnati_homeless_welfare_check_calls",
+      "metricId": 885,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_homeless_welfare_check_calls",
       "normalLagRange": [
-        8,
-        16
+        4,
+        12
       ],
       "source": "unconfirmed",
-      "addedDate": "2026-10-22"
+      "addedDate": "2026-10-29"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "🧠 Mental Health / Welfare Police Calls (Non-Violent)",
+      "metricKey": "cincinnati_mental_health_calls_nonviolent",
+      "metricId": 883,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_mental_health_calls_nonviolent",
+      "normalLagRange": [
+        4,
+        12
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-29"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📋✅ New Residential Construction Permits Issued",
+      "metricKey": "cincinnati_new_residential_construction_permits_issued",
+      "metricId": 506,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_new_residential_construction_permits_issued",
+      "normalLagRange": [
+        22,
+        30
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-29"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📦 Property Crime Incidents",
+      "metricKey": "cincinnati_property_crime_incidents",
+      "metricId": 283,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_property_crime_incidents",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-29"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "🚨 Violent Crime Incidents",
+      "metricKey": "cincinnati_violent_crime_fbi_type1",
+      "metricId": 288,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_violent_crime_fbi_type1",
+      "normalLagRange": [
+        10,
+        18
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-10-29"
     }
   ],
-  "lastRunDate": "2026-10-22"
+  "lastRunDate": "2026-10-29"
 }
