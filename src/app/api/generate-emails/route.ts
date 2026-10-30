@@ -1,6 +1,7 @@
 import { generateText } from "ai"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createClient } from "@/lib/db"
+import { cachedSystem } from "@/lib/anthropic-cache"
 
 // Initialize Anthropic provider
 const anthropic = createAnthropic({
@@ -298,7 +299,7 @@ Generate ${contactsArr.length} unique emails, one per contact. Return valid JSON
     // Call Claude via AI SDK
     const result = await generateText({
       model: anthropic("claude-sonnet-4-6"),
-      system: systemPrompt,
+      system: cachedSystem(systemPrompt),
       prompt: userPrompt,
       maxTokens: 8000,
     } as any)

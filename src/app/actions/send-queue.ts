@@ -4,6 +4,7 @@ import { createClient } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import type { ThrottleSettings, SendQueueItem, Contact, TemplateWithVariations, Anomaly } from "@/lib/types"
 import { prepareQueueItems, DEFAULT_THROTTLE_SETTINGS } from "@/lib/send-queue"
+import { cachedSystem } from "@/lib/anthropic-cache"
 import { sendEmail, isSendGridConfigured } from "@/lib/email-sender"
 
 // Server action the UI can call to check if SendGrid is ready
@@ -1004,7 +1005,7 @@ Generate a unique email as JSON with "subject" and "body".`
       
       const result = await generateText({
         model: anthropic("claude-sonnet-4-6"),
-        system: systemPrompt,
+        system: cachedSystem(systemPrompt),
         prompt: userPrompt,
         maxTokens: 2000,
       } as any)
@@ -1580,7 +1581,7 @@ Generate ${contactsArr.length} unique emails as JSON.`
   
   const result = await generateText({
     model: anthropic("claude-sonnet-4-6"),
-    system: systemPrompt,
+    system: cachedSystem(systemPrompt),
     prompt: userPrompt,
     maxTokens: 8000,
   } as any)
