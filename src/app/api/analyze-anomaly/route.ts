@@ -1,5 +1,6 @@
 import { generateText } from "ai"
 import { createAnthropic } from "@ai-sdk/anthropic"
+import { cachedSystem } from "@/lib/anthropic-cache"
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -97,22 +98,9 @@ export async function POST(req: Request) {
       ? `Recent window: ${chartPayload.recent_window.size ?? "?"} periods`
       : ""
 
-    const prompt = `You are a senior civic data analyst reviewing anomalies detected in San Francisco city data. You have access to the full historical time series for this metric — use it to give a thorough, data-grounded analysis.
+    const systemPrompt = `You are a senior civic data analyst reviewing anomalies detected in San Francisco city data. You have access to the full historical time series for this metric — use it to give a thorough, data-grounded analysis.
 
-## Anomaly Summary
-${summary}
-${windowInfo}
-${recentWindow}
-
-## Historical Time Series Data
-${timeSeriesTable || "(No time series data available)"}
-
-## Computed Statistics
-${timeSeriesStats || "(No stats available)"}
-
----
-
-Using the actual data above, provide exactly three paragraphs:
+Using the actual data provided in the user message, provide exactly three paragraphs:
 
 1. **Fact Check & Data Quality**: Look at the full time series. Is the flagged change real or could it be a data artifact? Check for:
    - Suspicious zeros, nulls, or sudden drops that suggest reporting gaps
@@ -127,8 +115,20 @@ Using the actual data above, provide exactly three paragraphs:
 
 Be concise, factual, and skeptical. Reference specific numbers from the time series to support your points. Do not speculate beyond what the data supports.`
 
+    const prompt = `## Anomaly Summary
+${summary}
+${windowInfo}
+${recentWindow}
+
+## Historical Time Series Data
+${timeSeriesTable || "(No time series data available)"}
+
+## Computed Statistics
+${timeSeriesStats || "(No stats available)"}`
+
     const { text } = await generateText({
       model: anthropic("claude-sonnet-4-6"),
+      system: cachedSystem(systemPrompt),
       prompt,
       maxOutputTokens: 1500,
     })

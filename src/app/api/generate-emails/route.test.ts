@@ -193,6 +193,26 @@ describe("/api/generate-emails", () => {
     expect(mockFrom).toHaveBeenCalledWith("prospects")
   })
 
+  it("marks the system prompt as an ephemeral cache breakpoint", async () => {
+    setupDbMock([ACTIVE_CONTACT])
+    mockGenerateText.mockResolvedValueOnce({ text: JSON.stringify({ emails: [] }) })
+
+    await POST(makeRequest({
+      sampleEmail: "Hello",
+      sampleSubject: "Test",
+      contactIds: ["c-alan"],
+    }))
+
+    const args = mockGenerateText.mock.calls[0][0]
+    expect(args.system).toMatchObject({
+      role: "system",
+      providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+    })
+    // Per-request contact data must stay in the user prompt, after the breakpoint
+    expect(args.system.content).not.toContain("Alan")
+    expect(args.prompt).toContain("Alan")
+  })
+
   // ==========================================================================
   // Skipped contacts: inactive
   // ==========================================================================
@@ -515,7 +535,7 @@ describe("/api/generate-emails", () => {
     setupDbMock([ACTIVE_CONTACT])
     let capturedSystem = ""
     mockGenerateText.mockImplementationOnce((args: any) => {
-      capturedSystem = args.system
+      capturedSystem = args.system.content
       return {
         text: JSON.stringify({
           emails: [{
