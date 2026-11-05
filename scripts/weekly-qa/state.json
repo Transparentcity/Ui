@@ -366,45 +366,6 @@
       "addedDate": "2026-06-03"
     },
     {
-      "city": "NYC",
-      "metricName": "🚗 NYC Traffic Collisions (Total)",
-      "metricKey": "nyc_traffic_collisions_total",
-      "metricId": 194,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_traffic_collisions_total",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🚑 NYC Traffic Collisions (With Injuries)",
-      "metricKey": "nyc_traffic_collisions_injuries",
-      "metricId": 196,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_traffic_collisions_injuries",
-      "normalLagRange": [
-        4,
-        12
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
-      "city": "NYC",
-      "metricName": "☠️ NYC Traffic Fatalities",
-      "metricKey": "nyc_traffic_fatalities",
-      "metricId": 195,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_traffic_fatalities",
-      "normalLagRange": [
-        27,
-        35
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-03"
-    },
-    {
       "city": "Austin",
       "metricName": "🚔 APD 911 Calls for Service",
       "metricKey": "austin_apd_911_calls",
@@ -478,19 +439,6 @@
       "normalLagRange": [
         19,
         27
-      ],
-      "source": "unconfirmed",
-      "addedDate": "2026-06-25"
-    },
-    {
-      "city": "NYC",
-      "metricName": "🚶 NYC Pedestrian Collisions",
-      "metricKey": "nyc_pedestrian_collisions",
-      "metricId": 197,
-      "cardUrl": "https://transparent.city/c/new-york-city/metrics/nyc_pedestrian_collisions",
-      "normalLagRange": [
-        9,
-        17
       ],
       "source": "unconfirmed",
       "addedDate": "2026-06-25"
@@ -949,7 +897,33 @@
       ],
       "source": "unconfirmed",
       "addedDate": "2026-10-29"
+    },
+    {
+      "city": "SF",
+      "metricName": "🚔 Police Misconduct Allegations",
+      "metricKey": "police_misconduct_allegations",
+      "metricId": 164,
+      "cardUrl": "https://transparent.city/c/san-francisco/metrics/police_misconduct_allegations",
+      "normalLagRange": [
+        7,
+        15
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-11-05"
+    },
+    {
+      "city": "Cincinnati",
+      "metricName": "📋🔨 Demolition Permits Issued",
+      "metricKey": "cincinnati_demolition_permits_issued",
+      "metricId": 587,
+      "cardUrl": "https://transparent.city/c/cincinnati/metrics/cincinnati_demolition_permits_issued",
+      "normalLagRange": [
+        7,
+        15
+      ],
+      "source": "unconfirmed",
+      "addedDate": "2026-11-05"
     }
   ],
-  "lastRunDate": "2026-10-29"
+  "lastRunDate": "2026-11-05"
 }
