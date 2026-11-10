@@ -7,10 +7,10 @@ import { WasteSubcategoryGroup } from "./waste-subcategory-group"
 import { DISMISS_REASONS } from "./disposition-select"
 import {
   normalizeWasteCategory,
-  sortByEvidenceScore,
   findingLatestDisposition,
   type DetectorPrecision,
 } from "./waste-utils"
+import { buildLeadContext, findingLead, sortByLead } from "./waste-leads"
 
 export interface CarriedOverCategoryMeta {
   category: string
@@ -45,6 +45,14 @@ interface WasteFindingsListProps {
   carriedOverCategories?: CarriedOverCategoryMeta[]
   /** Resolve a finding's detector to its auditor-validated precision. */
   precisionFor?: (f: WasteFinding) => DetectorPrecision | null
+  /**
+   * The whole run's findings. Corroboration counts detectors that flagged
+   * the same entity in ANY category, so a category page must grade against
+   * the run, not just its own slice. Defaults to `findings`.
+   */
+  runFindings?: readonly WasteFinding[]
+  /** Finding to open and scroll to on arrival (from a Top leads link). */
+  focusFindingId?: string | null
 }
 
 const severityOrder = { critical: 0, high: 1, medium: 2 }
@@ -100,8 +108,35 @@ export function WasteFindingsList({
   cityId,
   carriedOverCategories,
   precisionFor,
+  runFindings,
+  focusFindingId = null,
 }: WasteFindingsListProps) {
-  const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
+  // `undefined` = the reader hasn't opened or closed anything yet, so the
+  // finding a Top leads link pointed at (if any) is the one that is open.
+  const [userExpandedId, setExpandedFindingId] = useState<
+    string | null | undefined
+  >(undefined)
+  const expandedFindingId =
+    userExpandedId !== undefined ? userExpandedId : focusFindingId
+  const leadContext = useMemo(
+    () => buildLeadContext(runFindings ?? findings),
+    [runFindings, findings],
+  )
+  const leadFor = useCallback(
+    (f: WasteFinding) => findingLead(f, leadContext),
+    [leadContext],
+  )
+
+  // Arriving from a Top leads link: bring that finding into view.
+  useEffect(() => {
+    if (!focusFindingId) return
+    const row = document.querySelector(
+      `[data-finding-row="${CSS.escape(focusFindingId)}"]`,
+    )
+    if (row && typeof row.scrollIntoView === "function") {
+      row.scrollIntoView({ block: "start" })
+    }
+  }, [focusFindingId, findings.length])
 
   // Map normalized category → timestamp so each card can render its fallback source.
   const carriedOverMap = useMemo(() => {
@@ -118,7 +153,7 @@ export function WasteFindingsList({
     carriedOverMap.get(normalizeWasteCategory(f.category)) ?? null
 
   const handleFindingToggle = (id: string) => {
-    setExpandedFindingId((prev) => (prev === id ? null : id))
+    setExpandedFindingId(expandedFindingId === id ? null : id)
   }
 
   // Flat-sorted findings (amount and evidence modes)
@@ -127,12 +162,13 @@ export function WasteFindingsList({
       return [...findings].sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
     }
     if (sortMode === "evidence") {
-      // Expected value: P(real) × corroboration × data quality × impact,
-      // with already-dismissed findings sunk to the bottom.
-      return sortByEvidenceScore(findings, precisionFor)
+      // Best leads first: evidence grade, specificity and independent
+      // corroboration, with dollars as a log-scaled tie-breaker. Dismissed
+      // findings sink to the bottom.
+      return sortByLead(findings, leadContext).map((r) => r.finding)
     }
     return null
-  }, [findings, sortMode, precisionFor])
+  }, [findings, sortMode, leadContext])
 
   // ── Keyboard triage (flat modes only) ─────────────────────────────────────
   // j/k moves the highlight, f flags, s skips, 1–5 dismisses with a reason.
@@ -369,6 +405,7 @@ export function WasteFindingsList({
                 allFindings={findings}
                 precision={precisionFor?.(finding) ?? null}
                 triageOverride={keyboardTriage[finding.id] ?? null}
+                lead={leadFor(finding)}
               />
             </div>
           ))}
@@ -395,6 +432,7 @@ export function WasteFindingsList({
           carriedOverAsOf={carriedOverAsOf}
           allFindings={findings}
           precisionFor={precisionFor}
+          leadFor={leadFor}
         />
       ))}
     </div>

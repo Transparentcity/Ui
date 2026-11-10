@@ -34,6 +34,7 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D8 Split POs (Rolling 30-Day)": "vendor_d8",
   "D9 Ghost Vendor": "vendor_d9",
   "D10 Contract Drift": "vendor_d10",
+  "D10 Contract Drift (Published Award)": "vendor_d10_published",
   "D11 Short Bid Window": "vendor_d11",
   "D12 Adaptive Thresholds": "vendor_d12",
   "D13 Residential/Mail Drop Vendor": "vendor_d13",
@@ -46,6 +47,13 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D21 Vendor Location Verification": "vendor_d21_location",
   "D22 Emergency Contract Runaway": "vendor_d22",
   "D23 Contract Threshold Clustering": "vendor_d23",
+  "D8b Threshold-Hugging Vendor": "vendor_d8b",
+  "D8b Threshold-Hugging Vendor (Former Limit)": "vendor_d8b_former",
+  "D8b Threshold-Hugging Department": "vendor_d8b_dept",
+  "D8b Threshold-Hugging Department (Former Limit)": "vendor_d8b_dept_former",
+  "D24 Repeat Payment Pair": "vendor_d24",
+  "D25 Contract Growth After Award": "vendor_d25",
+  "D26 Paid Without Contract After Expiry": "vendor_d26",
   // Payroll
   "D1 OT-to-Base Ratio": "payroll_d1",
   "D2 Pareto Concentration": "payroll_d2",
@@ -130,8 +138,6 @@ const HEADLINES: Record<string, Builder> = {
     `${f.entity} — orders split to stay just under the approval limit (${dollar(f.amount)})`,
   vendor_d9: (f) =>
     `${f.entity} — paid ${dollar(f.amount)} with no active business registration`,
-  vendor_d10: (f) =>
-    `${f.entity} — contract ballooned far beyond its original value (${dollar(f.amount)})`,
   vendor_d11: (f) => `${f.entity} — bidding window left open an unusually short time`,
   vendor_d12: (f) =>
     `${f.entity} — payments cluster just below several approval thresholds`,
@@ -151,6 +157,23 @@ const HEADLINES: Record<string, Builder> = {
     `${f.entity} — "emergency" contract that kept growing after the emergency (${dollar(f.amount)})`,
   vendor_d23: (f) =>
     `${f.entity} — contracts priced to land just under an approval ceiling`,
+  vendor_d8b: (f) =>
+    `${f.entity} — order after order priced just under the limit for buying without quotes (${dollar(f.amount)} in a year)`,
+  vendor_d8b_former: (f) =>
+    `${f.entity} — orders still priced just under the old purchase limit (${dollar(f.amount)} in a year)`,
+  vendor_d8b_dept: (f) =>
+    `${f.entity} — hundreds of orders priced just under the limit for buying without quotes (${dollar(f.amount)} in a year)`,
+  vendor_d8b_dept_former: (f) =>
+    `${f.entity} — hundreds of orders still priced just under the old purchase limit (${dollar(f.amount)} in a year)`,
+  vendor_d10: (f) =>
+    `${f.entity} — paid ${dollar(f.amount)} more than the contract allows`,
+  vendor_d24: (f) => `${f.entity} — ${f.metric}, on two separate vouchers`,
+  vendor_d10_published: (f) =>
+    `${f.entity} — paid ${dollar(f.amount)} more than the published contract amount`,
+  vendor_d25: (f) =>
+    `${f.entity} — grew to ${f.metric} through add-ons, with no new competition (${dollar(f.amount)} added)`,
+  vendor_d26: (f) =>
+    `${f.entity} — paid ${dollar(f.amount)} with no contract on file after its last one ended`,
   // ── Infrastructure ───────────────────────────────────────────────────────
   infra_d1: (f) => `${f.entity} — 311 response times have gotten significantly worse`,
   infra_d2: (f) => `${f.entity} — large service gap between districts`,
@@ -218,7 +241,7 @@ const WHY: Record<string, string> = {
   vendor_d7b: "Paying above-market rates for commodities wastes money.",
   vendor_d8: "Splitting orders to stay under the approval limit dodges oversight.",
   vendor_d9: "Paying a vendor with no business registration is a ghost-vendor risk.",
-  vendor_d10: "Contracts that balloon past their original value escape competitive review.",
+  vendor_d10: "The agreed amount is a ceiling. This contract was paid past it while its sibling contracts were not.",
   vendor_d11: "A short bid window limits competition and can favor an insider.",
   vendor_d12: "Clustering payments under approval limits dodges sign-off.",
   vendor_d13: "Vendors at homes or mail drops can be shell companies.",
@@ -230,6 +253,14 @@ const WHY: Record<string, string> = {
   vendor_d21_location: "A vendor whose address can't be verified may be a shell or pass-through.",
   vendor_d22: "'Emergency' contracts that keep growing bypass normal procurement.",
   vendor_d23: "Pricing contracts just under an approval ceiling avoids higher scrutiny.",
+  vendor_d8b: "Above the limit a department must get quotes or bids. Order after order a few dollars under it, never over, avoids that.",
+  vendor_d8b_former: "The orders still cluster at a limit that has since been raised: a habit, or an internal approval line.",
+  vendor_d8b_dept: "Above the limit a department must get quotes or bids. A pile-up just under it means purchases are being sized to the limit.",
+  vendor_d8b_dept_former: "The orders still cluster at a limit that has since been raised: a habit, or an internal approval line.",
+  vendor_d10_published: "Payments exceed the contract amount in the public file. The file can be missing modifications, so check the city's contract record first.",
+  vendor_d24: "One exact, non-round amount paid twice within weeks, with no other payment like it, is what a double-paid invoice looks like.",
+  vendor_d25: "The price that won the competition is not the price being paid. Growth by add-on is never tested against other bidders.",
+  vendor_d26: "Paying an expired contractor by one-off voucher skips the contract, its price terms and its competition.",
   infra_d1: "Slower response times can signal mismanagement or under-resourcing.",
   infra_d2: "Large service gaps between districts raise equity concerns.",
   infra_d3: "A falling resolution rate means more requests go unaddressed.",

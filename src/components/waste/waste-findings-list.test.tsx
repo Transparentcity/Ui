@@ -4,29 +4,32 @@ import { WasteFindingsList } from "@/components/waste/waste-findings-list"
 import { makeFinding } from "@/components/waste/test-utils"
 import type { WasteFinding } from "@/lib/apiClient"
 
-/** Two findings whose evidence order is deterministic: "strong" (corroborated,
- *  high confidence) must outrank "weak" (bigger dollars, low confidence). */
+/** Two findings whose lead order is deterministic: "strong" (direct evidence
+ *  on a named vendor) must outrank "weak" (ten times the dollars, but a
+ *  department-level budget statistic). */
 function makePair(): WasteFinding[] {
   return [
     makeFinding({
       id: "weak",
       db_id: 1,
       amount: 5_000_000,
-      confidence_score: 0.1,
-      corroboration_count: 0,
+      tool: "D5 Budget Variance",
+      entity: "Public Works",
+      department: "Public Works",
     } as Partial<WasteFinding>),
     makeFinding({
       id: "strong",
       db_id: 2,
       amount: 500_000,
-      confidence_score: 0.9,
-      corroboration_count: 3,
+      tool: "D8b Threshold-Hugging Vendor",
+      entity: "ACME SUPPLY (Parks)",
+      department: "Parks",
     } as Partial<WasteFinding>),
   ]
 }
 
-describe("WasteFindingsList evidence sort", () => {
-  it("orders by evidence score, not raw amount", () => {
+describe("WasteFindingsList best-leads sort", () => {
+  it("orders by strength of evidence, not raw amount", () => {
     render(<WasteFindingsList findings={makePair()} sortMode="evidence" />)
     const rows = document.querySelectorAll("[data-finding-row]")
     expect(Array.from(rows).map((r) => r.getAttribute("data-finding-row"))).toEqual([

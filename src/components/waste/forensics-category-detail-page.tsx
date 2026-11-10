@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useMemo } from "react"
+import { useCallback, useState, useMemo, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import {
@@ -28,24 +28,14 @@ import {
   type WasteSeymourRequest,
 } from "./waste-seymour-panel"
 import { useWasteCity } from "./WasteCityContext"
-import {
-  normalizeWasteCategory,
-  formatDollar,
-  aggregateAmount,
-} from "./waste-utils"
+import { normalizeWasteCategory, WASTE_CATEGORY_LABELS } from "./waste-utils"
+import { buildLeadContext, countLeadTiers } from "./waste-leads"
 
 type SeverityFilter = "all" | "critical" | "high" | "medium"
 
-const CATEGORY_LABELS: Record<string, string> = {
-  payroll: "Payroll & Personnel",
-  contracts: "Contracts & Procurement",
-  infrastructure: "Infrastructure & Services",
-  influence: "Influence & Pay-to-Play",
-  integrity: "Personnel Integrity",
-  confirmed: "Confirmed Cases",
-  convergence: "Cross-Domain Convergence",
-  uncategorized: "Uncategorized",
-}
+const subscribeToNothing = () => () => {}
+const readFocusFindingId = () =>
+  new URLSearchParams(window.location.search).get("finding")
 
 function SummaryCell({
   label,
@@ -98,6 +88,14 @@ export function ForensicsCategoryDetailPage({
   // severity labels.
   const [sortMode, setSortMode] = useState<FindingSortMode>("evidence")
   const [seymourRequest, setSeymourRequest] = useState<WasteSeymourRequest | null>(null)
+  // "?finding=<id>" from a Top leads link. Read from the location (not
+  // useSearchParams) so the page needs no Suspense boundary; the server
+  // snapshot is null, which keeps hydration consistent.
+  const focusFindingId = useSyncExternalStore(
+    subscribeToNothing,
+    readFocusFindingId,
+    () => null,
+  )
 
   const handleAskSeymour = (finding: WasteFinding) => {
     setSeymourRequest({ finding })
@@ -160,6 +158,12 @@ export function ForensicsCategoryDetailPage({
     )
   }, [analysisData, normalizedCat])
 
+  const runFindings = useMemo(() => analysisData?.findings ?? [], [analysisData])
+  const tierCounts = useMemo(
+    () => countLeadTiers(categoryFindings, buildLeadContext(runFindings)),
+    [categoryFindings, runFindings],
+  )
+
   const filteredFindings = useMemo(() => {
     if (severityFilter === "all") return categoryFindings
     return categoryFindings.filter(
@@ -176,12 +180,12 @@ export function ForensicsCategoryDetailPage({
     )
   }, [categoryFindings, normalizedCat])
 
-  const label = CATEGORY_LABELS[normalizedCat] ?? normalizedCat
+  const label = WASTE_CATEGORY_LABELS[normalizedCat] ?? normalizedCat
 
   return (
     <WasteShell
       title="Findings"
-      description="Browse and investigate detected anomalies"
+      description="What to look at first, and everything behind it"
     >
       <ForensicsShell title={label}>
         <Link
@@ -189,7 +193,7 @@ export function ForensicsCategoryDetailPage({
           className="inline-flex items-center gap-1 text-xs text-gray-500 no-underline hover:text-purple-600 mb-3"
         >
           <ArrowLeft className="w-3 h-3" />
-          All categories
+          Top leads and all areas
         </Link>
 
         {/* Key metrics: the underlying citywide numbers this category's
@@ -200,36 +204,21 @@ export function ForensicsCategoryDetailPage({
         {categoryFindings.length > 0 && (
           <div className="mb-4 flex bg-white rounded-xl border border-gray-200 overflow-hidden">
             <SummaryCell
-              label="Findings"
-              value={String(categoryFindings.length)}
-              color="#111827"
+              label="Strong leads"
+              value={String(tierCounts.lead)}
+              color="#ad35fa"
             />
             <SummaryCell
-              label="Critical"
-              value={String(
-                categoryFindings.filter(
-                  (f) => f.severity?.toLowerCase() === "critical",
-                ).length,
-              )}
-              color="#dc2626"
-              divider
-            />
-            <SummaryCell
-              label="High"
-              value={String(
-                categoryFindings.filter(
-                  (f) => f.severity?.toLowerCase() === "high",
-                ).length,
-              )}
-              color="#b45309"
-              divider
-            />
-            <SummaryCell
-              label="Exposure"
-              value={formatDollar(aggregateAmount(categoryFindings) || null)}
+              label="Worth a look"
+              value={String(tierCounts.review)}
               color="#111827"
               divider
-              wide
+            />
+            <SummaryCell
+              label="All findings"
+              value={categoryFindings.length.toLocaleString()}
+              color="#6b7280"
+              divider
             />
           </div>
         )}
@@ -250,7 +239,7 @@ export function ForensicsCategoryDetailPage({
             >
               {(
                 [
-                  ["evidence", "Evidence"],
+                  ["evidence", "Best leads"],
                   ["severity", "Severity"],
                   ["amount", "Amount"],
                 ] as [FindingSortMode, string][]
@@ -262,7 +251,7 @@ export function ForensicsCategoryDetailPage({
                   aria-pressed={sortMode === mode}
                   title={
                     mode === "evidence"
-                      ? "Expected value: detector precision × dollar impact, corroboration-boosted; dismissed findings sink"
+                      ? "Strongest evidence first: direct, specific, corroborated findings lead; dollar size only breaks ties; dismissed findings sink"
                       : mode === "severity"
                         ? "Grouped by subcategory, worst severity first"
                         : "Flat list, largest dollar amount first"
@@ -313,6 +302,8 @@ export function ForensicsCategoryDetailPage({
               cityId={cityId}
               precisionFor={precisionFor}
               sortMode={sortMode}
+              runFindings={runFindings}
+              focusFindingId={focusFindingId}
             />
           </>
         )}

@@ -8147,6 +8147,13 @@ export interface WasteFinding {
   recurrence_count?: number;
   consolidated_into?: string | null;
   supporting_findings?: string[] | null;
+  // Lead grading from the backend (Platform lead_grading.py). Absent on
+  // payloads persisted before it existed; waste-leads.ts computes the same
+  // thing client-side in that case.
+  lead_tier?: "lead" | "review" | "context" | null;
+  lead_score?: number | null;
+  lead_reasons?: string[] | null;
+  known_case?: string | null;
 }
 
 export interface WasteDataFreshness {
