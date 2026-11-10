@@ -115,7 +115,9 @@ lives in the UI; the backend computes the same thing in
 `services/waste/lead_grading.py` and ships it on each finding as
 `lead_score`, `lead_tier`, `lead_reasons` and `known_case`. The UI prefers
 those fields and computes them itself for payloads persisted before the
-backend had them, so the page ranks sensibly on any stored run. **Keep
+backend stored them (the persistence layer keeps them in the finding's
+`evidence` JSONB and the route returns them top-level), so the page ranks
+sensibly on any stored run. **Keep
 `TOOL_GRADES`, `SIGNAL_GROUP` and the weights in step with the backend.**
 
 Each detector has an evidence grade:
@@ -186,6 +188,35 @@ Severity / Amount), which is `sortByLead` over the area's findings graded
 against the whole run (corroboration counts detectors in any area).
 Dismissed findings sink to the bottom. Cards carry the tier chip, the
 "Already public" chip, and a "Why it ranks here" line when expanded.
+
+### Payroll findings name a role, and show the records
+
+The department-level payroll detectors (D1-D7) say "Public Health earned
+49% of all overtime"; nobody can act on a department. Two things make
+payroll findings actionable:
+
+- **W1 Title-Peer Overtime Outlier** (backend `detectors/workforce.py`) is a
+  person-level finding whose `entity` is the **role and department**
+  ("Bldgs & Grounds Maint Supt, Sheriff"), not a name: one person's overtime
+  several times the next-highest in the same title, repeated across the
+  four-year payroll window. A single year is background; two or more is a
+  pattern (`W1 ... (Repeated)`). Sworn ranks in police, fire and sheriff
+  departments carry the "Already public" label; a civilian superintendent at
+  the Sheriff does not (the mirror is `SWORN_TITLE` in `waste-leads.ts`).
+- **The pay records behind a finding** (`waste-exemplars.ts`,
+  `waste-exemplar-list.tsx`). The backend ships the people behind an
+  aggregated finding as `case_exemplars` (`caseExemplars` on a live run,
+  inside `evidence` on a persisted one). Expanded cards and Top leads rows
+  show them under "In the public payroll record", one line per year, with
+  the facts each detector provides (overtime on base pay, multiple of the
+  next-highest in the title, extra hours a week, pay spike).
+
+Identity matters here. San Francisco's payroll identifier is a name-like
+string shared by namesakes (three quarters of identifiers appearing in two
+departments sum to more hours than a year holds), so cross-department
+"double dipping" (RD3) runs only where the payroll carries a stable employee
+id (Chicago's `employee_dataset_id`). Do not build a cross-department person
+match on `employee_identifier`.
 
 `findingEvidenceScore` / `sortByEvidenceScore` in `waste-utils.ts` (the
 earlier P(real) x dollars ranking) are kept for callers outside these

@@ -15,6 +15,7 @@ import {
   PRECISION_PROVISIONAL_BELOW,
 } from "./waste-utils"
 import { formatDetector, stripDetectorCodes } from "./detector-info"
+import { ExemplarList } from "./waste-exemplar-list"
 import { deriveHeadline, whySuspicious } from "./waste-finding-narrator"
 import { LEAD_TIER_HELP, LEAD_TIER_LABEL, type FindingLead } from "./waste-leads"
 import { TCScoreBadge } from "./tc-score-badge"
@@ -1622,6 +1623,9 @@ export function WasteFindingCard({
                   {lead.reasons.map(stripDetectorCodes).join(". ")}.
                 </p>
               )}
+              <div className="mt-3 max-w-[920px]">
+                <ExemplarList finding={finding} />
+              </div>
             </div>
           )}
 

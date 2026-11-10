@@ -65,6 +65,11 @@ const TOOL_TO_CANONICAL: Record<string, string> = {
   "D6 Hours Feasibility (Head-comp comparison)": "payroll_d6_headcomp",
   "D6 Hours Feasibility (Peer Adjusted)": "payroll_d6",
   "D7 Comp Time Manipulation": "payroll_d7",
+  "W1 Title-Peer Overtime Outlier": "payroll_w1",
+  "W1 Title-Peer Overtime Outlier (Repeated)": "payroll_w1",
+  "W1 Title Overtime Cluster (Repeated)": "payroll_w1c",
+  "W2 Same-Title Second Payroll Line": "payroll_w2",
+  "W2 Same-Title Second Payroll Line (Repeated)": "payroll_w2",
   // Infrastructure
   "D1 Response Time Deterioration": "infra_d1",
   "D2 District Equity Gap": "infra_d2",
@@ -118,6 +123,12 @@ const HEADLINES: Record<string, Builder> = {
     `${f.entity} — employees out-earning their own department head`,
   payroll_d7: (f) =>
     `${f.entity} — large "other pay" cash-outs that can mask comp-time abuse`,
+  payroll_w2: (f) =>
+    `${f.entity} — one person paid a full-time salary in the same title by two departments (${dollar(f.amount)} on the second line)`,
+  payroll_w1c: (f) =>
+    `${f.entity} — a few people hold nearly all of the title's overtime, year after year (${dollar(f.amount)})`,
+  payroll_w1: (f) =>
+    `${f.entity} — one person's overtime (${dollar(f.amount)}) far outstrips everyone else in the title`,
   // ── Vendor / procurement ─────────────────────────────────────────────────
   vendor_d1: (f) =>
     `${f.entity} — duplicate payments totaling ${dollar(f.amount)}`,
@@ -231,6 +242,9 @@ const WHY: Record<string, string> = {
   payroll_d6_ghost: "Overtime paid with no base salary can indicate a ghost employee.",
   payroll_d6_headcomp: "Staff out-earning their own department head can signal misclassification.",
   payroll_d7: "Large 'other pay' cash-outs can hide comp-time or leave abuse.",
+  payroll_w2: "Most public employers allow a second job in the same title only in exceptional cases with both employers' sign-off. Two full-time salaries mean either an approval exists, or one line is paid for work that was not done.",
+  payroll_w1c: "When the same few people in a title collect nearly all its overtime every year while their colleagues work straight time, a standing shift is being paid as overtime or the overtime is being steered.",
+  payroll_w1: "When one person in a title is paid several times the overtime of everyone else in it, the overtime is being steered to them or the hours are not what they seem.",
   vendor_d1: "Duplicate payments mean the city may have paid the same bill twice.",
   vendor_d2: "Payments rerouted to a new account are a classic fraud vector.",
   vendor_d3: "Amounts that don't follow natural patterns can indicate manipulation.",

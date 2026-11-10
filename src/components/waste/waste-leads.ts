@@ -124,6 +124,17 @@ const TOOL_GRADES: [string, EvidenceGrade][] = [
   ["D4 Department OT Outlier", "context"],
   ["D5 Benford's Law", "context"],
   ["D7 Comp Time", "context"],
+  // One person's overtime several times the next-highest in the same title,
+  // repeated across years. A single year is background.
+  ["W1 Title-Peer Overtime Outlier (Repeated)", "pattern"],
+  ["W1 Title-Peer Overtime Outlier", "context"],
+  // A few people hold nearly all of a title's overtime, the same people for
+  // three of four years, while the rest of the title works straight time.
+  ["W1 Title Overtime Cluster (Repeated)", "pattern"],
+  // One person paid in the same title by two departments (needs a stable
+  // employee id, or a caller that accepts a name as identity).
+  ["W2 Same-Title Second Payroll Line (Repeated)", "direct"],
+  ["W2 Same-Title Second Payroll Line", "context"],
   // Infrastructure: department- or area-level background
   ["D1 Response Time", "context"],
   ["D2 District Equity", "context"],
@@ -298,8 +309,14 @@ const OVERTIME_TOOLS = [
   "D4 Department OT",
   "D6 Hours Feasibility",
   "D7 Comp Time",
+  "W1 Title-Peer Overtime",
+  "W1 Title Overtime Cluster",
   "Entity Consolidation",
 ]
+// Sworn and shift-staffed ranks. A civilian maintenance superintendent at the
+// Sheriff is not the audited kind of public-safety overtime.
+const SWORN_TITLE =
+  /\b(police|officer|sergeant|lieutenant|captain|inspector|deputy|fire\s*fighter|firefighter|paramedic|emt|dispatcher|fire\s+(suppression|prevention)|chief|detective|marshal)\b/i
 export const PUBLIC_SAFETY_OT_LABEL =
   "Public-safety overtime (widely audited and reported)"
 
@@ -307,7 +324,12 @@ function isPublicSafetyOvertime(f: WasteFinding): boolean {
   if (!(f.category ?? "").toLowerCase().includes("payroll")) return false
   const tool = f.tool ?? ""
   if (!OVERTIME_TOOLS.some((t) => tool.startsWith(t))) return false
-  return PUBLIC_SAFETY_DEPT.test(`${f.department ?? ""} ${f.entity ?? ""}`)
+  if (!PUBLIC_SAFETY_DEPT.test(`${f.department ?? ""} ${f.entity ?? ""}`)) {
+    return false
+  }
+  // Role-level findings: only sworn and shift ranks count.
+  if (tool.startsWith("W1 ")) return SWORN_TITLE.test(f.entity ?? "")
+  return true
 }
 
 export interface LeadContext {
@@ -405,7 +427,11 @@ export function findingLead(f: WasteFinding, ctx?: LeadContext | null): FindingL
   const deptLevel = isDepartmentLevel(f)
   if (!deptLevel) {
     score += SPECIFICITY_POINTS
-    reasons.push("Names a specific payee, person or contract")
+    reasons.push(
+      /^W[12] /.test(f.tool ?? "")
+        ? "Names a specific role and the pay records behind it"
+        : "Names a specific payee, person or contract",
+    )
   } else if (grade === "direct") {
     // A direct detector on a department still points at named records
     // (hundreds of purchase orders at $9,999), unlike a department statistic.

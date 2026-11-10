@@ -157,6 +157,40 @@ describe("findingLead", () => {
     expect(findingLead(police).knownCase).toBe(PUBLIC_SAFETY_OT_LABEL)
     expect(findingLead(library).knownCase).toBeNull()
   })
+
+  it("grades a repeated title-peer overtime outlier as reviewable and a single year as background", () => {
+    expect(evidenceGrade("W1 Title-Peer Overtime Outlier (Repeated)")).toBe("pattern")
+    expect(evidenceGrade("W1 Title-Peer Overtime Outlier")).toBe("context")
+    const repeated = f({
+      tool: "W1 Title-Peer Overtime Outlier (Repeated)",
+      category: "Payroll & Compensation",
+      entity: "Bldgs & Grounds Maint Supt, Sheriff",
+      department: "Sheriff",
+      amount: 442_478,
+    })
+    expect(findingLead(repeated).tier).toBe("review")
+  })
+
+  it("grades a second payroll line as direct evidence when repeated, background when once", () => {
+    expect(evidenceGrade("W2 Same-Title Second Payroll Line (Repeated)")).toBe("direct")
+    expect(evidenceGrade("W2 Same-Title Second Payroll Line")).toBe("context")
+  })
+
+  it("grades a title overtime cluster as a pattern", () => {
+    expect(evidenceGrade("W1 Title Overtime Cluster (Repeated)")).toBe("pattern")
+  })
+
+  it("treats a sworn rank at the Sheriff as public-safety overtime, a civilian superintendent as new", () => {
+    const base = {
+      tool: "W1 Title-Peer Overtime Outlier (Repeated)",
+      category: "Payroll & Compensation",
+      department: "Sheriff",
+    } as const
+    const sworn = f({ ...base, entity: "Captain 3, Sheriff" })
+    const civilian = f({ ...base, entity: "Bldgs & Grounds Maint Supt, Sheriff" })
+    expect(findingLead(sworn).knownCase).toBe(PUBLIC_SAFETY_OT_LABEL)
+    expect(findingLead(civilian).knownCase).toBeNull()
+  })
 })
 
 describe("ranking", () => {

@@ -48,6 +48,10 @@ export interface WasteFinding {
   lead_score?: number | null;
   lead_reasons?: string[] | null;
   known_case?: string | null;
+  // Pay records behind an aggregated payroll finding. Live runs carry
+  // them as caseExemplars; persisted runs inside `evidence`.
+  caseExemplars?: Array<Record<string, unknown>> | null;
+  evidence?: Record<string, unknown> | null;
 }
 
 export interface ConvergenceDetails {

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, ChevronDown } from "lucide-react"
 import type { WasteFinding } from "@/lib/apiClient"
+import { ExemplarList } from "./waste-exemplar-list"
 import { deriveHeadline, whySuspicious } from "./waste-finding-narrator"
 import {
   LEAD_TIER_HELP,
@@ -129,6 +130,7 @@ function LeadRow({
               {finding.caveat}
             </p>
           )}
+          <ExemplarList finding={finding} />
           {reasons.length > 0 && (
             <p>
               <span className="font-semibold" style={{ color: "#111827" }}>
