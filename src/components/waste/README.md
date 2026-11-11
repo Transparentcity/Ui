@@ -2,7 +2,9 @@
 
 Admin-only surface for browsing waste/fraud/abuse findings produced by the
 backend detector pipeline. Simplified in July 2026 to three tabs over one
-landing page.
+landing page. Since November 2026 the landing page leads with a ranked
+**Top leads** shortlist and everything is ordered by strength of evidence
+(see "Lead grading" below), not by severity or dollar size.
 
 ## Shell
 
@@ -23,8 +25,8 @@ purple reserved for links/actions and the eyebrow).
 
 | Route | Renders |
 |---|---|
-| `/waste` | Findings by category (the module landing page) |
-| `/waste/categories/[category]` | Category detail: filterable finding cards |
+| `/waste` | Top leads, then findings by area (the module landing page) |
+| `/waste/categories/[category]` | Area detail: finding cards, best leads first. `?finding=<id>` opens and scrolls to one finding (Top leads links here) |
 | `/waste/departments` | Department risk profiles |
 | `/waste/reports` | Report builder + per-detector-class workpapers |
 | `/waste/reports/[slug]` | Workpaper detail with CSV/JSON export |
@@ -98,34 +100,127 @@ API. Surfaces: a headline number on each `/waste` category card, and the
 full chart). Year-grain share metrics populate once Platform PR #122 is
 deployed and the metrics re-run.
 
-## Evidence-weighted ranking
+## Lead grading (what ranks where, and why)
 
-Category detail pages default to the **Evidence** sort (toggle: Evidence /
-Severity / Amount). Evidence order is expected value, computed client-side in
-`waste-utils.ts`:
+Before November 2026 the module ranked on severity, and the backend derived
+severity mostly from dollars. On a baseline run of the three waste cities,
+78-93% of findings were High or Critical and the top ten in each city was
+bookkeeping: a department "7,387% over budget" because it pays the city's
+health insurer, the school board flagged as "both grantee and vendor", a
+contract "$58 billion over" from a junk column. One of thirty top-ten rows
+was a real lead.
+
+Ranking is now on **evidence**. `waste-leads.ts` is the single place this
+lives in the UI; the backend computes the same thing in
+`services/waste/lead_grading.py` and ships it on each finding as
+`lead_score`, `lead_tier`, `lead_reasons` and `known_case`. The UI prefers
+those fields and computes them itself for payloads persisted before the
+backend stored them (the persistence layer keeps them in the finding's
+`evidence` JSONB and the route returns them top-level), so the page ranks
+sensibly on any stored run. **Keep
+`TOOL_GRADES`, `SIGNAL_GROUP` and the weights in step with the backend.**
+
+Each detector has an evidence grade:
+
+| Grade | Meaning | Examples |
+|---|---|---|
+| direct | The pattern is visible in named records an auditor can pull | Orders priced just under the bid limit, same-day split orders, a contract paid past its ceiling (confirmed in the ledger), hours beyond what a week holds |
+| pattern | Suggestive, with common innocent explanations | The same amount paid twice, a contract grown by add-ons, payments with no contract after expiry, a fast-growing grantee |
+| context | Statistical or department-level background; never a lead alone | Benford, round numbers, budget variance, concentration, 311 trends, sole-source on its own, three-or-more identical payments (instalments), name-only employee/vendor matches, clustering under guessed limits |
 
 ```
-score = P(real) × corroboration boost × data-quality factor × dollar impact
+score = grade base (55 / 30 / 8)
+      + 10 if it names a payee, person or contract
+           (or a department, when the grade is direct)
+      + corroboration: +15 per other direct detector, +8 per other pattern
+        detector on the same entity, capped at 25
+      + materiality: log-scaled dollars, at most 10
+      - 10 if the finding itself rests on partial data
+tier  = "lead" (>= 60, shown as "Strong lead"), "review" (30-59, "Worth a
+        look"), "context" (< 30, "Background")
 ```
 
-- **P(real)** (`findingRealProbability`): the detector's auditor-validated
-  precision — as a Wilson 95% lower bound, so 3/3 reviewed reads ~0.44, not
-  1.0 — once it has ≥ `PRECISION_MIN_REVIEWS_FOR_SCORE` (5) reviews;
-  otherwise the backend `confidence_score`, then the High/Medium/Low band.
-- **Corroboration boost** (`findingCorroborationBoost`): +25% per independent
-  corroborating signal (explicit `corroboration_count`, convergence domains
-  beyond the first, consolidated supporting findings), capped at 2×.
-- **Data-quality factor** (`findingDataQualityFactor`): scales by
-  `data_completeness` and discounts `is_partial_data` 25%, floored at 0.1 —
-  anomalies from partial datasets are often ingestion artifacts.
-- **Impact** (`findingImpactEstimate`): `estimated_dollar_impact` → `amount`
-  → a severity-based nominal for findings with no dollar figure.
+Rules that keep the score honest, each learned from a false lead:
 
-Findings whose `latest_disposition` is a dismissal sink to the bottom
-regardless of score (`sortByEvidenceScore`). Cards also carry a purple
-"Corroborated ×N" chip whenever independent signals (other detectors or
-cross-domain convergence) corroborate a finding — consolidation (+N) and
-fraud-triangle (N/3) chips already cover those two signals separately.
+- **Dollars only break ties.** Materiality is log-scaled and capped, so no
+  amount of money makes a background signal a lead.
+- **Same signal, counted once.** Same-day splits, rolling-window splits, the
+  vendor threshold profile and payment clustering under a limit are one
+  signal (`SIGNAL_GROUP`), as are the pair and run forms of repeat payments.
+- **Direct evidence is lifted only by other direct evidence.** A soft flag
+  agreeing with a hard one adds nothing.
+- **Departments get no corroboration credit.** Any large department trips
+  several department-level detectors at once; that is size.
+- **Structural payees are not vendors.** Governments, pension funds,
+  insurers, utilities and banks are paid by statute or tariff; findings
+  about the normal shape of those payments are dropped by the backend and
+  graded as background by the UI mirror (`isStructuralFinding`).
+- **Already public is labelled, not hidden.** A live finding whose entity
+  matches a confirmed case, and overtime in police, fire, sheriff and
+  emergency departments, carry `known_case` and an "Already public" chip.
+
+### Top leads (`waste-top-leads.tsx`)
+
+The landing page opens with the answer to "what should I look at first":
+up to ten new leads across all areas, strong leads first. One row per
+entity; at most three rows per detector per department for strong leads (a
+department that prices hundreds of orders under the bid limit is one story
+with two named examples, not ten rows of one sentence) and five per
+detector overall for worth-a-look rows; roll-up "N detectors flagged this
+entity" cards are skipped in favour of the finding itself; anything already
+public is left out and counted in a footer line. A row shows the plain
+headline and the fact specific to that finding; expanding it shows the
+record, why it matters, what could explain it innocently (the finding's
+caveat), why it ranks where it does, and a link into the area page.
+
+Below it, the area table shows **Strong leads / Worth a look / All
+findings** per area. The old High+ and Exposure columns are gone: both were
+dollar-driven, so every row read alarming and none could be acted on.
+
+Area names are plain language and live in one table
+(`WASTE_CATEGORY_LABELS` / `WASTE_CATEGORY_DESCRIPTIONS` in
+`waste-utils.ts`): "Contracts and purchasing", "Payroll and overtime",
+"Conflicts of interest", "Lobbying and campaign money", "City services and
+budgets", "Flagged in several areas", "Known cases".
+
+Area pages default to the **Best leads** sort (toggle: Best leads /
+Severity / Amount), which is `sortByLead` over the area's findings graded
+against the whole run (corroboration counts detectors in any area).
+Dismissed findings sink to the bottom. Cards carry the tier chip, the
+"Already public" chip, and a "Why it ranks here" line when expanded.
+
+### Payroll findings name a role, and show the records
+
+The department-level payroll detectors (D1-D7) say "Public Health earned
+49% of all overtime"; nobody can act on a department. Two things make
+payroll findings actionable:
+
+- **W1 Title-Peer Overtime Outlier** (backend `detectors/workforce.py`) is a
+  person-level finding whose `entity` is the **role and department**
+  ("Bldgs & Grounds Maint Supt, Sheriff"), not a name: one person's overtime
+  several times the next-highest in the same title, repeated across the
+  four-year payroll window. A single year is background; two or more is a
+  pattern (`W1 ... (Repeated)`). Sworn ranks in police, fire and sheriff
+  departments carry the "Already public" label; a civilian superintendent at
+  the Sheriff does not (the mirror is `SWORN_TITLE` in `waste-leads.ts`).
+- **The pay records behind a finding** (`waste-exemplars.ts`,
+  `waste-exemplar-list.tsx`). The backend ships the people behind an
+  aggregated finding as `case_exemplars` (`caseExemplars` on a live run,
+  inside `evidence` on a persisted one). Expanded cards and Top leads rows
+  show them under "In the public payroll record", one line per year, with
+  the facts each detector provides (overtime on base pay, multiple of the
+  next-highest in the title, extra hours a week, pay spike).
+
+Identity matters here. San Francisco's payroll identifier is a name-like
+string shared by namesakes (three quarters of identifiers appearing in two
+departments sum to more hours than a year holds), so cross-department
+"double dipping" (RD3) runs only where the payroll carries a stable employee
+id (Chicago's `employee_dataset_id`). Do not build a cross-department person
+match on `employee_identifier`.
+
+`findingEvidenceScore` / `sortByEvidenceScore` in `waste-utils.ts` (the
+earlier P(real) x dollars ranking) are kept for callers outside these
+pages; the area pages no longer use them.
 
 ## Triage (the learning loop)
 
@@ -180,6 +275,10 @@ failures (e.g. 403 for a non-admin) surface as a banner in `WasteShell`.
 
 ## Testing
 
+Lead grading and the shortlist rules are covered in `waste-leads.test.ts`
+(every rule above has a test named for the false lead it prevents) and the
+landing page in `forensics-categories-page.test.tsx`.
+
 Component tests live next to their components; the merge semantics are
 covered in `waste-utils.test.ts` ("run coverage" describe block), the panel
 behaviors in `waste-refresh-panel.test.tsx`, the page loading/error/empty
@@ -191,9 +290,36 @@ Note: Node 25 ships a global `localStorage` stub that shadows jsdom's in
 vitest; tests that touch localStorage define their own mock (see
 `useWasteSelectedCity.test.tsx`).
 
+## Lead eval (the UI half of the improvement loops)
+
+The Platform repo scores each improvement loop of the waste module with
+`scripts/waste_loops.py` (goals in `docs/waste/loops/GOALS.md`). That script
+exports, per city, the findings behind Top leads to
+`__fixtures__/lead-eval/<cityId>.json`, together with the ids of the ten rows
+it expects. `waste-lead-eval.test.ts` runs the real `topLeads` and narrator on
+them and checks:
+
+- **Parity.** `topLeads` must return exactly the expected ids. If this fails,
+  `shown_top` in the Platform script and `topLeads` in `waste-leads.ts` have
+  drifted: change both, then re-export
+  (`python scripts/waste_loops.py export-ui-fixture --tag <run> --ui <this repo>`).
+- **Clarity.** For each of the ten rows, the text a person reads has a headline
+  of at most 160 characters, no detector code or statistics jargon, no repeated
+  phrase, at least one ranking reason, a why-it-matters line and a fact line.
+  Failures are counted, not asserted, and written to `WASTE_UI_EVAL_OUT` for
+  the scoreboard. Whether the page is compelling still needs a human read.
+
+Fixtures hold public vendor and department names and role titles; case
+exemplars (people) are left out. Re-export after changing `deriveHeadline`,
+`whySuspicious` or the grading, so the next loop scores the new text.
+
 ## Backend counterparts
 
 - Detector pipeline + persistence: `src/transparentcity/services/waste/` in
   the Platform repo; error-handling and persistence invariants are
   documented in `docs/waste/DETECTOR_ERROR_HANDLING.md` there.
 - Workpaper endpoints: `src/transparentcity/api/routes/waste_admin.py`.
+- Lead grading: `services/waste/lead_grading.py`; structural payees:
+  `services/waste/detectors/counterparty.py`. The November 2026 loop log,
+  with the baseline and what each change fixed, is
+  `docs/waste/LEAD_QUALITY_LOOPS_2026-11.md` in the Platform repo.

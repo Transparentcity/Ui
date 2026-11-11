@@ -15,7 +15,9 @@ import {
   PRECISION_PROVISIONAL_BELOW,
 } from "./waste-utils"
 import { formatDetector, stripDetectorCodes } from "./detector-info"
+import { ExemplarList } from "./waste-exemplar-list"
 import { deriveHeadline, whySuspicious } from "./waste-finding-narrator"
+import { LEAD_TIER_HELP, LEAD_TIER_LABEL, type FindingLead } from "./waste-leads"
 import { TCScoreBadge } from "./tc-score-badge"
 import { ConfirmedBadge } from "./confirmed-badge"
 import { QuickDisposition } from "./disposition-select"
@@ -232,6 +234,12 @@ interface WasteFindingCardProps {
   allFindings?: WasteFinding[]
   /** Auditor-validated precision for this finding's detector, when known. */
   precision?: { rate: number; total: number } | null
+  /**
+   * Lead grading for this finding (waste-leads.ts). When present the card
+   * shows the tier and says why it ranks there; when absent (callers that
+   * have no run context) the card renders as before.
+   */
+  lead?: FindingLead | null
 }
 
 interface PayrollDetailRow {
@@ -1050,6 +1058,7 @@ export function WasteFindingCard({
   allFindings,
   precision,
   triageOverride = null,
+  lead = null,
 }: WasteFindingCardProps) {
   const sevKey = (finding.severity?.toLowerCase() ?? "medium") as keyof typeof severityConfig
   const sev = severityConfig[sevKey] ?? severityConfig.medium
@@ -1403,7 +1412,29 @@ export function WasteFindingCard({
             Roadmap
           </span>
         )}
-        {finding.signal_tier === "primary" && (
+        {lead && lead.tier !== "context" && !isConfirmedFinding(finding) && (
+          <span
+            className={cn(
+              FLAT_CHIP,
+              lead.tier === "lead" &&
+                "bg-purple-50 text-purple-700 border-purple-100",
+            )}
+            title={LEAD_TIER_HELP[lead.tier]}
+            data-testid="lead-tier-chip"
+          >
+            {LEAD_TIER_LABEL[lead.tier]}
+          </span>
+        )}
+        {lead?.knownCase && !isConfirmedFinding(finding) && (
+          <span
+            className={FLAT_CHIP}
+            title={`Not new: ${lead.knownCase}`}
+            data-testid="known-case-chip"
+          >
+            Already public
+          </span>
+        )}
+        {!lead && finding.signal_tier === "primary" && (
           <span className={FLAT_CHIP}>Primary</span>
         )}
         {(() => {
@@ -1419,7 +1450,10 @@ export function WasteFindingCard({
             finding.corroboration_count ?? 0,
             domains > 1 ? domains - 1 : 0,
           )
-          return corroboration > 0 ? (
+          // With lead grading present, corroboration is stated precisely
+          // in "Why it ranks here"; the legacy count (which starts at 1 and
+          // adds one just for having a dollar amount) would contradict it.
+          return corroboration > 0 && !lead ? (
             <span
               className={cn(
                 FLAT_CHIP,
@@ -1486,10 +1520,14 @@ export function WasteFindingCard({
           </span>
         )}
 
-        {/* Department chip */}
-        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none sm:whitespace-nowrap inline-flex">
-          {finding.entity}
-        </span>
+        {/* Entity chip: only when the headline doesn't already lead with
+            the entity (it nearly always does, and the chip then squeezed
+            the headline down to a few characters). */}
+        {!displayTitle.startsWith(finding.entity ?? "\u0000") && (
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none sm:whitespace-nowrap inline-flex">
+            {finding.entity}
+          </span>
+        )}
 
         {/* Fiscal year */}
         {finding.fiscal_year && (
@@ -1573,6 +1611,21 @@ export function WasteFindingCard({
               >
                 {stripDetectorCodes(finding.description)}
               </p>
+              {lead && lead.reasons.length > 0 && (
+                <p
+                  className="mt-2 text-[13px] max-w-[920px]"
+                  style={{ color: "#6b7280" }}
+                  data-testid="lead-reasons"
+                >
+                  <span className="font-semibold" style={{ color: "#374151" }}>
+                    Why it ranks here:
+                  </span>{" "}
+                  {lead.reasons.map(stripDetectorCodes).join(". ")}.
+                </p>
+              )}
+              <div className="mt-3 max-w-[920px]">
+                <ExemplarList finding={finding} />
+              </div>
             </div>
           )}
 

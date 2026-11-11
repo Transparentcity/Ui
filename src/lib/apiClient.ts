@@ -8147,6 +8147,17 @@ export interface WasteFinding {
   recurrence_count?: number;
   consolidated_into?: string | null;
   supporting_findings?: string[] | null;
+  // Lead grading from the backend (Platform lead_grading.py). Absent on
+  // payloads persisted before it existed; waste-leads.ts computes the same
+  // thing client-side in that case.
+  lead_tier?: "lead" | "review" | "context" | null;
+  lead_score?: number | null;
+  lead_reasons?: string[] | null;
+  known_case?: string | null;
+  // Pay records behind an aggregated payroll finding. Live runs carry
+  // them as caseExemplars; persisted runs inside `evidence`.
+  caseExemplars?: Array<Record<string, unknown>> | null;
+  evidence?: Record<string, unknown> | null;
 }
 
 export interface WasteDataFreshness {
