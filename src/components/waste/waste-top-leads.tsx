@@ -22,7 +22,7 @@ const HEADING_FONT = {
 } as const
 
 /** Detector codes ("D10", "NP4") mean nothing to a reader; drop them. */
-function stripCodes(text: string): string {
+export function stripCodes(text: string): string {
   return text.replace(/\b(?:B-|C-)?(?:D|NP|RD|I)\d+[a-z]?\b\s*/g, "").trim()
 }
 

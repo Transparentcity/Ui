@@ -290,6 +290,29 @@ Note: Node 25 ships a global `localStorage` stub that shadows jsdom's in
 vitest; tests that touch localStorage define their own mock (see
 `useWasteSelectedCity.test.tsx`).
 
+## Lead eval (the UI half of the improvement loops)
+
+The Platform repo scores each improvement loop of the waste module with
+`scripts/waste_loops.py` (goals in `docs/waste/loops/GOALS.md`). That script
+exports, per city, the findings behind Top leads to
+`__fixtures__/lead-eval/<cityId>.json`, together with the ids of the ten rows
+it expects. `waste-lead-eval.test.ts` runs the real `topLeads` and narrator on
+them and checks:
+
+- **Parity.** `topLeads` must return exactly the expected ids. If this fails,
+  `shown_top` in the Platform script and `topLeads` in `waste-leads.ts` have
+  drifted: change both, then re-export
+  (`python scripts/waste_loops.py export-ui-fixture --tag <run> --ui <this repo>`).
+- **Clarity.** For each of the ten rows, the text a person reads has a headline
+  of at most 160 characters, no detector code or statistics jargon, no repeated
+  phrase, at least one ranking reason, a why-it-matters line and a fact line.
+  Failures are counted, not asserted, and written to `WASTE_UI_EVAL_OUT` for
+  the scoreboard. Whether the page is compelling still needs a human read.
+
+Fixtures hold public vendor and department names and role titles; case
+exemplars (people) are left out. Re-export after changing `deriveHeadline`,
+`whySuspicious` or the grading, so the next loop scores the new text.
+
 ## Backend counterparts
 
 - Detector pipeline + persistence: `src/transparentcity/services/waste/` in
