@@ -33,6 +33,7 @@ import {
 } from "@/lib/metricDatasetAttribution";
 import CompletenessSparkline from "./CompletenessSparkline";
 import MetricSourceAttribution from "./MetricSourceAttribution";
+import { hasOrHave } from "@/lib/metricVerbAgreement";
 import styles from "./MetricsAdmin.module.css";
 import "./MetricDetailModal.css";
 
@@ -416,8 +417,8 @@ export default function MetricDetailModal({
               <section className="metric-section metric-comparison">
                 <h2 className="metric-section-title">
                   {isStale
-                    ? `Prior year to date: how have ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
-                    : `How have ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
+                    ? `Prior year to date: how ${hasOrHave(metric.metric_name)} ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
+                    : `How ${hasOrHave(metric.metric_name)} ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
                 </h2>
                 <div className="metric-period-selector">
                   {(["ytd", "mtd", "mtd_prior_year"] as const).map((period) => (

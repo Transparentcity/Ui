@@ -43,6 +43,7 @@ import {
   mandatesEnabled,
 } from "@/lib/mandates";
 import { useCityMandates } from "@/lib/hooks/useCityMandates";
+import { hasOrHave } from "@/lib/metricVerbAgreement";
 import type { PeriodType } from "./TimeSeriesChart";
 import "./MetricChainView.css";
 
@@ -399,8 +400,8 @@ export default function MetricDetailContent({
           {isStockMetric
             ? `${metric.metric_name} level in ${locationLabel}`
             : isStale
-              ? `Prior year to date: how have ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
-              : `How have ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
+              ? `Prior year to date: how ${hasOrHave(metric.metric_name)} ${metric.metric_name.toLowerCase()} changed in ${locationLabel}?`
+              : `How ${hasOrHave(metric.metric_name)} ${metric.metric_name.toLowerCase()} changed in ${locationLabel} in ${currentYear}?`}
         </h2>
         <div className="metric-period-selector">
           {(["ytd", "mtd", "mtd_prior_year"] as const).map((period) => (
