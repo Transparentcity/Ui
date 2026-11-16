@@ -908,7 +908,7 @@ describe("translateWasteError", () => {
     const t = translateWasteError("contracts: timed out after 300s")
     expect(t.category).toBe("contracts")
     expect(t.apiCategory).toBe("contracts")
-    expect(t.headline).toMatch(/Contracts & Procurement/i)
+    expect(t.headline).toMatch(/Contracts and purchasing/i)
     expect(t.detail).toMatch(/300s/)
     expect(t.tone).toBe("warn")
   })

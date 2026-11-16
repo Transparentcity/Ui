@@ -30,7 +30,7 @@ const DETECTORS: DetectorInfo[] = [
   { code: "D7b", category: "vendor", name: "Commodity Price Disparity", checks: "Vendor's commodity price exceeds peer-vendor median for the same item." },
   { code: "D8", category: "vendor", name: "Split POs", checks: "Multiple POs to the same vendor on the same day or rolling 30 days, each just under approval threshold." },
   { code: "D9", category: "vendor", name: "Ghost Vendor", checks: "Vendor lacks SAM.gov / Secretary-of-State registration, address, or phone." },
-  { code: "D10", category: "vendor", name: "Contract Drift", checks: "Final contract value drifts materially above the original award." },
+  { code: "D10", category: "vendor", name: "Paid Past the Contract Ceiling", checks: "Total paid on a contract exceeds its agreed amount while sibling contracts in the same department do not." },
   { code: "D11", category: "vendor", name: "Short Bid Window", checks: "RFP-to-award window unusually short (limits competitive bidding)." },
   { code: "D12", category: "vendor", name: "Adaptive Thresholds", checks: "Vendor payments cluster just under city's approval thresholds." },
   { code: "D13", category: "vendor", name: "Residential / Mail Drop Vendor", checks: "Vendor address resolves to a residence or mail-drop." },
@@ -42,6 +42,10 @@ const DETECTORS: DetectorInfo[] = [
   { code: "D21", category: "vendor", name: "Vendor Location Verification", checks: "Vendor's claimed location can't be verified or doesn't match work site." },
   { code: "D22", category: "vendor", name: "Emergency Contract Runaway", checks: "Emergency-contract spend continues long after the emergency is over." },
   { code: "D23", category: "vendor", name: "Threshold Clustering", checks: "Contract awards cluster just under a competitive-bid or approval ceiling." },
+  { code: "D8b", category: "vendor", name: "Orders Just Under the Purchase Limit", checks: "A vendor or department whose orders pile up just under the limit for buying without quotes, year after year, almost never over it." },
+  { code: "D24", category: "vendor", name: "Same Amount Paid Twice", checks: "One exact, non-round amount paid to a vendor twice within weeks on separate vouchers, with no other payment like it." },
+  { code: "D25", category: "vendor", name: "Contract Growth After Award", checks: "A competitively awarded contract grown to several times its award by add-fund modifications." },
+  { code: "D26", category: "vendor", name: "Paid Without Contract After Expiry", checks: "A vendor paid by no-contract voucher for months after its last contract ended." },
 
   // Payroll
   { code: "D1", category: "payroll", name: "OT-to-Base Ratio", checks: "Employee's overtime as a fraction of base pay exceeds peer-job-class threshold." },

@@ -21,15 +21,17 @@ export type WasteCategoryKey =
   | "accuracy"
   | "uncategorized"
 
+// Plain-language names: the reader may be a reporter or a council aide, not
+// an auditor. One table for every page; keys are the URL slugs.
 export const WASTE_CATEGORY_LABELS: Record<WasteCategoryKey, string> = {
   overview: "Findings",
-  convergence: "Cross-Domain Risk",
-  payroll: "Payroll & Personnel",
-  contracts: "Contracts & Procurement",
-  infrastructure: "Infrastructure & Services",
-  influence: "Influence & Pay-to-Play",
-  integrity: "Personnel Integrity",
-  confirmed: "Confirmed Cases",
+  convergence: "Flagged in several areas",
+  payroll: "Payroll and overtime",
+  contracts: "Contracts and purchasing",
+  infrastructure: "City services and budgets",
+  influence: "Lobbying and campaign money",
+  integrity: "Conflicts of interest",
+  confirmed: "Known cases",
   detectors: "Detectors & Data",
   review: "Review Workbench",
   accuracy: "Detector Accuracy",
@@ -113,13 +115,20 @@ export function getWasteCategoryLabel(category: string): string {
 
 export const WASTE_CATEGORY_DESCRIPTIONS: Record<WasteCategoryKey, string> = {
   overview: "Review flagged transactions across contracts and payroll",
-  convergence: "Departments flagged across multiple independent risk domains",
-  payroll: "Overtime, compensation anomalies, and personnel integrity",
-  contracts: "Vendor concentration, procurement patterns, and influence",
-  infrastructure: "311 service clusters and infrastructure patterns",
-  influence: "Lobbying overlap, campaign finance patterns, and pay-to-play risk",
-  integrity: "Revolving door hires, dual employment, and conflict-of-interest signals",
-  confirmed: "Cases confirmed through audits, investigations, or public records",
+  convergence:
+    "Departments that show up across payroll, purchasing and services at once",
+  payroll:
+    "Overtime above base pay, hours no one could work, pay spikes before retirement",
+  contracts:
+    "Orders split to stay under bid limits, contracts paid past their ceiling, no-bid awards, vendors paid without a contract",
+  infrastructure:
+    "311 response and repair patterns, and spending against budget. Background, not leads on their own",
+  influence:
+    "Contract awards that line up with lobbying contacts or campaign donations",
+  integrity:
+    "Employees who are also paid as vendors, or who moved to a firm their old department pays",
+  confirmed:
+    "Cases already audited, charged or reported. Kept for reference and to check the detectors against",
   detectors: "All anomaly-detection algorithms and public datasets used by the platform",
   review: "Disposition workflow for auditor triage and assignment",
   accuracy: "Precision tracking from auditor feedback",

@@ -12,54 +12,28 @@ import { WasteShell } from "./waste-shell"
 import { ForensicsShell } from "./forensics-shell"
 import { WasteRefreshPanel } from "./waste-refresh-panel"
 import { useWasteCity } from "./WasteCityContext"
+import { WasteTopLeads } from "./waste-top-leads"
+import { buildLeadContext, findingLead } from "./waste-leads"
 import {
   normalizeWasteCategory,
-  formatDollar,
-  findingAggregateAmount,
+  WASTE_CATEGORY_DESCRIPTIONS,
+  WASTE_CATEGORY_LABELS,
 } from "./waste-utils"
 
-const CATEGORY_META: Record<
-  string,
-  {
-    label: string
-    description: string
-  }
-> = {
-  payroll: {
-    label: "Payroll & Personnel",
-    description: "Overtime anomalies, compensation patterns, ghost employees, and personnel integrity issues",
-  },
-  contracts: {
-    label: "Contracts & Procurement",
-    description: "Vendor concentration, split purchase orders, ghost vendors, contract drift, and address matching",
-  },
-  infrastructure: {
-    label: "Infrastructure & Services",
-    description: "311 service clusters, pavement failure hotspots, and geographic service pattern analysis",
-  },
-  influence: {
-    label: "Influence & Pay-to-Play",
-    description: "Campaign contribution patterns, lobbying disclosure gaps, and political influence networks",
-  },
-  integrity: {
-    label: "Personnel Integrity",
-    description: "Conflict of interest indicators, outside employment violations, and ethical compliance",
-  },
-  confirmed: {
-    label: "Confirmed Cases",
-    description: "Previously confirmed fraud, waste, and abuse cases for pattern learning and calibration",
-  },
-  convergence: {
-    label: "Cross-Domain Convergence",
-    description: "Entities flagged across multiple independent detector categories indicating systemic risk",
-  },
-  // Rendered only when findings actually land in it (an unrecognized backend
-  // category), so misrouted findings are visible instead of polluting payroll.
-  uncategorized: {
-    label: "Uncategorized",
-    description: "Findings whose backend category isn't recognized by this UI yet",
-  },
-}
+// Areas in the order a reader should meet them: where the strongest
+// evidence usually is first, reference material last. "uncategorized" is
+// rendered only when findings actually land in it (an unrecognized backend
+// category), so misrouted findings are visible instead of polluting payroll.
+const CATEGORY_ORDER = [
+  "contracts",
+  "payroll",
+  "integrity",
+  "influence",
+  "infrastructure",
+  "convergence",
+  "confirmed",
+  "uncategorized",
+] as const
 
 const DATA_FONT = { fontFamily: "var(--font-data)" } as const
 const HEADING_FONT = {
@@ -90,29 +64,33 @@ export function ForensicsCategoriesPage() {
   const { byCategory: keyMetricsByCategory, isError: keyMetricsError } =
     useWasteKeyMetrics(cityId)
 
+  // Per category: how many findings are strong leads, how many are worth a
+  // look, and the total. Severity and summed "exposure" used to sit here;
+  // both were driven by dollar size, so nearly every row read alarming and
+  // none could be acted on.
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, { total: number; critical: number; amount: number }> = {}
+    const ctx = buildLeadContext(allFindings)
+    const counts: Record<string, { total: number; lead: number; review: number }> = {}
     allFindings.forEach((f) => {
       const cat = normalizeWasteCategory(f.category)
-      if (!counts[cat]) counts[cat] = { total: 0, critical: 0, amount: 0 }
+      if (!counts[cat]) counts[cat] = { total: 0, lead: 0, review: 0 }
       counts[cat].total++
-      if (f.severity === "critical" || f.severity === "high") counts[cat].critical++
-      // Cap/override-aware: confirmed-case secondaries carry
-      // amount_for_aggregate=0 and capped findings carry the cap value, so
-      // summing raw `amount` would overstate category exposure.
-      counts[cat].amount += findingAggregateAmount(f)
+      if (cat === "confirmed") return
+      const tier = findingLead(f, ctx).tier
+      if (tier === "lead") counts[cat].lead++
+      else if (tier === "review") counts[cat].review++
     })
     return counts
   }, [allFindings])
 
-  const categoryKeys = Object.keys(CATEGORY_META).filter(
+  const categoryKeys = CATEGORY_ORDER.filter(
     (key) => key !== "uncategorized" || (categoryCounts[key]?.total ?? 0) > 0,
   )
 
   return (
     <WasteShell
       title="Findings"
-      description="Browse and investigate detected anomalies"
+      description="What to look at first, and everything behind it"
     >
       <ForensicsShell>
         {isLoading ? (
@@ -148,6 +126,7 @@ export function ForensicsCategoriesPage() {
           </div>
         ) : (
           <div>
+            <WasteTopLeads findings={allFindings} cityName={selectedCityName} />
             {keyMetricsError && (
               <p
                 className="px-3 pb-2 text-xs italic text-gray-400"
@@ -166,26 +145,26 @@ export function ForensicsCategoriesPage() {
                 className="flex-1 text-[12px] font-bold uppercase"
                 style={{ color: "#6b7280", letterSpacing: "0.06em" }}
               >
-                Analysis Categories
+                Everything, by area
               </span>
               <div className="hidden md:flex items-center shrink-0">
                 <span
                   className="w-[110px] text-right text-[11px] uppercase"
                   style={{ color: "#9ca3af" }}
                 >
-                  Findings
+                  Strong leads
                 </span>
                 <span
                   className="w-[110px] text-right text-[11px] uppercase"
                   style={{ color: "#9ca3af" }}
                 >
-                  High+
+                  Worth a look
                 </span>
                 <span
-                  className="w-[190px] text-right text-[11px] uppercase"
+                  className="w-[110px] text-right text-[11px] uppercase"
                   style={{ color: "#9ca3af" }}
                 >
-                  Exposure
+                  All findings
                 </span>
                 <span className="w-[96px]" aria-hidden />
               </div>
@@ -193,11 +172,14 @@ export function ForensicsCategoriesPage() {
 
             {/* One row per category. */}
             {categoryKeys.map((key) => {
-              const meta = CATEGORY_META[key]
+              const meta = {
+                label: WASTE_CATEGORY_LABELS[key],
+                description: WASTE_CATEGORY_DESCRIPTIONS[key],
+              }
               const counts = categoryCounts[key] ?? {
                 total: 0,
-                critical: 0,
-                amount: 0,
+                lead: 0,
+                review: 0,
               }
               const categoryMetrics = keyMetricsByCategory[key] ?? []
               const headline = categoryMetrics.find((m) => m.value != null)
@@ -257,27 +239,45 @@ export function ForensicsCategoriesPage() {
                   <div className="flex items-center md:items-start shrink-0 gap-x-4 md:gap-x-0">
                     <span
                       className="md:w-[110px] text-right text-[15px] font-bold tabular-nums"
-                      style={{ ...DATA_FONT, color: "#111827" }}
+                      style={{
+                        ...DATA_FONT,
+                        color: counts.lead > 0 ? "#ad35fa" : "#d1d5db",
+                      }}
+                      data-testid={`lead-count-${key}`}
                     >
-                      {counts.total}
+                      <span className="md:hidden text-[11px] font-normal text-gray-400 mr-1">
+                        Strong
+                      </span>
+                      {key === "confirmed" ? "" : counts.lead}
                     </span>
                     <span
-                      className="md:w-[110px] text-right text-[13px] font-bold tabular-nums"
-                      style={{ ...DATA_FONT, color: "#dc2626" }}
+                      className="md:w-[110px] text-right text-[15px] font-bold tabular-nums"
+                      style={{
+                        ...DATA_FONT,
+                        color: counts.review > 0 ? "#111827" : "#d1d5db",
+                      }}
+                      data-testid={`review-count-${key}`}
                     >
-                      {counts.critical > 0 ? `${counts.critical} high+` : ""}
+                      <span className="md:hidden text-[11px] font-normal text-gray-400 mr-1">
+                        Look
+                      </span>
+                      {key === "confirmed" ? "" : counts.review}
                     </span>
                     <span
-                      className="md:w-[190px] text-right text-[15px] font-bold tabular-nums"
-                      style={{ ...DATA_FONT, color: "#111827" }}
+                      className="md:w-[110px] text-right text-[13px] tabular-nums"
+                      style={{ ...DATA_FONT, color: "#6b7280" }}
+                      data-testid={`total-count-${key}`}
                     >
-                      {counts.amount > 0 ? formatDollar(counts.amount) : ""}
+                      <span className="md:hidden text-[11px] text-gray-400 mr-1">
+                        All
+                      </span>
+                      {counts.total.toLocaleString()}
                     </span>
                     <span
                       className="md:w-[96px] flex items-center justify-end gap-1 text-[13px] font-semibold shrink-0"
                       style={{ color: "#ad35fa" }}
                     >
-                      Analyze
+                      Open
                       <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                     </span>
                   </div>

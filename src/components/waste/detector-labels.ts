@@ -1,5 +1,9 @@
 export const DETECTOR_LABEL_OVERRIDES: Record<string, string> = {
-  vendor_d10_contract_drift: "Contract drift",
+  vendor_d10_contract_drift: "Paid past the contract ceiling",
+  vendor_d8b_threshold_hugging: "Orders just under the purchase limit",
+  vendor_d24_repeat_payment_pair: "Same amount paid twice",
+  vendor_d25_contract_growth: "Contract growth after award",
+  vendor_d26_post_expiry_payments: "Paid without contract after expiry",
   vendor_d9_ghost: "Ghost vendor",
   vendor_d8_split_pos: "Split purchase orders",
   vendor_d11_short_bids: "Short bid window",

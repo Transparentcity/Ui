@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { ChevronRight, Map as MapIcon } from "lucide-react"
 import type { WasteFinding, WasteDispositionType } from "@/lib/apiClient"
 import { WasteFindingCard } from "./waste-finding-card"
+import type { FindingLead } from "./waste-leads"
 import { ConfirmedBadge } from "./confirmed-badge"
 import type { SubGroup } from "./waste-findings-list"
 import {
@@ -107,6 +108,8 @@ interface WasteSubcategoryGroupProps {
   allFindings?: WasteFinding[]
   /** Resolve a finding's detector to its auditor-validated precision. */
   precisionFor?: (f: WasteFinding) => { rate: number; total: number } | null
+  /** Lead grading per finding (waste-leads.ts), when the caller has it. */
+  leadFor?: (f: WasteFinding) => FindingLead | null
 }
 
 export function WasteSubcategoryGroup({
@@ -123,6 +126,7 @@ export function WasteSubcategoryGroup({
   carriedOverAsOf,
   allFindings,
   precisionFor,
+  leadFor,
 }: WasteSubcategoryGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [expandedSubGroup, setExpandedSubGroup] = useState<string | null>(null)
@@ -217,6 +221,7 @@ export function WasteSubcategoryGroup({
                           carriedOverAsOf={carriedOverAsOf?.(finding) ?? null}
                           allFindings={allFindings}
                           precision={precisionFor?.(finding) ?? null}
+                          lead={leadFor?.(finding) ?? null}
                         />
                       ))}
                     </div>
@@ -240,6 +245,7 @@ export function WasteSubcategoryGroup({
                 carriedOverAsOf={carriedOverAsOf?.(finding) ?? null}
                 allFindings={allFindings}
                 precision={precisionFor?.(finding) ?? null}
+                lead={leadFor?.(finding) ?? null}
               />
             ))
           )}

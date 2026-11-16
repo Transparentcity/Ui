@@ -66,7 +66,7 @@ describe("ForensicsCategoriesPage", () => {
       screen.getByText(/No analysis has run for San Francisco yet/),
     ).toBeInTheDocument()
     expect(screen.getByTestId("refresh-panel")).toBeInTheDocument()
-    expect(screen.queryByText("Payroll & Personnel")).not.toBeInTheDocument()
+    expect(screen.queryByText("Payroll and overtime")).not.toBeInTheDocument()
   })
 
   it("shows the category grid when a run exists, even with zero findings", () => {
@@ -75,7 +75,7 @@ describe("ForensicsCategoriesPage", () => {
       isLoading: false,
     })
     render(<ForensicsCategoriesPage />)
-    expect(screen.getByText("Payroll & Personnel")).toBeInTheDocument()
+    expect(screen.getByText("Payroll and overtime")).toBeInTheDocument()
     expect(
       screen.queryByText(/No analysis has run/),
     ).not.toBeInTheDocument()
@@ -93,10 +93,114 @@ describe("ForensicsCategoriesPage", () => {
     })
     render(<ForensicsCategoriesPage />)
     const card = screen
-      .getByText("Contracts & Procurement")
+      .getByText("Contracts and purchasing")
       .closest("a") as HTMLAnchorElement
     expect(card).toHaveAttribute("href", "/waste/categories/contracts")
-    expect(card.textContent).toContain("2")
+    expect(screen.getByTestId("total-count-contracts").textContent).toContain("2")
+  })
+
+  it("leads with a ranked shortlist and counts lead tiers per area", () => {
+    useLatestPersistedWasteResult.mockReturnValue({
+      data: {
+        findings: [
+          // Direct evidence on a named vendor: a strong lead.
+          {
+            id: "lead1",
+            category: "Contracts & Procurement",
+            severity: "high",
+            amount: 187_087,
+            tool: "D8b Threshold-Hugging Vendor",
+            entity: "HABITAT POTENTIAL (Recreation And Park)",
+            department: "Recreation And Park",
+            description: "19 orders priced just under the limit.",
+            caveat: "Many small jobs can each be legitimate.",
+          },
+          // A contract grown by add-ons: worth a look.
+          {
+            id: "look1",
+            category: "Contracts & Procurement",
+            severity: "high",
+            amount: 5_000_000,
+            tool: "D25 Contract Growth After Award",
+            entity: "ACME CORP (DPW)",
+            department: "DPW",
+            description: "Grown to six times its award.",
+          },
+          // $197M department-level budget statistic: background only.
+          {
+            id: "ctx1",
+            category: "Infrastructure & Services",
+            severity: "critical",
+            amount: 197_000_000,
+            tool: "D5 Budget Variance",
+            entity: "Risk Management",
+            department: "Risk Management",
+            description: "Exceeded budget by 7387%.",
+          },
+          // Police overtime: real, and already public.
+          {
+            id: "known1",
+            category: "Payroll & Compensation",
+            severity: "high",
+            amount: 9_000_000,
+            tool: "D6 Hours Feasibility (Hard Cap)",
+            entity: "Police",
+            department: "Police",
+            description: "Hours beyond what a week holds.",
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    render(<ForensicsCategoriesPage />)
+
+    const rows = screen.getAllByTestId("top-lead-row")
+    // Strong lead first, the bigger-dollar no-bid award second; the $197M
+    // budget statistic and the already-public overtime are not in the list.
+    expect(rows).toHaveLength(2)
+    expect(rows[0].textContent).toContain("HABITAT POTENTIAL")
+    expect(rows[0].textContent).toContain("Strong lead")
+    expect(rows[1].textContent).toContain("ACME CORP")
+    expect(rows[1].textContent).toContain("Worth a look")
+    expect(screen.getByTestId("top-leads-known").textContent).toContain(
+      "1 more finding matches cases that are already public",
+    )
+
+    expect(screen.getByTestId("lead-count-contracts").textContent).toContain("1")
+    expect(screen.getByTestId("review-count-contracts").textContent).toContain("1")
+    expect(screen.getByTestId("lead-count-infrastructure").textContent).toContain("0")
+  })
+
+  it("expands a lead to show the record, the innocent explanation and a link", async () => {
+    const { fireEvent } = await import("@testing-library/react")
+    useLatestPersistedWasteResult.mockReturnValue({
+      data: {
+        findings: [
+          {
+            id: "THV-0001",
+            category: "Contracts & Procurement",
+            severity: "high",
+            amount: 187_087,
+            tool: "D8b Threshold-Hugging Vendor",
+            entity: "HABITAT POTENTIAL (Recreation And Park)",
+            department: "Recreation And Park",
+            description: "19 orders priced just under the limit.",
+            caveat: "Many small jobs can each be legitimate.",
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    render(<ForensicsCategoriesPage />)
+    fireEvent.click(screen.getByRole("button", { name: /HABITAT POTENTIAL/ }))
+    const detail = screen.getByTestId("top-lead-detail")
+    expect(detail.textContent).toContain("19 orders priced just under the limit.")
+    expect(detail.textContent).toContain("What could explain it:")
+    expect(detail.textContent).toContain("Names a specific payee")
+    expect(detail.querySelector("a")).toHaveAttribute(
+      "href",
+      "/waste/categories/contracts?finding=THV-0001",
+    )
   })
 
   it("shows skeletons while loading", () => {
@@ -181,6 +285,6 @@ describe("ForensicsCategoriesPage error handling", () => {
     })
     render(<ForensicsCategoriesPage />)
     expect(screen.getAllByTestId("key-metrics-error")).toHaveLength(1)
-    expect(screen.getByText("Payroll & Personnel")).toBeInTheDocument()
+    expect(screen.getByText("Payroll and overtime")).toBeInTheDocument()
   })
 })
