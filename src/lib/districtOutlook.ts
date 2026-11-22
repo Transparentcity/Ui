@@ -144,23 +144,23 @@ export function formatMonthly(x: number): string {
   return x < 10 ? x.toFixed(1) : Math.round(x).toLocaleString("en-US");
 }
 
-/** Change of the last 3 months against the 12-month average, for the details table. */
-export function changeSummary(last3: number, avg12: number): {
-  text: string;
-  direction: "up" | "down" | "flat";
-} {
-  const diff = last3 - avg12;
-  if (avg12 < 10) {
-    const big = Math.abs(diff) >= 1;
-    return {
-      text: `${diff >= 0 ? "+" : "-"}${Math.abs(diff).toFixed(1)} a month`,
-      direction: !big ? "flat" : diff < 0 ? "down" : "up",
-    };
+/**
+ * Change of the last 3 months against the 12 months before them: the same
+ * comparison (and 10% line) that defines fall / hold / rise. `closed` is the
+ * API's last3_direction; when present it decides the arrow.
+ */
+export function changeSummary(
+  last3: number,
+  prior12: number,
+  closed: CrimeOutlookCall | null = null
+): { text: string; direction: "up" | "down" | "flat" } {
+  const diff = last3 - prior12;
+  const ratio = prior12 > 0 ? diff / prior12 : 0;
+  const fromRatio = ratio > 0.1 ? "up" : ratio < -0.1 ? "down" : "flat";
+  const direction = closed ? ({ rise: "up", fall: "down", hold: "flat" } as const)[closed] : fromRatio;
+  if (prior12 < 10) {
+    return { text: `${diff >= 0 ? "+" : "-"}${Math.abs(diff).toFixed(1)} a month`, direction };
   }
-  const pct = (diff / avg12) * 100;
-  const rounded = Math.round(pct);
-  return {
-    text: `${rounded > 0 ? "+" : ""}${rounded}%`,
-    direction: Math.abs(pct) <= 5 ? "flat" : pct < 0 ? "down" : "up",
-  };
+  const rounded = Math.round(ratio * 100);
+  return { text: `${rounded > 0 ? "+" : ""}${rounded}%`, direction };
 }

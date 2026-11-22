@@ -13,7 +13,7 @@ const months = Array.from({ length: 18 }, (_, i) => {
 function t(key: string, label: string, call: DistrictCrimeOutlookType["call"], shown: boolean, record: number): DistrictCrimeOutlookType {
   return {
     key, label, call, shown, record, rule: key === "car_breakins" ? "city_trend" : "momentum",
-    last3_monthly: 44, avg12_monthly: 45, months, counts: months.map((_, i) => 40 + (i % 5)),
+    last3_monthly: 44, avg12_monthly: 45, prior12_monthly: 46, last3_direction: "hold", months, counts: months.map((_, i) => 40 + (i % 5)),
   };
 }
 
@@ -63,5 +63,27 @@ describe("DistrictOutlookSection edge cases", () => {
     const o = { ...outlook, crime_types: [...outlook.crime_types.slice(0, 3), short] };
     render(<DistrictOutlookSection outlook={o} placeName="District 5" />);
     expect(screen.getByText("Not shown: not enough history")).toBeInTheDocument();
+  });
+});
+
+describe("DistrictOutlookSection change column", () => {
+  it("compares the last quarter with the 12 months before it, like the call", () => {
+    const o = {
+      ...outlook,
+      crime_types: [{ ...outlook.crime_types[2], last3_monthly: 280, avg12_monthly: 264, prior12_monthly: 252, last3_direction: "rise" as const }],
+    };
+    render(<DistrictOutlookSection outlook={o} placeName="District 9" />);
+    expect(screen.getByText("+11%")).toBeInTheDocument();
+    expect(screen.getByText(/vs 252 a month\s+in the 12 months before/)).toBeInTheDocument();
+  });
+
+  it("falls back to the 12-month average for older payloads without NaN", () => {
+    const old = { ...outlook.crime_types[2] } as Partial<typeof outlook.crime_types[2]>;
+    delete old.prior12_monthly;
+    delete old.last3_direction;
+    const o = { ...outlook, crime_types: [old as typeof outlook.crime_types[2]] };
+    const { container } = render(<DistrictOutlookSection outlook={o} placeName="District 9" />);
+    expect(container.textContent).not.toContain("NaN");
+    expect(container.textContent).toContain("over the last 12 months");
   });
 });

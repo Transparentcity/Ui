@@ -22,7 +22,7 @@ function type(
 ): DistrictCrimeOutlookType {
   return {
     key, label, call, shown, record, rule: "momentum",
-    last3_monthly: 40, avg12_monthly: 45,
+    last3_monthly: 40, avg12_monthly: 45, prior12_monthly: 46, last3_direction: "hold",
     months: ["2026-08", "2026-09", "2026-10"], counts: [40, 41, 39],
   };
 }
@@ -118,9 +118,13 @@ describe("formatting", () => {
   });
 
   it("summarizes change against the 12-month average", () => {
-    expect(changeSummary(33.3, 36.7)).toEqual({ text: "-9%", direction: "down" });
-    expect(changeSummary(313.7, 313.2)).toEqual({ text: "0%", direction: "flat" });
+    expect(changeSummary(33.3, 36.7)).toEqual({ text: "-9%", direction: "flat" });
+    expect(changeSummary(280, 250, "rise")).toEqual({ text: "+12%", direction: "up" });
+    expect(changeSummary(280, 250)).toEqual({ text: "+12%", direction: "up" });
+    expect(changeSummary(313.7, 313.2, "hold")).toEqual({ text: "0%", direction: "flat" });
     expect(changeSummary(3.3, 2.3)).toEqual({ text: "+1.0 a month", direction: "up" });
+    // The API's closed-quarter direction wins when given.
+    expect(changeSummary(40, 44, "fall")).toEqual({ text: "-9%", direction: "down" });
   });
 });
 

@@ -349,6 +349,10 @@ export type DistrictCrimeOutlookType = {
   record: number;
   last3_monthly: number;
   avg12_monthly: number;
+  /** Average of the 12 months before the last three (the baseline of last3_direction). */
+  prior12_monthly: number;
+  /** How the last closed quarter moved against prior12_monthly (10% line). */
+  last3_direction: CrimeOutlookCall | null;
   /** "YYYY-MM" months, oldest first, ending at as_of. */
   months: string[];
   counts: number[];

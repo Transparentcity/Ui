@@ -121,7 +121,10 @@ export default function DistrictOutlookSection({
           </div>
           <div className="metrics-table-body">
             {[...shown, ...rest].map((t) => {
-              const ch = changeSummary(t.last3_monthly, t.avg12_monthly);
+              // Older API payloads lack prior12_monthly; fall back to the 12-month average.
+              const hasPrior = Number.isFinite(t.prior12_monthly);
+              const base = hasPrior ? t.prior12_monthly : t.avg12_monthly;
+              const ch = changeSummary(t.last3_monthly, base, t.last3_direction ?? null);
               const cls = ch.direction === "down" ? "good" : ch.direction === "up" ? "bad" : "neutral";
               const on = shown.includes(t);
               return (
@@ -147,7 +150,8 @@ export default function DistrictOutlookSection({
                       <div className="change-values">
                         <span className="change-percent">{ch.text}</span>
                         <span className="change-absolute">
-                          vs {formatMonthly(t.avg12_monthly)} a month, last 12 months
+                          vs {formatMonthly(base)} a month{" "}
+                          {hasPrior ? "in the 12 months before" : "over the last 12 months"}
                         </span>
                       </div>
                     </div>
