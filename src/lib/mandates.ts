@@ -43,12 +43,19 @@ export const MANDATE_PILL_ORDER: MandatePillKind[] = [
  * reported, so a known violation is never hidden behind "No recent data".
  */
 const STALE_AFTER_MONTHS: Record<string, number> = {
-  // State sources lag: Medi-Cal renewals publish about 6 months behind, so
-  // allow one month of slack before calling a monthly series stale.
-  month: 7,
-  quarter: 9,
+  // Counted from the END of the latest period. State sources lag: Medi-Cal
+  // renewals publish about 6 months behind, so a monthly series gets 6 months
+  // after its month ends (7 from its start, as before); quarterly is
+  // unchanged too (9 from its start).
+  month: 6,
+  quarter: 6,
+  // Annual reports (state disposal reports, audits, lead sampling) publish
+  // up to a year or more after the year ends.
   year: 24,
 };
+
+/** Months in one period of each grain, to find where the latest period ends. */
+const GRAIN_MONTHS: Record<string, number> = { month: 1, quarter: 3, year: 12 };
 
 function monthsBetween(fromIso: string, to: Date): number | null {
   const d = new Date(fromIso);
@@ -66,9 +73,13 @@ export function mandateIsStale(
   now: Date = new Date()
 ): boolean {
   if (!compliance?.latest_period) return false;
-  const staleAfter = STALE_AFTER_MONTHS[grain ?? "month"] ?? STALE_AFTER_MONTHS.month;
-  const age = monthsBetween(compliance.latest_period, now);
-  return age != null && age > staleAfter;
+  const g = grain && grain in STALE_AFTER_MONTHS ? grain : "month";
+  const sinceStart = monthsBetween(compliance.latest_period, now);
+  if (sinceStart == null) return false;
+  // Months since the period ended: a 2024 annual figure is 22 months old in
+  // November 2026, not 34.
+  const age = sinceStart - GRAIN_MONTHS[g];
+  return age > STALE_AFTER_MONTHS[g];
 }
 
 /**

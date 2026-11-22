@@ -230,3 +230,21 @@ describe("MandateScorecard", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
   });
 });
+
+describe("mandateIsStale counts from the end of the latest period", () => {
+  const at = (period: string) =>
+    ({ latest_period: period } as unknown as Parameters<typeof mandateIsStale>[0]);
+  const NOV_2026 = new Date(Date.UTC(2026, 10, 22));
+
+  it("gives annual data 24 months after the year ends", () => {
+    expect(mandateIsStale(at("2024-01-01"), "year", NOV_2026)).toBe(false);
+    expect(mandateIsStale(at("2023-01-01"), "year", NOV_2026)).toBe(true);
+  });
+
+  it("keeps the monthly and quarterly windows as before", () => {
+    expect(mandateIsStale(at("2026-04-01"), "month", NOV_2026)).toBe(false); // 7 from start
+    expect(mandateIsStale(at("2026-03-01"), "month", NOV_2026)).toBe(true); // 8 from start
+    expect(mandateIsStale(at("2026-02-01"), "quarter", NOV_2026)).toBe(false); // 9 from start
+    expect(mandateIsStale(at("2026-01-01"), "quarter", NOV_2026)).toBe(true); // 10 from start
+  });
+});
