@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/db"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ReviewAndSend } from "@/components/review-and-send"
+import { ReviewAndSendTabs } from "@/components/review-and-send-tabs"
+import { reporterFeedsEnabled } from "@/lib/reporterFeedLeads"
 
 export const metadata = {
   title: "Review & Send | Transparent City CRM",
@@ -26,13 +28,21 @@ export default async function ReviewAndSendPage() {
   const pendingCount = items.filter((i: any) => i.status === "pending_review").length
   const sentCount = items.filter((i: any) => i.status === "sent").length
 
+  const queueItems = items as React.ComponentProps<typeof ReviewAndSend>["items"]
+
   return (
     <DashboardShell
       title="Review & Send"
       description={`${pendingCount} pending review, ${sentCount} sent`}
       cityAware
     >
-      <ReviewAndSend items={items as any} />
+      {reporterFeedsEnabled() ? (
+        <ReviewAndSendTabs>
+          <ReviewAndSend items={queueItems} />
+        </ReviewAndSendTabs>
+      ) : (
+        <ReviewAndSend items={queueItems} />
+      )}
     </DashboardShell>
   )
 }
