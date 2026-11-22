@@ -228,7 +228,13 @@
    "key": "report",
    "title": "Report and push the city",
    "who": "Anyone. You can do this alone.",
-   "legal_note": "Reporting to OAK 311 is open to every resident.",
+   "legal_note": "The city asks residents to report non-emergency issues online through OAK 311.",
+   "legal_source": {
+    "title": "Report an Issue (OAK 311)",
+    "url": "https://www.oaklandca.gov/My-Household/Report-an-Issue-OAK-311",
+    "checked": "2026-11-21",
+    "publisher": "City of Oakland"
+   },
    "steps": [
     {
      "text": "Walk your blocks with the list below. An open request is not proof the hole is still there; some streets were repaved after the report.",
@@ -259,8 +265,8 @@
    "cost_time": [
     {
      "label": "Cost",
-     "value": "Free",
-     "source": "OAK 311 reporting has no fee (City of Oakland OAK 311 page, checked 2026-11-21).",
+     "value": "No fee",
+     "source": "The City of Oakland OAK 311 page lists no fee for reporting (checked 2026-11-21).",
      "reverified": true
     },
     {
@@ -276,7 +282,15 @@
   "repair_day"
  ],
  "rules": {
-  "who_fixes": "OakDOT repairs potholes from OAK 311 requests.",
+  "who_fixes": {
+   "text": "Report potholes to OAK 311. The city reviews each request, gives it a tracking number and assigns it to a work group.",
+   "source": {
+    "title": "Report an Issue (OAK 311)",
+    "url": "https://www.oaklandca.gov/My-Household/Report-an-Issue-OAK-311",
+    "checked": "2026-11-21",
+    "publisher": "City of Oakland"
+   }
+  },
   "resident_repair_verified": false,
   "unverified_note": "We could not find a City of Oakland page that says residents may fill potholes themselves. Until the city publishes one, this page offers one path: report the holes and push the city to fix them.",
   "statements": [
@@ -310,10 +324,7 @@
     }
    }
   ],
-  "safety": [
-   "Stay on the sidewalk or shoulder when you check a hole. Do not stand in a traffic lane.",
-   "Take photos from the curb."
-  ]
+  "safety": []
  },
  "email_draft": {
   "subject": "Potholes in Clinton: 128 unresolved requests at 72 locations",

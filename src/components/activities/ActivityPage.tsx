@@ -69,7 +69,8 @@ function WhatHappened({ p }: { p: ActivityPayload }) {
       ))}
       <p className={styles.meta}>
         Source: <SourceLink url={p.data_source.url}>{p.data_source.name}</SourceLink>, categories{" "}
-        {p.data_source.categories.join(" and ")}. Data through {formatDate(f.data_through)}
+        {p.data_source.categories.join(" and ")}. Requests filed {formatDate(f.data_from)} to{" "}
+        {formatDate(f.data_through)}
         {p.data_source.portal_updated ? `; portal updated ${formatDate(p.data_source.portal_updated)}` : ""}.
         Unresolved means status {p.data_source.unresolved_statuses.join(", ")}. &ldquo;More than a year
         old&rdquo; is counted as of {formatDate(f.as_of)}.
@@ -85,7 +86,8 @@ function WhyItMatters({ p }: { p: ActivityPayload }) {
       <p className={styles.lede}>{p.why_it_matters}</p>
       <p className={styles.meta}>
         Based on {med.area.closed_requests.toLocaleString("en-US")} closed requests here and{" "}
-        {med.city.closed_requests.toLocaleString("en-US")} citywide. {med.note}
+        {med.city.closed_requests.toLocaleString("en-US")} citywide, filed{" "}
+        {formatDate(p.figures.data_from)} to {formatDate(p.figures.data_through)}. {med.note}
       </p>
     </Block>
   );
@@ -108,7 +110,16 @@ function WhatYouCanDo({ p }: { p: ActivityPayload }) {
           <div key={path.key} className={styles.pathCard}>
             <h3>{path.title}</h3>
             <p>{path.who}</p>
-            <p className={styles.meta}>{path.legal_note}</p>
+            <p className={styles.meta}>
+              {path.legal_note}
+              {path.legal_source && (
+                <>
+                  {" "}
+                  Source: <SourceLink url={path.legal_source.url}>{path.legal_source.title}</SourceLink>,
+                  checked {formatDate(path.legal_source.checked)}.
+                </>
+              )}
+            </p>
           </div>
         ))}
       </div>
@@ -234,10 +245,9 @@ function RulesAndSafety({ p }: { p: ActivityPayload }) {
   const r = p.rules;
   return (
     <Block id="rules" title="Rules and safety">
-      <p className={styles.lede}>{r.who_fixes}</p>
       <UnverifiedNotice p={p} />
       <ul className={styles.bullets}>
-        {r.statements.map((s) => (
+        {[r.who_fixes, ...r.statements].map((s) => (
           <li key={s.text}>
             {s.text}{" "}
             <span className={styles.meta}>
@@ -267,7 +277,13 @@ function RulesAndSafety({ p }: { p: ActivityPayload }) {
           <h3>Safety</h3>
           <ul className={styles.bullets}>
             {r.safety.map((s) => (
-              <li key={s}>{s}</li>
+              <li key={s.text}>
+                {s.text}{" "}
+                <span className={styles.meta}>
+                  Source: <SourceLink url={s.source.url}>{s.source.title}</SourceLink>, checked{" "}
+                  {formatDate(s.source.checked)}.
+                </span>
+              </li>
             ))}
           </ul>
         </>

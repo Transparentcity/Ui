@@ -19,7 +19,7 @@ describe("ActivityPage, Oakland potholes, Clinton", () => {
     expect(screen.getByText("Clinton has 128 unresolved pothole requests at 72 locations.")).toBeTruthy();
     expect(screen.getByText("71 of 99")).toBeTruthy();
     expect(screen.getByText("179 days")).toBeTruthy();
-    expect(screen.getAllByText(/Data through Nov 15, 2026/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Requests filed Aug 1, 2013 to\s+Nov 15, 2026/).length).toBeGreaterThan(0);
   });
 
   it("offers Path A only and says the rules could not be verified", () => {
@@ -65,7 +65,15 @@ describe("ActivityPage, Oakland potholes, Clinton", () => {
       ...clinton,
       paths: [
         ...clinton.paths,
-        { key: "repair_day", title: "A neighbor repair day", who: "A group", legal_note: "", steps: [], cost_time: [] },
+        {
+          key: "repair_day",
+          title: "A neighbor repair day",
+          who: "A group",
+          legal_note: "",
+          steps: [],
+          cost_time: [],
+          legal_source: null,
+        },
       ],
       rules: { ...clinton.rules, resident_repair_verified: true, unverified_note: null },
     };
@@ -73,6 +81,13 @@ describe("ActivityPage, Oakland potholes, Clinton", () => {
     const h = headings();
     expect(h.indexOf("Rules and safety")).toBeLessThan(h.indexOf("How, step by step"));
     expect(screen.queryByText(/could not find a City of Oakland page/)).toBeNull();
+  });
+
+  it("cites who fixes potholes to the OAK 311 page and shows no uncited safety text", () => {
+    const { container } = render(<ActivityPage payload={clinton} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("Report potholes to OAK 311.");
+    expect(screen.queryByRole("heading", { name: "Safety" })).toBeNull();
   });
 
   it("uses no em dashes in rendered copy", () => {

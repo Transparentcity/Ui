@@ -23,6 +23,7 @@ export type ActivityPath = {
   legal_note: string;
   steps: ActivityStep[];
   cost_time: ActivityCostLine[];
+  legal_source: ActivitySource | null;
 };
 export type ActivityTarget = {
   rank: number;
@@ -83,12 +84,12 @@ export type ActivityPayload = {
   paths: ActivityPath[];
   withheld_paths: string[];
   rules: {
-    who_fixes: string;
+    who_fixes: ActivityRuleStatement;
     resident_repair_verified: boolean;
     unverified_note: string | null;
     statements: ActivityRuleStatement[];
     background: ActivityRuleStatement[];
-    safety: string[];
+    safety: ActivityRuleStatement[];
   };
   email_draft: { subject: string; body: string };
   report_back: { summary: string; fields: string[]; watch: string; enabled: boolean };
