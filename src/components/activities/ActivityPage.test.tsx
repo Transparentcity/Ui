@@ -4,6 +4,8 @@ import { render, screen } from "@testing-library/react";
 
 import type { ActivityPayload } from "@/lib/activities";
 
+vi.mock("@/contexts/ThemeContext", () => ({ useTheme: () => ({ theme: "light" }) }));
+
 vi.mock("@auth0/auth0-react", () => ({
   useAuth0: () => ({ isAuthenticated: false, isLoading: false, loginWithRedirect: vi.fn() }),
 }));
@@ -125,5 +127,15 @@ describe("ActivityPage, Oakland potholes, Clinton", () => {
   it("uses no em dashes in rendered copy", () => {
     const { container } = render(<ActivityPage payload={clinton} />);
     expect(container.textContent ?? "").not.toContain("—");
+  });
+
+  it("puts the ranked locations on a map card with a source link", () => {
+    const { container } = render(<ActivityPage payload={clinton} />);
+    const fig = container.querySelector("figure");
+    expect(fig?.textContent).toContain("Where the unresolved requests are");
+    expect(fig?.textContent).toContain(`${clinton.figures.targets.length} locations · Clinton`);
+    // No Mapbox token in tests: the card says so and points to the list.
+    expect(fig?.textContent).toContain("Map unavailable. The list below has every location.");
+    expect(fig?.querySelector("a")?.getAttribute("href")).toBe(clinton.data_source.url);
   });
 });

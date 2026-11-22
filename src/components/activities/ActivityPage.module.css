@@ -368,3 +368,29 @@
     display: none;
   }
 }
+
+/* Map card: the site's point-map chrome (AnomalyMap.css) with a story-style caption. */
+.mapFigure {
+  margin: 16px 0 0;
+}
+
+.mapCaption {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 2px 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.wrap .mapCaption a {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.wrap .mapCaption a:hover {
+  color: var(--brand-primary);
+}

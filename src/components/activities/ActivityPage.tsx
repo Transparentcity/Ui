@@ -13,6 +13,7 @@ import {
 
 import "@/components/CityView.css";
 import styles from "./ActivityPage.module.css";
+import ActivityMap from "./ActivityMap";
 import ReportBackForm from "./ReportBackForm";
 
 /** Locations shown before "Show all". The CSV always has every one. */
@@ -201,6 +202,7 @@ function TargetList({ p }: { p: ActivityPayload }) {
         Most unresolved requests first, then the oldest. Requests within {p.figures.group_radius_m} meters
         of each other count as one location.
       </p>
+      <ActivityMap targets={targets} areaLabel={p.area.label} sourceUrl={p.data_source.url} />
       <TargetTable targets={targets.slice(0, TARGETS_SHOWN)} />
       {rest.length > 0 && (
         <details className={styles.more}>
