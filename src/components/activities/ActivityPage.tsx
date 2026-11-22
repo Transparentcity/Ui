@@ -10,6 +10,7 @@ import {
 } from "@/lib/activities";
 
 import styles from "./ActivityPage.module.css";
+import ReportBackForm from "./ReportBackForm";
 
 const TARGETS_SHOWN = 20;
 
@@ -299,7 +300,14 @@ function ReportBack({ p }: { p: ActivityPayload }) {
       <p className={styles.lede}>{rb.summary}</p>
       <p className={styles.meta}>We will ask for: {rb.fields.join(", ")}.</p>
       <p className={styles.meta}>{rb.watch}</p>
-      {!rb.enabled && (
+      {rb.enabled ? (
+        <ReportBackForm
+          city={p.city}
+          activity={p.activity}
+          areaSlug={p.area.slug}
+          pathKeys={p.paths.map((x) => x.key)}
+        />
+      ) : (
         <p className={styles.notice} role="note">
           Report-back is not open yet. Keep your request numbers; you will be able to log them here.
         </p>

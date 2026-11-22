@@ -1,8 +1,12 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import type { ActivityPayload } from "@/lib/activities";
+
+vi.mock("@auth0/auth0-react", () => ({
+  useAuth0: () => ({ isAuthenticated: false, isLoading: false, loginWithRedirect: vi.fn() }),
+}));
 
 import ActivityPage from "./ActivityPage";
 import fixture from "./__fixtures__/oakland-clinton.json";
@@ -88,6 +92,12 @@ describe("ActivityPage, Oakland potholes, Clinton", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Report potholes to OAK 311.");
     expect(screen.queryByRole("heading", { name: "Safety" })).toBeNull();
+  });
+
+  it("offers report-back sign-in to a signed-out reader", () => {
+    render(<ActivityPage payload={clinton} />);
+    expect(screen.getByRole("button", { name: "Sign in to log what you did" })).toBeTruthy();
+    expect(screen.getByText(/Only you can see your reports/)).toBeTruthy();
   });
 
   it("uses no em dashes in rendered copy", () => {

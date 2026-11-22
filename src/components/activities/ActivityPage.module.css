@@ -171,3 +171,27 @@
   margin: 0 0 10px;
   line-height: 1.55;
 }
+.reportForm {
+  display: grid;
+  gap: 12px;
+  max-width: 480px;
+  margin: 12px 0;
+}
+.reportForm label {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.reportForm input,
+.reportForm select,
+.reportForm textarea {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.reportForm option {
+  color: #111;
+}

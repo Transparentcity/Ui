@@ -97,6 +97,28 @@ export type ActivityPayload = {
   only_path_a: boolean;
 };
 
+export type ActivityReport = {
+  id: number;
+  created_at: string | null;
+  activity_slug: string;
+  area_slug: string;
+  path_key: string;
+  request_id: string | null;
+  action_date: string;
+  action: string;
+  note: string | null;
+};
+
+/** Mirrors platform services/activities/reports.py ACTIONS. */
+export const REPORT_ACTIONS: { value: string; label: string; pathKey?: string }[] = [
+  { value: "added_to_request", label: "Added a photo or note to a request" },
+  { value: "filed_new_request", label: "Filed a new request" },
+  { value: "emailed_council_office", label: "Emailed the council office" },
+  { value: "spoke_at_meeting", label: "Spoke at a meeting" },
+  { value: "repaired", label: "Repaired the hole", pathKey: "repair_day" },
+  { value: "other", label: "Something else" },
+];
+
 export type ActivityListItem = { slug: string; title: string; short_title: string; example_area: string };
 
 export class ActivityFetchError extends Error {
