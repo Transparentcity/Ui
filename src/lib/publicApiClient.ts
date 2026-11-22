@@ -335,6 +335,47 @@ export function getPublicCityDistricts(cityId: number): Promise<number[]> {
   return requestPublic<number[]>(`/api/public/cities/${cityId}/districts`);
 }
 
+export type CrimeOutlookCall = "fall" | "hold" | "rise";
+
+export type DistrictCrimeOutlookType = {
+  key: string;
+  label: string;
+  /** "city_trend": direction most districts moved over the past year; "momentum": this district's last quarter. */
+  rule: "city_trend" | "momentum";
+  call: CrimeOutlookCall | null;
+  /** True when the rule's record across all districts clears min_record. */
+  shown: boolean;
+  /** Share of past calls that matched what happened, across all districts. */
+  record: number;
+  last3_monthly: number;
+  avg12_monthly: number;
+  /** "YYYY-MM" months, oldest first, ending at as_of. */
+  months: string[];
+  counts: number[];
+};
+
+export type DistrictCrimeOutlook = {
+  as_of: string;
+  window_start: string;
+  window_end: string;
+  record_start: string;
+  record_end: string;
+  min_record: number;
+  source: { name: string; dataset: string; url: string; district_field: string };
+  district: string;
+  crime_types: DistrictCrimeOutlookType[];
+};
+
+/** District crime outlook (SF only). 404 while the backend flag is off. */
+export function getPublicDistrictCrimeOutlook(
+  cityId: number,
+  district: number
+): Promise<DistrictCrimeOutlook> {
+  return requestPublic<DistrictCrimeOutlook>(
+    `/api/public/cities/${cityId}/districts/${district}/crime-outlook`
+  );
+}
+
 export type PublicCitySubdivision = {
   id: number;
   name: string;

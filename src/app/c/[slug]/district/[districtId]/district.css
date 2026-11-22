@@ -194,3 +194,169 @@
     padding-bottom: 24px;
   }
 }
+
+/* ── District crime outlook (NEXT_PUBLIC_NEIGHBORHOOD_OUTLOOK) ─────────── */
+.district-outlook {
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.district-outlook-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 32px 24px 28px;
+}
+
+.district-outlook-eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-primary);
+  margin: 0 0 10px;
+}
+
+.district-outlook-headline {
+  font-family: var(--font-heading);
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+  max-width: 900px;
+}
+
+.district-outlook-sub {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+  max-width: 760px;
+}
+
+.district-outlook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.district-outlook-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px 16px;
+}
+
+.district-outlook-card-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.district-outlook-card-call {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 4px 0 6px;
+}
+
+.district-outlook-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.district-outlook-dash {
+  width: 18px;
+  border-top: 2px dashed var(--text-muted);
+}
+
+.district-outlook-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.district-outlook-details-label {
+  margin: 0 0 10px;
+}
+
+.district-outlook-table-call {
+  font-family: var(--font-data);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.district-outlook-foot {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin: 16px 0 0;
+}
+
+.district-outlook-foot a {
+  color: inherit;
+}
+
+/* Direction colors follow the dashboard's change colors (CityView.css):
+   fewer reports read as good, more as bad. */
+.outlook-call-fall { color: #1b6e22; }
+.outlook-call-rise { color: #c62828; }
+.outlook-call-hold { color: var(--text-primary); }
+
+.outlook-chart .outlook-line {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.outlook-chart .outlook-avg {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.outlook-chart .outlook-tick {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-body);
+}
+
+.outlook-chart .outlook-arrow { fill: none; stroke-width: 2.5; }
+.outlook-chart .outlook-zone { fill-opacity: 0.16; }
+.outlook-zone-fall, .outlook-ink-fall { fill: #1b6e22; }
+.outlook-zone-rise, .outlook-ink-rise { fill: #c62828; }
+.outlook-zone-hold, .outlook-ink-hold { fill: var(--text-muted); }
+.outlook-stroke-fall { stroke: #1b6e22; }
+.outlook-stroke-rise { stroke: #c62828; }
+.outlook-stroke-hold { stroke: var(--text-muted); }
+
+[data-theme="dark"] .outlook-call-fall,
+.dark .outlook-call-fall { color: #81c784; }
+[data-theme="dark"] .outlook-call-rise,
+.dark .outlook-call-rise { color: #ef9a9a; }
+[data-theme="dark"] .outlook-zone-fall,
+[data-theme="dark"] .outlook-ink-fall,
+.dark .outlook-zone-fall,
+.dark .outlook-ink-fall { fill: #81c784; }
+[data-theme="dark"] .outlook-zone-rise,
+[data-theme="dark"] .outlook-ink-rise,
+.dark .outlook-zone-rise,
+.dark .outlook-ink-rise { fill: #ef9a9a; }
+[data-theme="dark"] .outlook-stroke-fall,
+.dark .outlook-stroke-fall { stroke: #81c784; }
+[data-theme="dark"] .outlook-stroke-rise,
+.dark .outlook-stroke-rise { stroke: #ef9a9a; }
+
+@media (max-width: 640px) {
+  .district-outlook-headline { font-size: 1.65rem; }
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type {
+  DistrictCrimeOutlook,
   PublicCityMetricItem,
   PublicMetricComparisons,
   PublicLeader,
@@ -19,6 +20,7 @@ import { SignupEmailProvider } from "../../SignupEmailContext";
 import { type MetricCardData } from "@/components/feed/templates/MetricSummaryCard";
 import MetricFeedCard from "@/components/feed/MetricFeedCard";
 import DistrictStoryCard from "./DistrictStoryCard";
+import DistrictOutlookSection from "./DistrictOutlookSection";
 import Breadcrumb from "@/components/Breadcrumb";
 import {
   formatSubdivisionLabel,
@@ -52,6 +54,8 @@ export type DistrictPageContentProps = {
   /** Admin-defined default ordering (used to sort categories and metrics). */
   orderings?: MetricOrderingEntry[];
   geographicContext?: PublicGeographicContext;
+  /** District crime outlook; null when the feature is off or unavailable. */
+  crimeOutlook?: DistrictCrimeOutlook | null;
 };
 
 export default function DistrictPageContent({
@@ -67,6 +71,7 @@ export default function DistrictPageContent({
   maps,
   orderings,
   geographicContext,
+  crimeOutlook = null,
 }: DistrictPageContentProps) {
   const base = `/c/${slug}`;
   const year = new Date().getFullYear();
@@ -204,6 +209,11 @@ export default function DistrictPageContent({
           geographicContext={geographicContext}
         />
       </div>
+
+      {/* ── CRIME OUTLOOK (flagged) ──────────────────────────────────────── */}
+      {crimeOutlook ? (
+        <DistrictOutlookSection outlook={crimeOutlook} placeName={subdivisionName} />
+      ) : null}
 
       {/* ── STORY ACCENT STRIP ───────────────────────────────────────────── */}
       <section className="district-stories-strip">

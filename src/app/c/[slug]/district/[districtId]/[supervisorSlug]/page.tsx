@@ -23,6 +23,7 @@ import { loadPublicGeographicContext } from "@/lib/loadPublicGeographicContext";
 import { resolvePublicGeographicContext } from "@/lib/publicGeographicUnit";
 import type { MetricOrderingEntry } from "../../../CityDashboardSection";
 import DistrictPageContent from "../DistrictPageContent";
+import { loadDistrictCrimeOutlook } from "@/lib/districtOutlook";
 import { supervisorToSlug } from "../page";
 
 export const revalidate = 3600;
@@ -138,6 +139,9 @@ export default async function DistrictSlugPage({ params }: PageProps) {
   let orderings: MetricOrderingEntry[] | undefined = undefined;
   let geographicContext = resolvePublicGeographicContext({});
 
+  // Flagged; resolves to null when off, on error or after a short timeout.
+  const crimeOutlookPromise = loadDistrictCrimeOutlook(city.id, d);
+
   try {
     const [detail, leadersRes, feedRes, mapsRes, cityDistrictsRes, orderingRes, geoContext] = await Promise.all([
       getPublicCityDetail(city.id),
@@ -235,6 +239,8 @@ export default async function DistrictSlugPage({ params }: PageProps) {
   const metrics = allMetrics.filter((m) => comparisonsMap[m.id]?.comparisons?.ytd);
   const accentStories = feedStories.slice(0, 3);
 
+  const crimeOutlook = await crimeOutlookPromise;
+
   return (
     <DistrictPageContent
       slug={slug}
@@ -249,6 +255,7 @@ export default async function DistrictSlugPage({ params }: PageProps) {
       maps={maps}
       orderings={orderings}
       geographicContext={geographicContext}
+      crimeOutlook={crimeOutlook}
     />
   );
 }
