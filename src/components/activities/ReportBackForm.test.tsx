@@ -43,7 +43,7 @@ describe("ReportBackForm", () => {
       return { id: 2, created_at: null, ...body };
     });
     renderForm();
-    await screen.findByText(/2026-11-01: Filed a new request, request 111/);
+    await screen.findByText(/Nov 1, 2026: Filed a new request, request 111/);
     expect(requestMock).toHaveBeenCalledWith("/api/activities/oakland/potholes/reports", "GET", undefined, "tok");
 
     fireEvent.change(screen.getByLabelText("Request number"), { target: { value: "1312894" } });

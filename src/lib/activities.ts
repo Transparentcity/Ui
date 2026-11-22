@@ -1,5 +1,3 @@
-import { getApiBaseUrl } from "./apiBase";
-
 /**
  * Activities ("what you can do about it") are dark until launch.
  * Pairs with ACTIVITIES_ENABLED on the platform. Spec: platform docs/activities/SPEC.md.
@@ -121,39 +119,10 @@ export const REPORT_ACTIONS: { value: string; label: string; pathKey?: string }[
 
 export type ActivityListItem = { slug: string; title: string; short_title: string; example_area: string };
 
-export class ActivityFetchError extends Error {
-  constructor(message: string, public status: number) {
-    super(message);
-  }
-}
-
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "GET",
-    credentials: "omit",
-    headers: { Accept: "application/json" },
-    // The platform caches portal data for 6 hours; 10 minutes here is plenty.
-    next: { revalidate: 600 },
-  });
-  if (!res.ok) throw new ActivityFetchError(`API GET ${path} failed: ${res.status}`, res.status);
-  return (await res.json()) as T;
-}
-
 /** Area value: neighborhood slug (clinton), council district (d2), or empty for citywide. */
 export function normalizeArea(raw: string | string[] | undefined): string {
   const v = (Array.isArray(raw) ? raw[0] : raw ?? "").trim().toLowerCase();
   return /^[a-z0-9-]{1,64}$/.test(v) ? v : "";
-}
-
-export function getPublicActivity(city: string, activity: string, area: string): Promise<ActivityPayload> {
-  const q = area ? `?area=${encodeURIComponent(area)}` : "";
-  return getJson<ActivityPayload>(
-    `/api/activities/public/${encodeURIComponent(city)}/${encodeURIComponent(activity)}${q}`
-  );
-}
-
-export function listPublicActivities(city: string): Promise<{ city: string; activities: ActivityListItem[] }> {
-  return getJson(`/api/activities/public/${encodeURIComponent(city)}`);
 }
 
 /** mailto: with no recipient. The resident picks who to send it to; we send nothing. */
@@ -197,4 +166,19 @@ export function formatDate(iso: string | null | undefined): string {
 export function formatDays(v: number | null): string {
   if (v == null) return "no data";
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+/** "3.4 years" for long waits, "45 days" for short ones. */
+export function formatAge(days: number): string {
+  if (days < 365) return `${days.toLocaleString("en-US")} days`;
+  const y = Math.round((days / 365.25) * 10) / 10;
+  return `${y} years`;
+}
+
+/** "99 OPEN, 28 UNFUNDED and 1 PENDING", in the order the city's statuses are listed. */
+export function statusBreakdown(byStatus: Record<string, number>, order: string[]): string {
+  const keys = [...order, ...Object.keys(byStatus).filter((k) => !order.includes(k))];
+  const parts = keys.filter((k) => (byStatus[k] ?? 0) > 0).map((k) => `${byStatus[k].toLocaleString("en-US")} ${k}`);
+  if (parts.length <= 1) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }

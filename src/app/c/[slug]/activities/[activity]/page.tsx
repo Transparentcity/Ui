@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import "../../../../landing.css";
@@ -8,37 +7,31 @@ import ActivityPage from "@/components/activities/ActivityPage";
 import AreaPicker from "@/components/activities/AreaPicker";
 import PublicFooter from "@/components/PublicFooter";
 import PublicNavBar from "@/components/PublicNavBar";
-import {
-  ACTIVITIES_LABEL,
-  ActivityFetchError,
-  activitiesEnabled,
-  getPublicActivity,
-  normalizeArea,
-  type ActivityPayload,
-} from "@/lib/activities";
-import { listPublicCitiesForSitemap } from "@/lib/publicApiClient";
-import { slugify } from "@/lib/utils";
+import { activitiesEnabled, normalizeArea, type ActivityPayload } from "@/lib/activities";
+import { getPublicCityActivity } from "@/lib/publicApiClient";
+
+import CitySignupButton from "../../CitySignupButton";
+import CityViewTracker from "../../CityViewTracker";
+import { SignupEmailProvider } from "../../SignupEmailContext";
+import ActivityHero, { findActivityCity } from "../ActivityHero";
 
 type PageProps = {
   params: Promise<{ slug: string; activity: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-async function cityName(slug: string): Promise<string | null> {
-  try {
-    const cities = await listPublicCitiesForSitemap();
-    const match = cities.find((c) => (c.slug || slugify(c.name)) === slug);
-    return match?.name ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug, activity } = await params;
   const area = normalizeArea((await searchParams).area);
+  const city = await findActivityCity(slug);
+  let title = "What you can do";
+  try {
+    title = (await getPublicCityActivity(slug, activity, area)).title;
+  } catch {
+    // Keep the fallback; the page itself decides between 404 and "no data".
+  }
   return {
-    title: `What you can do: ${activity} | ${slug}`,
+    title: `${title} | ${city?.display ?? slug}`,
     alternates: { canonical: `/c/${slug}/activities/${activity}${area ? `?area=${area}` : ""}` },
     // Dark launch: keep out of search until Activities is public.
     robots: { index: false, follow: false },
@@ -50,71 +43,60 @@ export default async function CityActivityPage({ params, searchParams }: PagePro
   const { slug, activity } = await params;
   const area = normalizeArea((await searchParams).area);
 
-  const name = await cityName(slug);
-  if (!name) notFound();
+  const city = await findActivityCity(slug);
+  if (!city) notFound();
 
   let payload: ActivityPayload | null = null;
-  let unavailable = false;
   try {
-    payload = await getPublicActivity(slug, activity, area);
+    payload = await getPublicCityActivity(slug, activity, area);
   } catch (e) {
-    if (e instanceof ActivityFetchError && (e.status === 404 || e.status === 403)) notFound();
-    unavailable = true;
+    const status = (e as { status?: number }).status;
+    if (status === 404 || status === 403) notFound();
   }
 
   const basePath = `/c/${slug}/activities/${activity}`;
-  const areaLabel = payload
-    ? payload.area.district_label
-      ? `${payload.area.label}, ${payload.area.district_label}`
-      : payload.area.label
-    : name;
+  const areaLabel = payload?.area.district_label
+    ? `${payload.area.label}, ${payload.area.district_label}`
+    : (payload?.area.label ?? city.name);
 
   return (
-    <>
-      <PublicNavBar>{null}</PublicNavBar>
-      <section className="hero" style={{ paddingTop: 96 }}>
-        <div className="container">
-          <div className="hero-content">
-            <div className="hero-text">
-              <span className="badge">{ACTIVITIES_LABEL}</span>
-              <h1 className="hero-title">{payload?.title ?? "What you can do"}</h1>
-              <p className="hero-description">{areaLabel}</p>
-              {payload && (
-                <AreaPicker
-                  basePath={basePath}
-                  current={payload.area.slug}
-                  cityName={name}
-                  neighborhoods={payload.areas.neighborhoods}
-                  districts={payload.areas.districts}
-                />
-              )}
-              <div className="hero-category-links">
-                <Link href={`/c/${slug}`} className="hero-category-link">
-                  Dashboard
-                </Link>
-                <Link href={`/c/${slug}/activities`} className="hero-category-link">
-                  {ACTIVITIES_LABEL}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+    <SignupEmailProvider>
+      <CityViewTracker citySlug={slug} cityId={city.id} />
+      <PublicNavBar>
+        <CitySignupButton citySlug={slug} cityName={city.display} />
+      </PublicNavBar>
 
-      {payload ? (
-        <ActivityPage payload={payload} />
-      ) : (
-        unavailable && (
-          <div className="container" style={{ padding: "32px 16px" }}>
-            <p>
-              We could not read {name}&rsquo;s open data portal just now, so this page has no numbers.
+      <ActivityHero
+        city={city}
+        slug={slug}
+        title={payload?.title ?? "What you can do"}
+        description={
+          payload ? (
+            <>
+              {areaLabel}. Built from {city.name}&rsquo;s own 311 records.
+            </>
+          ) : (
+            <>
+              We could not read {city.name}&rsquo;s open data portal just now, so this page has no numbers.
               Try again later.
-            </p>
-          </div>
-        )
-      )}
+            </>
+          )
+        }
+      >
+        {payload && (
+          <AreaPicker
+            basePath={basePath}
+            current={payload.area.slug}
+            cityName={city.name}
+            neighborhoods={payload.areas.neighborhoods}
+            districts={payload.areas.districts}
+          />
+        )}
+      </ActivityHero>
+
+      {payload && <ActivityPage payload={payload} />}
 
       <PublicFooter citySlug={slug} feedbackPageUrl={basePath} feedbackPageType="category" />
-    </>
+    </SignupEmailProvider>
   );
 }

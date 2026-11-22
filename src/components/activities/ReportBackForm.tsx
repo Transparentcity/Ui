@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 
 import { request } from "@/lib/api/request";
-import { REPORT_ACTIONS, type ActivityReport } from "@/lib/activities";
+import { REPORT_ACTIONS, formatDate, type ActivityReport } from "@/lib/activities";
 
 import styles from "./ActivityPage.module.css";
 
@@ -66,7 +66,7 @@ export default function ReportBackForm({
       <div className={styles.actions}>
         <button
           type="button"
-          className={styles.button}
+          className="btn btn-primary"
           onClick={() =>
             void loginWithRedirect({
               appState: { returnTo: `${window.location.pathname}${window.location.search}` },
@@ -142,7 +142,7 @@ export default function ReportBackForm({
           />
         </label>
         <div className={styles.actions}>
-          <button type="submit" className={styles.button} disabled={status === "saving"}>
+          <button type="submit" className="btn btn-primary" disabled={status === "saving"}>
             {status === "saving" ? "Saving" : "Log it"}
           </button>
           {status === "saved" && <span role="status">Saved.</span>}
@@ -151,11 +151,11 @@ export default function ReportBackForm({
       </form>
       {reports.length > 0 && (
         <>
-          <h3>Your reports</h3>
+          <h3 className={styles.subTitle}>Your reports</h3>
           <ol className={styles.steps}>
             {reports.map((r) => (
               <li key={r.id}>
-                {r.action_date}: {REPORT_ACTIONS.find((a) => a.value === r.action)?.label ?? r.action}
+                {formatDate(r.action_date)}: {REPORT_ACTIONS.find((a) => a.value === r.action)?.label ?? r.action}
                 {r.request_id ? `, request ${r.request_id}` : ""}
                 {r.note ? `. ${r.note}` : ""}
               </li>

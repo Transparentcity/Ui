@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { activitiesEnabled, buildMailto, formatDate, normalizeArea, targetsCsv } from "./activities";
+import {
+  activitiesEnabled,
+  buildMailto,
+  formatAge,
+  formatDate,
+  normalizeArea,
+  statusBreakdown,
+  targetsCsv,
+} from "./activities";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -60,5 +68,22 @@ describe("formatDate", () => {
   it("formats ISO dates in UTC", () => {
     expect(formatDate("2026-11-15")).toBe("Nov 15, 2026");
     expect(formatDate(null)).toBe("unknown");
+  });
+});
+
+describe("formatAge", () => {
+  it("uses days under a year and years after", () => {
+    expect(formatAge(45)).toBe("45 days");
+    expect(formatAge(1233)).toBe("3.4 years");
+  });
+});
+
+describe("statusBreakdown", () => {
+  it("follows the city's status order and skips zeros", () => {
+    const order = ["OPEN", "PENDING", "WOCREATE", "UNFUNDED"];
+    expect(statusBreakdown({ OPEN: 99, UNFUNDED: 28, PENDING: 1, WOCREATE: 0 }, order)).toBe(
+      "99 OPEN, 1 PENDING and 28 UNFUNDED"
+    );
+    expect(statusBreakdown({ OPEN: 3 }, order)).toBe("3 OPEN");
   });
 });

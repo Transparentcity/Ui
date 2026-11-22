@@ -1,3 +1,4 @@
+import type { ActivityListItem, ActivityPayload } from "./activities";
 import { getApiBaseUrl } from "./apiBase";
 
 /** Browser and SSR/ISR: same-origin /api/* via Next rewrites in production. */
@@ -746,6 +747,32 @@ export function getPublicCityMandates(
     `/api/public/cities/${cityId}/mandates`,
     { token: token ?? null, next: { revalidate: 600 } }
   );
+}
+
+/**
+ * Activities ("what you can do"): one activity page for an area, or the list
+ * for a city. Dark until ACTIVITIES_ENABLED is set on the platform; the API
+ * answers 403 until then. The thrown error carries `status`.
+ */
+export function getPublicCityActivity(
+  citySlug: string,
+  activity: string,
+  area: string
+): Promise<ActivityPayload> {
+  const q = area ? `?area=${encodeURIComponent(area)}` : "";
+  return requestPublic<ActivityPayload>(
+    `/api/activities/public/${encodeURIComponent(citySlug)}/${encodeURIComponent(activity)}${q}`,
+    // The platform caches portal data for 6 hours; 10 minutes here is plenty.
+    { next: { revalidate: 600 } }
+  );
+}
+
+export function listPublicCityActivities(
+  citySlug: string
+): Promise<{ city: string; activities: ActivityListItem[] }> {
+  return requestPublic(`/api/activities/public/${encodeURIComponent(citySlug)}`, {
+    next: { revalidate: 600 },
+  });
 }
 
 /** For derived metrics: shows A/B=C formula with component values for transparency */

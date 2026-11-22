@@ -4,16 +4,24 @@ import { notFound } from "next/navigation";
 
 import "../../../landing.css";
 
+import styles from "@/components/activities/ActivityPage.module.css";
 import PublicFooter from "@/components/PublicFooter";
 import PublicNavBar from "@/components/PublicNavBar";
-import { ACTIVITIES_LABEL, activitiesEnabled, listPublicActivities, type ActivityListItem } from "@/lib/activities";
+import { ACTIVITIES_LABEL, activitiesEnabled, type ActivityListItem } from "@/lib/activities";
+import { listPublicCityActivities } from "@/lib/publicApiClient";
+
+import CitySignupButton from "../CitySignupButton";
+import CityViewTracker from "../CityViewTracker";
+import { SignupEmailProvider } from "../SignupEmailContext";
+import ActivityHero, { findActivityCity } from "./ActivityHero";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const city = await findActivityCity(slug);
   return {
-    title: `${ACTIVITIES_LABEL} | ${slug}`,
+    title: `${ACTIVITIES_LABEL} | ${city?.display ?? slug}`,
     alternates: { canonical: `/c/${slug}/activities` },
     robots: { index: false, follow: false },
   };
@@ -22,49 +30,48 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function CityActivitiesIndex({ params }: PageProps) {
   if (!activitiesEnabled()) notFound();
   const { slug } = await params;
+  const city = await findActivityCity(slug);
+  if (!city) notFound();
   let items: ActivityListItem[] = [];
   try {
-    items = (await listPublicActivities(slug)).activities;
+    items = (await listPublicCityActivities(slug)).activities;
   } catch {
     notFound();
   }
   if (!items.length) notFound();
 
   return (
-    <>
-      <PublicNavBar>{null}</PublicNavBar>
-      <section className="hero" style={{ paddingTop: 96 }}>
+    <SignupEmailProvider>
+      <CityViewTracker citySlug={slug} cityId={city.id} />
+      <PublicNavBar>
+        <CitySignupButton citySlug={slug} cityName={city.display} />
+      </PublicNavBar>
+      <ActivityHero
+        city={city}
+        slug={slug}
+        title={`${city.display}: ${ACTIVITIES_LABEL}`}
+        description="What you can do about it. Each activity starts from the city’s own records for your area."
+      />
+      <section className="dashboard-section">
         <div className="container">
-          <div className="hero-content">
-            <div className="hero-text">
-              <span className="badge">{ACTIVITIES_LABEL}</span>
-              <h1 className="hero-title">What you can do</h1>
-              <p className="hero-description">Each activity starts from the city&rsquo;s own records for your area.</p>
-              <div className="hero-category-links">
-                <Link href={`/c/${slug}`} className="hero-category-link">
-                  Dashboard
-                </Link>
-              </div>
-            </div>
+          <div className={styles.wrap}>
+            <ul className={styles.activityList}>
+              {items.map((a) => (
+                <li key={a.slug}>
+                  <Link
+                    className={styles.activityCard}
+                    href={`/c/${slug}/activities/${a.slug}${a.example_area ? `?area=${a.example_area}` : ""}`}
+                  >
+                    <span className={styles.activityCardTitle}>{a.title}</span>
+                    <span className={styles.meta}>{a.short_title}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
-      <div className="container" style={{ padding: "24px 16px 64px" }}>
-        <ol>
-          {items.map((a) => (
-            <li key={a.slug} style={{ margin: "0 0 12px" }}>
-              <Link href={`/c/${slug}/activities/${a.slug}`}>{a.title}</Link>
-              {a.example_area && (
-                <>
-                  {" "}
-                  (<Link href={`/c/${slug}/activities/${a.slug}?area=${a.example_area}`}>example area</Link>)
-                </>
-              )}
-            </li>
-          ))}
-        </ol>
-      </div>
       <PublicFooter citySlug={slug} feedbackPageUrl={`/c/${slug}/activities`} feedbackPageType="category" />
-    </>
+    </SignupEmailProvider>
   );
 }

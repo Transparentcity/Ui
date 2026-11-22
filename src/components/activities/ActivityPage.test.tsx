@@ -19,11 +19,33 @@ function headings() {
 
 describe("ActivityPage, Oakland potholes, Clinton", () => {
   it("shows the re-derived Clinton figures with source and cutoff", () => {
-    render(<ActivityPage payload={clinton} />);
-    expect(screen.getByText("Clinton has 128 unresolved pothole requests at 72 locations.")).toBeTruthy();
+    const { container } = render(<ActivityPage payload={clinton} />);
+    const text = container.textContent ?? "";
+    expect(screen.getByText("128")).toBeTruthy();
+    expect(screen.getByText("72")).toBeTruthy();
     expect(screen.getByText("71 of 99")).toBeTruthy();
-    expect(screen.getByText("179 days")).toBeTruthy();
-    expect(screen.getAllByText(/Requests filed Aug 1, 2013 to\s+Nov 15, 2026/).length).toBeGreaterThan(0);
+    expect(text).toContain("Of the 128, 99 OPEN, 1 PENDING and 28 UNFUNDED.");
+    expect(text).toContain("the median wait is 179 days");
+    expect(text).toMatch(/requests filed Aug 1, 2013 to\s*Nov 15, 2026/);
+  });
+
+  it("shows each number once: no repeated notice or path title", () => {
+    render(<ActivityPage payload={clinton} />);
+    expect(screen.getAllByText(/could not find a City of Oakland page/)).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { name: "Report and push the city" })).toHaveLength(1);
+    expect(screen.queryByText(/We will ask for/)).toBeNull();
+  });
+
+  it("lists the first ten locations with request numbers and folds the rest", () => {
+    const base = clinton.figures.targets[0];
+    const targets = Array.from({ length: 12 }, (_, i) => ({ ...base, rank: i + 1 }));
+    const { container } = render(
+      <ActivityPage payload={{ ...clinton, figures: { ...clinton.figures, targets } }} />
+    );
+    const firstTable = container.querySelector("table");
+    expect(firstTable?.querySelectorAll("tbody tr")).toHaveLength(10);
+    expect(firstTable?.textContent).toContain("Requests 1312894, 1379558");
+    expect(container.querySelector("details")?.textContent).toContain("Show the other 2 locations");
   });
 
   it("offers Path A only and says the rules could not be verified", () => {
