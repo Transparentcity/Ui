@@ -1,0 +1,373 @@
+{
+ "city": "oakland",
+ "activity": "potholes",
+ "title": "Get the potholes on your blocks fixed",
+ "area": {
+  "kind": "neighborhood",
+  "slug": "clinton",
+  "label": "Clinton",
+  "district_label": "Council District 2"
+ },
+ "areas": {
+  "neighborhoods": [
+   {
+    "slug": "clinton",
+    "label": "Clinton"
+   },
+   {
+    "slug": "montclair",
+    "label": "Montclair"
+   }
+  ],
+  "districts": [
+   {
+    "slug": "d1",
+    "label": "Council District 1"
+   },
+   {
+    "slug": "d2",
+    "label": "Council District 2"
+   },
+   {
+    "slug": "d3",
+    "label": "Council District 3"
+   },
+   {
+    "slug": "d4",
+    "label": "Council District 4"
+   },
+   {
+    "slug": "d5",
+    "label": "Council District 5"
+   },
+   {
+    "slug": "d6",
+    "label": "Council District 6"
+   },
+   {
+    "slug": "d7",
+    "label": "Council District 7"
+   }
+  ]
+ },
+ "data_source": {
+  "name": "OAK 311 service requests",
+  "dataset_id": "quth-gb8e",
+  "url": "https://data.oaklandca.gov/d/quth-gb8e",
+  "categories": [
+   "Streets - Potholes/Depression",
+   "Pothole (report from SeeClickFix)"
+  ],
+  "unresolved_statuses": [
+   "OPEN",
+   "PENDING",
+   "WOCREATE",
+   "UNFUNDED"
+  ],
+  "portal_updated": "2026-11-16"
+ },
+ "figures": {
+  "as_of": "2026-11-21",
+  "data_through": "2026-11-15",
+  "data_from": "2013-08-01",
+  "unresolved": {
+   "total": 128,
+   "by_status": {
+    "OPEN": 99,
+    "PENDING": 1,
+    "WOCREATE": 0,
+    "UNFUNDED": 28
+   }
+  },
+  "locations": 72,
+  "group_radius_m": 25.0,
+  "open_over_one_year": {
+   "area": {
+    "count": 71,
+    "of": 99,
+    "pct": 72
+   },
+   "city": {
+    "count": 3607,
+    "of": 4995,
+    "pct": 72
+   }
+  },
+  "median_days_to_close": {
+   "area": {
+    "days": 179.0,
+    "closed_requests": 354
+   },
+   "city": {
+    "days": 66.0,
+    "closed_requests": 25276
+   },
+   "bulk_closed_excluded_city": 3349,
+   "note": "Median waits leave out requests the city closed in bulk on Feb 2 to 4, 2026."
+  },
+  "oldest_unresolved": {
+   "request_id": "1093471",
+   "address": "E 19TH ST & 13TH AVE",
+   "status": "UNFUNDED",
+   "opened": "2021-03-02",
+   "days_open": 2090
+  },
+  "most_reported_location": {
+   "address": "12TH AVE & E 19TH ST",
+   "unresolved_requests": 6,
+   "oldest_opened": "2023-07-08"
+  },
+  "targets": [
+   {
+    "rank": 1,
+    "address": "12TH AVE & E 19TH ST",
+    "lat": 37.79393681989792,
+    "lon": -122.24346762973265,
+    "requests": 6,
+    "request_ids": [
+     "1312894",
+     "1379558",
+     "1387439",
+     "1403328",
+     "1403817",
+     "1434505"
+    ],
+    "statuses": [
+     "OPEN"
+    ],
+    "first_reported": "2023-07-08",
+    "days_open": 1232
+   },
+   {
+    "rank": 2,
+    "address": "1520 8TH AVE",
+    "lat": 37.79430297745293,
+    "lon": -122.2501579576114,
+    "requests": 5,
+    "request_ids": [
+     "1128754",
+     "1153323",
+     "1381019",
+     "1449017",
+     "1605497"
+    ],
+    "statuses": [
+     "OPEN",
+     "UNFUNDED"
+    ],
+    "first_reported": "2021-07-10",
+    "days_open": 1960
+   },
+   {
+    "rank": 3,
+    "address": "E 19TH ST & 13TH AVE",
+    "lat": 37.79315999963614,
+    "lon": -122.24257001224176,
+    "requests": 4,
+    "request_ids": [
+     "1093471",
+     "1100859",
+     "1126429",
+     "1614924"
+    ],
+    "statuses": [
+     "OPEN",
+     "UNFUNDED"
+    ],
+    "first_reported": "2021-03-02",
+    "days_open": 2090
+   },
+   {
+    "rank": 4,
+    "address": "1999 10TH AVE",
+    "lat": 37.79606299606097,
+    "lon": -122.24425439162212,
+    "requests": 4,
+    "request_ids": [
+     "1204113",
+     "1403745",
+     "1578690",
+     "1628663"
+    ],
+    "statuses": [
+     "OPEN",
+     "UNFUNDED"
+    ],
+    "first_reported": "2022-04-29",
+    "days_open": 1667
+   },
+   {
+    "rank": 5,
+    "address": "8TH AV & FOOTHILL BLVD",
+    "lat": 37.79486759256227,
+    "lon": -122.2495126561247,
+    "requests": 4,
+    "request_ids": [
+     "1398406",
+     "1417457",
+     "1606180",
+     "1608009"
+    ],
+    "statuses": [
+     "OPEN"
+    ],
+    "first_reported": "2024-04-09",
+    "days_open": 956
+   }
+  ]
+ },
+ "what_happened": [
+  "Clinton has 128 unresolved pothole requests at 72 locations.",
+  "71 of 99 open requests are more than a year old (72%). Citywide: 3,607 of 4,995 (72%).",
+  "Oldest unresolved request: E 19TH ST & 13TH AVE, filed 2021-03-02, status UNFUNDED.",
+  "Most reported location: 12TH AVE & E 19TH ST, 6 unresolved requests, oldest filed 2023-07-08."
+ ],
+ "why_it_matters": "When the city closes a pothole request in Clinton, the median wait is 179 days. Across Oakland it is 66 days.",
+ "paths": [
+  {
+   "key": "report",
+   "title": "Report and push the city",
+   "who": "Anyone. You can do this alone.",
+   "legal_note": "Reporting to OAK 311 is open to every resident.",
+   "steps": [
+    {
+     "text": "Walk your blocks with the list below. An open request is not proof the hole is still there; some streets were repaved after the report.",
+     "link_label": "",
+     "link_url": ""
+    },
+    {
+     "text": "For each hole that is still there, add a photo and a note to the existing request, or file a new one. Give the request number from our list.",
+     "link_label": "Report on OAK 311",
+     "link_url": "https://www.oaklandca.gov/My-Household/Report-an-Issue-OAK-311"
+    },
+    {
+     "text": "Send the list to your council office and to OakDOT and ask for a repair date. Use the email we draft for you; it goes from your own account. Transparent City sends nothing.",
+     "link_label": "",
+     "link_url": ""
+    },
+    {
+     "text": "Speak at the City Council's Public Works and Transportation Committee with the same numbers.",
+     "link_label": "",
+     "link_url": ""
+    },
+    {
+     "text": "Follow the list. When report-back opens, we will tell you when a request on it changes status.",
+     "link_label": "",
+     "link_url": ""
+    }
+   ],
+   "cost_time": [
+    {
+     "label": "Cost",
+     "value": "Free",
+     "source": "OAK 311 reporting has no fee (City of Oakland OAK 311 page, checked 2026-11-21).",
+     "reverified": true
+    },
+    {
+     "label": "Time",
+     "value": "One walk of your blocks, then a few minutes per report",
+     "source": "Our estimate, not a measured figure.",
+     "reverified": false
+    }
+   ]
+  }
+ ],
+ "withheld_paths": [
+  "repair_day"
+ ],
+ "rules": {
+  "who_fixes": "OakDOT repairs potholes from OAK 311 requests.",
+  "resident_repair_verified": false,
+  "unverified_note": "We could not find a City of Oakland page that says residents may fill potholes themselves. Until the city publishes one, this page offers one path: report the holes and push the city to fix them.",
+  "statements": [
+   {
+    "text": "Report non-emergency street problems online or in the OAK 311 app. For urgent problems, dial 311 or (510) 615-5566.",
+    "source": {
+     "title": "Report an Issue (OAK 311)",
+     "url": "https://www.oaklandca.gov/My-Household/Report-an-Issue-OAK-311",
+     "checked": "2026-11-21",
+     "publisher": "City of Oakland"
+    }
+   },
+   {
+    "text": "Anyone blocking a traffic lane, street parking, curb or sidewalk needs an Obstruction Permit from OakDOT first. An approved Traffic Control Plan may also be required.",
+    "source": {
+     "title": "Obstruction Permit",
+     "url": "https://www.oaklandca.gov/Public-Safety-Streets/Transportation-Permits-Engineering/Obstruction-Permit",
+     "checked": "2026-11-21",
+     "publisher": "City of Oakland, OakDOT"
+    }
+   }
+  ],
+  "background": [
+   {
+    "text": "In 2016 a Public Works spokesperson told KTVU it is illegal for residents to fill potholes. That is a news report, not a city rules page.",
+    "source": {
+     "title": "Oakland public works discourage residents from filling potholes themselves",
+     "url": "https://www.ktvu.com/news/oakland-public-works-discourage-residents-from-filling-potholes-themselves",
+     "checked": "2026-11-21",
+     "publisher": "KTVU, January 26, 2016"
+    }
+   }
+  ],
+  "safety": [
+   "Stay on the sidewalk or shoulder when you check a hole. Do not stand in a traffic lane.",
+   "Take photos from the curb."
+  ]
+ },
+ "email_draft": {
+  "subject": "Potholes in Clinton: 128 unresolved requests at 72 locations",
+  "body": "Hello,\n\nI live in Clinton. City OAK 311 records show 128 unresolved pothole requests at 72 locations here, with data through 2026-11-15.\n\nThese are the locations with the most unresolved requests:\n1. 12TH AVE & E 19TH ST: requests 1312894, 1379558, 1387439, 1403328, 1403817, 1434505, first reported 2023-07-08\n2. 1520 8TH AVE: requests 1128754, 1153323, 1381019, 1449017, 1605497, first reported 2021-07-10\n3. E 19TH ST & 13TH AVE: requests 1093471, 1100859, 1126429, 1614924, first reported 2021-03-02\n4. 1999 10TH AVE: requests 1204113, 1403745, 1578690, 1628663, first reported 2022-04-29\n5. 8TH AV & FOOTHILL BLVD: requests 1398406, 1417457, 1606180, 1608009, first reported 2024-04-09\n6. 1720 10TH AVE: requests 1402684, 1402687, 1462044, 1462047, first reported 2024-04-23\n7. 1640 6TH AVE: requests 1473624, 1477753, 1485270, 1490147, first reported 2024-12-06\n8. 2142 8TH AVE: requests 1096381, 1152265, 1168319, first reported 2021-03-13\n9. 1643 6th Ave: requests 1145684, 1487502, 1487503, first reported 2021-09-08\n10. 1739 8TH AVE: requests 1198095, 1198386, 1212732, first reported 2022-04-04\n\nCan you tell me when these will be repaired?\n\nSource: https://data.oaklandca.gov/d/quth-gb8e"
+ },
+ "report_back": {
+  "summary": "Tell us what you did: the request numbers you added to or filed, and the date. We then check the city's records each month and tell you when a request on your list changes status.",
+  "fields": [
+   "Request number",
+   "Date",
+   "What you did",
+   "Photo (optional)"
+  ],
+  "watch": "Each month we compare the requests you logged with OAK 311 records.",
+  "enabled": false
+ },
+ "sources": [
+  {
+   "title": "Service requests received by the Oakland Call Center (OAK 311)",
+   "url": "https://data.oaklandca.gov/d/quth-gb8e",
+   "checked": "2026-11-21",
+   "publisher": "City of Oakland open data"
+  },
+  {
+   "title": "Oakland neighborhoods",
+   "url": "https://data.oaklandca.gov/d/sb4q-6bkc",
+   "checked": "2026-11-21",
+   "publisher": "City of Oakland open data"
+  },
+  {
+   "title": "Report an Issue (OAK 311)",
+   "url": "https://www.oaklandca.gov/My-Household/Report-an-Issue-OAK-311",
+   "checked": "2026-11-21",
+   "publisher": "City of Oakland"
+  },
+  {
+   "title": "Obstruction Permit",
+   "url": "https://www.oaklandca.gov/Public-Safety-Streets/Transportation-Permits-Engineering/Obstruction-Permit",
+   "checked": "2026-11-21",
+   "publisher": "City of Oakland, OakDOT"
+  },
+  {
+   "title": "Paving FAQ",
+   "url": "https://www.oaklandca.gov/Public-Safety-Streets/Streets/Street-Paving/Paving-FAQ",
+   "checked": "2026-11-21",
+   "publisher": "City of Oakland, OakDOT"
+  },
+  {
+   "title": "Oakland public works discourage residents from filling potholes themselves",
+   "url": "https://www.ktvu.com/news/oakland-public-works-discourage-residents-from-filling-potholes-themselves",
+   "checked": "2026-11-21",
+   "publisher": "KTVU, January 26, 2016"
+  }
+ ],
+ "only_path_a": true,
+ "_note": "Built from OAK 311 (quth-gb8e) pulled 2026-11-21, data through 2026-11-15; targets and area list trimmed for the test."
+}
