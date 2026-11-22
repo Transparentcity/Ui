@@ -2534,6 +2534,29 @@
   letter-spacing: 0;
 }
 
+.city-hero-v2-back {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+
+.city-hero-v2-back:hover {
+  color: var(--text-primary);
+}
+
+.city-hero-v2-desc {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 720px;
+  margin: 12px 0 0;
+}
+
 .city-hero-v2-meta {
   display: flex;
   align-items: center;

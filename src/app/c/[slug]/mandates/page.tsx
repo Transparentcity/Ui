@@ -7,13 +7,10 @@ import "../../../landing.css";
 
 import {
   getPublicCityDetail,
-  getPublicCityMetricOrdering,
   listPublicCitiesForSitemap,
-  type PublicMetricOrderingResponse,
 } from "@/lib/publicApiClient";
-import { slugify } from "@/lib/utils";
-import { resolveDisplayCategory } from "@/lib/metricOrderingDisplay";
-import { LEGAL_STANDARDS_LABEL, isLegalMandateCategory, mandatesEnabled } from "@/lib/mandates";
+import { formatLeaderName, slugify } from "@/lib/utils";
+import { mandatesEnabled } from "@/lib/mandates";
 import CityViewTracker from "../CityViewTracker";
 import PublicNavBar from "@/components/PublicNavBar";
 import PublicFooter from "@/components/PublicFooter";
@@ -55,8 +52,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Keep fallback
   }
   return {
-    title: `${LEGAL_STANDARDS_LABEL} | ${display}`,
-    description: `Is ${display} meeting the standards state and local law require? Each one with the latest figure, whether it was met, and the law behind it.`,
+    title: `Legal Mandates | ${display}`,
+    description: `Standards ${display} is required to meet by statute, with the latest figure, whether the city met it, and the law that requires it.`,
     alternates: { canonical: `/c/${slug}/mandates` },
     // Dark launch: keep out of search until the scorecard is public.
     robots: { index: false, follow: false },
@@ -79,27 +76,8 @@ export default async function CityMandatesPage({ params }: PageProps) {
   if (!match) notFound();
   const city = { ...match, display: cityDisplay(match) };
 
-  // Same hero as the category page: mayor row, signup, category chips.
-  // Each call swallows its own failure; the scorecard still renders without the chips.
-  const [cityDetail, cityOrdering] = await Promise.all([
-    getPublicCityDetail(city.id).catch(() => null),
-    getPublicCityMetricOrdering(city.id).catch((): PublicMetricOrderingResponse | null => null),
-  ]);
-  const orderingByMetricId = new Map(
-    (cityOrdering?.orderings ?? [])
-      .filter((o) => o.metric_id != null)
-      .map((o) => [o.metric_id!, o] as const)
-  );
-  const categories = Array.from(
-    new Set(
-      (cityDetail?.metrics ?? [])
-        .filter((m) => !isLegalMandateCategory(m.category))
-        .map((m) => {
-          const ord = orderingByMetricId.get(m.id);
-          return resolveDisplayCategory(ord?.category_name, m.category);
-        })
-    )
-  ).sort((a, b) => a.localeCompare(b));
+  // Same header as the city dashboard: title, state, mayor and follow.
+  const cityDetail = await getPublicCityDetail(city.id).catch(() => null);
 
   return (
     <SignupEmailProvider>
@@ -108,73 +86,42 @@ export default async function CityMandatesPage({ params }: PageProps) {
         <CitySignupButton citySlug={slug} cityName={city.display} />
       </PublicNavBar>
 
-      <section className="hero" style={{ paddingTop: 96 }}>
-        <div className="container">
-          <div className="hero-content">
-            <div className="hero-text">
-              <span className="badge">{LEGAL_STANDARDS_LABEL}</span>
-              <h1 className="hero-title">
-                {`${city.emoji || "🏙️"} ${city.display}`} — {LEGAL_STANDARDS_LABEL}
-              </h1>
-              <p className="hero-description">
-                Is {city.name} meeting the standards state and local law require? Each one
-                with the latest figure, whether it was met, and the law behind it.
-              </p>
-
-              {(cityDetail?.mayor || cityDetail?.mayor_subscriber_count != null) && (
-                <div className="hero-mayor-subscribers hero-official-row">
-                  <span className="hero-mayor-name">
-                    Mayor {cityDetail?.mayor?.name ?? "Citywide"}
-                  </span>
-                  <DistrictFollowClaimBlock
-                    cityId={city.id}
-                    district={0}
-                    slug={slug}
-                    cityDisplayName={city.name}
-                  />
-                </div>
-              )}
-
-              <div className="hero-newsletter">
-                <CitySignupCTA
-                  citySlug={slug}
-                  cityName={city.display}
-                  label={`Sign up for ${city.display} updates`}
-                />
-              </div>
-
-              <div className="hero-category-links">
-                <Link href={`/c/${slug}`} className="hero-category-link">
-                  Dashboard
-                </Link>
-                {categories.map((cat) => (
-                  <Link
-                    key={cat}
-                    href={`/c/${slug}/category/${encodeURIComponent(cat)}`}
-                    className="hero-category-link"
-                  >
-                    {cat}
-                  </Link>
-                ))}
-                <Link
-                  href={`/c/${slug}/mandates`}
-                  className="hero-category-link hero-category-link-active"
-                  aria-current="page"
-                >
-                  {LEGAL_STANDARDS_LABEL}
-                </Link>
-              </div>
-            </div>
+      <main id="main-content">
+      <section className="city-hero-v2">
+        <div className="container city-hero-v2-row">
+          <div>
+            <Link href={`/c/${slug}`} className="city-hero-v2-back">
+              &larr; {city.name} dashboard
+            </Link>
+            <h1 className="city-hero-v2-title">
+              {city.emoji && <span style={{ marginRight: "0.15em" }}>{city.emoji}</span>}
+              {city.name}&rsquo;s Legal Mandates
+            </h1>
+            {city.state && <p className="city-hero-v2-state">{city.state}</p>}
+            <p className="city-hero-v2-desc">
+              Standards {city.name} is required to meet by statute: federal and state law,
+              and the city&rsquo;s own charter and code. Each one shows the latest figure,
+              whether the city met it, and the law that requires it.
+            </p>
           </div>
-        </div>
-        <div className="hero-background">
-          <div className="gradient-orb orb-1" />
-          <div className="gradient-orb orb-2" />
-          <div className="gradient-orb orb-3" />
+          <div className="city-hero-v2-meta">
+            {cityDetail?.mayor?.name && (
+              <span className="city-hero-v2-mayor-inline">
+                Mayor: {formatLeaderName(cityDetail.mayor.name)}
+              </span>
+            )}
+            <DistrictFollowClaimBlock
+              cityId={city.id}
+              district={0}
+              slug={slug}
+              cityDisplayName={city.name}
+            />
+          </div>
         </div>
       </section>
 
       <MandateScorecardClient cityId={city.id} slug={slug} cityName={city.name} />
+      </main>
 
       <LoggedOutOnly>
         <section className="city-explainer-section">
