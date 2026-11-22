@@ -93,9 +93,11 @@ function WhatHappened({ p }: { p: ActivityPayload }) {
             label="Open more than a year"
             value={`${oa.area.count.toLocaleString("en-US")} of ${oa.area.of.toLocaleString("en-US")}`}
             note={
-              p.area.kind !== "city" && oa.city.pct != null
-                ? `${oa.area.pct}% here, ${oa.city.pct}% citywide`
-                : `${oa.area.pct}%`
+              oa.area.pct == null
+                ? undefined
+                : p.area.kind !== "city" && oa.city.pct != null
+                  ? `${oa.area.pct}% here, ${oa.city.pct}% citywide`
+                  : `${oa.area.pct}%`
             }
           />
         )}

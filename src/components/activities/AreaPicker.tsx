@@ -26,7 +26,6 @@ export default function AreaPicker({
       <span>Show</span>
       <select
         value={current}
-        aria-label="Area"
         onChange={(e) => {
           const v = e.target.value;
           router.push(v ? `${basePath}?area=${encodeURIComponent(v)}` : basePath);

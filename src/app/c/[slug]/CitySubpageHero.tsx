@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { ACTIVITIES_LABEL } from "@/lib/activities";
 import { isLegalMandateCategory } from "@/lib/mandates";
 import { resolveDisplayCategory } from "@/lib/metricOrderingDisplay";
 import {
@@ -13,12 +12,12 @@ import {
 } from "@/lib/publicApiClient";
 import { slugify } from "@/lib/utils";
 
-import CitySignupCTA from "../CitySignupCTA";
-import DistrictFollowClaimBlock from "../district/DistrictFollowClaimBlock";
+import CitySignupCTA from "./CitySignupCTA";
+import DistrictFollowClaimBlock from "./district/DistrictFollowClaimBlock";
 
-export type ActivityCity = PublicCitySitemapItem & { display: string };
+export type SubpageCity = PublicCitySitemapItem & { display: string };
 
-function cityDisplay(city: PublicCitySitemapItem): string {
+export function cityDisplay(city: PublicCitySitemapItem): string {
   return city.state && city.country && city.country !== "United States"
     ? `${city.name}, ${city.state}, ${city.country}`
     : city.state
@@ -28,8 +27,8 @@ function cityDisplay(city: PublicCitySitemapItem): string {
         : city.name;
 }
 
-/** The city for a /c/[slug] route, or null. Same lookup as the mandates page. */
-export async function findActivityCity(slug: string): Promise<ActivityCity | null> {
+/** The city for a /c/[slug] route, or null. */
+export async function findSubpageCity(slug: string): Promise<SubpageCity | null> {
   try {
     const cities = await listPublicCitiesForSitemap();
     const match = cities.find((c) => (c.slug || slugify(c.name)) === slug);
@@ -40,22 +39,28 @@ export async function findActivityCity(slug: string): Promise<ActivityCity | nul
 }
 
 /**
- * The city sub-page hero used by the category and mandates pages: badge,
- * title, mayor and follow row, signup, then the category chips with
- * Activities marked current. Each fetch swallows its own failure.
+ * Hero for a city sub-page that sits beside the category pages (legal
+ * standards, activities): badge, title, mayor and follow row, signup, then
+ * the category chips with this page's chip marked current. Each fetch
+ * swallows its own failure; the page still renders without the chips.
  */
-export default async function ActivityHero({
+export default async function CitySubpageHero({
   city,
   slug,
+  badge,
   title,
   description,
+  current,
   children,
 }: {
-  city: ActivityCity;
+  city: SubpageCity;
   slug: string;
-  title: string;
+  badge: string;
+  title: ReactNode;
   description: ReactNode;
-  /** Shown under the description (the area picker). */
+  /** This page's chip, shown last and marked current. */
+  current: { href: string; label: string };
+  /** Shown under the description (e.g. an area picker). */
   children?: ReactNode;
 }) {
   const [cityDetail, cityOrdering] = await Promise.all([
@@ -80,10 +85,8 @@ export default async function ActivityHero({
       <div className="container">
         <div className="hero-content">
           <div className="hero-text">
-            <span className="badge">{ACTIVITIES_LABEL}</span>
-            <h1 className="hero-title">
-              {city.emoji || "🏙️"} {title}
-            </h1>
+            <span className="badge">{badge}</span>
+            <h1 className="hero-title">{title}</h1>
             <p className="hero-description">{description}</p>
             {children}
 
@@ -111,12 +114,8 @@ export default async function ActivityHero({
                   {cat}
                 </Link>
               ))}
-              <Link
-                href={`/c/${slug}/activities`}
-                className="hero-category-link hero-category-link-active"
-                aria-current="page"
-              >
-                {ACTIVITIES_LABEL}
+              <Link href={current.href} className="hero-category-link hero-category-link-active" aria-current="page">
+                {current.label}
               </Link>
             </div>
           </div>

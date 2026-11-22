@@ -62,13 +62,34 @@ describe("ReportBackForm", () => {
     expect(screen.queryByRole("option", { name: "Repaired the hole" })).toBeNull();
   });
 
-  it("shows the API error", async () => {
+  it("shows the platform's reason for a rejected report, not the raw body", async () => {
     requestMock.mockImplementation(async (_p: string, method: string) => {
       if (method === "GET") return { reports: [] };
-      throw new Error("action_date is in the future");
+      throw Object.assign(new Error('422 {"detail":"the date cannot be in the future"}'), { status: 422 });
     });
     renderForm();
     fireEvent.click(screen.getByRole("button", { name: "Log it" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("action_date is in the future");
+    expect((await screen.findByRole("alert")).textContent).toBe("The date cannot be in the future");
+  });
+
+  it("shows a plain line when the server fails", async () => {
+    requestMock.mockImplementation(async (_p: string, method: string) => {
+      if (method === "GET") return { reports: [] };
+      throw Object.assign(new Error("500 <html>Internal Server Error</html>"), { status: 500 });
+    });
+    renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Log it" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not save. Try again.");
+  });
+
+  it("logs a repair on the repair day path", async () => {
+    requestMock.mockImplementation(async (_p: string, method: string, body?: Record<string, unknown>) =>
+      method === "GET" ? { reports: [] } : { id: 3, created_at: null, ...body }
+    );
+    renderForm(["report", "repair_day"]);
+    fireEvent.change(screen.getByLabelText("What you did"), { target: { value: "repaired" } });
+    fireEvent.click(screen.getByRole("button", { name: "Log it" }));
+    await screen.findByText("Saved.");
+    expect(requestMock.mock.calls.at(-1)![2]).toMatchObject({ action: "repaired", path_key: "repair_day" });
   });
 });

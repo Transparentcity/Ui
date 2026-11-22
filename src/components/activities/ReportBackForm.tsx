@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 
-import { request } from "@/lib/api/request";
+import { createActivityReport, listMyActivityReports, reportErrorMessage } from "@/lib/api/activities";
 import { REPORT_ACTIONS, formatDate, type ActivityReport } from "@/lib/activities";
 
 import styles from "./ActivityPage.module.css";
@@ -40,7 +40,6 @@ export default function ReportBackForm({
     action_date: todayIso(),
     note: "",
   });
-  const base = `/api/activities/${encodeURIComponent(city)}/${encodeURIComponent(activity)}/reports`;
   const actions = REPORT_ACTIONS.filter((a) => !a.pathKey || pathKeys.includes(a.pathKey));
 
   useEffect(() => {
@@ -49,8 +48,8 @@ export default function ReportBackForm({
     (async () => {
       try {
         const token = await getAccessTokenSilently();
-        const out = await request<{ reports: ActivityReport[] }>(base, "GET", undefined, token);
-        if (!cancelled) setReports(out.reports);
+        const list = await listMyActivityReports(city, activity, token);
+        if (!cancelled) setReports(list);
       } catch {
         // List is a convenience; the form still works.
       }
@@ -58,7 +57,7 @@ export default function ReportBackForm({
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, getAccessTokenSilently, base]);
+  }, [isAuthenticated, getAccessTokenSilently, city, activity]);
 
   if (isLoading) return null;
   if (!isAuthenticated) {
@@ -79,23 +78,30 @@ export default function ReportBackForm({
     );
   }
 
+  function update(patch: Partial<typeof form>) {
+    setForm((f) => ({ ...f, ...patch }));
+    if (status !== "saving") setStatus("idle");
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("saving");
     setError("");
     try {
       const token = await getAccessTokenSilently();
-      const saved = await request<ActivityReport>(
-        base,
-        "POST",
-        { ...form, path_key: "report", area_slug: areaSlug },
+      // A repair can only be logged on the repair day path; everything else is Path A.
+      const pathKey = REPORT_ACTIONS.find((a) => a.value === form.action)?.pathKey ?? "report";
+      const saved = await createActivityReport(
+        city,
+        activity,
+        { ...form, path_key: pathKey, area_slug: areaSlug },
         token
       );
       setReports((r) => [saved, ...r]);
       setForm((f) => ({ ...f, request_id: "", note: "" }));
       setStatus("saved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save.");
+      setError(reportErrorMessage(err));
       setStatus("error");
     }
   }
@@ -105,7 +111,7 @@ export default function ReportBackForm({
       <form className={styles.reportForm} onSubmit={submit}>
         <label>
           What you did
-          <select value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })}>
+          <select value={form.action} onChange={(e) => update({ action: e.target.value })}>
             {actions.map((a) => (
               <option key={a.value} value={a.value}>
                 {a.label}
@@ -119,7 +125,7 @@ export default function ReportBackForm({
             value={form.request_id}
             inputMode="numeric"
             maxLength={32}
-            onChange={(e) => setForm({ ...form, request_id: e.target.value })}
+            onChange={(e) => update({ request_id: e.target.value })}
           />
         </label>
         <label>
@@ -129,7 +135,7 @@ export default function ReportBackForm({
             value={form.action_date}
             max={todayIso()}
             required
-            onChange={(e) => setForm({ ...form, action_date: e.target.value })}
+            onChange={(e) => update({ action_date: e.target.value })}
           />
         </label>
         <label>
@@ -138,7 +144,7 @@ export default function ReportBackForm({
             value={form.note}
             maxLength={1000}
             rows={3}
-            onChange={(e) => setForm({ ...form, note: e.target.value })}
+            onChange={(e) => update({ note: e.target.value })}
           />
         </label>
         <div className={styles.actions}>

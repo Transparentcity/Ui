@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatAge, formatDate, type ActivityTarget } from "@/lib/activities";
+import { escapeHtml } from "@/lib/maps/pointPopup";
 
 import "@/components/AnomalyMap.css";
 import styles from "./ActivityPage.module.css";
@@ -16,10 +17,6 @@ const BRAND = "#ad35fa";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type MapboxGl = any;
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
 
 /** GeoJSON points for the locations that have coordinates, ranked first to last. */
 export function targetsGeoJson(targets: ActivityTarget[]) {
@@ -54,8 +51,11 @@ function loadMapbox(): Promise<MapboxGl> {
     }
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${MAPBOX_JS}"]`);
     const script = existing ?? document.createElement("script");
-    script.addEventListener("load", () => resolve(w.mapboxgl));
+    const done = () => (w.mapboxgl ? resolve(w.mapboxgl) : reject(new Error("map library")));
+    script.addEventListener("load", done);
     script.addEventListener("error", () => reject(new Error("map library")));
+    // A tag another map added may already have finished or failed; don't wait forever.
+    setTimeout(done, 15000);
     if (!existing) {
       script.src = MAPBOX_JS;
       script.async = true;
@@ -108,7 +108,6 @@ export default function ActivityMap({
         });
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
         map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
-        map.on("error", () => setFailed(true));
         map.on("load", () => {
           map.addSource("targets", { type: "geojson", data });
           map.addLayer({
@@ -178,14 +177,13 @@ export default function ActivityMap({
             className="anomaly-map-container"
             style={{ height }}
             role="region"
-            aria-label={`Map of ${data.features.length} pothole locations in ${areaLabel}`}
+            aria-label={`Map of ${data.features.length} locations in ${areaLabel}`}
           />
         )}
       </div>
       <figcaption className={styles.mapCaption}>
         <span>
-          Each dot is a location with unresolved pothole requests; bigger dots have more. Numbers match the list
-          below.
+          Each dot is a location with unresolved requests; bigger dots have more. Numbers match the list below.
         </span>
         <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
           Source

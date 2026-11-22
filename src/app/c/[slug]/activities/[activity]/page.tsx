@@ -7,13 +7,13 @@ import ActivityPage from "@/components/activities/ActivityPage";
 import AreaPicker from "@/components/activities/AreaPicker";
 import PublicFooter from "@/components/PublicFooter";
 import PublicNavBar from "@/components/PublicNavBar";
-import { activitiesEnabled, normalizeArea, type ActivityPayload } from "@/lib/activities";
+import { ACTIVITIES_LABEL, activitiesEnabled, normalizeArea, type ActivityPayload } from "@/lib/activities";
 import { getPublicCityActivity } from "@/lib/publicApiClient";
 
 import CitySignupButton from "../../CitySignupButton";
 import CityViewTracker from "../../CityViewTracker";
 import { SignupEmailProvider } from "../../SignupEmailContext";
-import ActivityHero, { findActivityCity } from "../ActivityHero";
+import CitySubpageHero, { findSubpageCity } from "../../CitySubpageHero";
 
 type PageProps = {
   params: Promise<{ slug: string; activity: string }>;
@@ -23,7 +23,8 @@ type PageProps = {
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug, activity } = await params;
   const area = normalizeArea((await searchParams).area);
-  const city = await findActivityCity(slug);
+  const city = await findSubpageCity(slug);
+  const display = city?.display ?? slug;
   let title = "What you can do";
   try {
     title = (await getPublicCityActivity(slug, activity, area)).title;
@@ -31,7 +32,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     // Keep the fallback; the page itself decides between 404 and "no data".
   }
   return {
-    title: `${title} | ${city?.display ?? slug}`,
+    title: `${title} | ${display}`,
+    description: `${title} in ${display}: the city's own records for your area, what you can do, and the rules, with a source for every number.`,
     alternates: { canonical: `/c/${slug}/activities/${activity}${area ? `?area=${area}` : ""}` },
     // Dark launch: keep out of search until Activities is public.
     robots: { index: false, follow: false },
@@ -43,13 +45,15 @@ export default async function CityActivityPage({ params, searchParams }: PagePro
   const { slug, activity } = await params;
   const area = normalizeArea((await searchParams).area);
 
-  const city = await findActivityCity(slug);
+  const city = await findSubpageCity(slug);
   if (!city) notFound();
 
   let payload: ActivityPayload | null = null;
   try {
     payload = await getPublicCityActivity(slug, activity, area);
   } catch (e) {
+    // 403 while the platform flag is off, 404 for an unknown activity or area.
+    // Anything else (portal down) renders the page without numbers.
     const status = (e as { status?: number }).status;
     if (status === 404 || status === 403) notFound();
   }
@@ -66,14 +70,16 @@ export default async function CityActivityPage({ params, searchParams }: PagePro
         <CitySignupButton citySlug={slug} cityName={city.display} />
       </PublicNavBar>
 
-      <ActivityHero
+      <CitySubpageHero
         city={city}
         slug={slug}
-        title={payload?.title ?? "What you can do"}
+        badge={ACTIVITIES_LABEL}
+        title={`${city.emoji || "🏙️"} ${payload?.title ?? "What you can do"}`}
+        current={{ href: `/c/${slug}/activities`, label: ACTIVITIES_LABEL }}
         description={
           payload ? (
             <>
-              {areaLabel}. Built from {city.name}&rsquo;s own 311 records.
+              {areaLabel}. Built from {city.name}&rsquo;s own records.
             </>
           ) : (
             <>
@@ -92,7 +98,7 @@ export default async function CityActivityPage({ params, searchParams }: PagePro
             districts={payload.areas.districts}
           />
         )}
-      </ActivityHero>
+      </CitySubpageHero>
 
       {payload && <ActivityPage payload={payload} />}
 

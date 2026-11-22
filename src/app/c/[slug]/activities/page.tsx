@@ -13,15 +13,17 @@ import { listPublicCityActivities } from "@/lib/publicApiClient";
 import CitySignupButton from "../CitySignupButton";
 import CityViewTracker from "../CityViewTracker";
 import { SignupEmailProvider } from "../SignupEmailContext";
-import ActivityHero, { findActivityCity } from "./ActivityHero";
+import CitySubpageHero, { findSubpageCity } from "../CitySubpageHero";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const city = await findActivityCity(slug);
+  const city = await findSubpageCity(slug);
+  const display = city?.display ?? slug;
   return {
-    title: `${ACTIVITIES_LABEL} | ${city?.display ?? slug}`,
+    title: `${ACTIVITIES_LABEL} | ${display}`,
+    description: `What you can do about what the data shows in ${display}, starting from the city's own records for your area.`,
     alternates: { canonical: `/c/${slug}/activities` },
     robots: { index: false, follow: false },
   };
@@ -30,13 +32,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function CityActivitiesIndex({ params }: PageProps) {
   if (!activitiesEnabled()) notFound();
   const { slug } = await params;
-  const city = await findActivityCity(slug);
+  const city = await findSubpageCity(slug);
   if (!city) notFound();
   let items: ActivityListItem[] = [];
   try {
     items = (await listPublicCityActivities(slug)).activities;
-  } catch {
-    notFound();
+  } catch (e) {
+    // 403 while the platform flag is off; anything else goes to the error page.
+    const status = (e as { status?: number }).status;
+    if (status === 403 || status === 404) notFound();
+    throw e;
   }
   if (!items.length) notFound();
 
@@ -46,10 +51,12 @@ export default async function CityActivitiesIndex({ params }: PageProps) {
       <PublicNavBar>
         <CitySignupButton citySlug={slug} cityName={city.display} />
       </PublicNavBar>
-      <ActivityHero
+      <CitySubpageHero
         city={city}
         slug={slug}
-        title={`${city.display}: ${ACTIVITIES_LABEL}`}
+        badge={ACTIVITIES_LABEL}
+        title={`${city.emoji || "🏙️"} ${city.display}: ${ACTIVITIES_LABEL}`}
+        current={{ href: `/c/${slug}/activities`, label: ACTIVITIES_LABEL }}
         description="What you can do about it. Each activity starts from the city’s own records for your area."
       />
       <section className="dashboard-section">
