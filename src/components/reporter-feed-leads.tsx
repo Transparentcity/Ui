@@ -89,6 +89,15 @@ function ItemCard({
   busy: boolean
 }) {
   const [whyYou, setWhyYou] = useState(item.item.why_you ?? "")
+  const initialSource =
+    typeof item.item.source === "string"
+      ? item.item.source
+      : item.item.source
+        ? [item.item.source.dataset, item.item.source.publisher].filter(Boolean).join(", ")
+        : ""
+  const [source, setSource] = useState(initialSource)
+  const [caveat, setCaveat] = useState(item.item.caveat ?? "")
+  const ready = whyYou.trim() !== "" && source.trim() !== ""
   const [rejectCode, setRejectCode] = useState<RejectCode>("off_beat")
   const [note, setNote] = useState("")
 
@@ -105,7 +114,9 @@ function ItemCard({
           ))}
         </div>
         {item.reason && <p className="text-xs text-gray-600">Reason: {item.reason}</p>}
-        <FeedItemPreview item={{ ...item.item, why_you: whyYou }} />
+        <FeedItemPreview
+          item={{ ...item.item, why_you: whyYou, source: source || null, caveat: caveat || null }}
+        />
         <div className="space-y-1">
           <Label htmlFor={`why-${item.id}`}>Why you (shown to the reporter)</Label>
           <Textarea
@@ -115,11 +126,38 @@ function ItemCard({
             rows={2}
           />
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor={`source-${item.id}`}>Source (dataset and publisher, refresh date)</Label>
+            <input
+              id={`source-${item.id}`}
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="h-9 w-full rounded-md border border-gray-300 px-2 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`caveat-${item.id}`}>Caveat (the story&apos;s own, if any)</Label>
+            <input
+              id={`caveat-${item.id}`}
+              value={caveat}
+              onChange={(e) => setCaveat(e.target.value)}
+              className="h-9 w-full rounded-md border border-gray-300 px-2 text-sm"
+            />
+          </div>
+        </div>
+        {!ready && <p className="text-xs text-gray-500">Write Why you and the source to approve.</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            disabled={busy}
-            onClick={() => onApprove(item.id, { why_you: whyYou })}
+            disabled={busy || !ready}
+            onClick={() =>
+              onApprove(item.id, {
+                why_you: whyYou.trim(),
+                source: source === initialSource ? item.item.source : source.trim(),
+                caveat: caveat.trim() || null,
+              })
+            }
             className="gap-1 bg-purple-600 hover:bg-purple-700 text-white"
           >
             <Check className="w-4 h-4" /> Approve

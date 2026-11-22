@@ -68,15 +68,31 @@ describe("ReporterFeedLeads", () => {
     expect(screen.getByText(/missing, add before approving/)).toBeInTheDocument()
   })
 
-  it("approves with the edited Why you", async () => {
+  it("keeps Approve disabled until Why you and source are filled", async () => {
+    api.listItems.mockResolvedValue([{ ...item, item: { ...item.item, why_you: "" } }])
+    render(<ReporterFeedLeads />)
+    const approve = await screen.findByRole("button", { name: /Approve/ })
+    expect(approve).toBeDisabled()
+    await userEvent.type(screen.getByLabelText(/Why you/), "Your recent coverage")
+    expect(approve).toBeDisabled()
+    await userEvent.type(screen.getByLabelText(/^Source/), "Test dataset, Test publisher")
+    expect(approve).toBeEnabled()
+  })
+
+  it("approves with the edited fields", async () => {
     render(<ReporterFeedLeads />)
     const box = await screen.findByLabelText(/Why you/)
     await userEvent.clear(box)
     await userEvent.type(box, "New why")
+    await userEvent.type(screen.getByLabelText(/^Source/), "Test dataset")
     await userEvent.click(screen.getByRole("button", { name: /Approve/ }))
     await waitFor(() => expect(api.approveItem).toHaveBeenCalled())
     expect(api.approveItem.mock.calls[0][1]).toBe(7)
-    expect(api.approveItem.mock.calls[0][2]).toEqual({ why_you: "New why" })
+    expect(api.approveItem.mock.calls[0][2]).toEqual({
+      why_you: "New why",
+      source: "Test dataset",
+      caveat: null,
+    })
   })
 
   it("rejects with a reason code", async () => {
