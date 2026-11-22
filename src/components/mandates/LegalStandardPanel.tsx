@@ -46,7 +46,7 @@ export default function LegalStandardPanel({
 
   return (
     <section id="legal-standard" className="metric-section metric-definition">
-      <h2 className="metric-section-title">Legal standard</h2>
+      <h2 className="metric-section-title">Legal mandate</h2>
 
       {kind && (
         <div className={styles.panelStatusRow}>
@@ -143,7 +143,7 @@ export default function LegalStandardPanel({
       {scorecardHref && (
         <p className="provenance-value">
           <a href={scorecardHref} className="provenance-link-inline">
-            See all of the city&rsquo;s legal standards →
+            See all of the city&rsquo;s legal mandates →
           </a>
         </p>
       )}

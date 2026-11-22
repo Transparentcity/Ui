@@ -475,7 +475,7 @@ export default function CityDashboardSection({
               </Link>
             </div>
             <div className="metrics-mandates-note">
-              Each legal standard is judged period by period, so year-to-date totals aren&rsquo;t
+              Each legal mandate is judged period by period, so year-to-date totals aren&rsquo;t
               shown here.
             </div>
             <div className="metrics-table-body">

@@ -62,7 +62,7 @@ describe("mandate status rules", () => {
       "Ambulances on scene within 10 minutes: standard missed for 12 months running."
     );
     expect(summarizeMandates([met], "San Francisco", NOW).lead).toBe(
-      "San Francisco is meeting every legal standard with a numeric target."
+      "San Francisco is meeting every legal mandate with a numeric target."
     );
   });
 
@@ -214,7 +214,7 @@ describe("MandateScorecard", () => {
 
   it("shows an empty state when there are no mandates", () => {
     render(<MandateScorecard mandates={[]} slug="sf" state="ready" />);
-    expect(screen.getByText(/no legal standards are tracked/i)).toBeInTheDocument();
+    expect(screen.getByText(/no legal mandates are tracked/i)).toBeInTheDocument();
   });
 
   it("shows a not-public notice on 403", () => {
@@ -225,7 +225,7 @@ describe("MandateScorecard", () => {
 
   it("shows loading and error states", () => {
     const { rerender } = render(<MandateScorecard mandates={[]} slug="sf" state="loading" />);
-    expect(screen.getByText(/loading legal standards/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading legal mandates/i)).toBeInTheDocument();
     rerender(<MandateScorecard mandates={[]} slug="sf" state="error" errorMessage="boom" />);
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
   });

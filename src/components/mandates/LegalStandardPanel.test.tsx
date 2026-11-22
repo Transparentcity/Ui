@@ -11,7 +11,7 @@ describe("LegalStandardPanel", () => {
 
   it("shows the standard, citation, owner, report, consequences and method note", () => {
     render(<LegalStandardPanel standard={standard911} standardsBasis="NENA-STA-020.1" />);
-    expect(screen.getByRole("heading", { name: "Legal standard" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Legal mandate" })).toBeInTheDocument();
     expect(screen.getByText(standard911.text)).toBeInTheDocument();
     expect(screen.getByText("Target: ≥ 90.0%")).toBeInTheDocument();
     expect(screen.getByText(standard911.citation)).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("LegalStandardPanel", () => {
     expect(screen.getByText("Missed")).toBeInTheDocument();
     expect(screen.getByText("75.0% in Jun 2026")).toBeInTheDocument();
     expect(screen.getByText("Missed 5 months running")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /all of the city.s legal standards/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /all of the city.s legal mandates/i })).toHaveAttribute(
       "href",
       "/c/san-francisco/mandates"
     );

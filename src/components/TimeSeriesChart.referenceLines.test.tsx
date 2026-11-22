@@ -24,7 +24,7 @@ const data: TimeSeriesDataPoint[] = Array.from({ length: 12 }, (_, i) => ({
   time_period: `${lastYear}-${String(i + 1).padStart(2, "0")}-01`,
   numeric_value: 80 + i,
 }));
-const target = [{ y: 90, label: "Legal standard: ≥ 90.0%" }];
+const target = [{ y: 90, label: "Legal mandate: ≥ 90.0%" }];
 
 function lastLayout() {
   return plotCalls[plotCalls.length - 1].layout;

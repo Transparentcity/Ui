@@ -179,7 +179,7 @@ export function summarizeMandates<T extends { standard: MandateStandard; metric_
         ? `${worst.title}: behind the pace the law requires${span}.`
         : `${worst.title}: standard missed${span}.`;
   } else if (judged > 0 && stale === 0) {
-    lead = `${cityName} is meeting every legal standard with a numeric target.`;
+    lead = `${cityName} is meeting every legal mandate with a numeric target.`;
   } else if (judged > 0) {
     lead = `${cityName} met every standard in its latest reports, but ${stale} of them ${stale === 1 ? "is" : "are"} overdue.`;
   }
@@ -276,7 +276,7 @@ export function mandateReferenceLine(
   if (!standard || standard.target == null || standard.operator === "tracked") return null;
   return {
     y: standard.target,
-    label: `Legal standard: ${formatMandateTarget(standard) ?? standard.target}`,
+    label: `Legal mandate: ${formatMandateTarget(standard) ?? standard.target}`,
   };
 }
 
@@ -314,7 +314,7 @@ export function mandateChartDisablesYtd(
 export const LEGAL_MANDATES_CATEGORY = "Legal mandates";
 
 /** What readers see for that category. */
-export const LEGAL_STANDARDS_LABEL = "Legal standards";
+export const LEGAL_STANDARDS_LABEL = "Legal Mandates";
 
 /** True for the legal-standards category, tolerant of case, spacing and snake_case. */
 export function isLegalMandateCategory(category: string | null | undefined): boolean {
