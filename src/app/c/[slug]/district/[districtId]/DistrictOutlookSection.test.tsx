@@ -45,7 +45,7 @@ describe("DistrictOutlookSection", () => {
     const { container } = render(<DistrictOutlookSection outlook={outlook} placeName="District 5" />);
     expect(container.querySelectorAll(".district-outlook-card")).toHaveLength(3);
     expect(screen.getByText("Robbery")).toBeInTheDocument();
-    expect(screen.getByText("Not shown: track record under 50%")).toBeInTheDocument();
+    expect(screen.getByText("Not shown (record under 50%)")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/predict/i);
     expect(container.textContent).not.toContain("—");
   });
@@ -62,7 +62,7 @@ describe("DistrictOutlookSection edge cases", () => {
     const short = { ...outlook.crime_types[3], key: "shoplifting", label: "Shoplifting", shown: true, months: [], counts: [] };
     const o = { ...outlook, crime_types: [...outlook.crime_types.slice(0, 3), short] };
     render(<DistrictOutlookSection outlook={o} placeName="District 5" />);
-    expect(screen.getByText("Not shown: not enough history")).toBeInTheDocument();
+    expect(screen.getByText("Not shown (too little history)")).toBeInTheDocument();
   });
 });
 
@@ -74,7 +74,7 @@ describe("DistrictOutlookSection change column", () => {
     };
     render(<DistrictOutlookSection outlook={o} placeName="District 9" />);
     expect(screen.getByText("+11%")).toBeInTheDocument();
-    expect(screen.getByText(/vs 252 a month\s+in the 12 months before/)).toBeInTheDocument();
+    expect(screen.getByText("from 252")).toBeInTheDocument();
   });
 
   it("falls back to the 12-month average for older payloads without NaN", () => {
@@ -84,6 +84,6 @@ describe("DistrictOutlookSection change column", () => {
     const o = { ...outlook, crime_types: [old as typeof outlook.crime_types[2]] };
     const { container } = render(<DistrictOutlookSection outlook={o} placeName="District 9" />);
     expect(container.textContent).not.toContain("NaN");
-    expect(container.textContent).toContain("over the last 12 months");
+    expect(container.textContent).toContain("vs 45, last 12 mo");
   });
 });

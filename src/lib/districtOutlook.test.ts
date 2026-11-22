@@ -142,3 +142,12 @@ describe("review fixes", () => {
     expect(buildHeadline(outlook([short]), "District 5")).toBeNull();
   });
 });
+
+describe("monthRange", () => {
+  it("drops the repeated year", async () => {
+    const { monthRange } = await import("@/lib/districtOutlook");
+    expect(monthRange("2026-08", "2026-10")).toBe("Aug to Oct 2026");
+    expect(monthRange("2026-11", "2027-01")).toBe("Nov 2026 to Jan 2027");
+    expect(monthRange(undefined, "2026-10")).toBe("Oct 2026");
+  });
+});

@@ -286,7 +286,11 @@
 }
 
 .district-outlook-details-label {
-  margin: 0 0 10px;
+  margin: 0 0 4px;
+}
+
+.district-outlook-details-note {
+  margin: 0 0 12px;
 }
 
 .district-outlook-table-call {

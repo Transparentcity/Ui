@@ -10,12 +10,15 @@ import {
   formatMonthly,
   headlineText,
   monthLabel,
+  monthRange,
   recordPct,
   RULE_NOTES,
   shownTypes,
 } from "@/lib/districtOutlook";
 
 const ARROW = { fall: "↓", hold: "→", rise: "↑" } as const;
+/** Table wording; the column header carries "Likely". */
+const SHORT_CALL = { fall: "Fall", hold: "Hold steady", rise: "Rise" } as const;
 
 /** Past months for this district, its 12-month average (dashed), and the next
  * three months shaded where the outlook expects the average to land. */
@@ -112,12 +115,15 @@ export default function DistrictOutlookSection({
         </div>
 
         <h3 className="district-stories-label district-outlook-details-label">Details</h3>
+        <p className="district-outlook-note district-outlook-details-note">
+          Change compares the last 3 months with the 12 months before them, the same test as each call.
+        </p>
         <div className="metrics-category-section">
           <div className="metrics-table-header">
             <div className="metric-col metric-col-name">Crime type</div>
             <div className="metric-col metric-col-value">Last 3 months</div>
             <div className="metric-col metric-col-change">Change</div>
-            <div className="metric-col metric-col-change">Next 3 months</div>
+            <div className="metric-col metric-col-change">Likely, next 3 months</div>
           </div>
           <div className="metrics-table-body">
             {[...shown, ...rest].map((t) => {
@@ -132,13 +138,12 @@ export default function DistrictOutlookSection({
                   <div className="metric-col metric-col-name">
                     <span className="metric-name">{t.label}</span>
                     <span className="metric-date-label">
-                      Right {recordPct(t.record)}% of the time since {since}
+                      Right {recordPct(t.record)}% since {since}
                     </span>
                   </div>
                   <div className="metric-col metric-col-value">
                     <span className="metric-date-label">
-                      {monthLabel(t.months[Math.max(0, t.months.length - 3)])} to{" "}
-                      {monthLabel(t.months[t.months.length - 1])}
+                      {monthRange(t.months[Math.max(0, t.months.length - 3)], t.months[t.months.length - 1])}
                     </span>
                     <span className="metric-value">{formatMonthly(t.last3_monthly)} a month</span>
                   </div>
@@ -150,8 +155,7 @@ export default function DistrictOutlookSection({
                       <div className="change-values">
                         <span className="change-percent">{ch.text}</span>
                         <span className="change-absolute">
-                          vs {formatMonthly(base)} a month{" "}
-                          {hasPrior ? "in the 12 months before" : "over the last 12 months"}
+                          {hasPrior ? `from ${formatMonthly(base)}` : `vs ${formatMonthly(base)}, last 12 mo`}
                         </span>
                       </div>
                     </div>
@@ -159,13 +163,13 @@ export default function DistrictOutlookSection({
                   <div className="metric-col metric-col-change">
                     {on ? (
                       <span className={`district-outlook-table-call outlook-call-${t.call}`}>
-                        {ARROW[t.call!]} {CALL_WORDS[t.call!]}
+                        {ARROW[t.call!]} {SHORT_CALL[t.call!]}
                       </span>
                     ) : (
                       <span className="metric-date-label">
                         {t.call && t.counts.length >= 3
-                          ? `Not shown: track record under ${recordPct(outlook.min_record)}%`
-                          : "Not shown: not enough history"}
+                          ? `Not shown (record under ${recordPct(outlook.min_record)}%)`
+                          : "Not shown (too little history)"}
                       </span>
                     )}
                   </div>

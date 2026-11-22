@@ -52,6 +52,15 @@ export function monthLabel(
   return opts.year === false ? name : `${name} ${y}`;
 }
 
+/** "2026-08","2026-10" -> "Aug to Oct 2026"; across years -> "Nov 2026 to Jan 2027". */
+export function monthRange(from: string | undefined, to: string | undefined): string {
+  if (!from || !to) return monthLabel(to ?? from);
+  if (from.slice(0, 4) === to.slice(0, 4)) {
+    return `${monthLabel(from, { year: false })} to ${monthLabel(to)}`;
+  }
+  return `${monthLabel(from)} to ${monthLabel(to)}`;
+}
+
 export const CALL_WORDS: Record<CrimeOutlookCall, string> = {
   fall: "Likely to fall",
   hold: "Likely to hold steady",
