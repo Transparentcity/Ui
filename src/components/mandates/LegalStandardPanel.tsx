@@ -21,6 +21,7 @@ export default function LegalStandardPanel({
   standardsBasis,
   compliance,
   scorecardHref,
+  zeroLabel,
   now,
 }: {
   standard: MandateStandard | null | undefined;
@@ -29,6 +30,11 @@ export default function LegalStandardPanel({
   compliance?: MandateCompliance | null;
   /** Link to the city's legal standards scorecard. */
   scorecardHref?: string | null;
+  /**
+   * Label for a value of exactly 0. Overrides `standard.zero_label`, which the
+   * metric's seeded metadata may not carry yet.
+   */
+  zeroLabel?: string | null;
   /** Clock for the staleness rule (tests). */
   now?: Date;
 }) {
@@ -46,14 +52,18 @@ export default function LegalStandardPanel({
 
   return (
     <section id="legal-standard" className="metric-section metric-definition">
-      <h2 className="metric-section-title">Legal standard</h2>
+      <h2 className="metric-section-title">Legal mandate</h2>
 
       {kind && (
         <div className={styles.panelStatusRow}>
           <MandateStatusPill kind={kind} />
           {compliance?.latest_value != null && (
             <span>
-              {formatMandateValue(compliance.latest_value, standard.unit)}
+              {formatMandateValue(
+                compliance.latest_value,
+                standard.unit,
+                zeroLabel ?? standard.zero_label
+              )}
               {latestPeriod ? ` in ${latestPeriod}` : ""}
             </span>
           )}
@@ -143,7 +153,7 @@ export default function LegalStandardPanel({
       {scorecardHref && (
         <p className="provenance-value">
           <a href={scorecardHref} className="provenance-link-inline">
-            See all of the city&rsquo;s legal standards →
+            See all of the city&rsquo;s legal mandates →
           </a>
         </p>
       )}

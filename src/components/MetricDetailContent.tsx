@@ -268,8 +268,9 @@ export default function MetricDetailContent({
   const mandatesState = useCityMandates(metric.city_id ?? null, {
     enabled: Boolean(legalStandard) && metric.city_id != null,
   });
-  const mandateCompliance =
-    mandatesState.mandates.find((m) => m.metric_key === metric.metric_key)?.compliance ?? null;
+  const mandateRow =
+    mandatesState.mandates.find((m) => m.metric_key === metric.metric_key) ?? null;
+  const mandateCompliance = mandateRow?.compliance ?? null;
   const standardReferenceLines = useMemo(() => {
     const line = mandateReferenceLine(legalStandard);
     return line ? [line] : undefined;
@@ -720,6 +721,7 @@ export default function MetricDetailContent({
           standard={legalStandard}
           standardsBasis={metric.standards_basis}
           compliance={mandateCompliance}
+          zeroLabel={mandateRow?.standard.zero_label}
           scorecardHref={
             mandateCompliance && citySlug ? `/c/${citySlug}/mandates` : null
           }

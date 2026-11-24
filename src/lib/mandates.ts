@@ -43,12 +43,19 @@ export const MANDATE_PILL_ORDER: MandatePillKind[] = [
  * reported, so a known violation is never hidden behind "No recent data".
  */
 const STALE_AFTER_MONTHS: Record<string, number> = {
-  // State sources lag: Medi-Cal renewals publish about 6 months behind, so
-  // allow one month of slack before calling a monthly series stale.
-  month: 7,
-  quarter: 9,
+  // Counted from the END of the latest period. State sources lag: Medi-Cal
+  // renewals publish about 6 months behind, so a monthly series gets 6 months
+  // after its month ends (7 from its start, as before); quarterly is
+  // unchanged too (9 from its start).
+  month: 6,
+  quarter: 6,
+  // Annual reports (state disposal reports, audits, lead sampling) publish
+  // up to a year or more after the year ends.
   year: 24,
 };
+
+/** Months in one period of each grain, to find where the latest period ends. */
+const GRAIN_MONTHS: Record<string, number> = { month: 1, quarter: 3, year: 12 };
 
 function monthsBetween(fromIso: string, to: Date): number | null {
   const d = new Date(fromIso);
@@ -66,9 +73,13 @@ export function mandateIsStale(
   now: Date = new Date()
 ): boolean {
   if (!compliance?.latest_period) return false;
-  const staleAfter = STALE_AFTER_MONTHS[grain ?? "month"] ?? STALE_AFTER_MONTHS.month;
-  const age = monthsBetween(compliance.latest_period, now);
-  return age != null && age > staleAfter;
+  const g = grain && grain in STALE_AFTER_MONTHS ? grain : "month";
+  const sinceStart = monthsBetween(compliance.latest_period, now);
+  if (sinceStart == null) return false;
+  // Months since the period ended: a 2024 annual figure is 22 months old in
+  // November 2026, not 34.
+  const age = sinceStart - GRAIN_MONTHS[g];
+  return age > STALE_AFTER_MONTHS[g];
 }
 
 /**
@@ -179,7 +190,7 @@ export function summarizeMandates<T extends { standard: MandateStandard; metric_
         ? `${worst.title}: behind the pace the law requires${span}.`
         : `${worst.title}: standard missed${span}.`;
   } else if (judged > 0 && stale === 0) {
-    lead = `${cityName} is meeting every legal standard with a numeric target.`;
+    lead = `${cityName} is meeting every legal mandate with a numeric target.`;
   } else if (judged > 0) {
     lead = `${cityName} met every standard in its latest reports, but ${stale} of them ${stale === 1 ? "is" : "are"} overdue.`;
   }
@@ -218,13 +229,16 @@ export function mandateStreakText(
 /**
  * Split a value into its number and unit for display, e.g. 1,047 + "people".
  * "%" stays attached to the number; a count of exactly 1 takes the singular
- * of a plural unit ("1 permit in violation").
+ * of a plural unit ("1 permit in violation"). A value of exactly 0 shows
+ * `zeroLabel` alone when the standard sets one ("Below reporting limit").
  */
 export function splitMandateValue(
   value: number | null | undefined,
-  unit: string | null | undefined
+  unit: string | null | undefined,
+  zeroLabel?: string | null
 ): { number: string; unit: string | null } {
   if (value == null || Number.isNaN(value)) return { number: "No data", unit: null };
+  if (value === 0 && zeroLabel) return { number: zeroLabel, unit: null };
   if (unit === "%") return { number: formatMandateValue(value, unit), unit: null };
   const number = value.toLocaleString("en-US", { maximumFractionDigits: 1 });
   if (!unit) return { number, unit: null };
@@ -236,12 +250,17 @@ export function splitMandateValue(
   return { number, unit };
 }
 
-/** Format a value in the standard's unit: "%" gets one decimal and a suffix. */
+/**
+ * Format a value in the standard's unit: "%" gets one decimal and a suffix.
+ * A value of exactly 0 shows `zeroLabel` instead when the standard sets one.
+ */
 export function formatMandateValue(
   value: number | null | undefined,
-  unit: string | null | undefined
+  unit: string | null | undefined,
+  zeroLabel?: string | null
 ): string {
   if (value == null || Number.isNaN(value)) return "No data";
+  if (value === 0 && zeroLabel) return zeroLabel;
   if (unit === "%") {
     return `${value.toLocaleString("en-US", {
       minimumFractionDigits: 1,
@@ -276,7 +295,7 @@ export function mandateReferenceLine(
   if (!standard || standard.target == null || standard.operator === "tracked") return null;
   return {
     y: standard.target,
-    label: `Legal standard: ${formatMandateTarget(standard) ?? standard.target}`,
+    label: `Legal mandate: ${formatMandateTarget(standard) ?? standard.target}`,
   };
 }
 
@@ -314,7 +333,7 @@ export function mandateChartDisablesYtd(
 export const LEGAL_MANDATES_CATEGORY = "Legal mandates";
 
 /** What readers see for that category. */
-export const LEGAL_STANDARDS_LABEL = "Legal standards";
+export const LEGAL_STANDARDS_LABEL = "Legal Mandates";
 
 /** True for the legal-standards category, tolerant of case, spacing and snake_case. */
 export function isLegalMandateCategory(category: string | null | undefined): boolean {

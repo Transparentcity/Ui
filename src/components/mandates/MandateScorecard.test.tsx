@@ -62,7 +62,7 @@ describe("mandate status rules", () => {
       "Ambulances on scene within 10 minutes: standard missed for 12 months running."
     );
     expect(summarizeMandates([met], "San Francisco", NOW).lead).toBe(
-      "San Francisco is meeting every legal standard with a numeric target."
+      "San Francisco is meeting every legal mandate with a numeric target."
     );
   });
 
@@ -161,6 +161,31 @@ describe("MandateScorecard", () => {
     expect(second.getByText("Standard: ≤ 1,562 people")).toBeInTheDocument();
   });
 
+  it("shows the zero label instead of 0 ppb for a lead result EPA stores as 0", () => {
+    const leadStandard = {
+      ...standard911,
+      operator: "<=",
+      target: 15,
+      unit: "ppb",
+      grain: "year",
+      title: "Lead in tap water (90th percentile)",
+      text: "90th-percentile lead at or below 15 ppb",
+    };
+    const zero = compliance(["met"], { latest_value: 0 });
+    const labelled = mandate(zero, {
+      metric_key: "lead",
+      standard: { ...leadStandard, zero_label: "Below reporting limit" },
+    });
+    const plain = mandate(zero, { metric_key: "lead_plain", standard: leadStandard });
+    render(<MandateScorecard mandates={[labelled, plain]} slug="sf" state="ready" now={NOW} />);
+    const rows = screen.getAllByTestId("mandate-row");
+    const byHref = (k: string) => rows.find((r) => r.getAttribute("href") === `/c/sf/metrics/${k}`)!;
+    expect(within(byHref("lead")).getByText("Below reporting limit")).toBeInTheDocument();
+    expect(within(byHref("lead")).queryByText("ppb")).toBeNull();
+    expect(within(byHref("lead_plain")).getByText("0")).toBeInTheDocument();
+    expect(within(byHref("lead_plain")).getByText("ppb")).toBeInTheDocument();
+  });
+
   it("puts failures before successes and shows a summary strip", () => {
     const jail = mandate(compliance(twelve("met" as const)), { metric_key: "jail" });
     const missed = mandate(compliance(twelve("missed" as const)), { metric_key: "ems" });
@@ -214,7 +239,7 @@ describe("MandateScorecard", () => {
 
   it("shows an empty state when there are no mandates", () => {
     render(<MandateScorecard mandates={[]} slug="sf" state="ready" />);
-    expect(screen.getByText(/no legal standards are tracked/i)).toBeInTheDocument();
+    expect(screen.getByText(/no legal mandates are tracked/i)).toBeInTheDocument();
   });
 
   it("shows a not-public notice on 403", () => {
@@ -225,8 +250,26 @@ describe("MandateScorecard", () => {
 
   it("shows loading and error states", () => {
     const { rerender } = render(<MandateScorecard mandates={[]} slug="sf" state="loading" />);
-    expect(screen.getByText(/loading legal standards/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading legal mandates/i)).toBeInTheDocument();
     rerender(<MandateScorecard mandates={[]} slug="sf" state="error" errorMessage="boom" />);
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
+  });
+});
+
+describe("mandateIsStale counts from the end of the latest period", () => {
+  const at = (period: string) =>
+    ({ latest_period: period } as unknown as Parameters<typeof mandateIsStale>[0]);
+  const NOV_2026 = new Date(Date.UTC(2026, 10, 22));
+
+  it("gives annual data 24 months after the year ends", () => {
+    expect(mandateIsStale(at("2024-01-01"), "year", NOV_2026)).toBe(false);
+    expect(mandateIsStale(at("2023-01-01"), "year", NOV_2026)).toBe(true);
+  });
+
+  it("keeps the monthly and quarterly windows as before", () => {
+    expect(mandateIsStale(at("2026-04-01"), "month", NOV_2026)).toBe(false); // 7 from start
+    expect(mandateIsStale(at("2026-03-01"), "month", NOV_2026)).toBe(true); // 8 from start
+    expect(mandateIsStale(at("2026-02-01"), "quarter", NOV_2026)).toBe(false); // 9 from start
+    expect(mandateIsStale(at("2026-01-01"), "quarter", NOV_2026)).toBe(true); // 10 from start
   });
 });

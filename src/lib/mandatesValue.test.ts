@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitMandateValue } from "@/lib/mandates";
+import { formatMandateValue, splitMandateValue } from "@/lib/mandates";
 
 describe("splitMandateValue", () => {
   it("keeps % attached to the number", () => {
@@ -20,5 +20,29 @@ describe("splitMandateValue", () => {
 
   it("shows No data for a missing value", () => {
     expect(splitMandateValue(null, "units")).toEqual({ number: "No data", unit: null });
+  });
+});
+
+describe("zero label", () => {
+  const label = "Below reporting limit";
+
+  it("shows the label alone for exactly 0 when the standard sets one", () => {
+    expect(splitMandateValue(0, "ppb", label)).toEqual({ number: label, unit: null });
+    expect(formatMandateValue(0, "ppb", label)).toBe(label);
+  });
+
+  it("shows 0 and the unit when there is no label", () => {
+    expect(splitMandateValue(0, "ppb")).toEqual({ number: "0", unit: "ppb" });
+    expect(splitMandateValue(0, "ppb", null)).toEqual({ number: "0", unit: "ppb" });
+    expect(formatMandateValue(0, "ppb")).toBe("0 ppb");
+  });
+
+  it("ignores the label for a non-zero value", () => {
+    expect(splitMandateValue(7.6, "ppb", label)).toEqual({ number: "7.6", unit: "ppb" });
+    expect(formatMandateValue(7.6, "ppb", label)).toBe("7.6 ppb");
+  });
+
+  it("still shows No data for a missing value", () => {
+    expect(formatMandateValue(null, "ppb", label)).toBe("No data");
   });
 });

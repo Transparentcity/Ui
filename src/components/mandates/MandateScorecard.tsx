@@ -103,7 +103,8 @@ function MandateRow({
     : undefined;
   const shown = splitMandateValue(
     lastPace ? lastPace.cumulative_actual : compliance.latest_value,
-    standard.unit
+    standard.unit,
+    standard.zero_label
   );
   const sparkPeriods = isPace
     ? compliance.periods.map((p) => ({ ...p, value: p.cumulative_actual ?? null }))
@@ -191,12 +192,12 @@ export default function MandateScorecard({
   now?: Date;
 }) {
   if (state === "loading") {
-    return <Notice role="status">Loading legal standards…</Notice>;
+    return <Notice role="status">Loading legal mandates…</Notice>;
   }
   if (state === "forbidden") {
     return (
       <Notice role="status">
-        <strong>The legal standards scorecard is not public yet.</strong>
+        <strong>The legal mandates scorecard is not public yet.</strong>
         <p>Sign in with an admin account to preview it.</p>
       </Notice>
     );
@@ -204,13 +205,13 @@ export default function MandateScorecard({
   if (state === "error") {
     return (
       <Notice role="alert">
-        <strong>Could not load legal standards.</strong>
+        <strong>Could not load legal mandates.</strong>
         {errorMessage && <p>{errorMessage}</p>}
       </Notice>
     );
   }
   if (mandates.length === 0) {
-    return <Notice role="status">No legal standards are tracked for this city yet.</Notice>;
+    return <Notice role="status">No legal mandates are tracked for this city yet.</Notice>;
   }
   const sorted = sortMandatesForScorecard(mandates);
   const latest = mandates
@@ -225,7 +226,7 @@ export default function MandateScorecard({
         <div className="dashboard-comparison-selector">
           <span className="comparison-selector-scope">{LEGAL_STANDARDS_LABEL}</span>
           <span className="comparison-selector-label">
-            {mandates.length} {mandates.length === 1 ? "standard" : "standards"}
+            {mandates.length} {mandates.length === 1 ? "mandate" : "mandates"}
             {asOf ? ` · latest report ${asOf}` : ""}
           </span>
         </div>
