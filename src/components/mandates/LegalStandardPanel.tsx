@@ -21,6 +21,7 @@ export default function LegalStandardPanel({
   standardsBasis,
   compliance,
   scorecardHref,
+  zeroLabel,
   now,
 }: {
   standard: MandateStandard | null | undefined;
@@ -29,6 +30,11 @@ export default function LegalStandardPanel({
   compliance?: MandateCompliance | null;
   /** Link to the city's legal standards scorecard. */
   scorecardHref?: string | null;
+  /**
+   * Label for a value of exactly 0. Overrides `standard.zero_label`, which the
+   * metric's seeded metadata may not carry yet.
+   */
+  zeroLabel?: string | null;
   /** Clock for the staleness rule (tests). */
   now?: Date;
 }) {
@@ -53,7 +59,11 @@ export default function LegalStandardPanel({
           <MandateStatusPill kind={kind} />
           {compliance?.latest_value != null && (
             <span>
-              {formatMandateValue(compliance.latest_value, standard.unit)}
+              {formatMandateValue(
+                compliance.latest_value,
+                standard.unit,
+                zeroLabel ?? standard.zero_label
+              )}
               {latestPeriod ? ` in ${latestPeriod}` : ""}
             </span>
           )}

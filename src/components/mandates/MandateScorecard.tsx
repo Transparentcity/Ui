@@ -103,7 +103,8 @@ function MandateRow({
     : undefined;
   const shown = splitMandateValue(
     lastPace ? lastPace.cumulative_actual : compliance.latest_value,
-    standard.unit
+    standard.unit,
+    standard.zero_label
   );
   const sparkPeriods = isPace
     ? compliance.periods.map((p) => ({ ...p, value: p.cumulative_actual ?? null }))

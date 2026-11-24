@@ -78,4 +78,45 @@ describe("LegalStandardPanel", () => {
     expect(screen.getByText("Meets standard")).toBeInTheDocument();
     expect(screen.getByText(/Last report Jan 2025; a newer one is overdue/)).toBeInTheDocument();
   });
+
+  describe("a lead result EPA stores as 0", () => {
+    const lead = {
+      ...standard911,
+      operator: "<=",
+      target: 15,
+      unit: "ppb",
+      grain: "year",
+      text: "90th-percentile lead at or below 15 ppb",
+    };
+    const zero = compliance(["met"], { latest_value: 0, latest_period: "2024-01-01" });
+
+    it("shows the standard's zero label instead of 0 ppb", () => {
+      render(
+        <LegalStandardPanel
+          standard={{ ...lead, zero_label: "Below reporting limit" }}
+          compliance={zero}
+          now={NOW}
+        />
+      );
+      expect(screen.getByText("Below reporting limit in 2024")).toBeInTheDocument();
+      expect(screen.queryByText(/0 ppb/)).toBeNull();
+    });
+
+    it("takes the label from the mandates API when the metric's standard lacks it", () => {
+      render(
+        <LegalStandardPanel
+          standard={lead}
+          compliance={zero}
+          zeroLabel="Below reporting limit"
+          now={NOW}
+        />
+      );
+      expect(screen.getByText("Below reporting limit in 2024")).toBeInTheDocument();
+    });
+
+    it("shows 0 ppb when no label is set", () => {
+      render(<LegalStandardPanel standard={lead} compliance={zero} now={NOW} />);
+      expect(screen.getByText("0 ppb in 2024")).toBeInTheDocument();
+    });
+  });
 });

@@ -161,6 +161,31 @@ describe("MandateScorecard", () => {
     expect(second.getByText("Standard: ≤ 1,562 people")).toBeInTheDocument();
   });
 
+  it("shows the zero label instead of 0 ppb for a lead result EPA stores as 0", () => {
+    const leadStandard = {
+      ...standard911,
+      operator: "<=",
+      target: 15,
+      unit: "ppb",
+      grain: "year",
+      title: "Lead in tap water (90th percentile)",
+      text: "90th-percentile lead at or below 15 ppb",
+    };
+    const zero = compliance(["met"], { latest_value: 0 });
+    const labelled = mandate(zero, {
+      metric_key: "lead",
+      standard: { ...leadStandard, zero_label: "Below reporting limit" },
+    });
+    const plain = mandate(zero, { metric_key: "lead_plain", standard: leadStandard });
+    render(<MandateScorecard mandates={[labelled, plain]} slug="sf" state="ready" now={NOW} />);
+    const rows = screen.getAllByTestId("mandate-row");
+    const byHref = (k: string) => rows.find((r) => r.getAttribute("href") === `/c/sf/metrics/${k}`)!;
+    expect(within(byHref("lead")).getByText("Below reporting limit")).toBeInTheDocument();
+    expect(within(byHref("lead")).queryByText("ppb")).toBeNull();
+    expect(within(byHref("lead_plain")).getByText("0")).toBeInTheDocument();
+    expect(within(byHref("lead_plain")).getByText("ppb")).toBeInTheDocument();
+  });
+
   it("puts failures before successes and shows a summary strip", () => {
     const jail = mandate(compliance(twelve("met" as const)), { metric_key: "jail" });
     const missed = mandate(compliance(twelve("missed" as const)), { metric_key: "ems" });

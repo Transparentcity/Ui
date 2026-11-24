@@ -676,6 +676,11 @@ export type MandateStandard = {
   text: string;
   /** Legal source for the standard. */
   citation: string;
+  /**
+   * Shown instead of the number and unit when a value is exactly 0, e.g.
+   * "Below reporting limit" where EPA stores a non-detect as 0.
+   */
+  zero_label?: string | null;
   mandate_id?: string | null;
   title?: string | null;
   area?: string | null;

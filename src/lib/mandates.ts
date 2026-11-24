@@ -229,13 +229,16 @@ export function mandateStreakText(
 /**
  * Split a value into its number and unit for display, e.g. 1,047 + "people".
  * "%" stays attached to the number; a count of exactly 1 takes the singular
- * of a plural unit ("1 permit in violation").
+ * of a plural unit ("1 permit in violation"). A value of exactly 0 shows
+ * `zeroLabel` alone when the standard sets one ("Below reporting limit").
  */
 export function splitMandateValue(
   value: number | null | undefined,
-  unit: string | null | undefined
+  unit: string | null | undefined,
+  zeroLabel?: string | null
 ): { number: string; unit: string | null } {
   if (value == null || Number.isNaN(value)) return { number: "No data", unit: null };
+  if (value === 0 && zeroLabel) return { number: zeroLabel, unit: null };
   if (unit === "%") return { number: formatMandateValue(value, unit), unit: null };
   const number = value.toLocaleString("en-US", { maximumFractionDigits: 1 });
   if (!unit) return { number, unit: null };
@@ -247,12 +250,17 @@ export function splitMandateValue(
   return { number, unit };
 }
 
-/** Format a value in the standard's unit: "%" gets one decimal and a suffix. */
+/**
+ * Format a value in the standard's unit: "%" gets one decimal and a suffix.
+ * A value of exactly 0 shows `zeroLabel` instead when the standard sets one.
+ */
 export function formatMandateValue(
   value: number | null | undefined,
-  unit: string | null | undefined
+  unit: string | null | undefined,
+  zeroLabel?: string | null
 ): string {
   if (value == null || Number.isNaN(value)) return "No data";
+  if (value === 0 && zeroLabel) return zeroLabel;
   if (unit === "%") {
     return `${value.toLocaleString("en-US", {
       minimumFractionDigits: 1,
